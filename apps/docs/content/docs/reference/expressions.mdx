@@ -200,8 +200,8 @@ The step fails when:
 If the step fails because of a limit, use a more specific path. For example,
 use `package-lock.json`, not `**/package-lock.json`.
 
-When the cache misses, look at the step log. It shows the hash of each
-`hashFiles()`, so you can compare two runs.
+The step log shows the hash of each `hashFiles()`. Compare two runs to see
+if the files changed.
 
 ## Related pages
 
