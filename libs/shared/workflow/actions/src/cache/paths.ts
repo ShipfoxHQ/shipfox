@@ -4,7 +4,7 @@ import {
   type AnchoredPatternFailureReason,
   type PathAnchor,
   parseAnchoredPattern,
-} from '@shipfox/workflow-document/anchored-path';
+} from '#cache/anchored-path.js';
 import {CacheArgumentError} from '#cache/errors.js';
 
 /** Where a path is anchored: the step working directory, the home directory, or `/`. */

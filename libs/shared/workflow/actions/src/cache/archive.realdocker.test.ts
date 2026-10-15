@@ -10,12 +10,11 @@ const IMAGES = [
   ['GNU tar', `node:${NODE_MAJOR}-bookworm-slim`],
   ['BusyBox tar', `node:${NODE_MAJOR}-alpine`],
 ] as const;
-// The parent of this package, so the relative link to @shipfox/workflow-document resolves.
-const WORKFLOW_DIR = fileURLToPath(new URL('../../../', import.meta.url));
+const PACKAGE_DIR = fileURLToPath(new URL('../../', import.meta.url));
 
 const SCRIPT = `
 import {lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
-import {createArchive, extractArchive, readArchiveHeader} from '/workflow/actions/dist/cache/archive.js';
+import {createArchive, extractArchive, readArchiveHeader} from '/actions/dist/cache/archive.js';
 
 const write = (path, content) => {
   mkdirSync(path.slice(0, path.lastIndexOf('/')), {recursive: true});
@@ -90,7 +89,7 @@ describe.skipIf(!dockerAvailable())(
             'run',
             '--rm',
             '-v',
-            `${WORKFLOW_DIR}:/workflow:ro`,
+            `${PACKAGE_DIR}:/actions:ro`,
             '-v',
             `${join(scriptDir, 'script.mjs')}:/script.mjs:ro`,
             image,
