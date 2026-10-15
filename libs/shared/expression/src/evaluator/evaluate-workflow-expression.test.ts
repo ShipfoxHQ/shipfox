@@ -553,9 +553,55 @@ describe('evaluateWorkflowExpression', () => {
     expect((error as WorkflowExpressionEvaluationError).detail).toEqual({
       kind: 'index-out-of-bounds',
       index: 2,
-      size: 1,
     });
-    expect((error as WorkflowExpressionEvaluationError).summary).not.toContain('secret');
+    expect((error as WorkflowExpressionEvaluationError).summary).toBe(
+      'No such key: index out of bounds, index 2',
+    );
+  });
+
+  it('omits the list size from index details', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.values[9]',
+      check: {mode: 'syntax'},
+    });
+
+    let error: unknown;
+    try {
+      evaluateWorkflowExpression(expression, {event: {values: [0, 0, 0, 0, 0, 0, 0]}});
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(WorkflowExpressionEvaluationError);
+    const {detail, summary} = error as WorkflowExpressionEvaluationError;
+    expect(detail).toEqual({kind: 'index-out-of-bounds', index: 9});
+    expect(JSON.stringify(detail)).not.toContain('7');
+    expect(summary).not.toContain('7');
+  });
+
+  it.each([
+    {name: 'a call', source: 'event.values[int(event.secretIndex)]'},
+    {name: 'a field', source: 'event.values[event.n]'},
+    {name: 'arithmetic', source: 'event.values[12340 + 5]'},
+    {name: 'a negation', source: 'event.values[-12345]'},
+    {name: 'a nested access', source: 'event.a[event.b[0]]'},
+  ])('drops an index computed from $name', ({source}) => {
+    const expression = createWorkflowExpression({source, check: {mode: 'syntax'}});
+
+    let error: unknown;
+    try {
+      evaluateWorkflowExpression(expression, {
+        event: {values: [0], secretIndex: 12345, n: 12345, a: [0], b: [12345]},
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(WorkflowExpressionEvaluationError);
+    const {detail, summary} = error as WorkflowExpressionEvaluationError;
+    expect(detail).toEqual({kind: 'evaluation-error', classification: 'index_out_of_bounds'});
+    expect(summary).toBe('No such key: index out of bounds');
+    expect(JSON.stringify(detail)).not.toContain('12345');
   });
 
   it('classifies genuine evaluation failures as evaluation errors', () => {

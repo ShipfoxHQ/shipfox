@@ -1142,7 +1142,7 @@ describe('tool step executor', () => {
       description: 'an out-of-range index',
       source: 'result.teams[1].id',
       result: {teams: [{id: 'team-1'}]},
-      cause: 'No such key: index out of bounds, index 1 >= size 1',
+      cause: 'No such key: index out of bounds, index 1',
     },
   ])('names the mapping key and CEL cause for $description', async ({source, result, cause}) => {
     const {jobId} = await arrangeToolStep('read', {

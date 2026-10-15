@@ -133,6 +133,23 @@ describe('InterpolationUnresolvableError', () => {
     });
   });
 
+  test('leaves a computed list index out of the reason', () => {
+    const source = 'inputs.items[int(inputs.pick)]';
+    const error = new InterpolationUnresolvableError('def-1', {
+      field: 'run',
+      source,
+      cause: new WorkflowTemplateResolutionError({
+        source,
+        cause: evaluationFailure(source, {inputs: {items: ['a'], pick: 12345}}),
+      }),
+    });
+
+    expect(error.message).toBe(
+      '`run` could not be resolved: `inputs.items[int(inputs.pick)]`: No such key: index out of bounds',
+    );
+    expect(error.message).not.toContain('12345');
+  });
+
   test('falls back to the step position when the step has no name', () => {
     const error = new InterpolationUnresolvableError('def-1', {
       field: 'run',

@@ -195,6 +195,29 @@ describe('evaluateTriggerFilter', () => {
     });
   });
 
+  test('drops a payload-derived index from the diagnostic', () => {
+    const subscription = subscriptionWithConfig({
+      filter: 'event.values[int(event.secretIndex)] == 0',
+    });
+
+    const result = evaluateTriggerFilter({
+      subscription,
+      source: 'github',
+      event: 'push',
+      payload: {values: [0], secretIndex: 12345},
+    });
+
+    expect(result).toEqual({
+      kind: 'filter-error',
+      reason: 'Trigger filter evaluation failed',
+      diagnostic: {
+        version: 1,
+        code: 'expression-evaluation-failed',
+        classification: 'index_out_of_bounds',
+      },
+    });
+  });
+
   test('returns filter-error when the stored filter evaluates to a non-boolean value', () => {
     const subscription = subscriptionWithConfig({filter: 'event.ref'});
 
@@ -309,7 +332,6 @@ describe('evaluateStoredFilter', () => {
         version: 1,
         code: 'expression-index-out-of-bounds',
         index: 2,
-        size: 1,
       },
     });
   });

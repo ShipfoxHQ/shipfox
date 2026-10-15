@@ -12,9 +12,6 @@ export type WorkflowExpressionEvaluationDetail =
 const MAX_WORKFLOW_EXPRESSION_EVALUATION_SUMMARY_LENGTH = 200;
 const SAFE_CEL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const SAFE_CEL_ERROR_CODE = /^[a-z][a-z0-9_]{0,63}$/;
-const SAFE_INDEX_OUT_OF_BOUNDS_SUMMARY =
-  /^No such key: index out of bounds, index (-?\d{1,9}) (< 0|>= size \d{1,9})$/;
-const SAFE_INDEX_OUT_OF_BOUNDS_SIZE = />= size (\d{1,9})$/;
 
 export class WorkflowExpressionEvaluationError extends Error {
   readonly code = workflowExpressionEvaluationErrorCode;
@@ -57,18 +54,20 @@ function workflowExpressionEvaluationDetail(cause: unknown): WorkflowExpressionE
 }
 
 function indexOutOfBoundsDetail(error: EvaluationError): WorkflowExpressionEvaluationDetail {
-  const match = SAFE_INDEX_OUT_OF_BOUNDS_SUMMARY.exec(error.summary);
-  if (match === null) return {kind: 'evaluation-error', classification: 'index_out_of_bounds'};
-  const index = Number(match[1]);
-  if (!Number.isSafeInteger(index)) {
-    return {kind: 'evaluation-error', classification: 'index_out_of_bounds'};
-  }
-  const sizeMatch = SAFE_INDEX_OUT_OF_BOUNDS_SIZE.exec(match[2] ?? '');
-  return {
-    kind: 'index-out-of-bounds',
-    index,
-    ...(sizeMatch === null ? {} : {size: Number(sizeMatch[1])}),
-  };
+  const index = literalIndex(error);
+  return index === undefined
+    ? {kind: 'evaluation-error', classification: 'index_out_of_bounds'}
+    : {kind: 'index-out-of-bounds', index};
+}
+
+// A computed index and the list size both come from runtime data, so only an integer literal
+// written in the expression survives.
+function literalIndex(error: EvaluationError): number | undefined {
+  if (error.node?.op !== '[]') return undefined;
+  const [, indexNode] = error.node.args;
+  if (indexNode.op !== 'value' || typeof indexNode.args !== 'bigint') return undefined;
+  const index = Number(indexNode.args);
+  return Number.isSafeInteger(index) ? index : undefined;
 }
 
 function safeDottedPath(node: ASTNode): string | undefined {
@@ -114,10 +113,10 @@ function missingKeySummary(error: EvaluationError): string {
 }
 
 function indexOutOfBoundsSummary(error: EvaluationError): string {
-  const match = SAFE_INDEX_OUT_OF_BOUNDS_SUMMARY.exec(error.summary);
-  return match === null
+  const index = literalIndex(error);
+  return index === undefined
     ? 'No such key: index out of bounds'
-    : `No such key: index out of bounds, index ${match[1]} ${match[2]}`;
+    : `No such key: index out of bounds, index ${index}`;
 }
 
 function safeCelErrorCode(code: string): string | undefined {
