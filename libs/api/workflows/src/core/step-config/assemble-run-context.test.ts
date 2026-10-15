@@ -1993,7 +1993,7 @@ describe('listener filter snapshots', () => {
 });
 
 describe('assembleStepDispatchContext', () => {
-  it('adds the runner platform when the step reads it', () => {
+  it('copies a supplied runner platform into the context', () => {
     const targetStep = step({id: 'step-1', key: 'build'});
 
     const context = assembleStepDispatchContext({

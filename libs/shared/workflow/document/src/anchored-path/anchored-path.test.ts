@@ -33,6 +33,8 @@ describe('parseAnchoredPattern', () => {
     ['~//', 'home'],
     ['/', 'root'],
     ['///', 'root'],
+    ['/tmp/..', 'root'],
+    ['~/cache/..', 'home'],
   ])('rejects %j, the whole %s directory', (line, anchor) => {
     expect(parseAnchoredPattern(line)).toEqual({ok: false, reason: 'whole-anchor', anchor});
   });

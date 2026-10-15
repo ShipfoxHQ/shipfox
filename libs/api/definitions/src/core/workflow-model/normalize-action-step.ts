@@ -77,7 +77,7 @@ export function normalizeActionFields(
     ...params,
     field: 'action.with',
     withValue: params.step.with,
-    onTemplate: (template, path) => validateSecretPlacement(params, template, path),
+    onTemplate: (template, path) => validateSecretPlacement(params, manifest, template, path),
   });
   const integrations = normalizeActionIntegrations(params, manifest);
   const outputs = manifestOutputs(manifest);
@@ -290,6 +290,7 @@ function validateLiteralInput(
 // of a top-level input. The planner already rejects secrets inside larger expressions.
 function validateSecretPlacement(
   params: ActionStepParams,
+  manifest: ActionManifest,
   template: WorkflowFieldTemplate,
   path: readonly WorkflowModelValidationIssuePathSegment[],
 ): void {
@@ -305,6 +306,19 @@ function validateSecretPlacement(
         message: 'hashFiles() in `with` must be in the value of a top-level input.',
         path,
         details: {uses: params.step.uses},
+      }),
+    );
+    return;
+  }
+  const input = path.at(-1);
+  const inputType = typeof input === 'string' ? manifest.inputs?.[input]?.type : undefined;
+  if (callsRunner && inputType !== undefined && inputType !== 'string') {
+    params.issues.push(
+      issue({
+        code: 'hash-files-in-field',
+        message: `hashFiles() gives a string, so action input "${input}" must be a string input.`,
+        path,
+        details: {uses: params.step.uses, input, expected: inputType},
       }),
     );
     return;

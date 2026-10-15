@@ -428,6 +428,11 @@ describe('normalizeWorkflowDocument action steps', () => {
       expected: [{code: 'hash-files-in-field', path: `${stepPath}.with.filter.user`}],
     },
     {
+      name: 'a hashFiles() call in a number input',
+      step: {with: {channel_id: 'C1', thread_ts: '1.0', limit: `$${"{{ hashFiles('a') }}"}`}},
+      expected: [{code: 'hash-files-in-field', path: `${stepPath}.with.limit`}],
+    },
+    {
       name: 'a binding for an undeclared alias',
       step: {connections: {slack: 'team-slack', github: 'github-main'}},
       expected: [{code: 'action-connection-unknown', path: `${stepPath}.connections.github`}],

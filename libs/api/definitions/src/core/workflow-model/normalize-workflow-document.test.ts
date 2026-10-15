@@ -5185,7 +5185,7 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
-  it('rejects runner and secrets roots in if predicates', () => {
+  it('rejects secrets roots in job and step if predicates', () => {
     const document: WorkflowDocument = {
       name: 'server-only conditions',
       jobs: {

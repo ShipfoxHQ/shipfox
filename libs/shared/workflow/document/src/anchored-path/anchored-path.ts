@@ -51,6 +51,8 @@ function anchored(anchor: PathAnchor, relative: string): AnchoredPatternResult {
   if (pattern === '..' || pattern.startsWith('../')) {
     return {ok: false, reason: 'leaves-anchor', anchor};
   }
+  // `/tmp/..` normalizes to the anchor itself.
+  if (pattern === '.' && anchor !== 'cwd') return {ok: false, reason: 'whole-anchor', anchor};
   return {ok: true, anchor, pattern};
 }
 

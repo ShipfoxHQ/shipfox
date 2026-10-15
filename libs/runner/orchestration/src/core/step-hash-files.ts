@@ -123,6 +123,7 @@ async function hashInContainer(
   });
   const abort = () => void child.killTree();
   signal.addEventListener('abort', abort, {once: true});
+  if (signal.aborted) abort();
   try {
     child.stdin?.end(JSON.stringify({...request, limits: HASH_FILES_RUNNER_LIMITS}));
     const [stdout, stderr, exit] = await Promise.all([

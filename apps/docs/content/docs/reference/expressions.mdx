@@ -159,8 +159,17 @@ each path in quotes, and separate paths with commas. You can give up to 16
 paths:
 
 ```yaml
+# One file
 key: deps-${{ hashFiles('package-lock.json') }}
+```
+
+```yaml
+# Two files
 key: deps-${{ hashFiles('package-lock.json', 'pnpm-workspace.yaml') }}
+```
+
+```yaml
+# All package.json files one folder under packages
 key: deps-${{ hashFiles('packages/*/package.json') }}
 ```
 
