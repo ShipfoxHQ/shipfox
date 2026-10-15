@@ -151,7 +151,7 @@ key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 The hash has 32 characters, `0-9` and `a-f`. It changes when the path or the
 content of a file changes.
 
-### Write the call
+### Choose the files
 
 Give the paths of the files to hash. Write each path from the root of your
 repository, or from the `working_directory` of the step when it has one. Put
@@ -178,7 +178,7 @@ Rules:
 
 - A path must name files in that folder. Do not start a path with `~` or
   `/`. Do not use `..`.
-- Put the call alone in its `${{ }}`. Write `npm-${{ hashFiles('x') }}`. Do
+- Put `hashFiles()` alone in its `${{ }}`. Write `npm-${{ hashFiles('x') }}`. Do
   not write `${{ 'npm-' + hashFiles('x') }}`.
 
 ### Where to use it
@@ -212,16 +212,16 @@ In other fields, such as `if`, the workflow does not sync and shows an error.
 The step fails before it starts when:
 
 - No file matches the paths. GitHub Actions gives an empty string instead.
-- The call matches more than 10,000 files.
-- The call reads more than 1 GiB.
-- The call takes more than 60 seconds.
+- The paths match more than 10,000 files.
+- The files are larger than 1 GiB in total.
+- Hashing takes more than 60 seconds.
 
 If the step fails on a limit, use a more specific path. For example, use
 `package-lock.json`, not `**/package-lock.json`.
 
 ### Step log
 
-The step log shows one line for each call:
+The step log shows one line for each `hashFiles()`:
 
 ```text
 hashFiles(package-lock.json) = 2a51dd96c0e7a1b34f1c0d6e9b8a7f21 (1 file)
