@@ -1,5 +1,10 @@
 import {createHash, generateKeyPairSync, randomUUID} from 'node:crypto';
-import {createServer, type IncomingHttpHeaders} from 'node:http';
+import {
+  createServer,
+  type IncomingHttpHeaders,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
 import type {AddressInfo} from 'node:net';
 import {
   createEd25519Signer,
@@ -50,6 +55,8 @@ export interface TestRegistry {
   /** Answers `path` with a 307 to `target`, like a presigned download URL. */
   redirect(path: string, target: string): void;
   fail(path: string, status: number): void;
+  /** Keeps requests for `path` waiting until the returned function runs, then answers them. */
+  hold(path: string): () => void;
   close(): Promise<void>;
 }
 
@@ -58,14 +65,12 @@ export async function startTestRegistry(): Promise<TestRegistry> {
   const etags = new Map<string, string>();
   const redirects = new Map<string, string>();
   const failures = new Map<string, number>();
+  const held = new Map<string, Array<() => void>>();
   const requests: string[] = [];
   const requestHeaders: IncomingHttpHeaders[] = [];
   // The OS can hand out a port again, and cached rows are keyed by URL, so the prefix keeps URLs unique.
   const prefix = `/${randomUUID()}/`;
-  const server = createServer((request, response) => {
-    const path = (request.url ?? '').slice(prefix.length - 1);
-    requests.push(path);
-    requestHeaders.push(request.headers);
+  const respond = (path: string, request: IncomingMessage, response: ServerResponse) => {
     const status = failures.get(path);
     if (status) {
       response.writeHead(status).end();
@@ -87,6 +92,14 @@ export async function startTestRegistry(): Promise<TestRegistry> {
       return;
     }
     response.writeHead(200, etag === undefined ? {} : {etag}).end(body);
+  };
+  const server = createServer((request, response) => {
+    const path = (request.url ?? '').slice(prefix.length - 1);
+    requests.push(path);
+    requestHeaders.push(request.headers);
+    const waiting = held.get(path);
+    if (waiting) waiting.push(() => respond(path, request, response));
+    else respond(path, request, response);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const {port} = server.address() as AddressInfo;
@@ -102,6 +115,14 @@ export async function startTestRegistry(): Promise<TestRegistry> {
     },
     redirect: (path, target) => redirects.set(path, target),
     fail: (path, status) => failures.set(path, status),
+    hold: (path) => {
+      const waiting: Array<() => void> = [];
+      held.set(path, waiting);
+      return () => {
+        held.delete(path);
+        for (const answer of waiting) answer();
+      };
+    },
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());

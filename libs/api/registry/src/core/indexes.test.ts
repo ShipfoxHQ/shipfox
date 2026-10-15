@@ -223,10 +223,18 @@ describe('getCatalog', () => {
     publishCatalog({registry, etag: '"v1"'});
     const settings = settingsFor({registry, keys: [key], catalogRefreshSeconds: 0});
     await getCatalog({settings});
+    const fetchedAt = (await getRegistryIndex({registry: registry.url, key: 'catalog'}))?.fetchedAt;
+    // Holding the response keeps the first refresh running until every read has checked for it.
+    const release = registry.hold(REGISTRY_CATALOG_PATH);
 
     await Promise.all([getCatalog({settings}), getCatalog({settings}), getCatalog({settings})]);
-    await vi.waitFor(() => expect(requestsFor(registry, REGISTRY_CATALOG_PATH)).toBeGreaterThan(1));
+    await vi.waitFor(() => expect(requestsFor(registry, REGISTRY_CATALOG_PATH)).toBe(2));
+    release();
 
+    await vi.waitFor(async () => {
+      const stored = await getRegistryIndex({registry: registry.url, key: 'catalog'});
+      expect(stored?.fetchedAt.getTime()).toBeGreaterThan(fetchedAt?.getTime() ?? 0);
+    });
     expect(requestsFor(registry, REGISTRY_CATALOG_PATH)).toBe(2);
   });
 
