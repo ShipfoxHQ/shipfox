@@ -33,20 +33,6 @@ A job is dispatched to a runner only when the runner's labels include **all** la
 For the Shipfox-hosted labels available in Shipfox Cloud, see [Hosted
 runners](/reference/runner-labels).
 
-## Platform
-
-The runner sends its operating system and CPU architecture to Shipfox when it
-starts. Workflows read them in the [`runner` context](/reference/contexts):
-
-| Property | Values |
-| --- | --- |
-| `runner.os` | `linux`, `darwin`, or `windows` |
-| `runner.arch` | `x64` or `arm64` |
-
-The values come from Node.js on the runner. If Node.js runs in emulation, the
-values show the emulated platform. For example, `x64` Node.js on an `arm64`
-Mac sends `x64`.
-
 ## Token types
 
 | Prefix | Name | Created by | Lifetime |

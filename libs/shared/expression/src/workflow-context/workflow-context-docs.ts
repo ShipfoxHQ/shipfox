@@ -210,7 +210,7 @@ export const workflowContextDocs = [
   {
     root: 'runner',
     summary:
-      'The runner that claimed the job. Readable in fields resolved when a step is dispatched, such as `if`, `run`, `env`, and `with`. Values are lowercase Node.js names: GitHub Actions writes `Linux` and `X64` instead.',
+      'The runner that runs the job. Read it in fields that Shipfox fills when a step starts, such as `if`, `run`, `env`, and `with`. Values are lowercase. GitHub Actions uses `Linux` and `X64`.',
     fields: {
       os: 'Operating system of the runner: `linux`, `darwin`, or `windows`.',
       arch: 'CPU architecture of the runner, such as `x64` or `arm64`. A job container runs the same architecture.',
