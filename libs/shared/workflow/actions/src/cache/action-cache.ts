@@ -90,8 +90,8 @@ export function createActionCache(options: ActionCacheOptions): ActionCache {
   const scratch = () => mkdtemp(join(options.tempDir ?? tmpdir(), 'shipfox-cache-'));
 
   return {
-    hashFiles: (patterns) =>
-      hashFiles({patterns, directories: directories(), signal: options.signal}),
+    hashFiles: async (patterns) =>
+      (await hashFiles({patterns, directories: directories(), signal: options.signal})).hash,
     restore: (restoreOptions) =>
       restoreCache({
         ...restoreOptions,

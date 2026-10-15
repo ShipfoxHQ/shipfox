@@ -10,6 +10,12 @@ export {
   invalidActionBundleErrorCode,
 } from '#action-bundle/index.js';
 export {
+  type AnchoredPatternFailureReason,
+  type AnchoredPatternResult,
+  type PathAnchor,
+  parseAnchoredPattern,
+} from '#anchored-path/index.js';
+export {
   ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES,
   ACTION_MANIFEST_RUNTIMES,
   ACTION_MANIFEST_VALUES_MAX_ENTRIES,

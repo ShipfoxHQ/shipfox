@@ -45,6 +45,13 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   the runner: routes, request and response shapes, limits, and environment variable names.
 - **`@shipfox/actions/download-writer`** writes tool downloads into the job workspace. The runner
   and the testing helper use it, so tests write files the way runs do. Actions do not import it.
+- **`@shipfox/actions/hash-files`** exports `hashFiles`, the function behind `cache.hashFiles`,
+  for the runner. `hashFiles({patterns, directories, limits, signal})` resolves with `{hash, files}`.
+  `directories` needs `cwd`, and `home` and `root` are optional. A pattern under a missing anchor
+  throws `CacheArgumentError`. With `limits` (`{maxFiles, maxBytes}`), more matched files or more
+  bytes read throws `HashFilesLimitError`, whose `limit` is `files` or `bytes`. No match throws
+  `HashFilesNoMatchError`, a `CacheArgumentError`. `HASH_FILES_RUNNER_LIMITS` is the runner's
+  10,000 files and 1 GiB. Actions use `cache.hashFiles` instead.
 - **`@shipfox/actions/tool-grants`** exports `toolGrants`, the generated list of every catalog
   tool by provider slug and tool id, and the `ToolGrant` type. A grant has `sensitivity` (`read` or
   `write`), `result` (`json` or `file`), and, for a family tool, `methods` with the sensitivity of
@@ -113,8 +120,9 @@ export default defineAction(async ({cache}) => {
 ```
 
 - **`hashFiles(patterns)`** expands the glob patterns, sorts the matched files, and hashes each
-  path and its content with SHA-256. It returns the first 32 hex characters. It throws
-  `CacheArgumentError` when nothing matches, so a missing lock file cannot give every run the same key.
+  path and its content with SHA-256. It returns the first 32 hex characters. Paths use `/` on every
+  platform, so a Windows match hashes like the same file on Linux. It throws `CacheArgumentError`
+  when nothing matches, so a missing lock file cannot give every run the same key.
 - **`restore({paths, key, restoreKeys, scope, fallbackScopes})`** resolves with `hit`, which is true
   when an entry with exactly `key` was restored, and with `matchedKey` and `matchedScope` when
   anything was restored. A prefix match restores the files and reports `hit: false`, so the action

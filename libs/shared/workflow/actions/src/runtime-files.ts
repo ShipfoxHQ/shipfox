@@ -7,3 +7,8 @@ export const ACTION_BOOTSTRAP_PATH = fileURLToPath(
   new URL('../dist/bootstrap.js', import.meta.url),
 );
 export const ACTION_LOADER_PATH = fileURLToPath(new URL('../dist/loader.js', import.meta.url));
+
+/** The process that hashes files for a `hashFiles()` call where the step's files live. */
+export const HASH_FILES_CLI_PATH = fileURLToPath(
+  new URL('../dist/hash-files-cli.js', import.meta.url),
+);

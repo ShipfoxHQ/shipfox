@@ -52,6 +52,16 @@
         "default": "./dist/download-writer.js"
       }
     },
+    "./hash-files": {
+      "workspace-source": {
+        "types": "./src/hash-files.ts",
+        "default": "./src/hash-files.ts"
+      },
+      "default": {
+        "types": "./dist/hash-files.d.ts",
+        "default": "./dist/hash-files.js"
+      }
+    },
     "./runtime-files": {
       "workspace-source": {
         "types": "./src/runtime-files.ts",

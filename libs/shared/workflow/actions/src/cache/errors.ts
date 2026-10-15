@@ -6,6 +6,49 @@ export class CacheArgumentError extends Error {
   }
 }
 
+/** `hashFiles` matched no regular file. A key built from nothing would be shared by every run. */
+export class HashFilesNoMatchError extends CacheArgumentError {
+  readonly patterns: readonly string[];
+
+  constructor(patterns: readonly string[]) {
+    super(
+      `hashFiles matched no files for ${patterns.join(', ')}. A key built from nothing would be shared by every run.`,
+    );
+    this.name = 'HashFilesNoMatchError';
+    this.patterns = patterns;
+  }
+}
+
+export type HashFilesLimit = 'files' | 'bytes';
+
+/** `hashFiles` matched more files or read more bytes than its limits allow. */
+export class HashFilesLimitError extends Error {
+  readonly limit: HashFilesLimit;
+
+  constructor(params: {limit: HashFilesLimit; max: number; patterns: readonly string[]}) {
+    const exceeded =
+      params.limit === 'files'
+        ? `matched more than ${params.max} files, the files limit`
+        : `read more than ${formatBytes(params.max)}, the bytes limit`;
+    super(
+      `hashFiles ${exceeded}, for ${params.patterns.join(', ')}. Use a narrower pattern, such as package-lock.json instead of **/package-lock.json.`,
+    );
+    this.name = 'HashFilesLimitError';
+    this.limit = params.limit;
+  }
+}
+
+function formatBytes(bytes: number): string {
+  const units = ['bytes', 'KiB', 'MiB', 'GiB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && value % 1024 === 0 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value} ${units[unit]}`;
+}
+
 /**
  * A restore failed while writing files. Extraction merges into the job's directories and cannot
  * roll back, so they may be partly written. Everything before extraction is a miss instead.

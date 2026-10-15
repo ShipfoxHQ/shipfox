@@ -31,6 +31,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./anchored-path": {
+      "workspace-source": {
+        "types": "./src/anchored-path/index.ts",
+        "default": "./src/anchored-path/index.ts"
+      },
+      "default": {
+        "types": "./dist/anchored-path/index.d.ts",
+        "default": "./dist/anchored-path/index.js"
+      }
     }
   },
   "scripts": {

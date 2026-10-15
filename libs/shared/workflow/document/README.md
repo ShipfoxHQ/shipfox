@@ -19,6 +19,12 @@ Input shape for Shipfox workflow authoring.
 - `actionManifestSchema` defines the `action.yml` manifest of a repository
   action, including the optional `post` entry and `post_failure`.
   `buildActionManifestJsonSchema` projects it for editors.
+- `parseAnchoredPattern` reads a cache path or `hashFiles` pattern: its anchor
+  (`cwd`, `home` for `~/`, or `root` for `/`) and the pattern normalized
+  relative to it. A bad line returns a `reason` instead of throwing: `empty`,
+  `control-character`, `whole-anchor`, or `leaves-anchor`. It has no Node
+  imports. `@shipfox/workflow-document/anchored-path` exports it without
+  loading the schemas.
 - `encodeActionBundle` and `decodeActionBundle` store an action directory as
   one content-addressed bundle, so the API and the runner agree on its digest.
 

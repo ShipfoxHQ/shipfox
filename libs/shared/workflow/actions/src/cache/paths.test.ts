@@ -1,8 +1,8 @@
 import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join, posix} from 'node:path';
 import {CacheArgumentError} from '#cache/errors.js';
-import {expandAnchoredPaths, parseAnchoredPaths} from '#cache/paths.js';
+import {expandAnchoredPaths, parseAnchoredPaths, toPosixMember} from '#cache/paths.js';
 
 describe('parseAnchoredPaths', () => {
   it('anchors by how the line is written', () => {
@@ -107,5 +107,31 @@ describe('expandAnchoredPaths', () => {
     const members = await expandAnchoredPaths(parsed, directories(), {pruneCovered: true});
 
     expect(Object.fromEntries(members)).toEqual({cwd: ['dangling']});
+  });
+});
+
+describe('toPosixMember', () => {
+  it('converts a Windows match to the member a POSIX match has', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-cache-separator-'));
+    try {
+      await mkdir(join(root, 'packages/app'), {recursive: true});
+      await writeFile(join(root, 'packages/app/package-lock.json'), '');
+      const members = await expandAnchoredPaths(
+        parseAnchoredPaths(['**/package-lock.json']),
+        {cwd: root},
+        {pruneCovered: false},
+      );
+
+      expect(members.get('cwd')).toEqual(['packages/app/package-lock.json']);
+      expect(toPosixMember('packages\\app\\package-lock.json', '\\')).toBe(
+        'packages/app/package-lock.json',
+      );
+    } finally {
+      await rm(root, {recursive: true, force: true});
+    }
+  });
+
+  it('keeps a backslash in a POSIX name', () => {
+    expect(toPosixMember('dir/with\\slash.tmp', posix.sep)).toBe('dir/with\\slash.tmp');
   });
 });
