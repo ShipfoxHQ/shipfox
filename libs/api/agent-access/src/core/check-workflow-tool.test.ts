@@ -217,11 +217,12 @@ describe('check_workflow', () => {
 
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors.length).toBeLessThan(100);
+    expect(result.errors[0]).toEqual(errors[0]);
     expect(result.errors_total).toBe(100);
     expect(result.errors_truncated).toBe(true);
   });
 
-  test.each([
+  test.each<[Record<string, unknown>, string]>([
     [{project_id: projectId, config_path: 'ci.yml'}, 'neither ref nor content'],
     [
       {project_id: projectId, config_path: 'ci.yml', content: 'x', commit: COMMIT},

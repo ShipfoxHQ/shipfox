@@ -11,6 +11,6 @@
 Adds the `check_workflow` read tool. It checks a pushed or local workflow file and reports how one of its triggers would have handled up to 50 past events. It writes nothing and starts no run.
 
 - **Tool:** `check_workflow` takes `project_id`, `config_path`, and `ref` or `content`. It also accepts `actions`, `commit`, and a `trigger` with `event_ids`. An invalid definition is a result with `valid: false` and its errors, not an error. Each event gets one result: `matched`, `filtered`, `filter-error`, `event-mismatch`, `payload-unavailable`, or `not-found`. The admin MCP endpoint serves it like the other read tools.
-- **Definitions:** `validateDefinitionAtRef` checks a definition the way `resolveDefinitionAtRef` does and writes nothing: no workflow lineage row, no action snapshot, and no registry cache row. It requires `workspaceId` and answers `project-not-found` for a project in another workspace. `definitions_ref_resolutions` gains an `operation` label.
-- **Triggers:** `checkWorkflow` checks project ownership, then checks events with the same source, event, and filter rules as dispatch. It records no journal entry. `create_dev_run` with `dry_run: true` now uses the same validation, so a dry run writes nothing.
+- **Definitions:** `validateDefinitionAtRef` checks a definition the way `resolveDefinitionAtRef` does, and writes nothing. It requires `workspaceId` and answers `project-not-found` for a project in another workspace.
+- **Triggers:** `checkWorkflow` checks project ownership, then checks events with the same rules as dispatch. `create_dev_run` with `dry_run: true` uses the same validation, so a dry run writes nothing either.
 - **Skills:** `validate-workflow-change` uses `check_workflow` instead of a dry run.

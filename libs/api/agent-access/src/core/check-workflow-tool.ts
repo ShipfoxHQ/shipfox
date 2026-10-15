@@ -73,14 +73,8 @@ export function createCheckWorkflowTool(triggers: TriggersInterModuleClient): Ag
 }
 
 function projectResult(result: CheckWorkflowOutput): Record<string, unknown> {
-  const errors = withinBudget(
-    result.errors.map((error) => ({
-      message: bound(error.message),
-      ...(error.path === undefined ? {} : {path: bound(error.path)}),
-      ...(error.reason === undefined ? {} : {reason: bound(error.reason)}),
-    })),
-    ERRORS_BUDGET_BYTES,
-  );
+  // Errors stay whole, so an agent can act on them; the budget drops entries instead.
+  const errors = withinBudget(result.errors, ERRORS_BUDGET_BYTES);
   const warnings = withinBudget(result.warnings, WARNINGS_BUDGET_BYTES);
 
   return {

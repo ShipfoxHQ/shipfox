@@ -374,6 +374,22 @@ describe('resolveVersion', () => {
       expect(registry.requests).toHaveLength(requestsAfterMiss);
     });
 
+    it('still rejects an envelope signed by a key the instance does not trust', async () => {
+      const registry = await newRegistry();
+      await publishVersion({registry, key: otherKey});
+
+      const result = resolveVersion({
+        settings: settingsFor({registry, keys: [key]}),
+        package: PACKAGE,
+        version: VERSION,
+        kind: 'action',
+        persist: false,
+      });
+
+      await expect(result).rejects.toBeInstanceOf(RegistrySignatureInvalidError);
+      expect(await storedVersion(registry)).toBeUndefined();
+    });
+
     it('keeps a stored version that no longer verifies and fetches a fresh one', async () => {
       const registry = await newRegistry();
       await publishVersion({registry, key});
