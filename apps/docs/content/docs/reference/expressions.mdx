@@ -118,7 +118,7 @@ message names the cause. It is not skipped.
 | `range(start, stop, step)` | `range(1, 3, 1)` | An inclusive list of integers |
 | `toJson(value)` | `toJson(event.pull_request.labels)` | The value serialized as compact JSON text |
 | `fromJson(string)` | `fromJson(event.payload)` | The JSON text parsed into a dynamic CEL value |
-| `hashFiles(pattern, ...)` | `hashFiles('package-lock.json')` | A hash of the matched files, computed on the runner. See [Hash files](#hash-files) |
+| `hashFiles(pattern, ...)` | `hashFiles('package-lock.json')` | A hash of the files that match. See [Hash files](#hash-files) |
 
 `list.first()` and `list.last()` keep the element's type. Calling either method
 on an empty list causes an evaluation error. A job or step `if` that hits one
@@ -136,52 +136,78 @@ Lookups through an open map, schema-less tool output, or an unknown JSON Schema
 are `dyn`. They can be used with field access, methods, and comparisons, but a
 runtime failure still makes the surrounding predicate fail.
 
+The [CEL language
+definition](https://github.com/google/cel-spec/blob/master/doc/langdef.md#standard-definitions)
+documents the full standard library.
+
 ## Hash files
 
-`hashFiles()` returns 32 lowercase hex characters that identify the paths and
-contents of the files its patterns match. Use it to build a cache key:
+`hashFiles()` gives a hash of files. Use it in a cache key:
 
 ```yaml
 key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 ```
 
-The runner computes it when the step starts, in the step working directory, so
-it sees the files that earlier steps wrote. A retried step hashes again. The
-post step of an action reuses the value of its main step. In a job container,
-the files are hashed inside the container.
+The hash has 32 characters, `0-9` and `a-f`. It changes when the path or the
+content of a file changes.
 
-- Pass from 1 to 16 patterns, each a quoted string. `**`, `*`, `?`, `[...]`, and
-  `{a,b}` are supported.
-- Patterns name files inside the step working directory. A pattern that starts
-  with `~` or `/`, or leaves the directory with `..`, is rejected when the
-  workflow syncs.
-- The call fills its own `${{ }}`. Write `npm-${{ hashFiles('x') }}`, not
-  `${{ 'npm-' + hashFiles('x') }}`.
-- Use it in `run`, `env` values, and the `with` of an action. In `with`, it
-  must be in the value of a top-level input. Other fields, including `if`, are
-  evaluated on the server and reject it.
-- Only regular files count. Symbolic links are followed, and paths use `/` on
-  every platform. The same paths with the same bytes give the same value on
-  every runner.
+### Write the call
 
-The value is not a secret. The step log prints one line per call, such as
-`hashFiles(package-lock.json) = 2a51dd96c0e7a1b34f1c0d6e9b8a7f21 (1 file)`, so
-you can compare two runs when a cache misses.
+- Give 1 to 16 patterns. Put each pattern in quotes.
+- You can use `*`, `**`, `?`, `[...]`, and `{a,b}` in a pattern.
+- A pattern must name files in the step working directory. Do not start a
+  pattern with `~` or `/`. Do not use `..`.
+- Put the call alone in its `${{ }}`. Write `npm-${{ hashFiles('x') }}`. Do
+  not write `${{ 'npm-' + hashFiles('x') }}`.
 
-**A call that matches no file fails the step before it starts.** GitHub Actions
-returns an empty string instead, which makes every run share one key. One call
-may also match at most 10,000 files and read at most 1 GiB within 60 seconds.
-Narrow the pattern when a step fails on a limit, for example
-`package-lock.json` instead of `**/package-lock.json` in a directory that
-holds `node_modules`.
+### Where to use it
 
-`hashFiles()` gives the same hash as the `key_files` input of the cache
-actions for the same files and working directory, so a key built one way
-restores an entry saved the other way.
+Use `hashFiles()` only in these fields:
 
-The [CEL language
-definition](https://github.com/google/cel-spec/blob/master/doc/langdef.md#standard-definitions)
-documents the full standard library.
+- `run`
+- `env` values
+- A top-level input in the `with` of an action
+
+In other fields, such as `if`, the workflow does not sync and shows an error.
+
+### When the runner calculates it
+
+- The runner calculates the hash when the step starts. The hash includes the
+  files that earlier steps wrote.
+- When a step runs again, the runner calculates the hash again.
+- The post step of an action uses the hash of its main step.
+- In a job container, the runner hashes the files in the container.
+
+### Which files count
+
+- Only regular files count. The runner follows symbolic links.
+- Paths use `/` on all platforms. Files with the same paths and the same
+  content give the same hash on all runners.
+- `hashFiles()` gives the same hash as the `key_files` input of the cache
+  actions. A key from one restores an entry that the other saved.
+
+### Errors
+
+The step fails before it starts when:
+
+- No file matches the patterns. GitHub Actions gives an empty string instead.
+- The call matches more than 10,000 files.
+- The call reads more than 1 GiB.
+- The call takes more than 60 seconds.
+
+If the step fails on a limit, use a narrower pattern. For example, use
+`package-lock.json`, not `**/package-lock.json`.
+
+### Step log
+
+The step log shows one line for each call:
+
+```text
+hashFiles(package-lock.json) = 2a51dd96c0e7a1b34f1c0d6e9b8a7f21 (1 file)
+```
+
+When the cache misses, compare these lines in two runs. The hash is not a
+secret, so the log does not hide it.
 
 ## Related pages
 
