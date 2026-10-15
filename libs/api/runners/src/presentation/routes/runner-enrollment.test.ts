@@ -772,6 +772,7 @@ describe('runner enrollment control plane', () => {
           harnesses: {},
         },
         lifecycle_capabilities: ['local_execution_fence_v1'],
+        platform: {os: 'linux', arch: 'x64'},
       },
     });
     expect(registered.statusCode).toBe(200);

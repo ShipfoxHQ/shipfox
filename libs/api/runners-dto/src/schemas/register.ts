@@ -23,8 +23,7 @@ export const registerRunnerBodySchema = z.object({
   // Runner images released before credential renewal became unconditional still send `features`.
   capabilities: runnerToolCapabilitiesSchema.extend({features: z.unknown().optional()}),
   lifecycle_capabilities: runnerLifecycleCapabilitiesSchema,
-  // Optional so runners released before platform reporting still register.
-  platform: runnerPlatformSchema.optional(),
+  platform: runnerPlatformSchema,
 });
 
 export const registerRunnerResponseSchema = z.object({

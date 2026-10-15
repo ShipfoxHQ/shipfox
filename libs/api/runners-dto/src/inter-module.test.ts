@@ -21,13 +21,12 @@ describe('runnersInterModuleContract', () => {
     expect(result).toEqual({capabilities});
   });
 
-  test('returns a runner platform or null', () => {
+  test('returns a runner platform', () => {
     const output = runnersInterModuleContract.methods.getRunnerSessionPlatform.output;
 
     const platform = output.parse({os: 'linux', arch: 'arm64'});
-    const missing = output.parse(null);
 
     expect(platform).toEqual({os: 'linux', arch: 'arm64'});
-    expect(missing).toBeNull();
+    expect(() => output.parse(null)).toThrow();
   });
 });

@@ -146,7 +146,7 @@ interface PendingSessionClaim {
 type NextStepResolution = NextStep | PendingSessionClaim;
 
 /** Reads the platform of the runner that claimed the job. Called only for a step that reads it. */
-export type RunnerPlatformLoader = () => Promise<RunnerPlatformDto | null>;
+export type RunnerPlatformLoader = () => Promise<RunnerPlatformDto>;
 
 type DispatchConfigError =
   | InterpolationUnresolvableError
@@ -334,17 +334,6 @@ async function resolveNextPendingStep({
     executions = await executionsForStep({pending, jobExecution, executions, tx});
 
     const runner = await stepRunnerPlatform(pending, runnerPlatform);
-    if (!runner.ok) {
-      return failPendingStep({
-        jobExecutionId,
-        pending,
-        jobExecution,
-        tx,
-        agent,
-        runnerPlatform,
-        error: runnerPlatformMissingError({step: pending, jobKey: workflowContext.jobKey}),
-      });
-    }
 
     const context = assembleStepDispatchContext({
       steps: currentSteps,
@@ -360,7 +349,7 @@ async function resolveNextPendingStep({
       executions,
       jobs,
       vars,
-      runner: runner.platform,
+      runner,
     });
     const condition = pendingStepCondition({
       pending,
@@ -1163,30 +1152,14 @@ async function executionsForStep(params: {
 async function stepRunnerPlatform(
   step: Step,
   load: RunnerPlatformLoader | undefined,
-): Promise<{ok: true; platform?: RunnerPlatformDto} | {ok: false}> {
-  if (!stepReadsContext(step, 'runner')) return {ok: true};
-  const platform = await load?.();
-  return platform ? {ok: true, platform} : {ok: false};
+): Promise<RunnerPlatformDto | undefined> {
+  if (!stepReadsContext(step, 'runner')) return undefined;
+  return await load?.();
 }
 
 function stepReadsContext(step: Step, root: string): boolean {
   if (planReadsContext(step.configPlan, root)) return true;
   return step.condition !== null && extractExactContextRoots(step.condition.source).includes(root);
-}
-
-function runnerPlatformMissingError(params: {
-  readonly step: Step;
-  readonly jobKey: string;
-}): Record<string, unknown> {
-  return {
-    message:
-      'This runner does not report its platform. Upgrade the runner to use the runner context.',
-    reason: 'config_unresolvable',
-    field: 'runner',
-    source: 'workflows',
-    jobKey: params.jobKey,
-    stepIndex: params.step.position,
-  };
 }
 
 function conditionErroredStepError(params: {
@@ -1285,7 +1258,7 @@ export function nextStepForLeasedJobExecution(
 
 // A session's platform never changes, so one read serves every step resolved in this request.
 function memoize(load: RunnerPlatformLoader): RunnerPlatformLoader {
-  let loaded: Promise<RunnerPlatformDto | null> | undefined;
+  let loaded: Promise<RunnerPlatformDto> | undefined;
   return () => {
     loaded ??= load();
     return loaded;

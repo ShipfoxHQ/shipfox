@@ -28,7 +28,7 @@ export interface CreateRunnerSessionParams {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
-  platform?: RunnerPlatformDto | null;
+  platform: RunnerPlatformDto;
 }
 
 export async function createRunnerSession(
@@ -44,8 +44,8 @@ export async function createRunnerSession(
       labels: params.labels,
       toolCapabilities: params.toolCapabilities,
       lifecycleCapabilities: params.lifecycleCapabilities,
-      os: params.platform?.os ?? null,
-      arch: params.platform?.arch ?? null,
+      os: params.platform.os,
+      arch: params.platform.arch,
       maxClaims: null,
       claimsUsed: 0,
     })
@@ -72,7 +72,7 @@ export async function createRunnerSessionConsumingActivationToken(params: {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
-  platform?: RunnerPlatformDto | null;
+  platform: RunnerPlatformDto;
 }) {
   let assignmentToActivationObservation: ProviderRunnerLifecycleObservation | null = null;
   const session = await db().transaction(async (tx) => {
@@ -140,8 +140,8 @@ export async function createRunnerSessionConsumingActivationToken(params: {
         labels,
         toolCapabilities: params.toolCapabilities,
         lifecycleCapabilities: params.lifecycleCapabilities,
-        os: params.platform?.os ?? null,
-        arch: params.platform?.arch ?? null,
+        os: params.platform.os,
+        arch: params.platform.arch,
         maxClaims: 1,
         claimsUsed: 0,
       })

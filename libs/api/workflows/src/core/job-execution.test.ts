@@ -707,37 +707,11 @@ describe('nextStepForJob', () => {
     expect(runnerPlatform).toHaveBeenCalledTimes(1);
   });
 
-  test('fails only the step that reads the runner context when the runner has no platform', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(1);
-    const [readsRunner] = steps;
-    if (!readsRunner) throw new Error('Expected an arranged step');
-    await db()
-      .update(stepsTable)
-      .set({condition: conditionExpression('runner.os == "linux"')})
-      .where(eq(stepsTable.id, readsRunner.id));
-
-    await nextStepForLeasedJobExecution({
-      jobExecutionId: readsRunner.jobExecutionId,
-      runnerPlatform: async () => null,
-    });
-
-    const after = await getStepsByJobId(jobId);
-    expect(after.find((step) => step.id === readsRunner.id)).toMatchObject({
-      status: 'failed',
-      error: {
-        message:
-          'This runner does not report its platform. Upgrade the runner to use the runner context.',
-        reason: 'config_unresolvable',
-        field: 'runner',
-      },
-    });
-  });
-
   test('does not read the runner platform for a step that does not use it', async () => {
     const {steps} = await arrangeJobWithSteps(1);
     const [only] = steps;
     if (!only) throw new Error('Expected an arranged step');
-    const runnerPlatform = vi.fn(async () => null);
+    const runnerPlatform = vi.fn(async () => ({os: 'linux' as const, arch: 'x64'}));
 
     await nextStepForLeasedJobExecution({jobExecutionId: only.jobExecutionId, runnerPlatform});
 

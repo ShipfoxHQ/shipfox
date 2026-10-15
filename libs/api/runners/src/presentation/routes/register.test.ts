@@ -39,6 +39,7 @@ const fullCapabilities: RunnerToolCapabilitiesDto = {
 const completeRegistration = {
   capabilities: fullCapabilities,
   lifecycle_capabilities: ['local_execution_fence_v1'],
+  platform: {os: 'linux', arch: 'x64'},
 };
 
 describe('POST /runners/register', () => {
@@ -139,6 +140,7 @@ describe('POST /runners/register', () => {
           ...fullCapabilities,
         },
         lifecycle_capabilities: ['local_execution_fence_v1'],
+        platform: {os: 'linux', arch: 'x64'},
       },
     });
 
@@ -216,6 +218,7 @@ describe('POST /runners/register', () => {
           harnesses: {pi: {tools: ['read', 'read']}},
         },
         lifecycle_capabilities: ['local_execution_fence_v1'],
+        platform: {os: 'linux', arch: 'x64'},
       },
     });
 

@@ -36,7 +36,7 @@ export async function registerRunnerSession(params: {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
-  platform?: RunnerPlatformDto | null;
+  platform: RunnerPlatformDto;
 }): Promise<RegisterRunnerSessionResult> {
   const labels =
     params.credential.kind === 'manual'
@@ -58,14 +58,14 @@ export async function registerRunnerSession(params: {
           labels,
           toolCapabilities: params.toolCapabilities,
           lifecycleCapabilities: params.lifecycleCapabilities,
-          platform: params.platform ?? null,
+          platform: params.platform,
         })
       : await createRunnerSessionConsumingActivationToken({
           activationTokenId: params.credential.activationTokenId,
           labels,
           toolCapabilities: params.toolCapabilities,
           lifecycleCapabilities: params.lifecycleCapabilities,
-          platform: params.platform ?? null,
+          platform: params.platform,
         });
   logger().info(
     {
@@ -90,7 +90,7 @@ export async function registerRunnerSession(params: {
 
 export async function getRunnerSessionPlatform(params: {
   runnerSessionId: string;
-}): Promise<RunnerPlatformDto | null> {
+}): Promise<RunnerPlatformDto> {
   const runnerSession = await getRunnerSessionById(params.runnerSessionId);
   if (!runnerSession) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
   return runnerSession.platform;

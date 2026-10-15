@@ -16,7 +16,7 @@ export interface RunnerSession {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
-  platform: RunnerPlatformDto | null;
+  platform: RunnerPlatformDto;
   maxClaims: number | null;
   claimsUsed: number;
   revokedAt: Date | null;

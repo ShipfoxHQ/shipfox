@@ -30,6 +30,7 @@ const toolCapabilities = {
   harnesses: {},
 };
 const lifecycleCapabilities: ['local_execution_fence_v1'] = ['local_execution_fence_v1'];
+const platform = {os: 'linux', arch: 'x64'} as const;
 
 const activationTokenNotIssuedCases: Array<{
   reason: RunnerActivationTokenNotIssuedReason;
@@ -78,6 +79,7 @@ describe('registerRunnerSession', () => {
       labels: [' Linux ', 'x64', 'linux'],
       toolCapabilities,
       lifecycleCapabilities,
+      platform,
     });
 
     expect(result.mode).toBe('manual');
@@ -123,24 +125,6 @@ describe('registerRunnerSession', () => {
     expect(row).toEqual({os: 'darwin', arch: 'arm64'});
   });
 
-  it('stores no platform when the runner does not report one', async () => {
-    const result = await registerRunnerSession({
-      auth: runnersTestAuthClient,
-      credential: {kind: 'manual', registrationTokenId, workspaceId},
-      labels: ['linux'],
-      toolCapabilities,
-      lifecycleCapabilities,
-      platform: null,
-    });
-
-    expect(result.session.platform).toBeNull();
-    const [row] = await db()
-      .select({os: runnerSessions.os, arch: runnerSessions.arch})
-      .from(runnerSessions)
-      .where(eq(runnerSessions.id, result.session.id));
-    expect(row).toEqual({os: null, arch: null});
-  });
-
   it('throws EmptyRunnerLabelsError when labels canonicalize to empty', async () => {
     await expect(
       registerRunnerSession({
@@ -149,6 +133,7 @@ describe('registerRunnerSession', () => {
         labels: [' ', '\t'],
         toolCapabilities,
         lifecycleCapabilities,
+        platform,
       }),
     ).rejects.toBeInstanceOf(EmptyRunnerLabelsError);
   });
@@ -425,6 +410,7 @@ describe('activation runner sessions', () => {
         labels: ['linux'],
         toolCapabilities,
         lifecycleCapabilities,
+        platform,
       }),
     ).rejects.toBeInstanceOf(RunnerActivationTokenInvalidError);
     const [storedToken] = await db()
@@ -454,6 +440,7 @@ describe('activation runner sessions', () => {
         labels: ['linux'],
         toolCapabilities,
         lifecycleCapabilities,
+        platform,
       }),
       registerRunnerSession({
         auth: runnersTestAuthClient,
@@ -461,6 +448,7 @@ describe('activation runner sessions', () => {
         labels: ['linux'],
         toolCapabilities,
         lifecycleCapabilities,
+        platform,
       }),
     ]);
 
@@ -502,6 +490,7 @@ describe('activation runner sessions', () => {
       labels: ['linux', 'shipfox-managed'],
       toolCapabilities,
       lifecycleCapabilities,
+      platform,
     });
 
     expect(result.session.labels).toEqual(['linux']);
@@ -542,14 +531,6 @@ describe('getRunnerSessionPlatform', () => {
     const platform = await getRunnerSessionPlatform({runnerSessionId: session.id});
 
     expect(platform).toEqual({os: 'windows', arch: 'x64'});
-  });
-
-  it('returns null for a session without a platform', async () => {
-    const session = await runnerSessionFactory.create({platform: null});
-
-    const platform = await getRunnerSessionPlatform({runnerSessionId: session.id});
-
-    expect(platform).toBeNull();
   });
 
   it('rejects an unknown session', async () => {

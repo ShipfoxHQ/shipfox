@@ -11,21 +11,18 @@ describe('runnerPlatform', () => {
     expect(result).toEqual(expected);
   });
 
-  it('omits an operating system outside the reported set', () => {
-    const result = runnerPlatform({platform: 'freebsd', arch: 'x64'});
-
-    expect(result).toBeUndefined();
-  });
-
-  it('omits an architecture the API would reject', () => {
-    const result = runnerPlatform({platform: 'linux', arch: 'Not-An-Arch'});
-
-    expect(result).toBeUndefined();
+  it.each([
+    {platform: 'freebsd', arch: 'x64'},
+    {platform: 'linux', arch: 'Not-An-Arch'},
+  ] as const)('throws on $platform/$arch, which the API rejects', ({platform, arch}) => {
+    expect(() => runnerPlatform({platform, arch})).toThrow(
+      `Shipfox runners do not support ${platform} on ${arch}.`,
+    );
   });
 
   it('defaults to the current process', () => {
     const result = runnerPlatform();
 
-    expect(result?.arch).toBe(process.arch);
+    expect(result.arch).toBe(process.arch);
   });
 });

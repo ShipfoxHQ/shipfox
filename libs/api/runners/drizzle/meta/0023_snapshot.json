@@ -1891,13 +1891,15 @@
           "name": "os",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'linux'"
         },
         "arch": {
           "name": "arch",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'x64'"
         },
         "max_claims": {
           "name": "max_claims",

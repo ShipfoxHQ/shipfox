@@ -33,6 +33,7 @@ const registrationCapabilities = {
     harnesses: {},
   },
   lifecycle_capabilities: ['local_execution_fence_v1'],
+  platform: {os: 'linux', arch: 'x64'},
 };
 
 describe('POST /runners/jobs/request', () => {

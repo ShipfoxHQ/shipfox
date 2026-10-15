@@ -25,7 +25,7 @@ export const runnersInterModuleContract = defineInterModuleContract({
     },
     getRunnerSessionPlatform: {
       input: z.object({runnerSessionId: idSchema}),
-      output: runnerPlatformSchema.nullable(),
+      output: runnerPlatformSchema,
     },
     getWorkspaceJobCounts: {
       input: z.object({workspaceIds: z.array(idSchema).min(1).max(100)}),

@@ -8,11 +8,10 @@ const body = {
 };
 
 describe('registerRunnerBodySchema', () => {
-  test('accepts a registration without a platform', () => {
+  test('rejects a registration without a platform', () => {
     const result = registerRunnerBodySchema.safeParse(body);
 
-    expect(result.success).toBe(true);
-    expect(result.data?.platform).toBeUndefined();
+    expect(result.success).toBe(false);
   });
 
   test('accepts a reported platform', () => {
