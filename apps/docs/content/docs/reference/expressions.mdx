@@ -153,8 +153,26 @@ content of a file changes.
 
 ### Write the call
 
-- Give 1 to 16 patterns. Put each pattern in quotes.
-- You can use `*`, `**`, `?`, `[...]`, and `{a,b}` in a pattern.
+A pattern is a file path, or a path with wildcards that can match many files.
+The path starts from the step working directory. Put each pattern in quotes,
+and separate patterns with commas. You can give up to 16 patterns:
+
+```yaml
+key: deps-${{ hashFiles('package-lock.json') }}
+key: deps-${{ hashFiles('package-lock.json', 'pnpm-workspace.yaml') }}
+key: deps-${{ hashFiles('packages/*/package.json') }}
+```
+
+| Wildcard | Matches | Example |
+| --- | --- | --- |
+| `*` | Any characters in one folder or file name | `*.lock` |
+| `**` | Any number of folders | `**/package-lock.json` |
+| `?` | One character | `v?.txt` |
+| `[...]` | One of the characters in the brackets | `v[12].txt` |
+| `{a,b}` | One of the comma-separated words | `{yarn,pnpm}.lock` |
+
+Rules:
+
 - A pattern must name files in the step working directory. Do not start a
   pattern with `~` or `/`. Do not use `..`.
 - Put the call alone in its `${{ }}`. Write `npm-${{ hashFiles('x') }}`. Do
