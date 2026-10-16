@@ -395,6 +395,11 @@ export function e2eJamMcpEndpoint(apiUrl) {
   return endpoint.toString();
 }
 
+export function e2eClaapMcpEndpoint(apiUrl) {
+  // After Jam at API + 20, in a 25-port worktree block that ends at API + 23.
+  return mockUrl({apiUrl, offset: 21, label: 'Claap mock', pathname: '/mcp'});
+}
+
 export function e2eTestVcsPort(apiUrl) {
   // Worktree services reserve the API block through the temporal metrics port
   // at API + 12. Keep the fixture in the unused tail of that block.

@@ -3,9 +3,11 @@ import {generateKeyPairSync, randomBytes} from 'node:crypto';
 import {cp, mkdir} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {startClaapMock} from './claap-mock.mjs';
 import {
   collectE2eDiagnostics as collectHarnessE2eDiagnostics,
   defaultLogDir,
+  e2eClaapMcpEndpoint,
   e2eClickUpApiBaseUrl,
   e2eDiscordApiBaseUrl,
   e2eGithubApiBaseUrl,
@@ -59,6 +61,7 @@ export async function main(argv) {
   const registryEnv = {};
   let posthogMock;
   let jamMock;
+  let claapMock;
   let fakeRouters = [];
 
   const servers = [
@@ -105,6 +108,9 @@ export async function main(argv) {
         ) {
           jamMock = await startJamMock(new URL(runEnv.JAM_API_BASE_URL));
         }
+        if (process.env.CLAAP_MCP_ENDPOINT === undefined) {
+          claapMock = await startClaapMock(new URL(runEnv.CLAAP_MCP_ENDPOINT));
+        }
         fakeRouters = await startFakeRouters(runEnv);
         Object.assign(registryEnv, e2eRegistryEnv(runEnv));
         await seedLocalRegistry({
@@ -125,6 +131,11 @@ export async function main(argv) {
       await jamMock?.stop().catch((error) => {
         printError(
           `Failed to stop Jam E2E mock: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      await claapMock?.stop().catch((error) => {
+        printError(
+          `Failed to stop Claap E2E mock: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
       await Promise.all(
@@ -197,6 +208,9 @@ export function e2eEnv(sourceEnv) {
   );
   const jamApiBaseUrl = valueOr(sourceEnv.JAM_API_BASE_URL, () => e2eJamApiBaseUrl(apiUrl));
   const jamMcpEndpoint = valueOr(sourceEnv.JAM_MCP_ENDPOINT, () => e2eJamMcpEndpoint(apiUrl));
+  const claapMcpEndpoint = valueOr(sourceEnv.CLAAP_MCP_ENDPOINT, () =>
+    e2eClaapMcpEndpoint(apiUrl),
+  );
   return {
     ...sourceEnv,
     API_URL: apiUrl,
@@ -295,6 +309,7 @@ export function e2eEnv(sourceEnv) {
     POSTHOG_MCP_ENDPOINT: posthogMcpEndpoint,
     JAM_API_BASE_URL: jamApiBaseUrl,
     JAM_MCP_ENDPOINT: jamMcpEndpoint,
+    CLAAP_MCP_ENDPOINT: claapMcpEndpoint,
     CLICKUP_AUTH_BASE_URL: valueOr(sourceEnv.CLICKUP_AUTH_BASE_URL, 'https://app.clickup.com'),
     CLICKUP_OAUTH_CLIENT_ID: valueOr(sourceEnv.CLICKUP_OAUTH_CLIENT_ID, 'e2e-clickup-client-id'),
     CLICKUP_OAUTH_CLIENT_SECRET: valueOr(

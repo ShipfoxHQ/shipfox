@@ -19,6 +19,7 @@
     "#expect.js": "./src/expect.ts",
     "#fake-http-mcp-server.js": "./src/fake-http-mcp-server.ts",
     "#github-source.js": "./src/github-source.ts",
+    "#integration-tools.js": "./src/integration-tools.ts",
     "#jira-events.js": "./src/jira-events.ts",
     "#linear-events.js": "./src/linear-events.ts",
     "#listener-helpers.js": "./src/listener-helpers.ts",
@@ -99,6 +100,7 @@
     "@shipfox/e2e-driver-discord": "workspace:*",
     "@shipfox/e2e-driver-notion": "workspace:*",
     "@shipfox/e2e-driver-posthog": "workspace:*",
-    "@shipfox/e2e-driver-jam": "workspace:*"
+    "@shipfox/e2e-driver-jam": "workspace:*",
+    "@shipfox/e2e-driver-claap": "workspace:*"
   }
 }

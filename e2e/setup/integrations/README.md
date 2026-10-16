@@ -6,7 +6,7 @@ E2E helpers that create integration connections, including the Test VCS fixture 
 
 - **`createTestVcsConnection` and `createTestVcsRepository`** create a Test VCS connection and a repository with files, so a project has a source without Gitea.
 - **`getTestVcsStats`, `failNextTestVcsMints`, and `testVcsExternalRepositoryId`** read the fixture's request counters, fail the next token mints, and build the external repository ID of a fixture repository.
-- **`createGithubConnection`, `createLinearConnection`, `createJamConnection`, `createJiraConnection`, `createSentryConnection`, `createClickUpConnection`, `createDiscordConnection`, `createNotionConnection`, `createPosthogConnection`, and `createSlackConnection`** create a connection for the named provider without its OAuth flow.
+- **`createGithubConnection`, `createClaapConnection`, `createLinearConnection`, `createJamConnection`, `createJiraConnection`, `createSentryConnection`, `createClickUpConnection`, `createDiscordConnection`, `createNotionConnection`, `createPosthogConnection`, and `createSlackConnection`** create a connection for the named provider without its OAuth flow.
 
 ## Installation and setup
 

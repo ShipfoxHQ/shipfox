@@ -45,6 +45,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-integration-claap-dto": "workspace:*",
     "@shipfox/api-integration-clickup-dto": "workspace:*",
     "@shipfox/api-integration-discord-dto": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",

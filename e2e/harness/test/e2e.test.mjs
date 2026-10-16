@@ -11,6 +11,7 @@ import {
 import {
   copyPlaywrightTestResults,
   defaultLogDir,
+  e2eClaapMcpEndpoint,
   e2eClickUpApiBaseUrl,
   e2eDiscordApiBaseUrl,
   e2eJiraApiBaseUrl,
@@ -29,6 +30,7 @@ import {
 import {startFakeRouter} from '../src/fake-router.mjs';
 
 const unknownCommandPattern = /Unknown command/;
+const claapPortPattern = /Cannot derive a Claap mock port/u;
 const jamOverridePairPattern =
   /JAM_API_BASE_URL and JAM_MCP_ENDPOINT must be configured together/u;
 const posthogOverridePairPattern =
@@ -143,6 +145,7 @@ describe('e2eEnv', () => {
     assert.equal(env.POSTHOG_MCP_ENDPOINT, 'http://127.0.0.1:55367/mcp');
     assert.equal(env.JAM_API_BASE_URL, 'http://127.0.0.1:55371/');
     assert.equal(env.JAM_MCP_ENDPOINT, 'http://127.0.0.1:55371/mcp');
+    assert.equal(env.CLAAP_MCP_ENDPOINT, 'http://127.0.0.1:55372/mcp');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
     assert.equal(env.LINEAR_UPLOADS_URL, 'http://127.0.0.1:55360/uploads/');
@@ -172,6 +175,7 @@ describe('e2eEnv', () => {
       POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp',
       JAM_API_BASE_URL: 'https://jam-api.example.test',
       JAM_MCP_ENDPOINT: 'https://jam-mcp.example.test/mcp',
+      CLAAP_MCP_ENDPOINT: 'https://claap-mcp.example.test/mcp',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -199,6 +203,7 @@ describe('e2eEnv', () => {
     assert.equal(env.POSTHOG_MCP_ENDPOINT, 'https://posthog-mcp.example.test/mcp');
     assert.equal(env.JAM_API_BASE_URL, 'https://jam-api.example.test');
     assert.equal(env.JAM_MCP_ENDPOINT, 'https://jam-mcp.example.test/mcp');
+    assert.equal(env.CLAAP_MCP_ENDPOINT, 'https://claap-mcp.example.test/mcp');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
@@ -352,6 +357,16 @@ describe('PostHog mock endpoints', () => {
   test('derives the REST and MCP endpoints from the API port', () => {
     assert.equal(e2ePosthogApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16117/');
     assert.equal(e2ePosthogMcpEndpoint('http://localhost:16101'), 'http://127.0.0.1:16117/mcp');
+  });
+});
+
+describe('e2eClaapMcpEndpoint', () => {
+  test('reserves the Claap mock port after the Jam mock', () => {
+    assert.equal(e2eClaapMcpEndpoint('http://localhost:16101'), 'http://127.0.0.1:16122/mcp');
+  });
+
+  test('fails when the API port leaves no room for the Claap mock', () => {
+    assert.throws(() => e2eClaapMcpEndpoint('http://localhost:65530'), claapPortPattern);
   });
 });
 

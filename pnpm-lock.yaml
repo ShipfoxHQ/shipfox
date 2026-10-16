@@ -1284,6 +1284,28 @@ importers:
         specifier: workspace:*
         version: link:../../tools/vitest
 
+  e2e/drivers/claap:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/drivers/clickup:
     dependencies:
       '@shipfox/e2e-core':
@@ -1967,6 +1989,9 @@ importers:
 
   e2e/setup/integrations:
     dependencies:
+      '@shipfox/api-integration-claap-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/claap-dto
       '@shipfox/api-integration-clickup-dto':
         specifier: workspace:*
         version: link:../../../libs/api/integration/clickup-dto
@@ -2608,6 +2633,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-driver-claap':
+        specifier: workspace:*
+        version: link:../../../drivers/claap
       '@shipfox/e2e-driver-clickup':
         specifier: workspace:*
         version: link:../../../drivers/clickup
@@ -2768,6 +2796,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-driver-claap':
+        specifier: workspace:*
+        version: link:../../../drivers/claap
       '@shipfox/e2e-driver-clickup':
         specifier: workspace:*
         version: link:../../../drivers/clickup

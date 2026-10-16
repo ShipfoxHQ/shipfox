@@ -1,4 +1,8 @@
 import type {
+  CreateE2eClaapConnectionBodyDto,
+  CreateE2eClaapConnectionResponseDto,
+} from '@shipfox/api-integration-claap-dto';
+import type {
   CreateE2eClickUpConnectionBodyDto,
   CreateE2eClickUpConnectionResponseDto,
 } from '@shipfox/api-integration-clickup-dto';
@@ -48,6 +52,10 @@ import type {
 } from '@shipfox/api-integration-slack-dto';
 import {request, requestJson} from '@shipfox/e2e-core';
 
+export type {
+  CreateE2eClaapConnectionBodyDto,
+  CreateE2eClaapConnectionResponseDto,
+} from '@shipfox/api-integration-claap-dto';
 export type {
   CreateE2eClickUpConnectionBodyDto,
   CreateE2eClickUpConnectionResponseDto,
@@ -421,6 +429,35 @@ export async function createJamConnection(
     'post',
     '/__e2e/integrations/jam-connections',
     {json: jamConnectionBody(params)},
+  );
+}
+
+export interface CreateClaapConnectionParams {
+  workspaceId: string;
+  apiKey: string;
+  /** A Shipfox workspace holds one connection per Claap workspace. */
+  claapWorkspaceId: string;
+  claapWorkspaceName: string;
+  lifecycleStatus?: CreateE2eClaapConnectionBodyDto['lifecycle_status'] | undefined;
+}
+
+function claapConnectionBody(params: CreateClaapConnectionParams): CreateE2eClaapConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    api_key: params.apiKey,
+    claap_workspace_id: params.claapWorkspaceId,
+    claap_workspace_name: params.claapWorkspaceName,
+    ...(params.lifecycleStatus === undefined ? {} : {lifecycle_status: params.lifecycleStatus}),
+  };
+}
+
+export async function createClaapConnection(
+  params: CreateClaapConnectionParams,
+): Promise<CreateE2eClaapConnectionResponseDto> {
+  return await requestJson<CreateE2eClaapConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/claap-connections',
+    {json: claapConnectionBody(params)},
   );
 }
 

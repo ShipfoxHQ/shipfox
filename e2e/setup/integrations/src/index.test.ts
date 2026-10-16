@@ -177,6 +177,29 @@ describe('integrations E2E setup helper', () => {
     });
   });
 
+  it('creates Claap connections through the protected setup route', async () => {
+    requestJson.mockResolvedValueOnce({id: 'connection-id'});
+    const {createClaapConnection} = await import('./index.js');
+
+    await createClaapConnection({
+      workspaceId: 'workspace-id',
+      apiKey: 'cla_e2e',
+      claapWorkspaceId: 'claapWs1',
+      claapWorkspaceName: 'Mercateam',
+      lifecycleStatus: 'error',
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/claap-connections', {
+      json: {
+        workspace_id: 'workspace-id',
+        api_key: 'cla_e2e',
+        claap_workspace_id: 'claapWs1',
+        claap_workspace_name: 'Mercateam',
+        lifecycle_status: 'error',
+      },
+    });
+  });
+
   it('creates GitHub connections through the protected setup route', async () => {
     requestJson.mockResolvedValueOnce({id: 'connection-id'});
     const {createGithubConnection} = await import('./index.js');
