@@ -122,6 +122,8 @@ composition and collision rules.
   carry an `intent` through the optional `RequiredActionIntent` chrome slot. Without the slot, or when
   the slot throws, the action renders its `url`. See
   [ADR 0021](../../../docs/adr/0021-required-action-rendering-and-intent-slot.md).
+- `WorkflowRunActionsSlot` renders the optional `WorkflowRunActions` chrome slot with the run and
+  project ids. It renders nothing when the slot is absent or throws.
 - Consumers import browser components from `@shipfox/client-shell/runtime`.
   The package root remains safe for build-time feature evaluation.
 

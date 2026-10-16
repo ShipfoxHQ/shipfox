@@ -12,6 +12,11 @@ export interface RequiredActionIntentProps {
   fallback: ReactNode;
 }
 
+export interface WorkflowRunActionsProps {
+  workflowRunId: string;
+  projectId: string;
+}
+
 export interface ChromeSlots {
   ProjectBreadcrumb: ComponentType;
   projectSlugResolver: ProjectSlugResolver;
@@ -71,6 +76,12 @@ export interface ChromeSlots {
    * intent, and every action when the slot is absent, renders its `url`.
    */
   RequiredActionIntent?: ComponentType<RequiredActionIntentProps>;
+  /**
+   * Optional actions the workflow run summary renders before its cancel or
+   * re-run action, inside an error boundary that renders nothing on failure.
+   * The component may return null.
+   */
+  WorkflowRunActions?: ComponentType<WorkflowRunActionsProps>;
 }
 
 const ChromeContext = createContext<ChromeSlots | undefined>(undefined);

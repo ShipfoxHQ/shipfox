@@ -1,6 +1,8 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {RerunMode} from '@shipfox/api-workflows-dto';
 import {configureApiClient, resetApiClient} from '@shipfox/client-api';
+import {ChromeProvider, type ChromeSlots} from '@shipfox/client-shell/runtime';
+import {Button} from '@shipfox/react-ui/button';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
@@ -385,6 +387,32 @@ export const ActionVariantsWithAttempts: Story = {
       ))}
     </div>
   ),
+};
+
+const RUN_ACTIONS_CHROME: ChromeSlots = {
+  ProjectBreadcrumb: () => null,
+  projectSlugResolver: async () => 'project',
+  WorkflowRunActions: () => (
+    <Button type="button" variant="secondary" size="xs">
+      Improve
+    </Button>
+  ),
+};
+
+/** A composing application's extra action, rendered left of the run's own actions. */
+export const WithRunActionsSlot: Story = {
+  decorators: [
+    (Story) => (
+      <ChromeProvider chrome={RUN_ACTIONS_CHROME}>
+        <Story />
+      </ChromeProvider>
+    ),
+  ],
+  args: {
+    run: workflowRunOverview({status: 'failed', jobs: [workflowJobDto({status: 'failed'})]}),
+    onRerun: noopRerun,
+    onOpenInspector: noop,
+  },
 };
 
 export const MissingTriggerMetadata: Story = {

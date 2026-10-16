@@ -1,4 +1,9 @@
-import {authStateAtom} from '@shipfox/client-shell/runtime';
+import {
+  authStateAtom,
+  ChromeProvider,
+  type ChromeSlots,
+  type WorkflowRunActionsProps,
+} from '@shipfox/client-shell/runtime';
 import {
   createMemoryHistory,
   createRootRoute,
@@ -18,6 +23,7 @@ import {
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
+const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const RELATIVE_TIME_TEXT_PATTERN = /ago$/;
 const OLD_ROOT_TIME_TEXT_PATTERN = /(?:1d|24h) ago/;
 const COPY_RUN_BUTTON_NAME = /Copy run/;
@@ -631,13 +637,42 @@ describe('WorkflowRunSummary', () => {
   });
 });
 
+describe('WorkflowRunSummary run actions slot', () => {
+  test('renders the provided slot with the run ids before the re-run action', async () => {
+    function WorkflowRunActions({workflowRunId, projectId}: WorkflowRunActionsProps) {
+      return (
+        <button type="button">
+          Improve {workflowRunId} {projectId}
+        </button>
+      );
+    }
+
+    renderSummary({status: 'succeeded'}, {onRerun: vi.fn()}, {WorkflowRunActions});
+
+    const slotAction = await screen.findByRole('button', {
+      name: `Improve ${RUN_ID} ${PROJECT_ID}`,
+    });
+    const rerun = screen.getByRole('button', {name: 'Re-run workflow'});
+    expect(slotAction.compareDocumentPosition(rerun)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  test('renders only the run actions when the slot is absent', async () => {
+    renderSummary({status: 'succeeded'}, {onRerun: vi.fn()}, {});
+
+    const rerun = await screen.findByRole('button', {name: 'Re-run workflow'});
+
+    expect(rerun.previousElementSibling).toBeNull();
+  });
+});
+
 function renderSummary(
   overrides: Parameters<typeof workflowRunOverview>[0] = {},
   props: Omit<Parameters<typeof WorkflowRunSummary>[0], 'run'> = {},
+  chromeSlots?: Partial<ChromeSlots>,
 ) {
   const run = workflowRunOverview({
     id: RUN_ID,
-    project_id: '44444444-4444-4444-8444-444444444444',
+    project_id: PROJECT_ID,
     definition_id: '55555555-5555-4555-8555-555555555555',
     name: 'deploy-web',
     status: 'running',
@@ -648,8 +683,18 @@ function renderSummary(
     ...overrides,
   });
 
+  const summary = <WorkflowRunSummary run={run} {...props} />;
   // These cases never mount the attempt switcher links, so no router is needed.
-  render(<WorkflowRunSummary run={run} {...props} />);
+  if (!chromeSlots) {
+    render(summary);
+    return;
+  }
+  const chrome: ChromeSlots = {
+    ProjectBreadcrumb: () => null,
+    projectSlugResolver: async () => 'project',
+    ...chromeSlots,
+  };
+  render(<ChromeProvider chrome={chrome}>{summary}</ChromeProvider>);
 }
 
 function devSourceDto() {

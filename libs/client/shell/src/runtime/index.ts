@@ -53,6 +53,7 @@ export * from './route-frame.js';
 export * from './route-inputs.js';
 export * from './router-context.js';
 export * from './search-serialization.js';
+export * from './workflow-run-actions-slot.js';
 export * from './workspace-setup.js';
 export * from './workspace-setup-dismissal.js';
 export * from './workspace-setup-tools-step.js';

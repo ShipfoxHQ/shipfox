@@ -1,4 +1,4 @@
-import {useAuthState} from '@shipfox/client-shell/runtime';
+import {useAuthState, WorkflowRunActionsSlot} from '@shipfox/client-shell/runtime';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {MetadataSeparator} from '@shipfox/client-ui';
 import {type RunUsage, RunUsageSummary} from '@shipfox/client-usage';
@@ -140,6 +140,7 @@ export function WorkflowRunSummary({
           </div>
 
           <div className="col-start-2 row-start-1 flex min-w-max items-center gap-inline justify-self-end max-[480px]:col-start-auto max-[480px]:row-start-auto max-[480px]:justify-self-start">
+            <WorkflowRunActionsSlot workflowRunId={run.id} projectId={run.projectId} />
             <WorkflowRunActionSlot
               action={action}
               cancelling={cancelling}
