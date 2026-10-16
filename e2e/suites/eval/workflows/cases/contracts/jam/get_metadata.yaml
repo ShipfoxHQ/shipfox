@@ -1,0 +1,9 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: getMetadata
+    with:
+      jamId: $fixture.jam.video.id
+    expect:
+      # Jam answers a Jam without metadata in prose, not in an error.
+      text: ['^No custom metadata found']

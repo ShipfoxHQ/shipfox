@@ -133,6 +133,10 @@ export type FakeModelProviderRequestAssertion = (
       kind: 'message_content_includes';
       value: string;
     }
+  | {
+      // An image in a message, such as the one an MCP tool returned. Text assertions can't see it.
+      kind: 'image_content_present';
+    }
 ) & {minRequestIndex?: number | undefined};
 
 export interface FakeModelProviderScriptHandle {

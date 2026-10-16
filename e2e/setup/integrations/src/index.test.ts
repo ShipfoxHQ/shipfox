@@ -150,6 +150,33 @@ describe('integrations E2E setup helper', () => {
     });
   });
 
+  it('creates Jam connections through the protected setup route', async () => {
+    requestJson.mockResolvedValueOnce({id: 'connection-id'});
+    const {createJamConnection} = await import('./index.js');
+
+    await createJamConnection({
+      workspaceId: 'workspace-id',
+      token: 'jam_pat_e2e',
+      teamId: 'jam-team',
+      userId: 'jam-user',
+      userName: 'Ada',
+      userEmail: 'ada@example.com',
+      lifecycleStatus: 'error',
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/jam-connections', {
+      json: {
+        workspace_id: 'workspace-id',
+        token: 'jam_pat_e2e',
+        team_id: 'jam-team',
+        user_id: 'jam-user',
+        user_name: 'Ada',
+        user_email: 'ada@example.com',
+        lifecycle_status: 'error',
+      },
+    });
+  });
+
   it('creates GitHub connections through the protected setup route', async () => {
     requestJson.mockResolvedValueOnce({id: 'connection-id'});
     const {createGithubConnection} = await import('./index.js');

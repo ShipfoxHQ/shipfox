@@ -1,17 +1,7 @@
-ceiling: 15
+ceiling: 5
 entries:
   - {tool: claap.get_recording, kind: read, issue: ENG-3098}
   - {tool: claap.get_recording_transcript, kind: read, issue: ENG-3098}
   - {tool: claap.get_recordings, kind: read, issue: ENG-3098}
   - {tool: claap.list_workspaces, kind: read, issue: ENG-3098}
   - {tool: claap.search_recording_transcripts, kind: read, issue: ENG-3098}
-  - {tool: jam.getConsoleLogs, kind: read, issue: ENG-3099}
-  - {tool: jam.getDetails, kind: read, issue: ENG-3099}
-  - {tool: jam.getFrames, kind: read, issue: ENG-3099}
-  - {tool: jam.getMetadata, kind: read, issue: ENG-3099}
-  - {tool: jam.getNetworkRequests, kind: read, issue: ENG-3099}
-  - {tool: jam.getScreenshots, kind: read, issue: ENG-3099}
-  - {tool: jam.getUserEvents, kind: read, issue: ENG-3099}
-  - {tool: jam.getVideoChapters, kind: read, issue: ENG-3099}
-  - {tool: jam.getVideoTranscript, kind: read, issue: ENG-3099}
-  - {tool: jam.searchJams, kind: read, issue: ENG-3099}

@@ -9,6 +9,8 @@ import {
   e2eClickUpApiBaseUrl,
   e2eDiscordApiBaseUrl,
   e2eGithubApiBaseUrl,
+  e2eJamApiBaseUrl,
+  e2eJamMcpEndpoint,
   e2eJiraApiBaseUrl,
   e2eLinearMcpEndpoint,
   e2eNotionApiBaseUrl,
@@ -20,6 +22,7 @@ import {
   runE2e,
   startFakeRouters,
 } from './harness.mjs';
+import {startJamMock} from './jam-mock.mjs';
 import {startPosthogMock} from './posthog-mock.mjs';
 import {
   e2eRegistryEnv,
@@ -55,6 +58,7 @@ export async function main(argv) {
   const logDir = resolve(options.logDir ?? defaultLogDir(process.env));
   const registryEnv = {};
   let posthogMock;
+  let jamMock;
   let fakeRouters = [];
 
   const servers = [
@@ -95,6 +99,12 @@ export async function main(argv) {
         ) {
           posthogMock = await startPosthogMock(new URL(runEnv.POSTHOG_API_BASE_URL));
         }
+        if (
+          process.env.JAM_API_BASE_URL === undefined &&
+          process.env.JAM_MCP_ENDPOINT === undefined
+        ) {
+          jamMock = await startJamMock(new URL(runEnv.JAM_API_BASE_URL));
+        }
         fakeRouters = await startFakeRouters(runEnv);
         Object.assign(registryEnv, e2eRegistryEnv(runEnv));
         await seedLocalRegistry({
@@ -110,6 +120,11 @@ export async function main(argv) {
       await posthogMock?.stop().catch((error) => {
         printError(
           `Failed to stop PostHog E2E mock: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      await jamMock?.stop().catch((error) => {
+        printError(
+          `Failed to stop Jam E2E mock: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
       await Promise.all(
@@ -136,6 +151,14 @@ export function e2eEnv(sourceEnv) {
   if (hasPosthogApiBaseUrl !== hasPosthogMcpEndpoint) {
     throw new Error(
       'POSTHOG_API_BASE_URL and POSTHOG_MCP_ENDPOINT must be configured together for E2E runs.',
+    );
+  }
+
+  const hasJamApiBaseUrl = sourceEnv.JAM_API_BASE_URL !== undefined;
+  const hasJamMcpEndpoint = sourceEnv.JAM_MCP_ENDPOINT !== undefined;
+  if (hasJamApiBaseUrl !== hasJamMcpEndpoint) {
+    throw new Error(
+      'JAM_API_BASE_URL and JAM_MCP_ENDPOINT must be configured together for E2E runs.',
     );
   }
 
@@ -172,6 +195,8 @@ export function e2eEnv(sourceEnv) {
   const posthogMcpEndpoint = valueOr(sourceEnv.POSTHOG_MCP_ENDPOINT, () =>
     e2ePosthogMcpEndpoint(apiUrl),
   );
+  const jamApiBaseUrl = valueOr(sourceEnv.JAM_API_BASE_URL, () => e2eJamApiBaseUrl(apiUrl));
+  const jamMcpEndpoint = valueOr(sourceEnv.JAM_MCP_ENDPOINT, () => e2eJamMcpEndpoint(apiUrl));
   return {
     ...sourceEnv,
     API_URL: apiUrl,
@@ -268,6 +293,8 @@ export function e2eEnv(sourceEnv) {
     ),
     POSTHOG_API_BASE_URL: posthogApiBaseUrl,
     POSTHOG_MCP_ENDPOINT: posthogMcpEndpoint,
+    JAM_API_BASE_URL: jamApiBaseUrl,
+    JAM_MCP_ENDPOINT: jamMcpEndpoint,
     CLICKUP_AUTH_BASE_URL: valueOr(sourceEnv.CLICKUP_AUTH_BASE_URL, 'https://app.clickup.com'),
     CLICKUP_OAUTH_CLIENT_ID: valueOr(sourceEnv.CLICKUP_OAUTH_CLIENT_ID, 'e2e-clickup-client-id'),
     CLICKUP_OAUTH_CLIENT_SECRET: valueOr(

@@ -18,6 +18,10 @@ import type {
   CreateE2eGithubConnectionResponseDto,
 } from '@shipfox/api-integration-github-dto';
 import type {
+  CreateE2eJamConnectionBodyDto,
+  CreateE2eJamConnectionResponseDto,
+} from '@shipfox/api-integration-jam-dto';
+import type {
   CreateE2eJiraConnectionBodyDto,
   CreateE2eJiraConnectionResponseDto,
 } from '@shipfox/api-integration-jira-dto';
@@ -63,6 +67,10 @@ export type {
   CreateE2eGithubConnectionBodyDto,
   CreateE2eGithubConnectionResponseDto,
 } from '@shipfox/api-integration-github-dto';
+export type {
+  CreateE2eJamConnectionBodyDto,
+  CreateE2eJamConnectionResponseDto,
+} from '@shipfox/api-integration-jam-dto';
 export type {
   CreateE2eJiraConnectionBodyDto,
   CreateE2eJiraConnectionResponseDto,
@@ -380,6 +388,39 @@ export async function createPosthogConnection(
     'post',
     '/__e2e/integrations/posthog-connections',
     {json: posthogConnectionBody(params)},
+  );
+}
+
+export interface CreateJamConnectionParams {
+  workspaceId: string;
+  token: string;
+  /** The Jam workspace ID. A workspace holds one connection per Jam workspace. */
+  teamId: string;
+  userId: string;
+  userName: string;
+  userEmail?: string | undefined;
+  lifecycleStatus?: CreateE2eJamConnectionBodyDto['lifecycle_status'] | undefined;
+}
+
+function jamConnectionBody(params: CreateJamConnectionParams): CreateE2eJamConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    token: params.token,
+    team_id: params.teamId,
+    user_id: params.userId,
+    user_name: params.userName,
+    ...(params.userEmail === undefined ? {} : {user_email: params.userEmail}),
+    ...(params.lifecycleStatus === undefined ? {} : {lifecycle_status: params.lifecycleStatus}),
+  };
+}
+
+export async function createJamConnection(
+  params: CreateJamConnectionParams,
+): Promise<CreateE2eJamConnectionResponseDto> {
+  return await requestJson<CreateE2eJamConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/jam-connections',
+    {json: jamConnectionBody(params)},
   );
 }
 

@@ -6,7 +6,7 @@ import type {createApiClient} from '@shipfox/e2e-core';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import {type GithubApiMock, startGithubApiMock} from '@shipfox/e2e-driver-github';
 import {type JiraApiMock, startJiraApiMock} from '@shipfox/e2e-driver-jira';
-import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
+import {createJamConnection, createPosthogConnection} from '@shipfox/e2e-setup-integrations';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   CONTRACT_FAKE_ADAPTERS,
@@ -15,6 +15,7 @@ import {
   createJiraContractFake,
   discordContractFake,
   githubContractFake,
+  jamContractFake,
   jiraContractFake,
   linearContractFake,
   notionContractFake,
@@ -71,6 +72,7 @@ vi.mock('@shipfox/e2e-driver-notion', async (importOriginal) => {
 const {seedPosthogMock} = vi.hoisted(() => ({seedPosthogMock: vi.fn()}));
 vi.mock('@shipfox/e2e-driver-posthog', () => ({seedPosthogMock}));
 vi.mock('@shipfox/e2e-setup-integrations', () => ({
+  createJamConnection: vi.fn(() => Promise.resolve({id: 'connection-7', slug: 'jam_fake'})),
   createPosthogConnection: vi.fn(() => Promise.resolve({id: 'connection-5', slug: 'posthog_fake'})),
   createClickUpConnection: vi.fn(() => Promise.resolve({id: 'connection-2', slug: 'clickup_fake'})),
   createNotionConnection: vi.fn(() => Promise.resolve({id: 'connection-3', slug: 'notion_fake'})),
@@ -670,6 +672,35 @@ describe('posthogContractFake', () => {
 
   it('is the adapter of the posthog provider', () => {
     expect(CONTRACT_FAKE_ADAPTERS.posthog).toBe(posthogContractFake);
+  });
+});
+
+describe('jamContractFake', () => {
+  it('connects the workspace with a token of its own, and has nothing to seed', async () => {
+    vi.clearAllMocks();
+    const fake = await jamContractFake({
+      workspaceId: 'workspace',
+      uniqueId: 'unique',
+      github: {
+        mock: {} as GithubApiMock,
+        connectionId: 'connection-1',
+        connectionSlug: 'github_fake',
+      },
+      client: {} as ApiClient,
+      cleanups: [],
+    });
+
+    await fake.seed({video: {id: '4ea19ea4-b021-474f-b254-5df55d37d702'}});
+
+    expect(fake.connectionSlug).toBe('jam_fake');
+    expect(createJamConnection).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId: 'workspace', token: 'jam_pat_contracts_unique'}),
+    );
+    expect(fake.writes()).toEqual([]);
+  });
+
+  it('is the adapter of the jam provider', () => {
+    expect(CONTRACT_FAKE_ADAPTERS.jam).toBe(jamContractFake);
   });
 });
 

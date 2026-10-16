@@ -98,6 +98,7 @@
     "@shipfox/e2e-driver-jira": "workspace:*",
     "@shipfox/e2e-driver-discord": "workspace:*",
     "@shipfox/e2e-driver-notion": "workspace:*",
-    "@shipfox/e2e-driver-posthog": "workspace:*"
+    "@shipfox/e2e-driver-posthog": "workspace:*",
+    "@shipfox/e2e-driver-jam": "workspace:*"
   }
 }

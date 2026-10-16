@@ -47,6 +47,10 @@ export type FakeOpenAiRequestAssertion = (
       kind: 'message_content_includes';
       value: string;
     }
+  | {
+      // An image in a message, such as the one an MCP tool returned. Text assertions can't see it.
+      kind: 'image_content_present';
+    }
 ) & {minRequestIndex?: number | undefined};
 
 export interface FakeOpenAiRecordedRequest {
@@ -319,13 +323,14 @@ export class FakeOpenAiScriptRegistry {
 interface ModelProviderRequestSummary {
   model: string | null;
   messageContent: string[];
+  imageCount: number;
   tools: string[];
   messageRoles: string[];
 }
 
 function summarizeModelProviderRequest(body: unknown): ModelProviderRequestSummary {
   if (!body || typeof body !== 'object') {
-    return {model: null, messageContent: [], tools: [], messageRoles: []};
+    return {model: null, messageContent: [], imageCount: 0, tools: [], messageRoles: []};
   }
 
   const request = body as {
@@ -337,6 +342,7 @@ function summarizeModelProviderRequest(body: unknown): ModelProviderRequestSumma
   return {
     model: typeof request.model === 'string' ? request.model : null,
     messageContent: messageContent(request.messages),
+    imageCount: countImages(request.messages),
     tools: toolNames(request.tools),
     messageRoles: messageRoles(request.messages),
   };
@@ -361,6 +367,20 @@ function contentStrings(content: unknown): string[] {
     ...(typeof text === 'string' ? [text] : []),
     ...(nestedContent === undefined ? [] : contentStrings(nestedContent)),
   ];
+}
+
+// Images come as `image` blocks in Anthropic requests, and as `image_url` parts in OpenAI chat
+// completions. A tool result nests them, so the walk goes through every level. The fake serves no
+// Responses API, whose `input_image` parts would sit in `input`, not in `messages`.
+const IMAGE_PART_TYPES = new Set(['image', 'image_url']);
+
+function countImages(value: unknown): number {
+  if (Array.isArray(value)) return value.reduce((sum, item) => sum + countImages(item), 0);
+  if (!value || typeof value !== 'object') return 0;
+
+  const {type, content} = value as {type?: unknown; content?: unknown};
+  if (typeof type === 'string' && IMAGE_PART_TYPES.has(type)) return 1;
+  return countImages(content);
 }
 
 function toolNames(tools: unknown): string[] {
@@ -405,28 +425,32 @@ function assertSingleRequest(
     return [];
   }
 
-  if (assertion.kind === 'model' && summary.model !== assertion.equals) {
-    return [`Expected model ${assertion.equals} but received ${summary.model ?? '<missing>'}`];
+  switch (assertion.kind) {
+    case 'model':
+      return summary.model === assertion.equals
+        ? []
+        : [`Expected model ${assertion.equals} but received ${summary.model ?? '<missing>'}`];
+    case 'tool_present':
+      return summary.tools.includes(assertion.name)
+        ? []
+        : [
+            `Expected tool ${assertion.name} to be present; received ${summary.tools.join(', ') || '<none>'}`,
+          ];
+    case 'tool_absent':
+      return summary.tools.includes(assertion.name)
+        ? [`Expected tool ${assertion.name} to be absent`]
+        : [];
+    case 'message_content_includes':
+      return summary.messageContent.some((content) => content.includes(assertion.value))
+        ? []
+        : [`Expected message content to include ${assertion.value}`];
+    case 'image_content_present':
+      return summary.imageCount === 0 ? ['Expected a message to carry an image'] : [];
+    default:
+      // The assertion types are copied in `@shipfox/e2e-setup-agent`. A kind this fake doesn't
+      // know would pass unchecked, so it fails the request instead.
+      return [`Unknown assertion kind ${String((assertion as {kind?: unknown}).kind)}`];
   }
-
-  if (assertion.kind === 'tool_present' && !summary.tools.includes(assertion.name)) {
-    return [
-      `Expected tool ${assertion.name} to be present; received ${summary.tools.join(', ') || '<none>'}`,
-    ];
-  }
-
-  if (assertion.kind === 'tool_absent' && summary.tools.includes(assertion.name)) {
-    return [`Expected tool ${assertion.name} to be absent`];
-  }
-
-  if (
-    assertion.kind === 'message_content_includes' &&
-    !summary.messageContent.some((content) => content.includes(assertion.value))
-  ) {
-    return [`Expected message content to include ${assertion.value}`];
-  }
-
-  return [];
 }
 
 function recordedRequest(params: {

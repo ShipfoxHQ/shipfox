@@ -1,0 +1,17 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: getNetworkRequests
+    with:
+      jamId: $fixture.jam.video.id
+      statusCode: [5xx]
+    expect:
+      shape:
+        total: number
+        events: [{network_method: string, network_path: string, network_status: number}]
+      values:
+        total: 1
+        events[0].network_method: POST
+        events[0].network_path: /api/orders
+        events[0].network_status: 500
+        events[0].network_error_message: coupon_lookup_failed

@@ -7,6 +7,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   clickup: 'ClickUp',
   discord: 'Discord',
   github: 'GitHub',
+  jam: 'Jam',
   jira: 'Jira',
   linear: 'Linear',
   notion: 'Notion',

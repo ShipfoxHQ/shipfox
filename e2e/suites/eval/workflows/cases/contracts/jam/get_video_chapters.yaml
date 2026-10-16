@@ -1,0 +1,10 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: getVideoChapters
+    with:
+      jamId: $fixture.jam.video.id
+    expect:
+      # Jam skips the chapters of a video shorter than 45 seconds.
+      values:
+        status: skipped

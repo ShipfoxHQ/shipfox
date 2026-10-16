@@ -26,6 +26,7 @@ Each provider has its own sandbox tenant. Cases never read or write in company a
 | Sentry | A sandbox organization with the staging Sentry App | A project with an issue that a daily workflow keeps alive | None |
 | Discord | A sandbox server with the staging bot | A read channel with messages and a thread | A write channel |
 | PostHog | The staging PostHog project | Events, insights, dashboards, and flags | None |
+| Jam | A free Jam workspace with a read-only token | A video Jam and a screenshot Jam | None |
 
 Read fixtures hold large and odd data. Examples: more than one page of results, markdown with non-ASCII text, a long body, and closed or archived objects.
 

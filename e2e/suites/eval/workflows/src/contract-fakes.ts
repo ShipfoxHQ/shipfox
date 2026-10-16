@@ -26,6 +26,7 @@ import {
 import {
   createClickUpConnection,
   createDiscordConnection,
+  createJamConnection,
   createLinearConnection,
   createNotionConnection,
   createPosthogConnection,
@@ -1131,6 +1132,27 @@ export const posthogContractFake: ContractFakeAdapter = async ({workspaceId, uni
 };
 
 /**
+ * Jam, whose fake the harness runs for the whole stack and answers by token. The fake holds the
+ * two sandbox Jams, a video and a screenshot, with the results Jam returned for them, so `seed`
+ * has nothing to load: a case reads the same Jams from the fake that it reads from the sandbox.
+ * The connection holds a token of its own. Jam is read-only for Shipfox.
+ */
+export const jamContractFake: ContractFakeAdapter = async ({workspaceId, uniqueId}) => {
+  const connection = await createJamConnection({
+    workspaceId,
+    token: `jam_pat_contracts_${uniqueId}`,
+    teamId: `contracts-team-${uniqueId}`,
+    userId: `contracts-user-${uniqueId}`,
+    userName: `Contracts Jam ${uniqueId}`,
+  });
+  return {
+    connectionSlug: connection.slug,
+    seed: () => Promise.resolve(),
+    writes: () => [],
+  };
+};
+
+/**
  * Linear, with its own fake and a connection to it. The fake replays the calls recorded from the
  * sandbox workspace, one text block each as the hosted MCP sends them, for the sandbox fixtures
  * the read cases name. The recordings hold the fixtures' ids and fields, so `seed` has nothing
@@ -1175,6 +1197,7 @@ export const CONTRACT_FAKE_ADAPTERS: Readonly<Record<string, ContractFakeAdapter
   clickup: clickupContractFake,
   notion: notionContractFake,
   posthog: posthogContractFake,
+  jam: jamContractFake,
   slack: slackContractFake,
   jira: jiraContractFake,
   linear: linearContractFake,

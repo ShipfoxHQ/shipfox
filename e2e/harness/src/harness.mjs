@@ -331,96 +331,51 @@ export async function startFakeRouters(env) {
   return routers;
 }
 
-export function e2eGithubApiBaseUrl(apiUrl) {
+/** The port of a fake that sits `offset` ports after the API, in the worktree's port block. */
+function mockPort({apiUrl, offset, label}) {
   const endpoint = new URL(apiUrl);
   const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  const githubApiPort = apiPort + 10;
-  if (githubApiPort > 65_535) {
-    throw new Error(`Cannot derive a GitHub API port from API port ${apiPort}.`);
+  const port = apiPort + offset;
+  if (port > 65_535) {
+    throw new Error(`Cannot derive a ${label} port from API port ${apiPort}.`);
   }
+  return port;
+}
+
+function mockUrl({apiUrl, offset, label, pathname = '/'}) {
+  const endpoint = new URL(apiUrl);
   endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(githubApiPort);
-  endpoint.pathname = '/';
+  endpoint.port = String(mockPort({apiUrl, offset, label}));
+  endpoint.pathname = pathname;
   endpoint.search = '';
   endpoint.hash = '';
   return endpoint.toString();
+}
+
+export function e2eGithubApiBaseUrl(apiUrl) {
+  return mockUrl({apiUrl, offset: 10, label: 'GitHub API'});
 }
 
 export function e2eClickUpApiBaseUrl(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  const clickupApiPort = apiPort + 13;
-  if (clickupApiPort > 65_535) {
-    throw new Error(`Cannot derive a ClickUp API port from API port ${apiPort}.`);
-  }
-  endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(clickupApiPort);
-  endpoint.pathname = '/';
-  endpoint.search = '';
-  endpoint.hash = '';
-  return endpoint.toString();
+  return mockUrl({apiUrl, offset: 13, label: 'ClickUp API'});
 }
 
 export function e2eDiscordApiBaseUrl(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
   // After Jira at API + 18, in a 25-port worktree block that ends at API + 23.
-  const discordApiPort = apiPort + 19;
-  if (discordApiPort > 65_535) {
-    throw new Error(`Cannot derive a Discord API port from API port ${apiPort}.`);
-  }
-  endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(discordApiPort);
-  endpoint.pathname = '/';
-  endpoint.search = '';
-  endpoint.hash = '';
-  return endpoint.toString();
+  return mockUrl({apiUrl, offset: 19, label: 'Discord API'});
 }
 
 export function e2eJiraApiBaseUrl(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
   // After the registry at API + 17.
-  const jiraApiPort = apiPort + 18;
-  if (jiraApiPort > 65_535) {
-    throw new Error(`Cannot derive a Jira API port from API port ${apiPort}.`);
-  }
-  endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(jiraApiPort);
-  endpoint.pathname = '/';
-  endpoint.search = '';
-  endpoint.hash = '';
-  return endpoint.toString();
+  return mockUrl({apiUrl, offset: 18, label: 'Jira API'});
 }
 
 export function e2eNotionApiBaseUrl(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  const notionApiPort = apiPort + 15;
-  if (notionApiPort > 65_535) {
-    throw new Error(`Cannot derive a Notion API port from API port ${apiPort}.`);
-  }
-  endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(notionApiPort);
-  endpoint.pathname = '/';
-  endpoint.search = '';
-  endpoint.hash = '';
-  return endpoint.toString();
+  return mockUrl({apiUrl, offset: 15, label: 'Notion API'});
 }
 
 export function e2ePosthogApiBaseUrl(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  const posthogPort = apiPort + 16;
-  if (posthogPort > 65_535) {
-    throw new Error(`Cannot derive a PostHog mock port from API port ${apiPort}.`);
-  }
-  endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(posthogPort);
-  endpoint.pathname = '/';
-  endpoint.search = '';
-  endpoint.hash = '';
-  return endpoint.toString();
+  return mockUrl({apiUrl, offset: 16, label: 'PostHog mock'});
 }
 
 export function e2ePosthogMcpEndpoint(apiUrl) {
@@ -429,46 +384,29 @@ export function e2ePosthogMcpEndpoint(apiUrl) {
   return endpoint.toString();
 }
 
+export function e2eJamApiBaseUrl(apiUrl) {
+  // After Discord at API + 19, in a 25-port worktree block that ends at API + 23.
+  return mockUrl({apiUrl, offset: 20, label: 'Jam mock'});
+}
+
+export function e2eJamMcpEndpoint(apiUrl) {
+  const endpoint = new URL(e2eJamApiBaseUrl(apiUrl));
+  endpoint.pathname = '/mcp';
+  return endpoint.toString();
+}
+
 export function e2eTestVcsPort(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
   // Worktree services reserve the API block through the temporal metrics port
   // at API + 12. Keep the fixture in the unused tail of that block.
-  const testVcsPort = apiPort + 14;
-  if (testVcsPort > 65_535) {
-    throw new Error(`Cannot derive a test VCS port from API port ${apiPort}.`);
-  }
-  return testVcsPort;
+  return mockPort({apiUrl, offset: 14, label: 'test VCS'});
 }
 
 export function e2eSlackApiBaseUrl(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  const slackApiPort = apiPort + 11;
-  if (slackApiPort > 65_535) {
-    throw new Error(`Cannot derive a Slack API port from API port ${apiPort}.`);
-  }
-  endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(slackApiPort);
-  endpoint.pathname = '/';
-  endpoint.search = '';
-  endpoint.hash = '';
-  return endpoint.toString();
+  return mockUrl({apiUrl, offset: 11, label: 'Slack API'});
 }
 
 export function e2eLinearMcpEndpoint(apiUrl) {
-  const endpoint = new URL(apiUrl);
-  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  const linearMcpPort = apiPort + 9;
-  if (linearMcpPort > 65_535) {
-    throw new Error(`Cannot derive a Linear MCP port from API port ${apiPort}.`);
-  }
-  endpoint.hostname = '127.0.0.1';
-  endpoint.port = String(linearMcpPort);
-  endpoint.pathname = '/mcp';
-  endpoint.search = '';
-  endpoint.hash = '';
-  return endpoint.toString();
+  return mockUrl({apiUrl, offset: 9, label: 'Linear MCP', pathname: '/mcp'});
 }
 
 export function turboCommandArgs(options, env) {

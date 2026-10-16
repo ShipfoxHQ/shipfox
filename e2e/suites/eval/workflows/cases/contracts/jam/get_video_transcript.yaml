@@ -1,0 +1,14 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: getVideoTranscript
+    with:
+      jamId: $fixture.jam.video.id
+    expect:
+      shape:
+        transcript: string
+      values:
+        language: en
+        format: webvtt
+      matches:
+        transcript: Acme checkout page

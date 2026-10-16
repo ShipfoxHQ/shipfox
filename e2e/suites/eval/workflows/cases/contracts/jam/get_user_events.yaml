@@ -1,0 +1,16 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: getUserEvents
+    with:
+      jamId: $fixture.jam.video.id
+    expect:
+      shape:
+        total: number
+        events: [{interactivity_action: string, interactivity_target_id: string}]
+      values:
+        total: 5
+        events[0].interactivity_action: click
+        events[0].interactivity_target_id: name
+      includes:
+        events: {interactivity_target_id: pay, interactivity_action: click}

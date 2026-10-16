@@ -4,6 +4,7 @@ import {E2eApiError, preflightCheck} from '@shipfox/e2e-core';
 import {
   createClickUpConnection,
   createDiscordConnection,
+  createJamConnection,
   createJiraConnection,
   createLinearConnection,
   createNotionConnection,
@@ -297,6 +298,16 @@ async function createProviderConnection({
           authorizedByUserId: crypto.randomUUID(),
           accessToken: `notion-access-token-${uniqueId}`,
           displayName: `Eval Notion ${uniqueId}`,
+        })
+      ).slug;
+    case 'jam':
+      return (
+        await createJamConnection({
+          workspaceId,
+          token: `jam_pat_eval_${uniqueId}`,
+          teamId: `eval-team-${uniqueId}`,
+          userId: `eval-user-${uniqueId}`,
+          userName: `Eval Jam ${uniqueId}`,
         })
       ).slug;
     case 'posthog':

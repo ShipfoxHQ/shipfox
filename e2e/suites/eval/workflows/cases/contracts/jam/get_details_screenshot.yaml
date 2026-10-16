@@ -1,0 +1,11 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: getDetails
+    with:
+      jamId: $fixture.jam.screenshot.id
+    expect:
+      values:
+        jamId: $fixture.jam.screenshot.id
+        type: screenshot
+        title: $fixture.jam.screenshot.title

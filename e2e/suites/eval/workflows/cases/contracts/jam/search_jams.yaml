@@ -1,0 +1,16 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: searchJams
+    with:
+      text: coupon
+      textIn: [transcript]
+    expect:
+      shape:
+        jams: [{id: string, url: string, type: string, title: string}]
+      values:
+        jams[0].id: $fixture.jam.video.id
+        jams[0].type: video
+        page.hasMore: false
+      excludes:
+        jams: {id: $fixture.jam.screenshot.id}

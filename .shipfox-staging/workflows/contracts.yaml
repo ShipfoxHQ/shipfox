@@ -29,6 +29,11 @@ jobs:
         connection: shipfox
         with:
           workflow: .shipfox-staging/workflows/contracts-github.yaml
+      - key: jam
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-jam.yaml
       - key: jira
         tool: start_workflow_run
         connection: shipfox

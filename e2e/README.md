@@ -43,7 +43,7 @@ Driver-specific docs live with their drivers:
 
 - [`drivers/gitea/README.md`](drivers/gitea/README.md) explains direct Gitea admin/API usage.
 - [`drivers/github/README.md`](drivers/github/README.md) explains the fake GitHub API.
-- [`drivers/linear/README.md`](drivers/linear/README.md), [`drivers/slack/README.md`](drivers/slack/README.md), [`drivers/discord/README.md`](drivers/discord/README.md), [`drivers/clickup/README.md`](drivers/clickup/README.md), [`drivers/jira/README.md`](drivers/jira/README.md), [`drivers/notion/README.md`](drivers/notion/README.md), and [`drivers/posthog/README.md`](drivers/posthog/README.md) explain the other provider fakes and their event senders.
+- [`drivers/linear/README.md`](drivers/linear/README.md), [`drivers/slack/README.md`](drivers/slack/README.md), [`drivers/discord/README.md`](drivers/discord/README.md), [`drivers/clickup/README.md`](drivers/clickup/README.md), [`drivers/jira/README.md`](drivers/jira/README.md), [`drivers/notion/README.md`](drivers/notion/README.md), [`drivers/posthog/README.md`](drivers/posthog/README.md), and [`drivers/jam/README.md`](drivers/jam/README.md) explain the other provider fakes and their event senders.
 - [`drivers/runner-process/README.md`](drivers/runner-process/README.md) explains local runner and provisioner processes.
 - [`suites/flow/workflows/README.md`](suites/flow/workflows/README.md) is the deep runbook for the workflow flow suite.
 
@@ -135,6 +135,7 @@ package when the helper needs typed request or response contracts.
 
   The API reads one address per provider, so the harness starts a small router there, and each spec runs its own fake on a private port and registers the credential the API presents to it (an access token, or the installation for GitHub). The router sends a request to the fake that registered its credential, so specs that use the same provider run in parallel and each fake records only its own calls and writes. Give each spec its own tokens. A fake started without a router, such as in a driver's unit test, passes an `endpoint` and listens there. See `harness/src/fake-router.mjs`.
 - `drivers/posthog` reads and controls the read-only PostHog fake that the harness starts, through harness routes. It fakes nothing itself and has no `writes()`.
+- `drivers/jam` reads and controls the read-only Jam fake that the harness starts, through harness routes. It fakes nothing itself and has no `writes()`.
 - `drivers/runner-process` starts local runner/provisioner processes because runner capacity is process infrastructure, not product data.
 
 A new driver is justified only for an external system, host process, or local

@@ -1,0 +1,23 @@
+provider: jam
+modes: [real, fake]
+steps:
+  - tool: getDetails
+    with:
+      jamId: $fixture.jam.video.link
+    expect:
+      shape:
+        jamId: string
+        type: string
+        teamId: string
+        title: string
+        author: {id: string, name: string}
+        eventsSummary: {total: number}
+      values:
+        jamId: $fixture.jam.video.id
+        type: video
+        teamId: $fixture.jam.team.id
+        title: $fixture.jam.video.title
+        duration: 9760
+        eventsSummary.total: 13
+        eventsSummary.network.total: 3
+        eventsSummary.console.total: 5

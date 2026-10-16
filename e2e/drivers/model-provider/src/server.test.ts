@@ -587,6 +587,94 @@ describe('fake OpenAI model provider server', () => {
     });
   });
 
+  it.each([
+    [
+      'Anthropic tool-result blocks',
+      anthropicMessage,
+      anthropicRequest({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'toolu_1',
+                content: [
+                  {type: 'text', text: 'frame'},
+                  {type: 'image', source: {type: 'base64', media_type: 'image/png', data: 'AA=='}},
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ],
+    [
+      'OpenAI user parts',
+      chatCompletion,
+      openAiRequest({
+        messages: [
+          {
+            role: 'user',
+            content: [{type: 'image_url', image_url: {url: 'data:image/png;base64,AA=='}}],
+          },
+        ],
+      }),
+    ],
+  ])('finds an image carried through %s', async (_shape, requestModel, request) => {
+    await postScript(
+      server,
+      fakeScript({
+        id: `image-content-${_shape}`,
+        assertions: [{kind: 'image_content_present'}],
+        responses: [{kind: 'message', content: 'done'}],
+      }),
+    );
+
+    const result = await requestModel(server, `image-content-${_shape}`, request);
+
+    expect(result.status).toBe(200);
+  });
+
+  it('rejects a request when an assertion has a kind it does not know', async () => {
+    await postRawScript(server, {
+      ...fakeScript({id: 'unknown-assertion'}),
+      assertions: [{kind: 'something_new'}],
+    });
+
+    const result = await chatCompletion(server, 'unknown-assertion', openAiRequest());
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      error: {message: 'Unknown assertion kind something_new', type: 'script_assertion_failed'},
+    });
+  });
+
+  it('rejects a request that carries no image', async () => {
+    await postScript(
+      server,
+      fakeScript({
+        id: 'missing-image',
+        assertions: [{kind: 'image_content_present'}],
+        responses: [{kind: 'message', content: 'done'}],
+      }),
+    );
+
+    const result = await chatCompletion(
+      server,
+      'missing-image',
+      openAiRequest({messages: [{role: 'tool', content: 'text only', tool_call_id: 'call_1'}]}),
+    );
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      error: {
+        message: 'Expected a message to carry an image',
+        type: 'script_assertion_failed',
+      },
+    });
+  });
+
   it('records request diagnostics and clears them on reset', async () => {
     await postScript(
       server,

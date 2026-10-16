@@ -1,0 +1,4 @@
+provider: jam
+exempt:
+  tool: getScreenshots
+  reason: It returns images, which only an agent step reads, and a tool step that calls it is refused when its definition is created. The flow suite covers its image in an agent step.

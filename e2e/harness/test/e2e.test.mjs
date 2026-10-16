@@ -15,6 +15,8 @@ import {
   e2eDiscordApiBaseUrl,
   e2eJiraApiBaseUrl,
   e2eNotionApiBaseUrl,
+  e2eJamApiBaseUrl,
+  e2eJamMcpEndpoint,
   e2ePosthogApiBaseUrl,
   e2ePosthogMcpEndpoint,
   e2eTestVcsPort,
@@ -27,6 +29,8 @@ import {
 import {startFakeRouter} from '../src/fake-router.mjs';
 
 const unknownCommandPattern = /Unknown command/;
+const jamOverridePairPattern =
+  /JAM_API_BASE_URL and JAM_MCP_ENDPOINT must be configured together/u;
 const posthogOverridePairPattern =
   /POSTHOG_API_BASE_URL and POSTHOG_MCP_ENDPOINT must be configured together/u;
 
@@ -137,6 +141,8 @@ describe('e2eEnv', () => {
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:55364/');
     assert.equal(env.POSTHOG_API_BASE_URL, 'http://127.0.0.1:55367/');
     assert.equal(env.POSTHOG_MCP_ENDPOINT, 'http://127.0.0.1:55367/mcp');
+    assert.equal(env.JAM_API_BASE_URL, 'http://127.0.0.1:55371/');
+    assert.equal(env.JAM_MCP_ENDPOINT, 'http://127.0.0.1:55371/mcp');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
     assert.equal(env.LINEAR_UPLOADS_URL, 'http://127.0.0.1:55360/uploads/');
@@ -164,6 +170,8 @@ describe('e2eEnv', () => {
       JIRA_API_BASE_URL: 'http://127.0.0.1:16128',
       POSTHOG_API_BASE_URL: 'https://posthog-api.example.test',
       POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp',
+      JAM_API_BASE_URL: 'https://jam-api.example.test',
+      JAM_MCP_ENDPOINT: 'https://jam-mcp.example.test/mcp',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -189,6 +197,8 @@ describe('e2eEnv', () => {
     assert.equal(env.JIRA_API_BASE_URL, 'http://127.0.0.1:16128');
     assert.equal(env.POSTHOG_API_BASE_URL, 'https://posthog-api.example.test');
     assert.equal(env.POSTHOG_MCP_ENDPOINT, 'https://posthog-mcp.example.test/mcp');
+    assert.equal(env.JAM_API_BASE_URL, 'https://jam-api.example.test');
+    assert.equal(env.JAM_MCP_ENDPOINT, 'https://jam-mcp.example.test/mcp');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
@@ -255,6 +265,20 @@ describe('e2eEnv', () => {
     );
   });
 
+  test('rejects a Jam API override without an MCP override', () => {
+    assert.throws(
+      () => e2eEnv({JAM_API_BASE_URL: 'https://jam-api.example.test'}),
+      jamOverridePairPattern,
+    );
+  });
+
+  test('rejects a Jam MCP override without an API override', () => {
+    assert.throws(
+      () => e2eEnv({JAM_MCP_ENDPOINT: 'https://jam-mcp.example.test/mcp'}),
+      jamOverridePairPattern,
+    );
+  });
+
   test('rejects an API port that cannot reserve the Test VCS offset', () => {
     assert.throws(
       () =>
@@ -310,6 +334,17 @@ describe('e2eJiraApiBaseUrl', () => {
 describe('e2eNotionApiBaseUrl', () => {
   test('reserves the Notion API port after the API port', () => {
     assert.equal(e2eNotionApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16116/');
+  });
+});
+
+describe('Jam mock endpoints', () => {
+  test('derives the API and MCP endpoints after the Discord API port', () => {
+    assert.equal(e2eJamApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16121/');
+    assert.equal(e2eJamMcpEndpoint('http://localhost:16101'), 'http://127.0.0.1:16121/mcp');
+  });
+
+  test('fails when the API port leaves no room for the Jam mock', () => {
+    assert.throws(() => e2eJamApiBaseUrl('http://localhost:65530'), /Cannot derive a Jam mock port/u);
   });
 });
 

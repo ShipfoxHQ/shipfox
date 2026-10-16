@@ -739,3 +739,33 @@ discord:
   targets:
     # A snowflake dated in the future, so Discord can never issue it.
     missing_channel: {kind: absent, id: '9000000000000000000'}
+# The "Shipfox" workspace of a free Jam plan, with one member and a read-only token. Its two Jams are a
+# recorded video with narration and a screenshot, both made with the `jam` CLI. Jam skips the
+# chapters of a video shorter than 45 seconds. The fake serves the same two Jams.
+jam:
+  connection: jam_sandbox
+  fixtures:
+    team: {id: bf9da890-a8ce-4cf6-8627-1e352ddba3c8}
+    # Two console errors, a `POST /api/orders` that answers 500 with `coupon_lookup_failed`, five
+    # clicks, an English transcript, and no metadata.
+    video:
+      id: 4ea19ea4-b021-474f-b254-5df55d37d702
+      link: https://jam.dev/c/4ea19ea4-b021-474f-b254-5df55d37d702
+      title: "Checkout: Pay button fails with 'Something went wrong'"
+      read:
+        tool: getDetails
+        with: {jamId: $fixture.jam.video.id}
+        expect:
+          values:
+            jamId: $fixture.jam.video.id
+            type: video
+    screenshot:
+      id: 64bc4070-8ada-45a6-a15d-f60851f85ddd
+      title: 'Checkout: error message after paying'
+      read:
+        tool: getDetails
+        with: {jamId: $fixture.jam.screenshot.id}
+        expect:
+          values:
+            jamId: $fixture.jam.screenshot.id
+            type: screenshot

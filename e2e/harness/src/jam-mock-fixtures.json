@@ -1,0 +1,497 @@
+{
+  "team_id": "bf9da890-a8ce-4cf6-8627-1e352ddba3c8",
+  "members": [
+    {
+      "id": "2b87c817-d4da-47fa-937a-43cf758ace42",
+      "name": "Jam Sandbox Owner",
+      "email": "owner@example.com",
+      "role": "Admin"
+    }
+  ],
+  "images": {
+    "png": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAKCAIAAAAy3EnLAAAAFElEQVR4nGPwyftKEmIY1TA0NQAAdDkNcKMIZsMAAAAASUVORK5CYII=",
+    "jpeg": "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAEKADAAQAAAABAAAACgAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACgAQAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A4uiiiv8ASQ/Dz//Z"
+  },
+  "prose": {
+    "metadata": "No custom metadata found for this Jam. The application may not be using jam.metadata() SDK.",
+    "notAVideo": "NOT_A_VIDEO: This Jam is not a video recording, so it has no frames. Use getScreenshots for image attachments.",
+    "noScreenshots": "This is a video Jam, so it has no screenshots. Use the getFrames tool to see still frames from the recording.",
+    "overview": "Overview: 6 frames (3x2 grid) evenly spaced across the whole video, each cell labeled with its timestamp (m:ss.mmm). Call getFrames again with `at` or a window for higher-resolution frames at specific times."
+  },
+  "jams": {
+    "4ea19ea4-b021-474f-b254-5df55d37d702": {
+      "type": "video",
+      "details": {
+        "jamId": "4ea19ea4-b021-474f-b254-5df55d37d702",
+        "type": "video",
+        "teamId": "bf9da890-a8ce-4cf6-8627-1e352ddba3c8",
+        "origin": "native_cli",
+        "author": {
+          "id": "2b87c817-d4da-47fa-937a-43cf758ace42",
+          "name": "Jam Sandbox Owner",
+          "email": "owner@example.com"
+        },
+        "description": "",
+        "duration": 9760,
+        "systemInfo": {
+          "browser": {
+            "name": "Jam CLI",
+            "version": "1.28.1"
+          },
+          "os": {
+            "name": "darwin",
+            "version": "27.0.0"
+          },
+          "screenDimensions": {
+            "height": 800,
+            "width": 1280
+          },
+          "extension": {},
+          "jamClient": {
+            "version": "1.28.1"
+          },
+          "other": []
+        },
+        "createdAt": "2026-10-16T06:20:46.639Z",
+        "updatedAt": "2026-10-16T06:20:46.639Z",
+        "integrations": [],
+        "title": "Checkout: Pay button fails with 'Something went wrong'",
+        "folder": null,
+        "comments": [],
+        "metadata": {
+          "country": "US"
+        },
+        "recorderFacets": null,
+        "eventsSummary": {
+          "total": 13,
+          "network": {
+            "total": 3,
+            "httpStatus": {
+              "200": 2,
+              "500": 1
+            },
+            "httpMethod": {
+              "GET": 2,
+              "POST": 1
+            },
+            "contentType": {
+              "text/html": 1,
+              "application/json": 2
+            },
+            "host": {
+              "localhost": 3
+            },
+            "contentSizeBucket": {
+              "<1kb": 2,
+              "<10kb": 1
+            }
+          },
+          "console": {
+            "total": 5,
+            "level": {
+              "warn": 1,
+              "info": 1,
+              "log": 1,
+              "error": 2
+            }
+          },
+          "interactivity": {
+            "total": 5,
+            "mouse": {
+              "total": 5,
+              "click": 5
+            },
+            "keyboard": {
+              "total": 0
+            }
+          },
+          "navigation": {
+            "total": 0,
+            "eventSources": {
+              "onCommitted": 0,
+              "onHistoryStateUpdated": 0,
+              "focus": 0,
+              "visibilitychange": 0
+            }
+          },
+          "sdk": {
+            "total": 0
+          }
+        },
+        "postprocessing": {
+          "tasks": [
+            {
+              "workload": "chapters",
+              "version": "1.1.0",
+              "status": "skipped",
+              "artifactUri": null,
+              "error": "too-short: 9760ms timeline is not longer than the 45000ms minimum",
+              "updatedAt": "2026-10-16T06:20:49.374Z",
+              "hasPayload": false
+            },
+            {
+              "workload": "ch-index",
+              "version": "1",
+              "status": "ready",
+              "artifactUri": null,
+              "error": null,
+              "updatedAt": "2026-10-16T06:20:47.181Z",
+              "hasPayload": false
+            },
+            {
+              "workload": "transcript",
+              "version": "2.2.0",
+              "status": "ready",
+              "artifactUri": null,
+              "error": null,
+              "updatedAt": "2026-10-16T06:20:49.285Z",
+              "hasPayload": true
+            }
+          ],
+          "byWorkload": {
+            "chapters": {
+              "workload": "chapters",
+              "version": "1.1.0",
+              "status": "skipped",
+              "artifactUri": null,
+              "error": "too-short: 9760ms timeline is not longer than the 45000ms minimum",
+              "updatedAt": "2026-10-16T06:20:49.374Z",
+              "hasPayload": false
+            },
+            "ch-index": {
+              "workload": "ch-index",
+              "version": "1",
+              "status": "ready",
+              "artifactUri": null,
+              "error": null,
+              "updatedAt": "2026-10-16T06:20:47.181Z",
+              "hasPayload": false
+            },
+            "transcript": {
+              "workload": "transcript",
+              "version": "2.2.0",
+              "status": "ready",
+              "artifactUri": null,
+              "error": null,
+              "updatedAt": "2026-10-16T06:20:49.285Z",
+              "hasPayload": true
+            }
+          }
+        },
+        "triage": null
+      },
+      "guide": "## Investigation Guide\n\nVideo Jam (10s) — \"Checkout: Pay button fails with 'Something went wrong'\" — 2 console errors, 1 failed API request (HTTP 5xx)\n\nRecommended next steps:\n\n1. [HIGH] getConsoleLogs(logLevel=[\"error\"]) — 2 console errors detected during session. Check console errors for JavaScript exceptions and stack traces.\n\n2. [HIGH] getNetworkRequests(statusCode=[\"5xx\"]) — Server errors (HTTP 5xx) detected in network requests to localhost. Inspect failed API requests for server-side errors.\n\n3. [HIGH] getVideoTranscript — Voiceover transcript is ready — reporter narrated the recording. Read the transcript — it captures what the reporter said while recording. Use getFrames to inspect the screen at the relevant timestamps.\n\n4. [MEDIUM] getFrames(overview=true) — Video recording available (10s). Inspect an overview of the recording, then request frames at the timestamps that matter.\n\n5. [MEDIUM] getUserEvents — 5 user interactions recorded. Review the sequence of clicks and inputs leading to the issue.\n\nContext:\n- No description provided — visual and event data are the primary sources.\n\n## Proof of work\n\nNeed shareable proof of the fix? Jam CLI can record a run with `jam record` or upload existing screenshots and videos with `jam create jam`. If terminal access is available, `jam skills get jam-proof` explains the workflow. Setup: https://jam.dev/docs/cli.md.",
+      "console": [
+        {
+          "event_index": 2,
+          "ts": "2026-10-16 06:20:20.255",
+          "elapsed_ms": "10",
+          "is_error": false,
+          "console_level": "info",
+          "console_message": "checkout loaded {build: 2026.10.16-spike, tenant: acme}"
+        },
+        {
+          "event_index": 4,
+          "ts": "2026-10-16 06:20:20.265",
+          "elapsed_ms": "20",
+          "is_error": false,
+          "console_level": "log",
+          "console_message": "cart {items: Array(1), total: 4200}"
+        },
+        {
+          "event_index": 11,
+          "ts": "2026-10-16 06:20:26.105",
+          "elapsed_ms": "5859",
+          "is_error": false,
+          "console_level": "warn",
+          "console_message": "coupon applied without validation WELCOME10"
+        },
+        {
+          "event_index": 12,
+          "ts": "2026-10-16 06:20:26.112",
+          "elapsed_ms": "5867",
+          "is_error": true,
+          "console_level": "error",
+          "console_message": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+          "console_error_fingerprint": "c63c094b7de031c4"
+        },
+        {
+          "event_index": 13,
+          "ts": "2026-10-16 06:20:26.112",
+          "elapsed_ms": "5867",
+          "is_error": true,
+          "console_level": "error",
+          "console_message": "Order failed 500 coupon_lookup_failed",
+          "console_error_fingerprint": "b1a7988e40423e47"
+        }
+      ],
+      "network": [
+        {
+          "event_index": 1,
+          "ts": "2026-10-16 06:20:20.246",
+          "elapsed_ms": "0",
+          "event_type": "network",
+          "is_error": false,
+          "network_url": "http://localhost:4719/",
+          "network_host": "localhost",
+          "network_path": "/",
+          "network_method": "GET",
+          "network_status": 200,
+          "network_status_class": "2xx",
+          "network_status_text": "OK",
+          "network_duration_ms": 5.008000000000001,
+          "network_response_mime": "text/html",
+          "network_initiator": "document",
+          "network_is_xhr_or_fetch": false,
+          "network_error_present": false,
+          "network_is_graphql": false,
+          "network_response_body": "<!doctype html><html><head><title>Acme checkout</title>\n<style>body{font:18px system-ui;margin:60px;background:#f6f7f9}form{background:#fff;padding:32px;border-radius:12px;width:520px}\ninput{display:block;width:100%;margin:8px 0 18px;padding:10px;font-size:18px}button{padding:12px 24px;font-size:18px;background:#4c6ef5;color:#fff;border:0;border-radius:8px}\n#msg{margin-top:18px;color:#c92a2a;font-weight:600}</style></head><body>\n<h1>Acme checkout</h1><form id=\"f\"><label>Full name<input id=\"name\"></label><label>Email<input id=\"email\"></label>\n<label>Coupon code<input id=\"coupon\"></label><label>Password<input id=\"password\" type=\"password\"></label>\n<button id=\"pay\" type=\"submit\">Pay 42.00 EUR</button><div id=\"msg\"></div></form>\n<script>\nconsole.info('checkout loaded', {build: '2026.10.16-spike', tenant: 'acme'});\nfetch('/api/cart', {headers: {authorization: 'Bearer spike-fake-session-token'}}).then(r => r.json()).then(c => console.log('cart', c));\ndocument.getElementById('f').addEventListener('submit', async (e) => {\n  e.preventDefault();\n  console.warn('coupon applied without validation', document.getElementById('coupon').value);\n  const r = await fetch('/api/orders', {method: 'POST', headers: {'content-type': 'application/json', authorization: 'Bearer spike-fake-session-token'},\n    body: JSON.stringify({name: document.getElementById('name').value, coupon: document.getElementById('coupon').value, amount: 4200})});\n  const body = await r.json();\n  if (!r.ok) { console.error('Order failed', r.status, body.error); document.getElementById('msg').textContent = 'Something went wrong. Please try again.'; }\n  setTimeout(() => { const o = null; o.total; }, 50);\n});\n</script></body></html>",
+          "network_response_body_size": "1707",
+          "network_request_body_truncated": false,
+          "network_response_body_truncated": false,
+          "websocket_data_truncated": false
+        },
+        {
+          "event_index": 3,
+          "ts": "2026-10-16 06:20:20.256",
+          "elapsed_ms": "10",
+          "event_type": "network",
+          "is_error": false,
+          "network_url": "http://localhost:4719/api/cart",
+          "network_host": "localhost",
+          "network_path": "/api/cart",
+          "network_method": "GET",
+          "network_status": 200,
+          "network_status_class": "2xx",
+          "network_status_text": "OK",
+          "network_duration_ms": 0.895,
+          "network_response_mime": "application/json",
+          "network_initiator": "fetch",
+          "network_is_xhr_or_fetch": true,
+          "network_error_present": false,
+          "network_is_graphql": false,
+          "network_response_body": "{\"items\":[{\"sku\":\"MUG-01\",\"qty\":2}],\"total\":4200}",
+          "network_response_body_size": "49",
+          "network_request_body_truncated": false,
+          "network_response_body_truncated": false,
+          "websocket_data_truncated": false
+        },
+        {
+          "event_index": 10,
+          "ts": "2026-10-16 06:20:26.105",
+          "elapsed_ms": "5859",
+          "event_type": "network",
+          "is_error": true,
+          "network_url": "http://localhost:4719/api/orders",
+          "network_host": "localhost",
+          "network_path": "/api/orders",
+          "network_method": "POST",
+          "network_status": 500,
+          "network_status_class": "5xx",
+          "network_status_text": "Internal Server Error",
+          "network_duration_ms": 0.7929999999999999,
+          "network_response_mime": "application/json",
+          "network_initiator": "fetch",
+          "network_is_xhr_or_fetch": true,
+          "network_error_present": true,
+          "network_error_category": "server",
+          "network_error_message": "coupon_lookup_failed",
+          "network_is_graphql": false,
+          "network_request_body": "{\"name\":\"Ada Lovelace\",\"coupon\":\"WELCOME10\",\"amount\":4200}",
+          "network_request_body_size": "58",
+          "network_response_body": "{\"error\":\"coupon_lookup_failed\",\"detail\":\"relation \\\"coupons_v2\\\" does not exist\",\"requestId\":\"req_spike_123\"}",
+          "network_response_body_size": "110",
+          "network_request_body_truncated": false,
+          "network_response_body_truncated": false,
+          "websocket_data_truncated": false
+        }
+      ],
+      "events": [
+        {
+          "event_index": 5,
+          "ts": "2026-10-16 06:20:21.768",
+          "elapsed_ms": "1522",
+          "event_type": "interactivity",
+          "interactivity_device": "mouse",
+          "interactivity_action": "click",
+          "interactivity_target_tag": "input",
+          "interactivity_target_id": "name",
+          "interactivity_target_selector": "input#name",
+          "interactivity_targets_jam_ui": false,
+          "interactivity_is_modified": false,
+          "interactivity_is_anonymized": false
+        },
+        {
+          "event_index": 6,
+          "ts": "2026-10-16 06:20:22.788",
+          "elapsed_ms": "2542",
+          "event_type": "interactivity",
+          "interactivity_device": "mouse",
+          "interactivity_action": "click",
+          "interactivity_target_tag": "input",
+          "interactivity_target_id": "email",
+          "interactivity_target_selector": "input#email",
+          "interactivity_targets_jam_ui": false,
+          "interactivity_is_modified": false,
+          "interactivity_is_anonymized": false
+        },
+        {
+          "event_index": 7,
+          "ts": "2026-10-16 06:20:23.722",
+          "elapsed_ms": "3476",
+          "event_type": "interactivity",
+          "interactivity_device": "mouse",
+          "interactivity_action": "click",
+          "interactivity_target_tag": "input",
+          "interactivity_target_id": "coupon",
+          "interactivity_target_selector": "input#coupon",
+          "interactivity_targets_jam_ui": false,
+          "interactivity_is_modified": false,
+          "interactivity_is_anonymized": false
+        },
+        {
+          "event_index": 8,
+          "ts": "2026-10-16 06:20:24.556",
+          "elapsed_ms": "4310",
+          "event_type": "interactivity",
+          "interactivity_device": "mouse",
+          "interactivity_action": "click",
+          "interactivity_target_tag": "input",
+          "interactivity_target_id": "password",
+          "interactivity_target_type": "password",
+          "interactivity_target_selector": "input#password[type=password]",
+          "interactivity_targets_jam_ui": false,
+          "interactivity_is_modified": false,
+          "interactivity_is_anonymized": false
+        },
+        {
+          "event_index": 9,
+          "ts": "2026-10-16 06:20:26.088",
+          "elapsed_ms": "5842",
+          "event_type": "interactivity",
+          "interactivity_device": "mouse",
+          "interactivity_action": "click",
+          "interactivity_target_tag": "button",
+          "interactivity_target_id": "pay",
+          "interactivity_target_type": "submit",
+          "interactivity_target_text": "Pay 42.00 EUR",
+          "interactivity_target_selector": "button#pay[type=submit]",
+          "interactivity_targets_jam_ui": false,
+          "interactivity_is_modified": false,
+          "interactivity_is_anonymized": false
+        }
+      ],
+      "transcript": {
+        "transcript": "WEBVTT\n\n00:00:00.000 --> 00:00:01.700\nI'm on the Acme checkout page.\n\n00:00:01.880 --> 00:00:04.780\nI fill in my name, email, a coupon code,\n\n00:00:04.920 --> 00:00:05.740\nand my password.\n\n00:00:06.040 --> 00:00:08.420\nWhen I click pay, nothing happens and I\n\n00:00:08.420 --> 00:00:10.220\nget an error saying something went wrong.\n",
+        "language": "en",
+        "format": "webvtt"
+      },
+      "chapters": {
+        "status": "skipped",
+        "chapters": null,
+        "language": null
+      },
+      "search": {
+        "id": "4ea19ea4-b021-474f-b254-5df55d37d702",
+        "url": "https://jam.dev/c/4ea19ea4-b021-474f-b254-5df55d37d702?s=mcp",
+        "type": "video",
+        "origin": "native_cli",
+        "title": "Checkout: Pay button fails with 'Something went wrong'",
+        "author": {
+          "id": "2b87c817-d4da-47fa-937a-43cf758ace42",
+          "name": "Jam Sandbox Owner",
+          "email": "owner@example.com"
+        },
+        "folder": null,
+        "createdAt": "2026-10-16T06:20:46.639Z",
+        "updatedAt": "2026-10-16T06:20:46.639Z"
+      }
+    },
+    "64bc4070-8ada-45a6-a15d-f60851f85ddd": {
+      "type": "screenshot",
+      "details": {
+        "jamId": "64bc4070-8ada-45a6-a15d-f60851f85ddd",
+        "type": "screenshot",
+        "teamId": "bf9da890-a8ce-4cf6-8627-1e352ddba3c8",
+        "origin": "native_cli",
+        "author": {
+          "id": "2b87c817-d4da-47fa-937a-43cf758ace42",
+          "name": "Jam Sandbox Owner",
+          "email": "owner@example.com"
+        },
+        "description": "",
+        "systemInfo": {
+          "browser": {
+            "name": "Jam CLI",
+            "version": "1.28.1"
+          },
+          "os": {
+            "name": "darwin",
+            "version": "27.0.0"
+          },
+          "screenDimensions": {
+            "height": 800,
+            "width": 1280
+          },
+          "extension": {},
+          "jamClient": {
+            "version": "1.28.1"
+          },
+          "other": []
+        },
+        "createdAt": "2026-10-16T06:20:48.311Z",
+        "updatedAt": "2026-10-16T06:20:48.311Z",
+        "integrations": [],
+        "title": "Checkout: error message after paying",
+        "folder": null,
+        "comments": [],
+        "metadata": {
+          "country": "US"
+        },
+        "recorderFacets": null,
+        "eventsSummary": null,
+        "postprocessing": {
+          "tasks": [
+            {
+              "workload": "ch-index",
+              "version": "1",
+              "status": "skipped",
+              "artifactUri": null,
+              "error": "jam has no events media",
+              "updatedAt": "2026-10-16T06:20:48.996Z",
+              "hasPayload": false
+            }
+          ],
+          "byWorkload": {
+            "ch-index": {
+              "workload": "ch-index",
+              "version": "1",
+              "status": "skipped",
+              "artifactUri": null,
+              "error": "jam has no events media",
+              "updatedAt": "2026-10-16T06:20:48.996Z",
+              "hasPayload": false
+            }
+          }
+        },
+        "triage": null
+      },
+      "guide": "## Investigation Guide\n\nScreenshot Jam — \"Checkout: error message after paying\"\n\nRecommended next steps:\n\n1. [HIGH] getScreenshots — Screenshot is the primary visual artifact for this bug report. Get the screenshot to see the visual state of the page when the bug was captured.\n\nContext:\n- No description provided — visual and event data are the primary sources.\n\n## Proof of work\n\nNeed shareable proof of the fix? Jam CLI can record a run with `jam record` or upload existing screenshots and videos with `jam create jam`. If terminal access is available, `jam skills get jam-proof` explains the workflow. Setup: https://jam.dev/docs/cli.md.",
+      "search": {
+        "id": "64bc4070-8ada-45a6-a15d-f60851f85ddd",
+        "url": "https://jam.dev/c/64bc4070-8ada-45a6-a15d-f60851f85ddd?s=mcp",
+        "type": "screenshot",
+        "origin": "native_cli",
+        "title": "Checkout: error message after paying",
+        "author": {
+          "id": "2b87c817-d4da-47fa-937a-43cf758ace42",
+          "name": "Jam Sandbox Owner",
+          "email": "owner@example.com"
+        },
+        "folder": null,
+        "createdAt": "2026-10-16T06:20:48.311Z",
+        "updatedAt": "2026-10-16T06:20:48.311Z"
+      }
+    }
+  }
+}
