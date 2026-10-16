@@ -21,6 +21,12 @@ export interface PosthogProject {
   name: string;
 }
 
+export interface JamConnectionDetails {
+  userName: string;
+  userEmail: string | null;
+  tokenHint: string;
+}
+
 export interface IntegrationConnection {
   id: string;
   workspaceId: string;

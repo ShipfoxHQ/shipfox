@@ -43,6 +43,8 @@ export interface CatalogEntryLike extends CatalogMetadata {
   category?: string | undefined;
   inputSchema: JsonSchema;
   outputSchema?: JsonSchema | undefined;
+  /** `image` tools return images, which only an agent step can receive. */
+  result?: 'json' | 'file' | 'image' | undefined;
   methods?: readonly CatalogMethodLike[] | undefined;
 }
 
@@ -138,6 +140,7 @@ function integrationTool(
       toolId: entry.id,
       connection: input.connection,
       replaceConnection: input.replaceConnection ?? true,
+      agentOnly: entry.result === 'image',
       access: entry.sensitivity,
       input: fields,
       ...(firstMethod

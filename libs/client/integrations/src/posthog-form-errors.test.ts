@@ -78,6 +78,14 @@ describe('PostHog form error mapping', () => {
     });
   });
 
+  test('keeps the already-connected message when the response names no connection', () => {
+    expect(posthogConnectErrorToFormError(apiError('already-connected', 409))).toEqual({
+      kind: 'form',
+      message:
+        'This PostHog project is already connected. Refresh the page and replace the API key on its integration connection.',
+    });
+  });
+
   test.each([
     {},
     new Error('sensitive provider response'),

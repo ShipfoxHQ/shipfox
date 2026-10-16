@@ -1,0 +1,43 @@
+---
+title: "Jam integration"
+sidebarTitle: "Overview"
+description: "Connect one Jam workspace and let workflows read Jam bug reports through Jam tools."
+catalog:
+  name: "Jam"
+  summary: "Read Jam bug reports: details, console logs, network requests, user events, transcripts, screenshots, and video frames."
+  capabilities: ["agent_tools"]
+  categories: ["design", "observability"]
+  aliases: ["bug reports", "screen recording", "console logs"]
+  icon: "jam"
+---
+
+Jam records bug reports in the browser. The Jam integration lets your
+workflows read these bug reports.
+
+A Jam contains:
+
+- The video or the screenshots
+- The console logs and the network requests
+- The clicks and the pages that the reporter opened
+- The device and the browser
+- The narration of the reporter
+
+## Authentication
+
+Shipfox uses a Jam personal access token. The token starts with `jam_pat_`. It
+must have MCP read access.
+
+The token belongs to one Jam user and one Jam workspace. Shipfox can read only
+the Jams that this user can see.
+
+Jam tokens expire. When the token expires, tool calls fail. The integration
+connection then shows `error`. To fix it,
+[replace the token](/integrations/jam/setup#replace-the-token).
+
+## Capabilities
+
+| Capability | Details |
+| --- | --- |
+| Tools | [View Jam tools and examples](/integrations/jam/tools). |
+
+[Connect Jam](/integrations/jam/setup) to create an integration connection.

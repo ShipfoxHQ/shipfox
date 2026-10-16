@@ -82,6 +82,14 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     displayPriority: 1,
   },
   {
+    slug: 'jam',
+    kind: 'catalog',
+    connectable: true,
+    capabilities: ['agent_tools'],
+    category: 'design',
+    displayPriority: 1,
+  },
+  {
     slug: 'slack',
     kind: 'catalog',
     connectable: true,

@@ -4,31 +4,11 @@ import {loader} from 'fumadocs-core/source';
 import {statusBadgesPlugin} from 'fumadocs-core/source/status-badges';
 import {icons} from 'lucide-react';
 import {createElement} from 'react';
-import {
-  siClickup,
-  siGithub,
-  siJira,
-  siLinear,
-  siNotion,
-  siPosthog,
-  siSentry,
-  siSlack,
-} from 'simple-icons';
+import {providerGlyph} from '@/lib/provider-icons';
 import {
   isRegisteredCatalogIntegrationProvider,
   sortRegisteredIntegrationProviders,
 } from '@/lib/registered-integration-providers';
-
-const simpleIcons = {
-  clickup: siClickup,
-  github: siGithub,
-  jira: siJira,
-  posthog: siPosthog,
-  sentry: siSentry,
-  linear: siLinear,
-  notion: siNotion,
-  slack: siSlack,
-};
 
 // Sidebar shows the shorter `sidebarTitle` frontmatter (e.g. "Jobs & Steps")
 // while the page keeps its descriptive `title` as the H1. Runs before
@@ -98,22 +78,20 @@ export const source = loader({
   icon(icon) {
     if (!icon) return;
     if (icon in icons) return createElement(icons[icon as keyof typeof icons]);
-    if (icon.startsWith('si:') || icon in simpleIcons) {
-      const key = (icon.startsWith('si:') ? icon.slice(3) : icon) as keyof typeof simpleIcons;
-      const si = simpleIcons[key];
-      if (si)
-        return createElement(
-          'svg',
-          {
-            key: icon,
-            role: 'img',
-            viewBox: '0 0 24 24',
-            fill: 'currentColor',
-            width: '1em',
-            height: '1em',
-          },
-          createElement('path', {d: si.path}),
-        );
-    }
+    const glyph = providerGlyph(icon.startsWith('si:') ? icon.slice(3) : icon);
+    if (glyph)
+      return createElement(
+        'svg',
+        {
+          key: icon,
+          role: 'img',
+          viewBox: glyph.viewBox,
+          fill: 'currentColor',
+          ...(glyph.fillRule ? {fillRule: glyph.fillRule} : {}),
+          width: '1em',
+          height: '1em',
+        },
+        createElement('path', {d: glyph.path}),
+      );
   },
 });

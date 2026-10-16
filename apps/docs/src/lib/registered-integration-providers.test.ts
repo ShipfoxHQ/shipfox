@@ -16,6 +16,7 @@ const expectedProviderOrder = [
   'sentry',
   'posthog',
   'slack',
+  'jam',
 ];
 
 test('sorts registered providers by category and display priority', () => {

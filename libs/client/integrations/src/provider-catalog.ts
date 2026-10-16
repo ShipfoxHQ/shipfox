@@ -25,6 +25,8 @@ interface ModalProviderCatalogEntry {
   kind: 'modal-connect';
   displayName: string;
   iconName: IconName;
+  /** The connection page replaces the pasted credential. */
+  credentialSettings?: true;
 }
 
 export type ProviderCatalogEntry = RouteProviderCatalogEntry | ModalProviderCatalogEntry;
@@ -93,5 +95,17 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     kind: 'modal-connect',
     displayName: 'PostHog',
     iconName: PROVIDER_ICONS.posthog,
+    credentialSettings: true,
+  },
+  jam: {
+    kind: 'modal-connect',
+    displayName: 'Jam',
+    iconName: PROVIDER_ICONS.jam,
+    credentialSettings: true,
   },
 };
+
+export function hasCredentialSettings(provider: string): boolean {
+  const entry = PROVIDER_CATALOG[provider];
+  return entry?.kind === 'modal-connect' && entry.credentialSettings === true;
+}

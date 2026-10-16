@@ -42,6 +42,12 @@ import {
   githubCallbackResponseSchema,
   selectGithubLinkResponseSchema,
 } from '@shipfox/api-integration-github-dto';
+import type {JamConnectBodyDto, JamReplaceTokenBodyDto} from '@shipfox/api-integration-jam-dto';
+import {
+  jamConnectionDetailsResponseSchema,
+  jamConnectionResponseSchema,
+  jamConnectResponseSchema,
+} from '@shipfox/api-integration-jam-dto';
 import type {
   CompleteJiraSiteSelectionBodyDto,
   CreateJiraInstallBodyDto,
@@ -108,6 +114,7 @@ import {
   type IntegrationConnection,
   type IntegrationProvider,
   isUsableConnection,
+  type JamConnectionDetails,
   type JiraSite,
   type PosthogProject,
   type RepositoryAccess,
@@ -147,6 +154,8 @@ export const integrationsQueryKeys = {
     [...integrationsQueryKeys.all, 'repositories', connectionId, search] as const,
   repositoryAccess: (connectionId: string) =>
     [...integrationsQueryKeys.all, 'repository-access', connectionId] as const,
+  jamConnectionDetails: (connectionId: string) =>
+    [...integrationsQueryKeys.all, 'jam-connection-details', connectionId] as const,
 };
 
 type SourceConnectionsQueryKey =
@@ -321,6 +330,54 @@ export async function replacePosthogApiKey({
     `/integrations/posthog/connections/${encodeURIComponent(connectionId)}/api-key`,
     {method: 'PUT', body},
   );
+}
+
+type JamConnectInput = Omit<JamConnectBodyDto, 'workspace_id'>;
+
+export async function connectJam(
+  workspaceId: string,
+  input: JamConnectInput,
+): Promise<IntegrationConnection> {
+  const response = await checkedApiRequest(jamConnectResponseSchema, '/integrations/jam/connect', {
+    method: 'POST',
+    body: {...input, workspace_id: workspaceId},
+  });
+  return toIntegrationConnection(response.connection);
+}
+
+export async function replaceJamToken({
+  connectionId,
+  body,
+}: {
+  connectionId: string;
+  body: JamReplaceTokenBodyDto;
+}): Promise<IntegrationConnection> {
+  return toIntegrationConnection(
+    await checkedApiRequest(
+      jamConnectionResponseSchema,
+      `/integrations/jam/connections/${encodeURIComponent(connectionId)}/token`,
+      {method: 'PUT', body},
+    ),
+  );
+}
+
+export async function getJamConnectionDetails({
+  connectionId,
+  signal,
+}: {
+  connectionId: string;
+  signal?: AbortSignal;
+}): Promise<JamConnectionDetails> {
+  const response = await checkedApiRequest(
+    jamConnectionDetailsResponseSchema,
+    `/integrations/jam/connections/${encodeURIComponent(connectionId)}`,
+    signal ? {signal} : {},
+  );
+  return {
+    userName: response.user_name,
+    userEmail: response.user_email,
+    tokenHint: response.token_hint,
+  };
 }
 
 export async function createClickUpInstall(
@@ -843,6 +900,57 @@ export function useReplacePosthogApiKeyMutation() {
       });
     },
   });
+}
+
+export function useConnectJamMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({workspaceId, body}: {workspaceId: string; body: JamConnectInput}) =>
+      connectJam(workspaceId, body),
+    onSuccess: async (_connection, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(variables.workspaceId),
+        refetchType: 'all',
+      });
+    },
+  });
+}
+
+export function useReplaceJamTokenMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workspaceId: _workspaceId,
+      connectionId,
+      body,
+    }: {
+      workspaceId: string;
+      connectionId: string;
+      body: JamReplaceTokenBodyDto;
+    }) => replaceJamToken({connectionId, body}),
+    onSuccess: async (_connection, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: integrationsQueryKeys.connectionsByWorkspace(variables.workspaceId),
+          refetchType: 'all',
+        }),
+        queryClient.invalidateQueries({
+          queryKey: integrationsQueryKeys.jamConnectionDetails(variables.connectionId),
+        }),
+      ]);
+    },
+  });
+}
+
+export function jamConnectionDetailsQueryOptions(connectionId: string) {
+  return queryOptions({
+    queryKey: integrationsQueryKeys.jamConnectionDetails(connectionId),
+    queryFn: ({signal}) => getJamConnectionDetails({connectionId, signal}),
+  });
+}
+
+export function useJamConnectionDetailsQuery(connectionId: string) {
+  return useQuery(jamConnectionDetailsQueryOptions(connectionId));
 }
 
 export function useCreateClickUpInstallMutation() {

@@ -91,6 +91,8 @@ interface FetchOptions {
   connectionsFail?: boolean;
   webhookConnectionsFail?: boolean;
   onUpdateConnection?: (connectionId: string, body: {lifecycle_status?: string}) => void;
+  /** Answers a request before the default routes, or returns undefined to fall through. */
+  respond?: (url: string, method: string) => Response | undefined;
 }
 
 function fetchForGallery(options: FetchOptions = {}) {
@@ -102,11 +104,14 @@ function fetchForGallery(options: FetchOptions = {}) {
     connectionsFail = false,
     webhookConnectionsFail = false,
     onUpdateConnection,
+    respond,
   } = options;
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : undefined;
     const url = galleryRequestUrl(input);
     const method = init?.method ?? request?.method ?? 'GET';
+    const custom = respond?.(url, method);
+    if (custom) return custom;
     if (url.includes('/integrations/webhook/connections')) {
       return await webhookRouteResponse({
         url,
@@ -688,6 +693,48 @@ describe('IntegrationGallery: available section', () => {
     fireEvent.click(await screen.findByRole('button', {name: 'Add PostHog'}));
 
     expect(await screen.findByLabelText('Personal API key')).toBeVisible();
+  });
+
+  test('opens the token replacement for a Jam connection this page has not loaded yet', async () => {
+    const jamConnection = {
+      id: '88888888-8888-4888-8888-888888888888',
+      workspace_id: INTEGRATIONS_TEST_WID,
+      provider: 'jam',
+      external_account_id: 'jam-team-1',
+      slug: 'jam',
+      display_name: 'Jam',
+      lifecycle_status: 'active',
+      capabilities: ['agent_tools'],
+      created_at: '2026-04-12T00:00:00.000Z',
+      updated_at: '2026-04-12T00:00:00.000Z',
+    } satisfies IntegrationConnectionDto;
+    // Another tab created the connection after this page loaded its list.
+    const connections: unknown[] = [];
+    renderGallery(
+      {},
+      {
+        providers: [{provider: 'jam', display_name: 'Jam', capabilities: ['agent_tools']}],
+        connections,
+        respond: (url, method) => {
+          if (method !== 'POST' || !url.includes('/integrations/jam/connect')) return undefined;
+          connections.push(jamConnection);
+          return jsonResponse(
+            {code: 'already-connected', details: {connection_id: jamConnection.id}},
+            {status: 409},
+          );
+        },
+      },
+    );
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Jam'}));
+    fireEvent.change(await screen.findByLabelText('Personal access token'), {
+      target: {value: 'jam_pat_secret'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Replace token'}));
+
+    expect(await screen.findByRole('dialog', {name: 'Replace Jam token'})).toBeVisible();
+    expect(screen.getByLabelText('New personal access token')).toBeVisible();
   });
 
   test('opens the webhook create modal from the Add card', async () => {

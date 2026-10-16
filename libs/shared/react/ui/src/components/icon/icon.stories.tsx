@@ -42,6 +42,7 @@ export const CommonIcons: Story = {
         'slack',
         'stripe',
         'gitea',
+        'jam',
         'jira',
         'clickup',
         'discord',

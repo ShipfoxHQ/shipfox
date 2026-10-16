@@ -147,6 +147,54 @@ describe('Jam connection routes', () => {
     expect(response.json()).toMatchObject({code});
   });
 
+  it('returns the Jam user and token hint for a connection', async () => {
+    const currentConnection = jamConnection({id: crypto.randomUUID()});
+    await seedInstallation(currentConnection.id);
+    const app = await createTestApp({connection: currentConnection});
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/integrations/jam/connections/${currentConnection.id}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      user_name: 'Ada',
+      user_email: 'ada@example.com',
+      token_hint: 'old1',
+    });
+  });
+
+  it('returns 404 for connection details without an installation', async () => {
+    const currentConnection = jamConnection({id: crypto.randomUUID()});
+    const app = await createTestApp({connection: currentConnection});
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/integrations/jam/connections/${currentConnection.id}`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({code: 'not-found'});
+  });
+
+  it('rejects connection details in a workspace the user cannot access', async () => {
+    const currentConnection = jamConnection({
+      id: crypto.randomUUID(),
+      workspaceId: crypto.randomUUID(),
+    });
+    await seedInstallation(currentConnection.id);
+    const app = await createTestApp({connection: currentConnection});
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/integrations/jam/connections/${currentConnection.id}`,
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({code: 'forbidden'});
+  });
+
   it('returns 404 when replacing a missing connection', async () => {
     const connectionId = crypto.randomUUID();
     const getConnection = vi.fn(async () => undefined);

@@ -17,6 +17,7 @@ import {cn, formatDate} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';
 import {type IntegrationConnection, isUsableConnection} from '#core/models.js';
+import {hasCredentialSettings} from '#provider-catalog.js';
 import {usageEventsForConnection} from './integration-usage-events.js';
 
 interface InstalledIntegrationsSectionProps {
@@ -177,6 +178,16 @@ function InstalledRow({
                       params={{workspaceSlug, connectionSlug: connection.slug}}
                     >
                       Manage repository access
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
+                {hasCredentialSettings(connection.provider) ? (
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/w/$workspaceSlug/settings/integrations/$connectionSlug"
+                      params={{workspaceSlug, connectionSlug: connection.slug}}
+                    >
+                      Connection settings
                     </Link>
                   </DropdownMenuItem>
                 ) : null}

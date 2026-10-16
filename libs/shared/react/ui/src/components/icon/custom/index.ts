@@ -8,6 +8,7 @@ export * from './discord-logo.js';
 export * from './ellipse-mini-solid.js';
 export * from './gitea-logo.js';
 export * from './info-tooltip-fill.js';
+export * from './jam-logo.js';
 export * from './jira-logo.js';
 export * from './linear-logo.js';
 export * from './notion-logo.js';

@@ -1,6 +1,7 @@
 import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   jamConnectBodySchema,
+  jamConnectionDetailsResponseSchema,
   jamConnectionResponseSchema,
   jamConnectResponseSchema,
   jamReplaceTokenBodySchema,
@@ -13,7 +14,7 @@ import type {JamCredentialStore} from '#core/credentials.js';
 import {JamAlreadyConnectedError} from '#core/errors.js';
 import {handleJamReplaceToken} from '#core/replace-token.js';
 import type {ValidatedJamToken} from '#core/validate-token.js';
-import type {JamInstallation} from '#db/installations.js';
+import {getJamInstallationByConnectionId, type JamInstallation} from '#db/installations.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 import {jamRouteErrorHandler} from './errors.js';
 
@@ -95,8 +96,35 @@ export function createJamConnectionRoutes(options: CreateJamConnectionRoutesOpti
     },
   });
 
+  const detailsRoute = defineRoute({
+    method: 'GET',
+    path: '/connections/:connectionId',
+    auth: AUTH_USER,
+    description: 'Get the Jam user and token hint for a Jam connection.',
+    schema: {
+      params: connectionParamsSchema,
+      response: {200: jamConnectionDetailsResponseSchema},
+    },
+    errorHandler: jamRouteErrorHandler,
+    handler: async (request) => {
+      const connection = await options.getConnection(request.params.connectionId);
+      if (!connection)
+        throw new ClientError('Integration connection not found', 'not-found', {status: 404});
+      requireWorkspaceAccess({request, workspaceId: connection.workspaceId});
+      const getInstallation = options.getInstallation ?? getJamInstallationByConnectionId;
+      const installation = await getInstallation(connection.id);
+      if (!installation)
+        throw new ClientError('Jam installation not found', 'not-found', {status: 404});
+      return {
+        user_name: installation.userName,
+        user_email: installation.userEmail,
+        token_hint: installation.tokenHint,
+      };
+    },
+  });
+
   return {
     prefix: '/integrations/jam',
-    routes: [connectRoute, replaceRoute],
+    routes: [connectRoute, detailsRoute, replaceRoute],
   };
 }

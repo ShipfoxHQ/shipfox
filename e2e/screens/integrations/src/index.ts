@@ -33,7 +33,7 @@ export class IntegrationsCatalogueScreen {
     return this.page.getByLabel('Personal API key');
   }
 
-  posthogConnectButton(): Locator {
+  connectButton(): Locator {
     return this.page.getByRole('button', {name: 'Connect'});
   }
 
@@ -56,6 +56,22 @@ export class IntegrationsCatalogueScreen {
 
   posthogAlreadyConnected(): Locator {
     return this.page.getByText('This project is already connected');
+  }
+
+  jamTokenField(): Locator {
+    return this.page.getByLabel('Personal access token', {exact: true});
+  }
+
+  jamAlreadyConnected(): Locator {
+    return this.page.getByText('This Jam workspace is already connected');
+  }
+
+  jamReplaceButton(): Locator {
+    return this.page.getByRole('button', {name: 'Replace token'});
+  }
+
+  jamReplacementTokenField(): Locator {
+    return this.page.getByLabel('New personal access token');
   }
 
   emptyInstalledState(): Locator {
@@ -216,6 +232,26 @@ export class ConnectionDetailsScreen {
 
   posthogError(): Locator {
     return this.page.getByRole('alert').filter({hasText: 'PostHog could not authenticate'});
+  }
+
+  jamReplaceButton(): Locator {
+    return this.page.getByRole('button', {name: 'Replace token'});
+  }
+
+  jamTokenField(): Locator {
+    return this.page.getByLabel('New personal access token');
+  }
+
+  jamReplaceDialog(): Locator {
+    return this.page.getByRole('dialog', {name: 'Replace Jam token'});
+  }
+
+  jamError(): Locator {
+    return this.page.getByRole('alert').filter({hasText: 'Jam rejected the token'});
+  }
+
+  jamUser(name: string): Locator {
+    return this.page.getByText(name, {exact: true});
   }
 }
 

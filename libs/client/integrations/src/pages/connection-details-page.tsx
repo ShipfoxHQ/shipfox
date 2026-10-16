@@ -12,6 +12,7 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {type ReactNode, useEffect, useState} from 'react';
+import {JamConnectionSettings} from '#components/jam/jam-connection-settings.js';
 import {PosthogReplaceApiKeyModal} from '#components/posthog/posthog-replace-api-key-modal.js';
 import type {IntegrationConnection, RepositoryAccess, RepositoryAccessMode} from '#core/models.js';
 import {
@@ -19,7 +20,7 @@ import {
   useIntegrationConnectionsQuery,
   useUpdateIntegrationConnectionRepositoryAccessMutation,
 } from '#hooks/api/integrations.js';
-import {PROVIDER_CATALOG} from '#provider-catalog.js';
+import {hasCredentialSettings, PROVIDER_CATALOG} from '#provider-catalog.js';
 
 export function ConnectionDetailsPage({
   workspaceSlug,
@@ -59,19 +60,49 @@ export function ConnectionDetailsPage({
     <ConnectionDetailsShell
       workspaceSlug={workspaceSlug}
       connectionName={connection.displayName}
-      title={connection.provider === 'posthog' ? 'PostHog connection' : 'Repository access'}
+      title={connectionDetailsTitle(connection)}
     >
-      {connection.provider === 'posthog' ? (
-        <PosthogConnectionSettings connection={connection} workspaceId={connection.workspaceId} />
-      ) : (
-        <RepositoryAccessSettings
-          key={connection.id}
-          connection={connection}
-          workspaceSlug={workspaceSlug}
-        />
-      )}
+      <ConnectionSettings connection={connection} workspaceSlug={workspaceSlug} />
     </ConnectionDetailsShell>
   );
+}
+
+function ConnectionSettings({
+  connection,
+  workspaceSlug,
+}: {
+  connection: IntegrationConnection;
+  workspaceSlug: string;
+}) {
+  if (connection.provider === 'posthog')
+    return (
+      <PosthogConnectionSettings connection={connection} workspaceId={connection.workspaceId} />
+    );
+  if (connection.provider === 'jam')
+    return <JamConnectionSettings connection={connection} workspaceId={connection.workspaceId} />;
+  if (connection.capabilities.includes('source_control'))
+    return (
+      <RepositoryAccessSettings
+        key={connection.id}
+        connection={connection}
+        workspaceSlug={workspaceSlug}
+      />
+    );
+  return (
+    <EmptyState
+      icon="settings3Line"
+      tone="neutral"
+      title="No settings to change"
+      description="This integration connection has no settings on this page."
+    />
+  );
+}
+
+function connectionDetailsTitle(connection: IntegrationConnection): string {
+  if (hasCredentialSettings(connection.provider))
+    return `${PROVIDER_CATALOG[connection.provider]?.displayName} connection`;
+  if (connection.capabilities.includes('source_control')) return 'Repository access';
+  return 'Integration connection';
 }
 
 function ConnectionDetailsShell({

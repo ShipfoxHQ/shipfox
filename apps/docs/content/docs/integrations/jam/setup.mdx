@@ -1,0 +1,111 @@
+---
+title: "Connect Jam to a Shipfox workspace"
+sidebarTitle: "Setup"
+description: "Create a Jam token, connect your Jam workspace, and replace the token when it expires."
+---
+
+Connect Jam to let your workflows read Jam bug reports. See the
+[Jam overview](/integrations/jam) for the data that the tools read.
+
+## Before you begin
+
+- You need access to integration settings in the Shipfox workspace.
+- You need a Jam account in the Jam workspace that you want to connect.
+
+## Choose the Jam user
+
+A Jam token belongs to one Jam user. Shipfox can read only the Jams that this
+user can see.
+
+All workflow authors in your Shipfox workspace can read these Jams.
+
+Use a Jam user who can see only the Jams that your workflows need.
+
+## Create the token
+
+<Steps>
+  <Step>
+
+    **Open the token settings**
+
+    Sign in to Jam as the user that you chose. Go to **Settings → MCP**.
+
+    For help, see Jam's [personal access token guide](https://jam.dev/docs/personal-access-tokens).
+  </Step>
+  <Step>
+
+    **Give the token MCP read access**
+
+    Select MCP read access only. Shipfox does not need write access.
+
+    Do not create a token with CLI access only. Shipfox rejects it.
+  </Step>
+  <Step>
+
+    **Set the expiry**
+
+    Jam requires an expiry date. When the token expires, the integration
+    connection stops working. You must then replace the token.
+  </Step>
+  <Step>
+
+    **Copy the token**
+
+    Copy the token. It starts with `jam_pat_`. Jam shows the token only once.
+  </Step>
+</Steps>
+
+## Connect Jam
+
+<Steps>
+  <Step>
+
+    **Open the Jam integration**
+
+    In Shipfox, go to **Settings → Integrations**. Select **Jam**.
+  </Step>
+  <Step>
+
+    **Paste the token**
+
+    Paste the token. Select **Connect**. Shipfox checks the token before it
+    connects.
+
+    If the Jam workspace is already connected, Shipfox shows **Replace token**.
+    Use it to put the new token on the existing integration connection.
+  </Step>
+  <Step>
+
+    **Copy the slug of the integration connection**
+
+    Open the menu of the Jam integration connection. Select **Use this
+    integration**. Copy the slug. Use it as `connection` in your workflows.
+  </Step>
+</Steps>
+
+## Verify the integration connection
+
+1. In **Settings → Integrations**, make sure that the Jam integration
+   connection is active.
+2. Open its menu. Select **Connection settings**. Make sure that the page shows
+   the correct Jam user.
+3. Run the `getDetails` example from the [Jam tools page](/integrations/jam/tools).
+   Use the link of a Jam that this user can see.
+4. Make sure that the result shows the title of the Jam.
+
+## Replace the token
+
+Replace the token before it expires. Also replace it when the integration
+connection shows `error`.
+
+1. In Jam, create a new token in the same Jam workspace. Give it MCP read
+   access.
+2. In Shipfox, open the menu of the Jam integration connection. Select
+   **Connection settings**.
+3. Select **Replace token**. Paste the new token. Select **Replace token**.
+
+Shipfox checks the new token first. If the check fails, Shipfox keeps the old
+token. The slug of the integration connection does not change.
+
+The new token can belong to a different Jam user. Shipfox then reads the Jams
+that the new user can see.

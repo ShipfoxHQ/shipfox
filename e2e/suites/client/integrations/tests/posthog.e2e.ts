@@ -13,14 +13,14 @@ test.describe('PostHog connection', () => {
     await integrationsCatalogue.goto(workspaceSlug);
     await integrationsCatalogue.addButton('PostHog').click();
     await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_project');
-    await integrationsCatalogue.posthogConnectButton().click();
+    await integrationsCatalogue.connectButton().click();
     await expect(
       integrationsCatalogue.installedProviderName('PostHog E2E Single project'),
     ).toBeVisible();
 
     await integrationsCatalogue.addButton('PostHog').click();
     await integrationsCatalogue.posthogKeyField().fill('phx_multi_project');
-    await integrationsCatalogue.posthogConnectButton().click();
+    await integrationsCatalogue.connectButton().click();
     await expect(integrationsCatalogue.posthogProject('E2E Analytics')).toBeVisible();
     await integrationsCatalogue.posthogProject('E2E Analytics').click();
     await expect(
@@ -29,7 +29,7 @@ test.describe('PostHog connection', () => {
 
     await integrationsCatalogue.addButton('PostHog').click();
     await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_project');
-    await integrationsCatalogue.posthogConnectButton().click();
+    await integrationsCatalogue.connectButton().click();
     await expect(integrationsCatalogue.posthogAlreadyConnected()).toBeVisible();
     await integrationsCatalogue.posthogReplaceButton().click();
     await expect(integrationsCatalogue.posthogReplacementKeyField()).toBeVisible();
@@ -44,7 +44,7 @@ test.describe('PostHog connection', () => {
     await integrationsCatalogue.goto(workspaceSlug);
     await integrationsCatalogue.addButton('PostHog').click();
     await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_missing-scope');
-    await integrationsCatalogue.posthogConnectButton().click();
+    await integrationsCatalogue.connectButton().click();
 
     await expect(integrationsCatalogue.posthogKeyField()).toHaveAttribute('aria-invalid', 'true');
     await expect(integrationsCatalogue.posthogKeyField()).toHaveAccessibleDescription(

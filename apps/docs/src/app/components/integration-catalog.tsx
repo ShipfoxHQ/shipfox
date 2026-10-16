@@ -3,16 +3,6 @@
 import {ArrowRight, ArrowUpRight, Search, Webhook, X} from 'lucide-react';
 import Link from 'next/link';
 import {type ReactNode, useEffect, useMemo, useRef, useState} from 'react';
-import {
-  siClickup,
-  siGithub,
-  siJira,
-  siLinear,
-  siNotion,
-  siPosthog,
-  siSentry,
-  siSlack,
-} from 'simple-icons';
 import {captureDocsEvent} from '@/lib/docs-analytics';
 import {nextCatalogSearchState, normalizeCatalogQuery} from '@/lib/docs-analytics-core';
 import {
@@ -37,6 +27,7 @@ import {
   catalogResultClickedProperties,
   catalogSearchProperties,
 } from '@/lib/integration-catalog-analytics';
+import {providerGlyphs} from '@/lib/provider-icons';
 
 interface IntegrationCatalogProps {
   entries: CatalogEntry[];
@@ -562,24 +553,15 @@ function ProviderIcon({icon}: {icon: CatalogIcon}) {
       </svg>
     );
 
-  const brandIcon = {
-    clickup: siClickup,
-    github: siGithub,
-    jira: siJira,
-    notion: siNotion,
-    posthog: siPosthog,
-    sentry: siSentry,
-    linear: siLinear,
-    slack: siSlack,
-  }[icon];
-
+  const glyph = providerGlyphs[icon];
   return (
     <svg
       aria-hidden="true"
-      viewBox="0 0 24 24"
+      viewBox={glyph.viewBox}
+      fillRule={glyph.fillRule}
       className="size-5 shrink-0 fill-current text-fd-foreground"
     >
-      <path d={brandIcon.path} />
+      <path d={glyph.path} />
     </svg>
   );
 }

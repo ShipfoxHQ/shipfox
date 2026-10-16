@@ -37,7 +37,7 @@ const validateToken = createJamTokenValidator({
 const {teamId, userName} = await validateToken('jam_pat_example');
 ```
 
-The connect route is `POST /integrations/jam/connect`. The replace route is `PUT /integrations/jam/connections/:connectionId/token`.
+The connect route is `POST /integrations/jam/connect`. The replace route is `PUT /integrations/jam/connections/:connectionId/token`. `GET /integrations/jam/connections/:connectionId` returns the Jam user the connection acts as and the last four characters of its token, for the settings page.
 
 ## Environment
 

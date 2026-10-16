@@ -23,6 +23,13 @@ export type JamConnectResponseDto = z.infer<typeof jamConnectResponseSchema>;
 export const jamReplaceTokenBodySchema = z.object({token: z.string().min(1)});
 export type JamReplaceTokenBodyDto = z.infer<typeof jamReplaceTokenBodySchema>;
 
+export const jamConnectionDetailsResponseSchema = z.object({
+  user_name: z.string(),
+  user_email: z.string().nullable(),
+  token_hint: z.string(),
+});
+export type JamConnectionDetailsResponseDto = z.infer<typeof jamConnectionDetailsResponseSchema>;
+
 export const createE2eJamConnectionBodySchema = z.object({
   workspace_id: z.string().uuid(),
   token: z.string().min(1),

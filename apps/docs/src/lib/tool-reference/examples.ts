@@ -13,6 +13,8 @@ export interface IntegrationExampleInput {
   toolId: string;
   connection: string;
   replaceConnection: boolean;
+  /** Omits the tool step example for a tool that only an agent step can call. */
+  agentOnly?: boolean;
   access: 'read' | 'write';
   input: ToolReferenceField[];
   /** Fields required by the method a tool step selects, for method families. */
@@ -22,10 +24,11 @@ export interface IntegrationExampleInput {
 }
 
 export function integrationExamples(input: IntegrationExampleInput): ToolReferenceExample[] {
-  const examples: ToolReferenceExample[] = [
-    {title: 'Tool step', language: 'yaml', code: toolStepYaml(input)},
-    {title: 'Agent step', language: 'yaml', code: agentStepYaml(input)},
-  ];
+  const examples: ToolReferenceExample[] = [];
+  if (!input.agentOnly) {
+    examples.push({title: 'Tool step', language: 'yaml', code: toolStepYaml(input)});
+  }
+  examples.push({title: 'Agent step', language: 'yaml', code: agentStepYaml(input)});
   if (input.output && input.output.length > 0) {
     examples.push({
       title: 'Output',

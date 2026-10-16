@@ -32,6 +32,7 @@ export const INTEGRATION_CATALOG_ICONS = [
   'clickup',
   'notion',
   'posthog',
+  'jam',
   'shipfox',
 ] as const;
 

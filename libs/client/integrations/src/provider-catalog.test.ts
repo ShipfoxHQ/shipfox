@@ -1,4 +1,4 @@
-import {PROVIDER_CATALOG} from './provider-catalog.js';
+import {hasCredentialSettings, PROVIDER_CATALOG} from './provider-catalog.js';
 
 describe('PROVIDER_CATALOG', () => {
   test('contains route entries for github, sentry, and gitea', () => {
@@ -71,7 +71,25 @@ describe('PROVIDER_CATALOG', () => {
       kind: 'modal-connect',
       displayName: 'PostHog',
       iconName: 'posthog',
+      credentialSettings: true,
     });
+  });
+
+  test('declares Jam as a modal provider with its custom icon', () => {
+    expect(PROVIDER_CATALOG.jam).toEqual({
+      kind: 'modal-connect',
+      displayName: 'Jam',
+      iconName: 'jam',
+      credentialSettings: true,
+    });
+  });
+
+  test('gives a credential settings page only to providers connected with a pasted credential', () => {
+    expect(hasCredentialSettings('jam')).toBe(true);
+    expect(hasCredentialSettings('posthog')).toBe(true);
+    expect(hasCredentialSettings('webhook')).toBe(false);
+    expect(hasCredentialSettings('github')).toBe(false);
+    expect(hasCredentialSettings('gitlab')).toBe(false);
   });
 
   test('returns undefined for unknown providers (gallery filter behavior)', () => {

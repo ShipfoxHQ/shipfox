@@ -10,6 +10,7 @@ export const PROVIDER_ICONS = {
   posthog: 'posthog',
   slack: 'slack',
   jira: 'jira',
+  jam: 'jam',
   clickup: 'clickup',
   discord: 'discord',
   gitea: 'gitea',

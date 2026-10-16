@@ -21,6 +21,8 @@ import {InstalledIntegrationsSection} from './installed-integrations-section.js'
 import {IntegrationDeleteConfirmModal} from './integration-delete-confirm-modal.js';
 import {usageEventsForConnection} from './integration-usage-events.js';
 import {IntegrationUsageModal} from './integration-usage-modal.js';
+import {JamConnectModal} from './jam/jam-connect-modal.js';
+import {JamReplaceTokenModal} from './jam/jam-replace-token-modal.js';
 import {PosthogConnectModal} from './posthog/posthog-connect-modal.js';
 import {PosthogReplaceApiKeyModal} from './posthog/posthog-replace-api-key-modal.js';
 import {ProviderGrid} from './provider-grid.js';
@@ -82,9 +84,20 @@ export function IntegrationGalleryForWorkspace({
   const deleteConnectionTarget = sortedConnections.find(
     (connection) => connection.id === deleteConnectionId,
   );
-  const replaceConnectionTarget = sortedConnections.find(
+  // Unfiltered, so a connection hidden by the capability filter can still be replaced.
+  const replaceConnectionTarget = allConnections.find(
     (connection) => connection.id === replaceConnectionId,
   );
+
+  // An already-connected answer can name a connection this page has not loaded yet, for example
+  // one created in another tab. The replace modal opens once the refetch returns it.
+  function openReplaceCredential(connectionId: string) {
+    setCreateProvider(undefined);
+    setReplaceConnectionId(connectionId);
+    if (!allConnections.some((connection) => connection.id === connectionId)) {
+      void connectionsQuery.refetch();
+    }
+  }
 
   async function setConnectionActive(connection: IntegrationConnection, active: boolean) {
     try {
@@ -177,15 +190,26 @@ export function IntegrationGalleryForWorkspace({
         workspaceId={workspaceId}
         open={createProvider === 'posthog'}
         onOpenChange={(open) => setCreateProvider(open ? 'posthog' : undefined)}
-        onOpenReplaceApiKey={(connectionId) => {
-          setCreateProvider(undefined);
-          setReplaceConnectionId(connectionId);
-        }}
+        onOpenReplaceApiKey={openReplaceCredential}
       />
       <PosthogReplaceApiKeyModal
         workspaceId={workspaceId}
         connection={replaceConnectionTarget}
-        open={replaceConnectionTarget !== undefined}
+        open={replaceConnectionTarget?.provider === 'posthog'}
+        onOpenChange={(open) => {
+          if (!open) setReplaceConnectionId(undefined);
+        }}
+      />
+      <JamConnectModal
+        workspaceId={workspaceId}
+        open={createProvider === 'jam'}
+        onOpenChange={(open) => setCreateProvider(open ? 'jam' : undefined)}
+        onOpenReplaceToken={openReplaceCredential}
+      />
+      <JamReplaceTokenModal
+        workspaceId={workspaceId}
+        connection={replaceConnectionTarget}
+        open={replaceConnectionTarget?.provider === 'jam'}
         onOpenChange={(open) => {
           if (!open) setReplaceConnectionId(undefined);
         }}

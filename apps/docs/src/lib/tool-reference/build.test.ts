@@ -231,6 +231,21 @@ test('adds allow_write to agent step examples for write tools', () => {
   assert.match(document.groups[0]?.tools[0]?.examples[1]?.code ?? '', ALLOW_WRITE_PATTERN);
 });
 
+test('omits the tool step example for a tool that returns images', () => {
+  const document = buildIntegrationToolReference({
+    id: 'integrations/test/tools',
+    catalog: [{...catalog[0], id: 'get_frames', result: 'image' as const}],
+    selectors: [{token: 'get_frames'}],
+    connection: 'test_acme',
+  });
+
+  const examples = document.groups[0]?.tools[0]?.examples ?? [];
+  assert.deepEqual(
+    examples.map((example) => example.title),
+    ['Agent step'],
+  );
+});
+
 test('keeps a fixed integration connection slug unannotated', () => {
   const document = buildIntegrationToolReference({
     id: 'integrations/test/tools',

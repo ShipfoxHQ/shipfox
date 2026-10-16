@@ -58,6 +58,7 @@ const validInput: IntegrationDocsCompletenessInput = {
       eventCount: 0,
       toolCount: 19,
     },
+    jam: {capabilities: ['agent_tools'], eventCount: 0, toolCount: 10},
     shipfox: {capabilities: ['events', 'agent_tools'], eventCount: 6, toolCount: 7},
   },
   integrationDirectories: {
@@ -130,6 +131,11 @@ const validInput: IntegrationDocsCompletenessInput = {
       capabilities: ['agent_tools'],
       categories: ['product-analytics', 'observability'],
       aliases: ['analytics', 'product analytics', 'feature flags', 'experiments'],
+    }),
+    jam: directory('jam', ['index', 'setup', 'tools'], ['setup', 'tools'], {
+      capabilities: ['agent_tools'],
+      categories: ['design', 'observability'],
+      aliases: ['bug reports', 'screen recording', 'console logs'],
     }),
     shipfox: directory('shipfox', ['index', 'events', 'tools'], ['events', 'tools'], {
       capabilities: ['events', 'agent_tools'],
