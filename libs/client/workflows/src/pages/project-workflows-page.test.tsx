@@ -762,6 +762,142 @@ describe('ProjectWorkflowsPage', () => {
     });
   });
 
+  describe('readiness', () => {
+    function readinessDto(effects: ('blocks-start' | 'fails-job')[]) {
+      return {
+        definitions: [
+          {
+            definition_id: DEFINITION_ID,
+            issues: effects.map((effect, index) => ({
+              kind: 'variable-missing',
+              key: `FLAG_${index}`,
+              locations: [{job_key: 'deploy', field: 'job.if'}],
+              effect,
+            })),
+          },
+        ],
+      };
+    }
+
+    test('tags a workflow that needs setup and keeps Run enabled', async () => {
+      const fetchImpl = createProjectDetailFetch({
+        readiness: jsonResponse(readinessDto(['blocks-start', 'fails-job'])),
+      });
+      configureApiClient({fetchImpl});
+
+      renderWorkflowsPage();
+
+      const tag = await screen.findByRole('button', {
+        name: 'Deploy production needs setup: 2 issues',
+      });
+      expect(tag).toHaveClass('text-tag-warning-text');
+      const runButton = screen.getByRole('button', {name: 'Run'});
+      expect(runButton).toBeEnabled();
+      fireEvent.click(runButton);
+      expect(await screen.findByText('Run queued')).toBeInTheDocument();
+    });
+
+    test('uses the neutral tone when no issue blocks the start', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({readiness: jsonResponse(readinessDto(['fails-job']))}),
+      });
+
+      renderWorkflowsPage();
+
+      expect(
+        await screen.findByRole('button', {name: 'Deploy production needs setup: 1 issue'}),
+      ).toHaveClass('text-tag-neutral-text');
+    });
+
+    test('renders rows without a tag while the query loads or fails', async () => {
+      const fetchImpl = createProjectDetailFetch({
+        readiness: jsonResponse({code: 'server-error'}, {status: 500}),
+      });
+      configureApiClient({fetchImpl});
+
+      renderWorkflowsPage();
+
+      expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          fetchImpl.mock.calls.some(
+            ([input]) =>
+              new URL(requestInputUrl(input)).pathname === '/workflow-definitions/readiness',
+          ),
+        ).toBe(true),
+      );
+      expect(screen.queryByText('Needs setup')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Run'})).toBeEnabled();
+    });
+
+    test("does not ask for the previous project's definitions after a project switch", async () => {
+      const otherProjectId = '77777777-7777-4777-8777-777777777777';
+      const detailFetch = createProjectDetailFetch();
+      const readinessProjects: (string | null)[] = [];
+      let otherDefinitionsRequested = false;
+      configureApiClient({
+        fetchImpl: vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = new URL(requestInputUrl(input));
+          if (url.pathname === '/workflow-definitions/readiness') {
+            readinessProjects.push(url.searchParams.get('project_id'));
+          }
+          if (url.pathname === `/projects/${otherProjectId}`) {
+            return Promise.resolve(jsonResponse({...projectDto(), id: otherProjectId}));
+          }
+          if (
+            url.pathname === '/definitions' &&
+            url.searchParams.get('project_id') === otherProjectId
+          ) {
+            otherDefinitionsRequested = true;
+            return new Promise<Response>(() => undefined);
+          }
+          return detailFetch(input, init);
+        }),
+      });
+
+      function SwitchingPage() {
+        const [projectId, setProjectId] = useState(PROJECT_ID);
+        return (
+          <>
+            <button type="button" onClick={() => setProjectId(otherProjectId)}>
+              Switch project
+            </button>
+            <ProjectWorkflowsPage projectId={projectId} />
+          </>
+        );
+      }
+      renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/workflows`, () => <SwitchingPage />);
+
+      await screen.findAllByText('Deploy production');
+      await waitFor(() => expect(readinessProjects).toEqual([PROJECT_ID]));
+      fireEvent.click(screen.getByRole('button', {name: 'Switch project'}));
+
+      await waitFor(() => expect(otherDefinitionsRequested).toBe(true));
+      expect(screen.getAllByText('Deploy production')[0]).toBeInTheDocument();
+      expect(readinessProjects).toEqual([PROJECT_ID]);
+    });
+
+    test('refetches readiness after a refused start', async () => {
+      const fetchImpl = createProjectDetailFetch({
+        run: jsonResponse({code: 'workflow-interpolation-unresolvable'}, {status: 422}),
+      });
+      configureApiClient({fetchImpl});
+      const readinessRequests = () =>
+        fetchImpl.mock.calls.filter(
+          ([input]) =>
+            new URL(requestInputUrl(input)).pathname === '/workflow-definitions/readiness',
+        ).length;
+
+      renderWorkflowsPage();
+
+      const runButton = await screen.findByRole('button', {name: 'Run'});
+      await waitFor(() => expect(readinessRequests()).toBe(1));
+      fireEvent.click(runButton);
+
+      await waitFor(() => expect(readinessRequests()).toBe(2));
+    });
+  });
+
   test('renders not found state', async () => {
     configureApiClient({
       fetchImpl: vi.fn((input) => {
@@ -796,32 +932,28 @@ function createProjectDetailFetch({
   run = jsonResponse(runDto(), {status: 201}),
   connections = jsonResponse(connectionsDto()),
   packageUpdates = jsonResponse({updates: []}),
+  readiness = jsonResponse({definitions: []}),
 }: {
   project?: Response;
   definitions?: Response;
   run?: Response;
   connections?: Response;
   packageUpdates?: Response;
+  readiness?: Response;
 } = {}) {
+  const responses: Record<string, Response> = {
+    [`/projects/${PROJECT_ID}`]: project,
+    '/definitions': definitions,
+    '/integration-connections': connections,
+    '/workflow-definitions/readiness': readiness,
+    [`/workspaces/${PROJECT_TEST_WID}/definitions/${DEFINITION_ID}/package-updates`]:
+      packageUpdates,
+  };
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(requestInputUrl(input));
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-
-    if (url.pathname === `/projects/${PROJECT_ID}`) {
-      return Promise.resolve(project.clone());
-    }
-    if (url.pathname === '/definitions') {
-      return Promise.resolve(definitions.clone());
-    }
-    if (url.pathname === '/integration-connections') {
-      return Promise.resolve(connections.clone());
-    }
-    if (
-      url.pathname ===
-      `/workspaces/${PROJECT_TEST_WID}/definitions/${DEFINITION_ID}/package-updates`
-    ) {
-      return Promise.resolve(packageUpdates.clone());
-    }
+    const response = responses[url.pathname];
+    if (response) return Promise.resolve(response.clone());
     if (
       url.pathname.startsWith('/workflow-definitions/') &&
       url.pathname.endsWith('/fire-manual') &&
