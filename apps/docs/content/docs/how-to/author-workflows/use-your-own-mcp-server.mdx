@@ -4,25 +4,28 @@ sidebarTitle: "Use Your Own MCP Server"
 description: "Give an agent step the tools of your own MCP server."
 ---
 
-**Use `mcp_servers` to give an agent step the tools of an MCP server that
-Shipfox has no integration for.** The runner starts a `command` server when the
-step starts and stops it when the step ends. For a server that you run
-yourself, give its `url` instead.
+**Use `mcp_servers` to give an agent step the tools of an MCP server.** Use it
+when Shipfox has no integration for the service.
 
-In the example, the agent uses
-[mongodb-mcp-server](https://github.com/mongodb-js/mongodb-mcp-server) to read
-a database. For another server, keep the shape of the entry and change the
-command, the arguments, and the environment variables.
+Each entry in `mcp_servers` has one of these two fields:
+
+- `command`: The runner starts the server when the step starts. The runner
+  stops the server when the step ends.
+- `url`: You run the server. The runner connects to it.
+
+The example uses `command` to start
+[mongodb-mcp-server](https://github.com/mongodb-js/mongodb-mcp-server). The
+agent uses it to read a database. For a different server, change the command,
+the arguments, and the environment variables.
 
 ## Before you begin
 
 - Complete onboarding in [Shipfox](https://app.shipfox.io).
 - [Create a secret](/how-to/set-up-work/secrets-and-variables) named
-  `MONGO_URI` that holds the connection string of the database. Use a database
+  `MONGO_URI`. Put the connection string of the database in it. Use a database
   user that can only read.
-- Make sure that the database accepts connections from the runner. For MongoDB
-  Atlas, add the public IP address of the runner to the IP access list of the
-  project.
+- Let the runner connect to the database. For MongoDB Atlas, add the public IP
+  address of the runner to the IP access list of the project.
 
 ## Add the MCP server to the agent step
 
@@ -45,38 +48,55 @@ jobs:
           Explain why each one is slow and suggest an index.
           Do not change any data.
         mcp_servers:
-          # The agent sees each tool as <name>__<tool>, such as mongodb__find.
+          # The agent sees each tool as <name>__<tool>, for example mongodb__find.
           mongodb:
-            # The runner starts this program without a shell. Neither
-            # command nor args can read workflow expressions.
+            # The runner starts this program without a shell.
+            # command and args cannot contain workflow expressions.
             command: npx
             args: [-y, mongodb-mcp-server@1.2.0]
-            # Values can read secrets. Shipfox masks them in the step log.
+            # env values can read secrets. Shipfox masks secrets in the step log.
             env:
               MDB_MCP_CONNECTION_STRING: ${{ secrets.MONGO_URI }}
               MDB_MCP_READ_ONLY: "true"
-            # Optional. Without it, the agent gets every tool of the server.
+            # include is optional. Without it, the agent gets all tools of the server.
             include: [find, aggregate, list-collections, explain]
 ```
 
-Commit and push the file to the default branch of the project.
+Push the file to the default branch of the project.
+
+## Verify the result
+
+<Steps>
+  <Step>
+
+    **Start the workflow**
+
+    Select **Run**, then open the new run.
+  </Step>
+  <Step>
+
+    **Inspect the agent step**
+
+    Open the agent step. Confirm that the agent calls a `mongodb` tool, such as
+    `find`.
+  </Step>
+</Steps>
 
 ## Adapt it to your workflow
 
 | To... | Change this |
 | --- | --- |
-| Use another stdio MCP server | Copy the `command`, `args`, and `env` of the server from its documentation or from your `.mcp.json` file. |
-| Use a server that you run | Set `url` and `headers` instead of `command`. See [Connect to a server that you run](#connect-to-a-server-that-you-run). |
-| Use two servers in one step | Add a second entry under `mcp_servers`. Each entry needs its own name. |
-| Use a server together with an integration | Add `integrations` to the same step. See [Agent integration fields](/reference/workflow-schema#agent-integration-fields). |
-| Run the server in your own image | Run the job in a container. See [Run a job in a container](/how-to/author-workflows/run-job-in-container). |
-| Find every field | See [MCP server fields](/reference/workflow-schema#agent-mcp-server-fields). |
+| Start a different server | Copy the `command`, `args`, and `env` from the documentation of the server or from your `.mcp.json` file. |
+| Connect to a server that you run | Use `url` and `headers` instead of `command`. See [Connect to a server that you run](#connect-to-a-server-that-you-run). |
+| Use two servers in one step | Add a second entry under `mcp_servers`. Give each entry a different name. |
+| Use a server and an integration | Add `integrations` to the same step. See [Agent integration fields](/reference/workflow-schema#agent-integration-fields). |
+| Start the server in your own image | Run the job in a container. See [Run a job in a container](/how-to/author-workflows/run-job-in-container). |
+| See all fields | See [MCP server fields](/reference/workflow-schema#agent-mcp-server-fields). |
 
 ## Connect to a server that you run
 
-Use `url` for an MCP server that already runs, such as a service in your
-network. The runner connects to it over Streamable HTTP when the step starts.
-It does not start or stop the server.
+Use `url` when the server already runs, for example in your network. The
+runner connects to the server when the step starts.
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -93,33 +113,36 @@ jobs:
       - prompt: Find the runbook for a failed deploy and summarize it.
         mcp_servers:
           internal_docs:
-            # A literal http or https URL. It cannot read workflow expressions.
+            # url must be an http or https URL. It cannot contain workflow expressions.
             url: https://docs-mcp.example.com/mcp
-            # Values can read secrets. Shipfox masks them in the step log.
+            # headers values can read secrets. Shipfox masks secrets in the step log.
             headers:
               Authorization: Bearer ${{ secrets.DOCS_MCP_TOKEN }}
 ```
 
-- The runner connects from the runner machine, not from a job container. The
-  server must accept connections from the runner.
-- Shipfox does not support MCP servers that need a browser sign-in. Use a token
-  that the server accepts in a header.
-- The server must support Streamable HTTP. The older HTTP with SSE transport
-  does not work.
+- Make sure that the server accepts connections from the runner.
+- The server must use the Streamable HTTP transport.
+- To authenticate, send a token in `headers`.
 
 ## If the step fails before the agent starts
 
-The step fails with **An MCP server is unavailable** when the server exits or
-does not answer at its `url`, does not answer within 120 seconds, does not list
-a tool from `include`, or lists a tool that the agent cannot use. When a
-`command` server did not start, the message shows the end of what the server
-wrote to its error output.
+The step fails with **An MCP server is unavailable** in these cases:
 
-- Check that the command exists on the runner, or in the image of the job
+- The server stops, or it does not answer at its `url`.
+- The server does not answer within 120 seconds.
+- The server does not list a tool from `include`.
+- The server lists a tool that the agent cannot use.
+
+When a `command` server does not start, the message shows the last part of its
+error output.
+
+To fix the problem:
+
+- Make sure that the command exists on the runner or in the image of the job
   container.
-- Check that the runner can reach the `url`, and that the server accepts the
-  `headers`.
-- Check the names in `include` against the tool names in the documentation of
+- Make sure that the runner can reach the `url`. Make sure that the server
+  accepts the `headers`.
+- Compare the names in `include` with the tool names in the documentation of
   the server.
-- If a tool name is too long, shorten the name of the server, or leave the tool
-  out of `include`. Each full tool name has at most 64 characters.
+- A full tool name has at most 64 characters. If a name is too long, give the
+  server a shorter name. You can also leave the tool out of `include`.
