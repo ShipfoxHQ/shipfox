@@ -1,0 +1,4 @@
+provider: github
+exempt:
+  tool: pull_request_auto_merge
+  reason: Auto-merge needs a public repository or a paid GitHub plan for a private one. The sandbox repository is private on GitHub Free, so auto-merge is off and no branch protection can hold a pull request open for it.
