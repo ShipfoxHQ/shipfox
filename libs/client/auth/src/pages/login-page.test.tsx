@@ -56,6 +56,24 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Password')).toHaveValue('long secure password');
   });
 
+  test('hides password login and its links when the server offers none', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
+      );
+    configureApiClient({fetchImpl});
+
+    renderAuthPage('/auth/login', <LoginPage />, {loginMethods: ['oauth:github']});
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "This server doesn't offer password login.",
+    );
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: 'Forgot password?'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: 'Create an account'})).not.toBeInTheDocument();
+  });
+
   test('preserves invitation state when switching to signup', async () => {
     const invitationToken = 'invite-token';
     const redirect = `/invitations/accept?token=${encodeURIComponent(invitationToken)}`;
@@ -93,20 +111,20 @@ describe('LoginPage', () => {
 
   test('posts valid credentials and navigates home', async () => {
     const user = pageUserFactory.build({email: 'login@example.com'});
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
-      )
-      .mockImplementationOnce(() => {
-        return jsonResponse({
-          token: 'access-token',
-          user,
-        });
-      })
-      .mockImplementationOnce(() => {
-        return jsonResponse({memberships: []});
-      });
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url === 'https://api.example.test/auth/refresh') {
+        return jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401});
+      }
+      if (url === 'https://api.example.test/auth/login-methods') {
+        return jsonResponse({login_methods: [{id: 'password'}]});
+      }
+      if (url === 'https://api.example.test/auth/login') {
+        return jsonResponse({token: 'access-token', user});
+      }
+      if (url === 'https://api.example.test/workspaces') return jsonResponse({memberships: []});
+      throw new Error(`Unexpected request: ${url}`);
+    });
     configureApiClient({fetchImpl});
 
     renderAuthPage(

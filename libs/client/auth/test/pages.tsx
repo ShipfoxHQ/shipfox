@@ -1,3 +1,4 @@
+import {createShellQueryClient, loginMethodsQueryOptions} from '@shipfox/client-shell/runtime';
 import {Toaster} from '@shipfox/react-ui/toast';
 import {
   createMemoryHistory,
@@ -56,21 +57,41 @@ function createTestRouter(path: string, element: ReactElement) {
   });
 }
 
-function renderWithProviders(path: string, element: ReactElement) {
+export interface RenderAuthPageOptions {
+  loginMethods?: string[];
+}
+
+function renderWithProviders(
+  path: string,
+  element: ReactElement,
+  {loginMethods = ['password']}: RenderAuthPageOptions,
+) {
   const router = createTestRouter(path, element);
+  // Auth transitions clear the cache, so a page can refetch the seeded login
+  // methods. Without retries, a fetch mock that rejects it resolves to password login.
+  const queryClient = createShellQueryClient({defaultOptions: {queries: {retry: false}}});
+  queryClient.setQueryData(loginMethodsQueryOptions().queryKey, loginMethods);
 
   return (
-    <AuthProvider>
+    <AuthProvider queryClient={queryClient}>
       <RouterProvider router={router} />
       <Toaster />
     </AuthProvider>
   );
 }
 
-export function renderAuthPage(path: string, element: ReactElement): RenderResult {
-  return render(renderWithProviders(path, element));
+export function renderAuthPage(
+  path: string,
+  element: ReactElement,
+  options: RenderAuthPageOptions = {},
+): RenderResult {
+  return render(renderWithProviders(path, element, options));
 }
 
-export function renderStrictAuthPage(path: string, element: ReactElement): RenderResult {
-  return render(<StrictMode>{renderWithProviders(path, element)}</StrictMode>);
+export function renderStrictAuthPage(
+  path: string,
+  element: ReactElement,
+  options: RenderAuthPageOptions = {},
+): RenderResult {
+  return render(<StrictMode>{renderWithProviders(path, element, options)}</StrictMode>);
 }

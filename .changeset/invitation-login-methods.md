@@ -4,8 +4,8 @@
 "@shipfox/client-invitations": patch
 ---
 
-The client reads the server's login methods, so invitees on a server without password login no longer land on a signup form that cannot submit.
+The client reads the server's login methods, so visitors on a server without password login no longer reach password pages that cannot submit.
 
-- **`@shipfox/client-shell`:** `useLoginMethods()` and `loginMethodsQueryOptions()` from `/runtime` return the login method ids from `GET /auth/login-methods`.
-- **`@shipfox/client-auth`:** `/auth/signup` and `/auth/reset` redirect to `/auth/login` when the server offers no `password` login method, and keep `redirect`.
-- **`@shipfox/client-invitations`:** a signed-out invitee sees one **Continue** button to the login page when the server offers no `password` login method, or when the lookup fails. With password login, the page keeps **Create account** and **I already have an account**.
+- **`@shipfox/client-shell`:** `/runtime` exports `loginMethodsQueryOptions()` for `GET /auth/login-methods`, and `usePasswordLoginAvailability()`, which returns `pending`, `available`, or `unavailable`. It stays `pending` while the lookup retries or waits offline. A lookup that still fails counts as `available`, which keeps the password pages.
+- **`@shipfox/client-auth`:** without password login, the login page hides the password form and its **Forgot password?** and **Create an account** links, and `/auth/signup` and `/auth/reset` redirect to `/auth/login`, keeping `redirect`.
+- **`@shipfox/client-invitations`:** without password login, a signed-out invitee sees one **Continue** button to the login page instead of **Create account** and **I already have an account**.

@@ -9,8 +9,8 @@ Browser shell and compile-time composition contracts for Shipfox client applicat
   configuration fragments.
 - **`@shipfox/client-shell/runtime`** provides the browser provider stack,
   router helpers, authentication state, the server's login methods
-  (`useLoginMethods()`), chrome slots, route frames, and layout navigation
-  registry.
+  (`loginMethodsQueryOptions()` and `usePasswordLoginAvailability()`), chrome
+  slots, route frames, and layout navigation registry.
 - **`ApplicationLayout`** renders the standard authenticated application
   header, navigation strip, route frame, account menu, and session banner for a
   root-parented feature that has no active workspace.

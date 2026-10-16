@@ -42,7 +42,9 @@ function renderGate(path: string) {
     routeTree: rootRoute.addChildren([signupRoute, loginRoute]),
   });
   render(
-    <QueryClientProvider client={createShellQueryClient()}>
+    <QueryClientProvider
+      client={createShellQueryClient({defaultOptions: {queries: {retry: false}}})}
+    >
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );

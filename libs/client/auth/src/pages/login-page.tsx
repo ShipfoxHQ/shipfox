@@ -1,5 +1,12 @@
-import {AuthShell, useRouteSearch} from '@shipfox/client-shell/runtime';
+import {
+  AuthShell,
+  type PasswordLoginAvailability,
+  usePasswordLoginAvailability,
+  useRouteSearch,
+} from '@shipfox/client-shell/runtime';
 import {ButtonLink} from '@shipfox/react-ui/button';
+import {Callout} from '@shipfox/react-ui/callout';
+import {ShipfoxLoader} from '@shipfox/react-ui/loader';
 import {Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {PasswordLoginForm} from '#components/password-login-form.js';
@@ -12,6 +19,7 @@ import {
 
 export function LoginPage() {
   const search = useRouteSearch(validateRedirectSearch);
+  const passwordLogin = usePasswordLoginAvailability();
   const invitationToken = extractInvitationToken(search.redirect);
   const invitationPreview = useInvitationContext(invitationToken);
   const invitationPending = pendingInvitation(invitationPreview.data);
@@ -27,7 +35,43 @@ export function LoginPage() {
 
   return (
     <AuthShell title={headerTitle} description={headerDescription}>
-      <PasswordLoginForm invitationEmail={invitationPending?.email}>
+      <LoginOptions
+        passwordLogin={passwordLogin}
+        invitationEmail={invitationPending?.email}
+        invitationRedirect={invitationRedirect}
+      />
+    </AuthShell>
+  );
+}
+
+function LoginOptions({
+  passwordLogin,
+  invitationEmail,
+  invitationRedirect,
+}: {
+  passwordLogin: PasswordLoginAvailability;
+  invitationEmail: string | undefined;
+  invitationRedirect: string | undefined;
+}) {
+  if (passwordLogin === 'pending') {
+    return (
+      <div className="flex justify-center py-row" aria-busy="true">
+        <ShipfoxLoader />
+      </div>
+    );
+  }
+
+  if (passwordLogin === 'unavailable') {
+    return (
+      <Callout role="alert" type="info">
+        This server doesn't offer password login. Ask your administrator how to sign in.
+      </Callout>
+    );
+  }
+
+  return (
+    <>
+      <PasswordLoginForm invitationEmail={invitationEmail}>
         <ButtonLink asChild variant="subtle" className="-mt-inline self-end">
           <Link to="/auth/reset">Forgot password?</Link>
         </ButtonLink>
@@ -43,6 +87,6 @@ export function LoginPage() {
           </Link>
         </ButtonLink>
       </Text>
-    </AuthShell>
+    </>
   );
 }

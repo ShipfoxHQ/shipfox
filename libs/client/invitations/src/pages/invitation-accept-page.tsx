@@ -3,7 +3,7 @@ import {
   AuthShell,
   Shippy,
   useAuthState,
-  useLoginMethods,
+  usePasswordLoginAvailability,
   useRefreshAuth,
   useRouteSearch,
 } from '@shipfox/client-shell/runtime';
@@ -306,7 +306,7 @@ function InvitationGuestState({
   inviterLine: string;
   workspaceName: string;
 }) {
-  const loginMethods = useLoginMethods();
+  const passwordLogin = usePasswordLoginAvailability();
 
   return (
     <AuthShell
@@ -314,13 +314,10 @@ function InvitationGuestState({
       description={inviterLine}
       illustration={<Shippy pose="bench" className="h-104" />}
     >
-      {loginMethods.isLoading ? (
+      {passwordLogin === 'pending' ? (
         <CenteredLoader />
       ) : (
-        <InvitationGuestActions
-          token={token}
-          passwordLogin={loginMethods.data?.includes('password') ?? false}
-        />
+        <InvitationGuestActions token={token} passwordLogin={passwordLogin === 'available'} />
       )}
       <Text size="xs" className="text-center text-foreground-neutral-muted">
         Not {email}? Contact your administrator.
@@ -329,8 +326,6 @@ function InvitationGuestState({
   );
 }
 
-// A failed login-methods lookup also arrives as `passwordLogin: false`: the login
-// page works in every server composition, signup only with password login.
 export function InvitationGuestActions({
   token,
   passwordLogin,

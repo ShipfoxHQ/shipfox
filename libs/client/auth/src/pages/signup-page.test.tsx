@@ -210,7 +210,7 @@ describe('SignupPage', () => {
     fireEvent.click(screen.getByRole('link', {name: 'Log in'}));
 
     expect(await screen.findByRole('heading', {name: 'Connect to Shipfox'})).toBeInTheDocument();
-    expect(screen.getByLabelText('Email')).toHaveValue('existing@example.com');
+    expect(await screen.findByLabelText('Email')).toHaveValue('existing@example.com');
     expect(screen.getByLabelText('Password')).toHaveValue('long secure password');
   });
 
