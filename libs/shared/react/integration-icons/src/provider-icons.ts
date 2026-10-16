@@ -12,6 +12,7 @@ export const PROVIDER_ICONS = {
   jira: 'jira',
   jam: 'jam',
   clickup: 'clickup',
+  claap: 'claap',
   discord: 'discord',
   gitea: 'gitea',
   webhook: 'webhookLine',
