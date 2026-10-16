@@ -140,8 +140,6 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   registryActionsEnabled?: boolean | undefined;
   /** Resolves registry actions. Without it, a registry reference fails sync. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
-  /** Accepts composite actions (`steps` in `action.yml`). Defaults to off until they can run. */
-  compositeActionsEnabled?: boolean | undefined;
 }
 
 export interface ParsedWorkflows {
@@ -267,7 +265,6 @@ async function resolveSyncActions(
     return await resolveWorkflowActions({
       ...params,
       workflows,
-      compositeActions: params.compositeActionsEnabled,
       registryActions,
     });
   } catch (error) {

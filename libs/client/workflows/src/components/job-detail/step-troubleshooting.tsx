@@ -30,6 +30,7 @@ import {cn, formatDuration} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {Fragment, type ReactNode} from 'react';
 import {readActionStepConfig} from '#core/action-step.js';
+import {compositeAttemptInputs} from '#core/composite-step.js';
 import {conditionErrorDescription, runAfterSkipDescription} from '#core/condition-error.js';
 import type {
   JobStatusReason,
@@ -47,10 +48,10 @@ import {workflowJobSearchParams, workflowRunSearchParams} from '#routes/inputs.j
 import {EvaluationTraceList} from '../evaluation-trace-list.js';
 import {
   humanizeStatus,
-  IGNORED_POST_FAILURE_TEXT,
+  IGNORED_FAILURE_TEXT,
   type StepListEntryModel,
 } from '../step-list/step-list-model.js';
-import {ActionStepDetails} from './action-step-details.js';
+import {ActionInputsSection, ActionStepDetails} from './action-step-details.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {DiagnosticUnavailableAnnouncement, diagnosticFieldLabel} from './diagnostic-unavailable.js';
 import {toSelectedAttemptError} from './job-empty-states.js';
@@ -147,6 +148,13 @@ export function StepInspectorSheet({
 }
 
 function StepKindBadge({step}: {step: Step}) {
+  if (step.type === 'composite') {
+    return (
+      <Badge variant="neutral" size="2xs" radius="rounded">
+        Composite action
+      </Badge>
+    );
+  }
   if (isActionStep(step)) {
     return (
       <Badge variant="neutral" size="2xs" radius="rounded">
@@ -243,7 +251,7 @@ function StepFailureCallout({
           <div className="flex min-w-0 flex-wrap items-center gap-x-inline gap-y-tight">
             <div className="flex min-w-0 flex-col gap-tight">
               <span>{description}</span>
-              {failureIgnored && <span>{IGNORED_POST_FAILURE_TEXT}</span>}
+              {failureIgnored && <span>{IGNORED_FAILURE_TEXT}</span>}
               <FailureMessage error={error} />
               <ProviderMessage error={error} />
               <RestartDecisionLine decision={attempt.gateResult?.restart} />
@@ -510,6 +518,7 @@ function InspectorDetailContent({
   const presentedAttempt = presentStepAttemptDiagnostics(attempt, detail);
   const unavailableFields = detail.oversizedFields ?? [];
   const isToolStep = step.type === 'tool';
+  const isComposite = step.type === 'composite';
   const actionConfig = actionConfigForStep(step, resolvedConfig);
   const hasInputValues = inspectorHasInputValues(detail.authoredConfig, resolvedConfig);
   const hasOutputValues = inspectorHasOutputValues(presentedAttempt);
@@ -537,7 +546,8 @@ function InspectorDetailContent({
           runAttempt={runAttempt}
         />
       ) : null}
-      {!isToolStep && !actionConfig && hasInputValues ? (
+      {isComposite ? <ActionInputsSection inputs={compositeAttemptInputs(resolvedConfig)} /> : null}
+      {!isToolStep && !actionConfig && !isComposite && hasInputValues ? (
         <ConfigSection authoredConfig={detail.authoredConfig} resolvedConfig={resolvedConfig} />
       ) : null}
       {!isToolStep && hasOutputValues ? <InspectorOutputs attempt={presentedAttempt} /> : null}
@@ -548,7 +558,12 @@ function InspectorDetailContent({
       ) : null}
       <UnavailableDiagnosticsSection fields={unavailableFields} />
       <AttemptDiagnostics detail={detail} />
-      {isToolStep || actionConfig || hasDetails || showFailure || hasAnnotations ? null : (
+      {isToolStep ||
+      actionConfig ||
+      isComposite ||
+      hasDetails ||
+      showFailure ||
+      hasAnnotations ? null : (
         <EmptyInspector />
       )}
     </>

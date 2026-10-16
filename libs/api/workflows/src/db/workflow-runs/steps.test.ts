@@ -454,6 +454,42 @@ describe('workflow run queries', () => {
       });
       expect(firstStep.position).toBeLessThan(conditionErroredStep.position);
     });
+
+    test('skips an earlier failure that continue_on_error covered', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {build: {steps: [{run: 'echo first'}, {run: 'echo second'}]}},
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Expected a workflow job');
+      await stripSetupStep(job.id);
+      const execution = await getFirstJobExecutionByJobId(job.id);
+      if (!execution) throw new Error('Expected a job execution');
+      const [ignored, timedOut] = await getStepsByJobId(job.id);
+      if (!ignored || !timedOut) throw new Error('Expected two workflow steps');
+      await db()
+        .update(stepsTable)
+        .set({status: 'failed', statusReason: 'failure_ignored'})
+        .where(eq(stepsTable.id, ignored.id));
+      await db()
+        .update(stepsTable)
+        .set({status: 'failed', statusReason: 'timed_out'})
+        .where(eq(stepsTable.id, timedOut.id));
+
+      await expect(getJobExecutionFailureOrigin(execution.id)).resolves.toMatchObject({
+        stepId: timedOut.id,
+      });
+    });
   });
 
   describe('bulkUpdateStepStatuses', () => {

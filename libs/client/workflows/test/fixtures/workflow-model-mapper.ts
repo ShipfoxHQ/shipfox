@@ -17,6 +17,7 @@ import {
   toEvaluationTrace,
   toStepAttemptInvocation,
   toStepGateResult,
+  toStepSourceLocation,
   toWorkflowExecutionEvent,
   toWorkflowJobStepError,
 } from '#hooks/api/workflow-model-mapper.js';
@@ -29,8 +30,10 @@ export type WorkflowStepModelDto = StepDto & {
   outputs: Record<string, unknown> | null;
   response: string | null;
   gate_result: StepAttemptDto['gate_result'];
-  attempts: StepAttemptDto[];
+  attempts: WorkflowStepAttemptModelDto[];
 };
+
+export type WorkflowStepAttemptModelDto = StepAttemptDto & {failure_ignored?: boolean};
 
 export type WorkflowJobExecutionModelDto = {
   id: string;
@@ -130,9 +133,7 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
     jobExecutionId: dto.job_execution_id,
     key: dto.key,
     name: dto.name,
-    sourceLocation: dto.source_location
-      ? {startLine: dto.source_location.start_line, endLine: dto.source_location.end_line}
-      : null,
+    sourceLocation: toStepSourceLocation(dto.source_location),
     status: dto.status,
     statusReason: dto.status_reason,
     type: dto.type,
@@ -144,6 +145,7 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
     position: dto.position,
     currentAttempt: dto.current_attempt,
     ...(dto.gate_max_attempts === undefined ? {} : {gateMaxAttempts: dto.gate_max_attempts}),
+    ...(dto.parent_step_id ? {parentStepId: dto.parent_step_id} : {}),
     ...(dto.main_step_id === undefined ? {} : {mainStepId: dto.main_step_id}),
     ...(dto.affects_job === undefined ? {} : {affectsJob: dto.affects_job}),
     attemptTotal: dto.attempts.length,
@@ -156,7 +158,7 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
 }
 
 export function toWorkflowStepAttemptModel(
-  dto: StepAttemptDto,
+  dto: WorkflowStepAttemptModelDto,
   jobExecutionId: string,
 ): StepAttempt {
   return new StepAttempt({
@@ -173,6 +175,7 @@ export function toWorkflowStepAttemptModel(
     error: dto.error,
     gateResult: toStepGateResult(dto.gate_result),
     restartFeedback: dto.restart_feedback,
+    ...(dto.failure_ignored === undefined ? {} : {failureIgnored: dto.failure_ignored}),
     invocations: dto.invocations.map(toStepAttemptInvocation),
     startedAt: dto.started_at,
     finishedAt: dto.finished_at,

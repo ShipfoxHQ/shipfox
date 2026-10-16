@@ -9,6 +9,7 @@ import {
 function step(overrides: Partial<Step> & Pick<Step, 'id' | 'position'>): Step {
   return {
     jobExecutionId: 'execution-1',
+    parentStepId: null,
     key: null,
     name: 'step',
     sourceLocation: null,
@@ -19,6 +20,7 @@ function step(overrides: Partial<Step> & Pick<Step, 'id' | 'position'>): Step {
     config: {},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -46,6 +48,7 @@ function attempt(
     logPath: null,
     gateResult: null,
     restartFeedback: null,
+    failureIgnored: false,
     logOutcome: null,
     invocations: [],
     startedAt: new Date(),

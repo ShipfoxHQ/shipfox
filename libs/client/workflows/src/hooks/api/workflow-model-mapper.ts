@@ -5,6 +5,7 @@ import type {
   StepGateRestartDecisionDto,
   StepGateResultDto,
   StepGateResultSummaryDto,
+  StepSourceLocationDto,
   WorkflowExecutionEventDto,
 } from '@shipfox/api-workflows-dto';
 import type {
@@ -13,8 +14,18 @@ import type {
   StepError,
   StepGateRestartDecision,
   StepGateResult,
+  StepSourceLocation,
   WorkflowExecutionEvent,
 } from '#core/workflow-run.js';
+
+export function toStepSourceLocation(dto: StepSourceLocationDto | null): StepSourceLocation | null {
+  if (dto === null) return null;
+  return {
+    startLine: dto.start_line,
+    endLine: dto.end_line,
+    ...(dto.file === undefined ? {} : {file: {...dto.file}}),
+  };
+}
 
 export function toWorkflowJobStepError(dto: StepErrorDto): StepError | null {
   if (dto === null) return null;

@@ -1,5 +1,6 @@
 import {
   type AvailabilitySite,
+  availabilitySites,
   buildCompositeScopeEnvironment,
   buildTypedRootsEnvironment,
   type ExpressionTypeEnvironment,
@@ -252,6 +253,18 @@ export function buildCompositeStep(params: {
 }): WorkflowModelCompositeStep {
   const {fields} = params;
   const {manifest, composite} = fields.resolved;
+  // The run engine expands a composite into its inner steps, which have no flag of their own.
+  if (params.step.continue_on_error === true) {
+    params.issues.push(
+      issue({
+        code: 'composite-continue-on-error-unsupported',
+        message:
+          '`continue_on_error` is not supported on a composite action step. Set it on the steps inside the action.',
+        path: stepPath(params, 'continue_on_error'),
+        details: {uses: fields.uses},
+      }),
+    );
+  }
   const stepEnv = normalizeEnv({
     env: params.step.env,
     path: stepPath(params, 'env'),
@@ -321,9 +334,35 @@ export function buildCompositeStep(params: {
     },
     ...(fields.with === undefined ? {} : {with: fields.with as WorkflowJsonValue}),
     ...(stepEnv.env === undefined ? {} : {env: stepEnv.env}),
-    steps: inner.steps,
+    steps: inner.steps.map((step) => deferCompositeInputs(step) as WorkflowModelStep),
     ...(Object.keys(templates).length === 0 ? {} : {templates}),
   };
+}
+
+// Inside a composite, `inputs` names the composite's inputs, which exist only
+// once the composite opens. A segment that reads them would otherwise be
+// planned for run creation and filled with the run's own inputs.
+function deferCompositeInputs(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(deferCompositeInputs);
+  if (value === null || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  if (
+    record.kind === 'deferred' &&
+    Array.isArray(record.roots) &&
+    record.roots.includes('inputs') &&
+    typeof record.fillTarget === 'string' &&
+    fillsBeforeStepDispatch(record.fillTarget)
+  ) {
+    return {...record, fillTarget: 'step-dispatch'};
+  }
+  return Object.fromEntries(
+    Object.entries(record).map(([key, child]) => [key, deferCompositeInputs(child)]),
+  );
+}
+
+function fillsBeforeStepDispatch(fillTarget: string): boolean {
+  const index = availabilitySites.indexOf(fillTarget as AvailabilitySite);
+  return index >= 0 && index < availabilitySites.indexOf('step-dispatch');
 }
 
 function nonSecretInputDeclarations(manifest: CompositeActionManifest): OutputDeclarations {

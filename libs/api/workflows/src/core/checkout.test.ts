@@ -913,6 +913,7 @@ function checkoutStep(checkout: Record<string, unknown>): Step {
   return {
     id: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
+    parentStepId: null,
     key: null,
     name: 'Checkout',
     sourceLocation: null,
@@ -923,6 +924,7 @@ function checkoutStep(checkout: Record<string, unknown>): Step {
     config: {checkout},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,

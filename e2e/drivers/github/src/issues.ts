@@ -13,6 +13,8 @@ import {
 export const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 export const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUE_COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/comments$/u;
+// A single comment is named by its id, not by the number of its issue.
+const ISSUE_COMMENT_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/comments\/(\d+)$/u;
 const ISSUE_LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/labels$/u;
 const ISSUE_SUB_ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/sub_issues$/u;
 const ISSUE_SUB_ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/sub_issue$/u;
@@ -39,6 +41,8 @@ export interface GithubIssueCommentFixture {
   id: number;
   body: string;
   author: string;
+  /** When the comment last changed. Defaults to the fixture timestamp. */
+  updatedAt?: string | undefined;
 }
 
 export interface GithubIssueFixture {
@@ -93,6 +97,7 @@ interface RouteContext extends Omit<IssueRoutesOptions, 'recordWrite'> {
   requestUrl: URL;
   match: RegExpMatchArray;
   repository: string;
+  /** The issue number. Routes that name a single comment read its id from `match` instead. */
   number: number;
   nextCommentId: () => number;
 }
@@ -110,6 +115,8 @@ const ROUTES: Route[] = [
   {method: 'PATCH', path: ISSUE_PATH, handle: updateIssue},
   {method: 'GET', path: ISSUE_COMMENTS_PATH, handle: listIssueComments},
   {method: 'POST', path: ISSUE_COMMENTS_PATH, handle: createIssueComment},
+  {method: 'GET', path: ISSUE_COMMENT_PATH, handle: getIssueComment},
+  {method: 'PATCH', path: ISSUE_COMMENT_PATH, handle: updateIssueComment},
   {method: 'GET', path: ISSUE_SUB_ISSUES_PATH, handle: listSubIssues},
   {method: 'POST', path: ISSUE_SUB_ISSUES_PATH, handle: addSubIssue},
   {method: 'DELETE', path: ISSUE_SUB_ISSUE_PATH, handle: removeSubIssue},
@@ -280,11 +287,7 @@ async function updateIssue(context: RouteContext): Promise<void> {
 // Pull requests take issue comments too, so their comments are listed here as GitHub does.
 function listIssueComments(context: RouteContext): void {
   const issue = findIssue(context.issues, context.repository, context.number);
-  const candidate = context.pullRequests.get(context.number);
-  const pullRequest =
-    candidate !== undefined && sameRepository(candidate.repository, context.repository)
-      ? candidate
-      : undefined;
+  const pullRequest = pullRequestOf(context);
   if (issue === undefined && pullRequest === undefined) {
     sendJson(context.response, 404, {message: 'Not Found'});
     return;
@@ -294,7 +297,9 @@ function listIssueComments(context: RouteContext): void {
     context.response,
     200,
     paginate(
-      comments.map((comment) => commentPayload(context, comment)),
+      comments.map((comment) =>
+        commentPayload({repository: context.repository, number: context.number, comment}),
+      ),
       context.requestUrl.searchParams,
     ),
   );
@@ -486,19 +491,81 @@ async function createIssueComment(context: RouteContext): Promise<void> {
   }
 
   // Pull requests take issue comments too, and they are not issue fixtures.
-  const issue = findIssue(context.issues, context.repository, context.number);
+  const owner =
+    findIssue(context.issues, context.repository, context.number) ?? pullRequestOf(context);
   const comment: GithubIssueCommentFixture = {
     id: context.nextCommentId(),
     body: body.body,
     author: botLogin(),
   };
-  if (issue !== undefined) issue.comments = [...(issue.comments ?? []), comment];
+  if (owner !== undefined) owner.comments = [...(owner.comments ?? []), comment];
   context.recordWrite({
     kind: 'github.create_issue_comment',
     target: `${context.repository}#${context.number}`,
     payload: body,
   });
-  sendJson(context.response, 201, commentPayload(context, comment));
+  sendJson(
+    context.response,
+    201,
+    commentPayload({repository: context.repository, number: context.number, comment}),
+  );
+}
+
+function pullRequestOf(context: RouteContext): GithubPullRequestFixture | undefined {
+  const pullRequest = context.pullRequests.get(context.number);
+  return pullRequest !== undefined && sameRepository(pullRequest.repository, context.repository)
+    ? pullRequest
+    : undefined;
+}
+
+// GitHub names a comment by its id alone, so the fake looks through the issues and pull requests
+// of the repository for it.
+function findComment(
+  context: RouteContext,
+): {number: number; comment: GithubIssueCommentFixture} | undefined {
+  const commentId = Number(context.match[3]);
+  const owners = [...context.issues.entries(), ...context.pullRequests.entries()].filter(
+    ([, owner]) => sameRepository(owner.repository, context.repository),
+  );
+  for (const [number, owner] of owners) {
+    const comment = owner.comments?.find((candidate) => candidate.id === commentId);
+    if (comment !== undefined) return {number, comment};
+  }
+  return undefined;
+}
+
+function getIssueComment(context: RouteContext): void {
+  const found = findComment(context);
+  if (found === undefined) {
+    sendJson(context.response, 404, {message: 'Not Found'});
+    return;
+  }
+  sendJson(context.response, 200, commentPayload({repository: context.repository, ...found}));
+}
+
+async function updateIssueComment(context: RouteContext): Promise<void> {
+  const body = await readJsonBodyOrReject(context.request, context.response);
+  if (body === undefined) return;
+  const found = findComment(context);
+  if (found === undefined) {
+    sendJson(context.response, 404, {message: 'Not Found'});
+    return;
+  }
+  if (typeof body.body !== 'string' || body.body === '') {
+    sendValidationFailed(context.response, [
+      {resource: 'IssueComment', field: 'body', code: 'missing_field'},
+    ]);
+    return;
+  }
+
+  found.comment.body = body.body;
+  found.comment.updatedAt = new Date().toISOString();
+  context.recordWrite({
+    kind: 'github.update_issue_comment',
+    target: `${context.repository}#${found.number}`,
+    payload: {comment_id: found.comment.id, ...body},
+  });
+  sendJson(context.response, 200, commentPayload({repository: context.repository, ...found}));
 }
 
 function listLabels(context: RouteContext): void {
@@ -553,17 +620,23 @@ function requireIssue(context: RouteContext): GithubIssueFixture | undefined {
   return issue;
 }
 
-function commentPayload(
-  context: RouteContext,
-  comment: GithubIssueCommentFixture,
-): Record<string, unknown> {
+function commentPayload({
+  repository,
+  number,
+  comment,
+}: {
+  repository: string;
+  number: number;
+  comment: GithubIssueCommentFixture;
+}): Record<string, unknown> {
   return {
     id: comment.id,
     body: comment.body,
     user: actorPayload(comment.author),
-    html_url: `https://github.com/${context.repository}/issues/${context.number}#issuecomment-${comment.id}`,
+    issue_url: `https://api.github.com/repos/${repository}/issues/${number}`,
+    html_url: `https://github.com/${repository}/issues/${number}#issuecomment-${comment.id}`,
     created_at: FIXTURE_TIMESTAMP,
-    updated_at: FIXTURE_TIMESTAMP,
+    updated_at: comment.updatedAt ?? FIXTURE_TIMESTAMP,
     author_association: 'MEMBER',
   };
 }

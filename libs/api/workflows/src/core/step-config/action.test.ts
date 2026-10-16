@@ -103,6 +103,7 @@ function stepFrom(materialized: Awaited<ReturnType<typeof materializeActionStep>
   return {
     id: 'step-1',
     jobExecutionId: 'exec-1',
+    parentStepId: null,
     key: materialized.key,
     name: materialized.name,
     sourceLocation: null,
@@ -113,6 +114,7 @@ function stepFrom(materialized: Awaited<ReturnType<typeof materializeActionStep>
     config: {...materialized.config},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: materialized.configPlan ?? null,
     authoredConfig: materialized.authoredConfig,
     error: null,

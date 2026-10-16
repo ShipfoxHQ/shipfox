@@ -146,6 +146,7 @@ describe('Pi host tools', () => {
       command: string,
       options: {
         gitConfigGlobal?: string;
+        credentialCaptureId?: string;
         carriedEnv?: CarriedEnv;
         signal?: AbortSignal;
         timeout?: number;
@@ -157,6 +158,7 @@ describe('Pi host tools', () => {
       const operations = createBashOperations(host, {
         shellPath: undefined,
         gitConfigGlobal: options.gitConfigGlobal,
+        credentialCaptureId: options.credentialCaptureId,
         carriedEnv: options.carriedEnv,
       });
       const result = operations.exec(command, options.cwd ?? root, {
@@ -194,6 +196,14 @@ describe('Pi host tools', () => {
 
       expect(run.output()).toBe('/job/git.config\n');
       expect(process.env.GIT_CONFIG_GLOBAL).not.toBe('/job/git.config');
+    });
+
+    it('adds the credential capture of the step to the shell environment', async () => {
+      const run = exec('echo "$SHIPFOX_CREDENTIAL_CAPTURE"', {credentialCaptureId: 'capture-1'});
+
+      await run.result;
+
+      expect(run.output()).toBe('capture-1\n');
     });
 
     it('layers the carried env above the requested environment and below the job Git config', async () => {

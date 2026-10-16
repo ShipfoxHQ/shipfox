@@ -276,10 +276,12 @@ export {
   WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
   type WorkflowDiagnosticFieldDto,
   type WorkflowJobExecutionContextResponseDto,
+  type WorkflowRunActionFileResponseDto,
   type WorkflowRunSourceResponseDto,
   type WorkflowRunSourceUnavailableReasonDto,
   workflowDiagnosticFieldSchema,
   workflowJobExecutionContextResponseSchema,
+  workflowRunActionFileResponseSchema,
   workflowRunSourceResponseSchema,
   workflowRunSourceUnavailableReasonSchema,
 } from './workflow-run-diagnostics.js';

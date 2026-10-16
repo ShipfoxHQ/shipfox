@@ -47,6 +47,7 @@ function pendingStep(setup: MaterializedWorkflowStep): Step {
   return {
     id: 'step-1',
     jobExecutionId: 'exec-1',
+    parentStepId: null,
     key: null,
     name: setup.name,
     sourceLocation: null,
@@ -57,6 +58,7 @@ function pendingStep(setup: MaterializedWorkflowStep): Step {
     config: {...setup.config},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: setup.configPlan ?? null,
     authoredConfig: null,
     error: null,

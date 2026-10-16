@@ -22,6 +22,7 @@ export type WorkflowModelValidationIssueCode =
   | 'checkout-path-required'
   | 'checkout-target-invalid'
   | 'composite-secrets-forbidden'
+  | 'composite-continue-on-error-unsupported'
   | 'duplicate-job-id'
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'

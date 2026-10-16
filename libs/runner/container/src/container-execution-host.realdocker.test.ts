@@ -7,7 +7,10 @@ import {Readable} from 'node:stream';
 import {ContainerExecutionHost} from '#container-execution-host.js';
 import {jobContainerName, removeJobContainer, startJobContainer} from '#job-container.js';
 import {runCommand} from '#run-command.js';
-import {describeExecutionHostContract} from '#testing/execution-host-contract.js';
+import {
+  CONTRACT_TERMINATE_GRACE_MS,
+  describeExecutionHostContract,
+} from '#testing/execution-host-contract.js';
 
 // A fake docker would accept any argument list, so the host runs against a real daemon. BusyBox
 // and Debian differ in `sh`, `kill`, `stat`, and `sleep`, and the recipes have to work on both.
@@ -82,7 +85,11 @@ async function startFixture(image: string): Promise<Fixture> {
     throw error;
   }
   return {
-    host: new ContainerExecutionHost({container: name, tempDir: dirs.tempDir}),
+    host: new ContainerExecutionHost({
+      container: name,
+      tempDir: dirs.tempDir,
+      terminateGraceMs: CONTRACT_TERMINATE_GRACE_MS,
+    }),
     root,
     tempDir: dirs.tempDir,
     workspaceDir: dirs.workspaceDir,

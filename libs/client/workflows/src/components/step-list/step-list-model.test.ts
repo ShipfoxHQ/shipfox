@@ -1,7 +1,7 @@
-import {type StepAttemptDto, workflowRunStatusSchema} from '@shipfox/api-workflows-dto';
+import {workflowRunStatusSchema} from '@shipfox/api-workflows-dto';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import type {Job} from '#core/workflow-run.js';
-import type {WorkflowStepFixtureDto} from '#test/fixtures/workflow-run.js';
+import type {WorkflowStepAttemptDto, WorkflowStepFixtureDto} from '#test/fixtures/workflow-run.js';
 import {
   type JobDtoOverrides,
   workflowJob,
@@ -9,7 +9,13 @@ import {
   workflowStepAttemptDto,
   workflowStepDto,
 } from '#test/fixtures/workflow-run.js';
-import {buildStepListModel, getStepStatusVisual, humanizeStatus} from './step-list-model.js';
+import {
+  buildStepListModel,
+  getStepStatusVisual,
+  humanizeStatus,
+  openStepListEntryIds,
+  selectionAfterOpenChange,
+} from './step-list-model.js';
 
 describe('buildStepListModel', () => {
   test('sorts steps by position and uses display names before fallback labels', () => {
@@ -285,6 +291,59 @@ describe('buildStepListModel', () => {
     expect(result.entries[2]?.statusVisual).toMatchObject({dot: 'error', badge: 'error'});
   });
 
+  test('marks the failed attempts that continue_on_error covered as ignored', () => {
+    const gated = makeStep({
+      name: 'Review perf',
+      status: 'failed',
+      current_attempt: 2,
+      affects_job: false,
+      attempts: [
+        makeAttempt({attempt: 1, execution_order: 1, status: 'failed', exit_code: 1}),
+        makeAttempt({
+          attempt: 2,
+          execution_order: 2,
+          status: 'failed',
+          exit_code: 1,
+          failure_ignored: true,
+        }),
+      ],
+    });
+    const rerun = makeStep({
+      name: 'Lint',
+      position: 2,
+      status: 'succeeded',
+      current_attempt: 2,
+      attempts: [
+        makeAttempt({
+          attempt: 1,
+          execution_order: 3,
+          status: 'failed',
+          exit_code: 1,
+          failure_ignored: true,
+        }),
+        makeAttempt({attempt: 2, execution_order: 4, status: 'succeeded'}),
+      ],
+    });
+    const timedOut = makeStep({
+      name: 'Run tests',
+      position: 3,
+      status: 'failed',
+      affects_job: true,
+      attempts: [makeAttempt({execution_order: 5, status: 'failed'})],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [gated, rerun, timedOut]})});
+
+    expect(result.entries.map((entry) => entry.failureIgnored)).toEqual([
+      false,
+      true,
+      true,
+      false,
+      false,
+    ]);
+    expect(result.entries[1]?.statusVisual).toMatchObject({dot: 'warning', badge: 'warning'});
+  });
+
   test('keeps the warning for a carried-over post that left the job result unchanged', () => {
     const post = makeStep({
       name: 'Post Set up Node',
@@ -464,6 +523,248 @@ describe('buildStepListModel', () => {
   });
 });
 
+describe('composite steps', () => {
+  test('groups inner entries under their composite entry and labels them with the key path', () => {
+    const setup = makeStep({
+      id: 'step-setup',
+      key: 'setup',
+      name: 'Set up a pull request review',
+      type: 'composite',
+      position: 1,
+      attempts: [makeAttempt({id: 'setup#1', step_id: 'step-setup', execution_order: 1})],
+    });
+    const changedFiles = makeStep({
+      id: 'step-changed-files',
+      parent_step_id: 'step-setup',
+      key: 'changed_files',
+      name: 'List changed files',
+      position: 2,
+      attempts: [makeAttempt({id: 'changed#1', step_id: 'step-changed-files', execution_order: 2})],
+    });
+    const unkeyed = makeStep({
+      id: 'step-context',
+      parent_step_id: 'step-setup',
+      key: null,
+      name: 'mise run workspace:setup:context',
+      position: 3,
+      attempts: [makeAttempt({id: 'context#1', step_id: 'step-context', execution_order: 3})],
+    });
+    const review = makeStep({
+      id: 'step-review',
+      key: 'review',
+      name: 'review',
+      position: 4,
+      attempts: [makeAttempt({id: 'review#1', step_id: 'step-review', execution_order: 4})],
+    });
+
+    const result = buildStepListModel({
+      job: makeJob({steps: [review, unkeyed, changedFiles, setup]}),
+    });
+
+    expect(
+      result.entries.map(({id, depth, parentEntryId, step}) => ({
+        id,
+        depth,
+        parentEntryId,
+        label: step.label,
+      })),
+    ).toEqual([
+      {id: 'setup#1', depth: 0, parentEntryId: undefined, label: 'Set up a pull request review'},
+      {id: 'changed#1', depth: 1, parentEntryId: 'setup#1', label: 'setup › changed_files'},
+      {
+        id: 'context#1',
+        depth: 1,
+        parentEntryId: 'setup#1',
+        label: 'setup › mise run workspace:setup:context',
+      },
+      {id: 'review#1', depth: 0, parentEntryId: undefined, label: 'review'},
+    ]);
+  });
+
+  test('puts each pass of inner steps under the composite attempt that ran it', () => {
+    const setup = makeStep({
+      id: 'step-setup',
+      key: 'setup',
+      type: 'composite',
+      position: 1,
+      attempts: [
+        makeAttempt({id: 'setup#1', step_id: 'step-setup', attempt: 1, execution_order: 1}),
+        makeAttempt({id: 'setup#2', step_id: 'step-setup', attempt: 2, execution_order: 5}),
+      ],
+    });
+    const lint = makeStep({
+      id: 'step-lint',
+      parent_step_id: 'step-setup',
+      key: 'lint',
+      position: 2,
+      attempts: [
+        makeAttempt({id: 'lint#1', step_id: 'step-lint', attempt: 1, execution_order: 2}),
+        makeAttempt({id: 'lint#2', step_id: 'step-lint', attempt: 2, execution_order: 3}),
+        makeAttempt({id: 'lint#3', step_id: 'step-lint', attempt: 3, execution_order: 6}),
+      ],
+    });
+    const gate = makeStep({
+      id: 'step-gate',
+      key: 'gate',
+      position: 3,
+      attempts: [makeAttempt({id: 'gate#1', step_id: 'step-gate', execution_order: 4})],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [setup, lint, gate]})});
+
+    expect(result.entries.map(({id, parentEntryId}) => [id, parentEntryId])).toEqual([
+      ['setup#1', undefined],
+      ['lint#1', 'setup#1'],
+      ['lint#2', 'setup#1'],
+      ['gate#1', undefined],
+      ['setup#2', undefined],
+      ['lint#3', 'setup#2'],
+    ]);
+  });
+
+  test('nests a composite inside a composite and joins every key on the path', () => {
+    const outer = makeStep({
+      id: 'step-outer',
+      key: 'outer',
+      name: 'outer',
+      type: 'composite',
+      position: 1,
+      attempts: [makeAttempt({id: 'outer#1', step_id: 'step-outer', execution_order: 1})],
+    });
+    const inner = makeStep({
+      id: 'step-inner',
+      parent_step_id: 'step-outer',
+      key: null,
+      name: 'Inner composite',
+      type: 'composite',
+      position: 2,
+      attempts: [makeAttempt({id: 'inner#1', step_id: 'step-inner', execution_order: 2})],
+    });
+    const leaf = makeStep({
+      id: 'step-leaf',
+      parent_step_id: 'step-inner',
+      key: 'leaf',
+      position: 3,
+      attempts: [makeAttempt({id: 'leaf#1', step_id: 'step-leaf', execution_order: 3})],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [outer, inner, leaf]})});
+
+    expect(result.entries.map(({id, depth, step}) => [id, depth, step.label])).toEqual([
+      ['outer#1', 0, 'outer'],
+      ['inner#1', 1, 'outer › Inner composite'],
+      ['leaf#1', 2, 'outer › Inner composite › leaf'],
+    ]);
+  });
+
+  test('keeps an inner entry at the top level when its composite is not loaded', () => {
+    const orphan = makeStep({
+      id: 'step-orphan',
+      parent_step_id: 'step-missing',
+      key: 'orphan',
+      attempts: [makeAttempt({id: 'orphan#1', step_id: 'step-orphan'})],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [orphan]})});
+
+    expect(result.entries).toMatchObject([{id: 'orphan#1', depth: 0, parentEntryId: undefined}]);
+  });
+
+  test('opens the composite entries that hold a selected inner entry', () => {
+    const {entries} = nestedCompositeModel();
+
+    const open = openStepListEntryIds(entries, ['leaf#1']);
+
+    expect(open).toEqual(['outer#1', 'inner#1', 'leaf#1']);
+  });
+
+  test('closing a composite entry deselects the entries inside it', () => {
+    const {entries} = nestedCompositeModel();
+
+    const selected = selectionAfterOpenChange({
+      entries,
+      selectedIds: ['leaf#1', 'review#1'],
+      nextOpenIds: ['review#1'],
+    });
+
+    expect(selected).toEqual(['review#1']);
+  });
+
+  test('closing an inner entry keeps the composites that hold it open', () => {
+    const {entries} = nestedCompositeModel();
+
+    const selected = selectionAfterOpenChange({
+      entries,
+      selectedIds: ['leaf#1'],
+      nextOpenIds: ['outer#1', 'inner#1'],
+    });
+
+    expect(selected).toEqual(['inner#1']);
+    expect(openStepListEntryIds(entries, selected)).toEqual(['outer#1', 'inner#1']);
+  });
+
+  test('closing a nested composite entry keeps its outer composite open', () => {
+    const {entries} = nestedCompositeModel();
+
+    const selected = selectionAfterOpenChange({
+      entries,
+      selectedIds: ['leaf#1'],
+      nextOpenIds: ['outer#1', 'leaf#1'],
+    });
+
+    expect(selected).toEqual(['outer#1']);
+  });
+
+  test('opening a composite entry selects it and keeps the current selection', () => {
+    const {entries} = nestedCompositeModel();
+
+    const selected = selectionAfterOpenChange({
+      entries,
+      selectedIds: ['review#1'],
+      nextOpenIds: ['review#1', 'outer#1'],
+    });
+
+    expect(selected).toEqual(['review#1', 'outer#1']);
+  });
+});
+
+function nestedCompositeModel() {
+  return buildStepListModel({
+    job: makeJob({
+      steps: [
+        makeStep({
+          id: 'step-outer',
+          key: 'outer',
+          type: 'composite',
+          position: 1,
+          attempts: [makeAttempt({id: 'outer#1', step_id: 'step-outer', execution_order: 1})],
+        }),
+        makeStep({
+          id: 'step-inner',
+          parent_step_id: 'step-outer',
+          key: 'inner',
+          type: 'composite',
+          position: 2,
+          attempts: [makeAttempt({id: 'inner#1', step_id: 'step-inner', execution_order: 2})],
+        }),
+        makeStep({
+          id: 'step-leaf',
+          parent_step_id: 'step-inner',
+          key: 'leaf',
+          position: 3,
+          attempts: [makeAttempt({id: 'leaf#1', step_id: 'step-leaf', execution_order: 3})],
+        }),
+        makeStep({
+          id: 'step-review',
+          key: 'review',
+          position: 4,
+          attempts: [makeAttempt({id: 'review#1', step_id: 'step-review', execution_order: 4})],
+        }),
+      ],
+    }),
+  });
+}
+
 function makeJob(overrides: JobDtoOverrides = {}): Job {
   return workflowJob(overrides);
 }
@@ -472,6 +773,6 @@ function makeStep(overrides: Partial<WorkflowStepFixtureDto> = {}): WorkflowStep
   return workflowStepDto(overrides);
 }
 
-function makeAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
+function makeAttempt(overrides: Partial<WorkflowStepAttemptDto> = {}): WorkflowStepAttemptDto {
   return workflowStepAttemptDto(overrides);
 }

@@ -55,6 +55,7 @@ const supportingRoutes: Record<string, string[]> = {
     'GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
   ],
   add_comment_to_pending_review: ['GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews'],
+  update_issue_comment: ['GET /repos/{owner}/{repo}/issues/comments/{comment_id}'],
 };
 
 /** GraphQL operations have no REST snapshot entry, so their documented permission is pinned. */

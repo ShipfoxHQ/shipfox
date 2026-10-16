@@ -45,7 +45,10 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `DELETE /issues/:number/sub_issue` removes it, and `PATCH /issues/:number/sub_issues/priority`
   moves it before or after a sibling. A closed issue reads `state_reason`, `completed` unless the
   update said otherwise. The comments route pages by `per_page`
-  and `page`, and lists the `comments` of a seeded pull request for its number too.
+  and `page`, and lists the `comments` of a seeded pull request for its number too. A comment
+  posted on a pull request joins its `comments`. `GET` and `PATCH /repos/:owner/:repo/issues/comments/:id`
+  read and edit a comment of the repository's issues and pull requests by id, and answer 404 for
+  any other id. An edit replaces the body and moves `updated_at`.
 - `GithubApiMock.workflows` and `workflowRuns`: workflows by id and their runs by id, read
   through `GET /repos/:owner/:repo/actions/workflows`, the same path with an id or file name,
   and its `/runs`, newest run first. A workflow without runs, or one nobody seeded, has an
@@ -98,7 +101,8 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   request writes. It records these kinds:
   `github.create_pull_request`, `github.update_pull_request`,
   `github.merge_pull_request`, `github.reply_to_review_comment`,
-  `github.create_issue_comment`, and `github.resolve_review_thread`, plus
+  `github.create_issue_comment`, `github.update_issue_comment`, and
+  `github.resolve_review_thread`, plus
   `github.update_pull_request_branch`, `github.create_review`, `github.submit_review`,
   `github.delete_review`, and `github.add_review_thread`. The other writes are `github.create_issue`,
   `github.add_sub_issue`, `github.remove_sub_issue`, `github.reprioritize_sub_issue`,

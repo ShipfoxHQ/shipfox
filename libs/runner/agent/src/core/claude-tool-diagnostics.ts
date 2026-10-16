@@ -54,7 +54,6 @@ interface ClaudeToolDiagnosticsParams {
   readonly providerTools?: readonly AgentSessionToolDescriptor[] | undefined;
   readonly metadataMode?: AgentSessionMetadataMode | undefined;
   readonly directToolNames?: readonly string[] | undefined;
-  readonly proxyFallback?: boolean | undefined;
   readonly requiredOutputCount: number;
 }
 
@@ -114,7 +113,6 @@ export class ClaudeToolDiagnostics {
       metadataMode:
         params.metadataMode ?? (params.invocation.session?.mode === 'resume' ? 'warm' : 'cold'),
       directToolNames: params.directToolNames,
-      proxyFallback: params.proxyFallback,
       providerTools: params.providerTools,
       catalogFailures: (params.catalogFailures ?? []).map(catalogFailureForSession),
     });

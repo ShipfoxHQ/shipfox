@@ -41,6 +41,12 @@ Fully resolved fields are frozen into `steps.config`. Deferred segments stay in 
 
 Action steps always keep a plan, because it carries the manifest input declarations. At dispatch, the `with` values are completed, defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with `action_input_invalid`.
 
+A composite action step becomes a parent row of type `composite`, followed by its inner steps in run order, each with `parent_step_id`. The server opens and closes the parent row and never hands it to a runner:
+
+- **Open:** the `run_after` and `if` of the composite run in its caller's scope. Its `with` fills into typed inputs on the parent attempt, and its `env` and working directory become the base of the inner steps. A composite that does not open skips its inner steps with `composite_skipped`.
+- **Inner steps:** they read the composite's `inputs`, the `steps` of the same composite, and `action.path`, the composite's directory under the `actions_dir` the setup step reported. Their `run_after` looks at earlier inner steps only.
+- **Close:** once the inner steps finish, the composite fails if one of them failed, and otherwise fills its outputs. The result then takes the reported step path, so the composite's gate can restart it.
+
 The context wrapper is:
 
 ```ts

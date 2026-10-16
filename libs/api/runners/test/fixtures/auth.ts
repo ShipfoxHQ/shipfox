@@ -82,6 +82,28 @@ export const runnersTestAuthClient: AuthInterModuleClient = {
   mintJobLeaseToken(claims) {
     return Promise.resolve({token: mintLeaseToken(claims)});
   },
+  renewStepLeaseTokens(input) {
+    const tokens = input.tokens.flatMap((token) => {
+      const claims = leaseClaims.get(token);
+      if (
+        claims?.jobExecutionId !== input.jobExecutionId ||
+        claims.runnerSessionId !== input.runnerSessionId ||
+        claims.currentStepId === undefined ||
+        claims.currentStepAttempt === undefined
+      ) {
+        return [];
+      }
+      const {aud: _aud, iat: _iat, exp: _exp, ...renewed} = claims;
+      return [
+        {
+          stepId: claims.currentStepId,
+          attempt: claims.currentStepAttempt,
+          token: mintLeaseToken(renewed),
+        },
+      ];
+    });
+    return Promise.resolve({tokens});
+  },
   mintAgentLogDownloadToken() {
     return Promise.resolve({token: 'test-download-token', expiresAt: new Date().toISOString()});
   },

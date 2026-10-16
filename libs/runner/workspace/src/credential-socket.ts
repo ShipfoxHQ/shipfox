@@ -18,6 +18,7 @@ import {
   requestCredentialSocketTransport,
 } from '#credential-socket-transport.js';
 
+export {CREDENTIAL_CAPTURE_ENV} from '#credential-broker.js';
 export {
   assertCredentialSocketCapability,
   CredentialSocketError,
@@ -30,7 +31,11 @@ export type CredentialSocketRequest = {
   capability: string;
   operation: CredentialSocketOperation;
   repositoryUrl: string;
+  /** The failure capture of the step the Git process runs for. */
+  captureId?: string | undefined;
 };
+
+const MAX_CAPTURE_ID_LENGTH = 128;
 
 export type CredentialSocketResponse =
   | (CredentialSocketTransportResponse & {ok: true; credential?: CredentialLookup})
@@ -123,8 +128,12 @@ async function handleRequest(
   signal: AbortSignal,
 ): Promise<CredentialSocketResponse> {
   if (signal.aborted) return {version: CREDENTIAL_SOCKET_PROTOCOL_VERSION, ok: false};
+  const options = {captureId: request.captureId};
   if (request.operation === 'get') {
-    const credential = await awaitUnlessCanceled(broker.lookup(request.repositoryUrl), signal);
+    const credential = await awaitUnlessCanceled(
+      broker.lookup(request.repositoryUrl, options),
+      signal,
+    );
     return credential === undefined
       ? {version: CREDENTIAL_SOCKET_PROTOCOL_VERSION, ok: true}
       : {version: CREDENTIAL_SOCKET_PROTOCOL_VERSION, ok: true, credential};
@@ -133,7 +142,7 @@ async function handleRequest(
     broker.store(request.repositoryUrl);
     return {version: CREDENTIAL_SOCKET_PROTOCOL_VERSION, ok: true};
   }
-  await awaitUnlessCanceled(broker.erase(request.repositoryUrl), signal);
+  await awaitUnlessCanceled(broker.erase(request.repositoryUrl, options), signal);
   return {version: CREDENTIAL_SOCKET_PROTOCOL_VERSION, ok: true};
 }
 
@@ -156,6 +165,14 @@ function decodeRequest(value: CredentialSocketTransportRequest): CredentialSocke
   ) {
     throw new Error('Invalid credential socket request');
   }
+  if (
+    value.captureId !== undefined &&
+    (typeof value.captureId !== 'string' ||
+      value.captureId.length === 0 ||
+      value.captureId.length > MAX_CAPTURE_ID_LENGTH)
+  ) {
+    throw new Error('Invalid credential socket request');
+  }
   assertCredentialSocketCapability(value.capability);
   normalizeRepositoryUrl(value.repositoryUrl);
   return {
@@ -163,6 +180,7 @@ function decodeRequest(value: CredentialSocketTransportRequest): CredentialSocke
     operation: value.operation,
     repositoryUrl: value.repositoryUrl,
     capability: value.capability,
+    ...(value.captureId === undefined ? {} : {captureId: value.captureId}),
   };
 }
 

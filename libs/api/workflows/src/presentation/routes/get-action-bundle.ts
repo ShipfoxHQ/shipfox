@@ -11,7 +11,11 @@ import {actionBundleDigestSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {loadRunningLeasedStep} from './leased-step.js';
 
-const actionStepConfigSchema = z.object({action: z.object({digest: actionBundleDigestSchema})});
+const bundleConfigSchema = z.object({
+  action: z.object({digest: actionBundleDigestSchema}).optional(),
+  // A step inside composite actions gets their files, which it reads under `action.path`.
+  action_bundles: z.array(actionBundleDigestSchema).optional(),
+});
 
 export function createGetActionBundleRoute(params: {
   runners: RunnersInterModuleClient;
@@ -21,9 +25,10 @@ export function createGetActionBundleRoute(params: {
     method: 'GET',
     path: '/steps/:stepId/action-bundle',
     description:
-      "Returns the gzipped action bundle for the runner's currently leased action or post step. The digest comes from the step config, never from the runner.",
+      "Returns a gzipped action bundle for the runner's currently leased step: the action of an action or post step, or the files of a composite action that holds the step. The step config names the bundles; `digest` picks one of them and defaults to the step's action.",
     schema: {
       params: z.object({stepId: z.string().uuid()}),
+      querystring: z.object({digest: actionBundleDigestSchema.optional()}),
       response: {
         200: z.instanceof(Buffer),
       },
@@ -54,13 +59,7 @@ export function createGetActionBundleRoute(params: {
         stepId,
         attempt: leasedJob.currentStepAttempt,
       });
-      if (step.type !== 'action' && step.type !== 'post') {
-        throw new ClientError('Step is not an action or post step', 'step-not-action', {
-          status: 409,
-        });
-      }
-
-      const config = actionStepConfigSchema.safeParse(step.config);
+      const config = bundleConfigSchema.safeParse(step.config);
       if (!config.success) {
         throw new ClientError('Action step config is invalid', 'action-config-invalid', {
           status: 409,
@@ -68,10 +67,17 @@ export function createGetActionBundleRoute(params: {
         });
       }
 
-      const snapshot = await params.definitions.getActionSnapshot({
-        workspaceId,
-        digest: config.data.action.digest,
-      });
+      const digests = [config.data.action?.digest, ...(config.data.action_bundles ?? [])].filter(
+        (digest) => digest !== undefined,
+      );
+      const digest = request.query.digest ?? digests[0];
+      if (digest === undefined || !digests.includes(digest)) {
+        throw new ClientError('Step has no such action bundle', 'step-not-action', {
+          status: 409,
+        });
+      }
+
+      const snapshot = await params.definitions.getActionSnapshot({workspaceId, digest});
 
       reply.header('cache-control', 'no-store');
       reply.type('application/gzip');

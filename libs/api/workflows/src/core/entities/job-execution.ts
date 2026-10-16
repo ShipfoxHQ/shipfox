@@ -76,4 +76,6 @@ export interface JobExecution {
   durationLimits?: JobExecutionLimits | null | undefined;
   durationCapped?: boolean | undefined;
   durationNotice?: PolicyNotice | null | undefined;
+  /** Where the runner unpacks action bundles. Set once the setup step reports. */
+  actionsDir?: string | null | undefined;
 }

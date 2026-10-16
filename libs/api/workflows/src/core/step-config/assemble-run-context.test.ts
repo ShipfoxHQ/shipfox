@@ -2811,6 +2811,7 @@ function step(overrides: Partial<Step> = {}): Step {
   return {
     id: 'step-1',
     jobExecutionId: 'exec-1',
+    parentStepId: null,
     key: 'build',
     name: 'Build',
     sourceLocation: null,
@@ -2821,6 +2822,7 @@ function step(overrides: Partial<Step> = {}): Step {
     config: {},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -2849,6 +2851,7 @@ function attempt(overrides: Partial<StepAttempt> = {}): StepAttempt {
     logPath: null,
     gateResult: null,
     restartFeedback: null,
+    failureIgnored: false,
     logOutcome: null,
     invocations: [],
     startedAt: date,

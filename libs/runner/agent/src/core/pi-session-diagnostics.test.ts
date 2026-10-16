@@ -96,4 +96,40 @@ describe('Pi session diagnostics extension', () => {
     ]);
     expect(entry.termination).toEqual({reason: 'error', failureClass: 'output_conflict'});
   });
+
+  it('reads the stable error from a built-in MCP tool result', async () => {
+    const record = diagnostics();
+    const handlers = new Map<string, (event: never) => unknown>();
+    const appendEntry = vi.fn();
+    const extension = createPiSessionDiagnosticsExtension(record);
+    const pi = {
+      on: (event: string, handler: (event: never) => unknown) => handlers.set(event, handler),
+      appendEntry,
+    } as unknown as ExtensionAPI;
+    if (typeof extension === 'function') throw new Error('Expected an inline extension object');
+    await extension.factory(pi);
+
+    handlers.get('tool_result')?.({
+      toolCallId: 'mcp-call',
+      toolName: 'mcp__shipfox__github__pull_request_read',
+      input: {},
+      content: [{type: 'text', text: 'Method is required: wording can change'}],
+      details: {server: 'shipfox', tool: 'github__pull_request_read'},
+      structuredContent: {
+        content: [{type: 'text', text: 'Method is required: wording can change'}],
+        structuredContent: {code: 'invalid-request', reason: 'missing_required_parameter'},
+        isError: true,
+      },
+      isError: true,
+    } as never);
+    handlers.get('session_shutdown')?.({} as never);
+
+    const entry = appendEntry.mock.calls[0]?.[1] as {
+      toolResults: Array<{isError: boolean; error?: unknown}>;
+    };
+    expect(entry.toolResults[0]).toMatchObject({
+      isError: true,
+      error: {code: 'invalid-request', reason: 'missing_required_parameter'},
+    });
+  });
 });

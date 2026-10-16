@@ -16,6 +16,7 @@ import type {
   PersistedCheckoutCredential,
 } from '@shipfox/runner-workspace';
 import {HTTPError} from 'ky';
+import type {StepLeases} from '#core/step-lease-tokens.js';
 import type {RunnerAgentStepModule} from '#core/step-loop.js';
 
 const {AgentRuntimeConfigRequestError, StepSecretsRequestError, resolveWorkingDirectoryMock} =
@@ -86,6 +87,7 @@ const createGatewayMcpClientMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeActionStepMock = vi.fn();
 const requestActionBundleMock = vi.fn();
+const prepareStepActionBundleMock = vi.fn();
 const executeSetupStepMock = vi.fn();
 const executeCheckoutStepMock = vi.fn();
 const createStepLogStreamMock = vi.fn();
@@ -134,6 +136,8 @@ vi.mock('@shipfox/runner-protocol/gateway-mcp-client', () => ({
 vi.mock('@shipfox/runner-execution', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
   executeActionStep: (...args: unknown[]) => executeActionStepMock(...args),
+  actionsDirectory: (jobTempDir: string) => `${jobTempDir}/actions`,
+  prepareStepActionBundle: (...args: unknown[]) => prepareStepActionBundleMock(...args),
   resolveCgroupMemoryEventsPath: () => Promise.resolve('/sys/fs/cgroup/runner/memory.events'),
   reportOutOfMemoryKills: ({run}: {run: () => unknown}) => run(),
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
@@ -203,6 +207,8 @@ const LOGS_DIR = '/runner-logs/job-1';
 const AGENT_STATE_DIR = '/runner-agent/job-1';
 const GIT_CONFIG_PATH = '/runner-cred/job-1/git-cred.config';
 const JOB_TEMP_DIR = '/runner-tmp/job-1';
+const ACTIONS_DIR = `${JOB_TEMP_DIR}/actions`;
+const COMPOSITE_DIGEST = `sha256:${'c'.repeat(64)}`;
 const CREDENTIALS_DIR = '/runner-cred/job-1';
 const JOB_CONTEXT = {
   workflowRunId: '00000000-0000-0000-0000-000000000004',
@@ -212,6 +218,18 @@ const JOB_CONTEXT = {
 };
 const leaseClient = {} as never;
 const leaseTokenSource = () => 'lease-current';
+const stepLeaseEvents: string[] = [];
+// Step-scoped calls share the job client here, so assertions on `leaseClient` cover both.
+const stepLeases: StepLeases = {
+  hold: ({stepId, attempt, leaseToken}) => {
+    stepLeaseEvents.push(`hold:${stepId}:${attempt}:${leaseToken}`);
+    return {
+      client: leaseClient,
+      token: () => leaseToken,
+      release: () => stepLeaseEvents.push(`release:${stepId}:${attempt}`),
+    };
+  },
+};
 const integrationGatewayUrl = new URL(
   'https://api.example.test/runs/jobs/current/integration-tools/mcp',
 );
@@ -298,16 +316,18 @@ function streamFor(stepId: string): FakeStream {
   return stream;
 }
 
+const CREDENTIAL_CAPTURE_ID = 'credential-capture-1';
+
 function captureFailureEvents(events: readonly CredentialFailureEvent[]) {
-  return async <T>(operation: () => Promise<T>) => ({
-    value: await operation(),
+  return async <T>(operation: (captureId: string) => Promise<T>) => ({
+    value: await operation(CREDENTIAL_CAPTURE_ID),
     events,
   });
 }
 
 function runLoop(params: {
   signal: AbortSignal;
-  leaseToken?: () => string;
+  stepLeases?: StepLeases;
   secrets?: string[];
   cwd?: string;
   logsDir?: string;
@@ -325,12 +345,11 @@ function runLoop(params: {
   prepareAgentState?: () => Promise<void>;
   prepareTempDir?: () => Promise<void>;
   onJobContainerRequested?: () => void;
-  onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
   return runJobSteps({
     jobId: JOB_ID,
     leaseClient,
-    leaseToken: params.leaseToken ?? leaseTokenSource,
+    stepLeases: params.stepLeases ?? stepLeases,
     secrets: params.secrets ?? [],
     ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
     ...(params.registerSecrets ? {registerSecrets: params.registerSecrets} : {}),
@@ -357,12 +376,12 @@ function runLoop(params: {
     ...(params.onJobContainerRequested
       ? {onJobContainerRequested: params.onJobContainerRequested}
       : {}),
-    ...(params.onLeaseTokenAdopted ? {onLeaseTokenAdopted: params.onLeaseTokenAdopted} : {}),
   });
 }
 
 describe('runJobSteps', () => {
   beforeEach(() => {
+    stepLeaseEvents.length = 0;
     requestNextStepMock.mockReset();
     interruptibleSleepMock.mockReset();
     interruptibleSleepMock.mockResolvedValue(undefined);
@@ -381,6 +400,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockReset();
     executeActionStepMock.mockReset();
     requestActionBundleMock.mockReset();
+    prepareStepActionBundleMock.mockReset();
     executeSetupStepMock.mockReset();
     executeCheckoutStepMock.mockReset();
     createStepLogStreamMock.mockReset();
@@ -1982,7 +2002,7 @@ describe('runJobSteps', () => {
     expect(interruptibleSleepMock).toHaveBeenCalledWith(5000, ac.signal);
   });
 
-  it('adopts the pulled step lease token before opening the step log stream', async () => {
+  it('holds the pulled step lease token before opening the step log stream', async () => {
     const setup = buildSetupStep();
     requestNextStepMock
       .mockResolvedValueOnce(stepResponse(setup, 1, 'lease-step'))
@@ -1991,20 +2011,44 @@ describe('runJobSteps', () => {
 
     await runLoop({
       signal: ac.signal,
-      onLeaseTokenAdopted: (leaseToken) => events.push(`adopt:${leaseToken}`),
+      stepLeases: {
+        hold: (params) => {
+          events.push(`hold:${params.leaseToken}`);
+          return stepLeases.hold(params);
+        },
+      },
     });
 
-    expect(events.indexOf('adopt:lease-step')).toBeLessThan(events.indexOf(`create:${setup.id}`));
+    expect(events.indexOf('hold:lease-step')).toBeLessThan(events.indexOf(`create:${setup.id}`));
   });
 
-  it('does not adopt a token for a done response', async () => {
-    requestNextStepMock.mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    const onLeaseTokenAdopted = vi.fn();
+  it('releases the step lease after the step is reported', async () => {
+    const setup = buildSetupStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1, 'lease-step'))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    reportStepMock.mockImplementation(() => {
+      stepLeaseEvents.push('report');
+      return Promise.resolve({ok: true, cancel: false});
+    });
     const ac = new AbortController();
 
-    await runLoop({signal: ac.signal, onLeaseTokenAdopted});
+    await runLoop({signal: ac.signal});
 
-    expect(onLeaseTokenAdopted).not.toHaveBeenCalled();
+    expect(stepLeaseEvents).toEqual([
+      `hold:${setup.id}:1:lease-step`,
+      'report',
+      `release:${setup.id}:1`,
+    ]);
+  });
+
+  it('does not hold a step lease for a done response', async () => {
+    requestNextStepMock.mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(stepLeaseEvents).toEqual([]);
   });
 
   it('opens a per-attempt log stream for the run step and disposes it at the end', async () => {
@@ -2036,6 +2080,98 @@ describe('runJobSteps', () => {
     expect(createStepLogStreamMock).toHaveBeenCalledTimes(2);
     expect(events).toContain(`drain:${run.id}`);
     expect(events).toContain(`dispose:${run.id}`);
+  });
+
+  it('reports where the job extracts action bundles with the setup step only', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    const reports = new Map(
+      reportStepMock.mock.calls.map(([, report]) => [report.stepId, report] as const),
+    );
+    expect(reports.get(setup.id)).toMatchObject({status: 'succeeded', actionsDir: ACTIONS_DIR});
+    expect(reports.get(run.id)).not.toHaveProperty('actionsDir');
+  });
+
+  it('extracts the composite action bundle of a run step before running it', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {run: 'node "$ACTION_PATH/build.js"', action_bundles: [COMPOSITE_DIGEST]},
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    requestActionBundleMock.mockResolvedValue(Buffer.from('bundle'));
+    prepareStepActionBundleMock.mockImplementation(
+      async (params: {load: (digest: string) => Promise<Uint8Array>}) => {
+        await params.load(COMPOSITE_DIGEST);
+        events.push('bundle-extracted');
+        return undefined;
+      },
+    );
+    executeRunStepMock.mockImplementation(() => {
+      events.push('run-started');
+      return Promise.resolve({success: true, error: null, exit_code: 0});
+    });
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(prepareStepActionBundleMock).toHaveBeenCalledWith({
+      config: run.config,
+      jobTempDir: JOB_TEMP_DIR,
+      load: expect.any(Function),
+      shared: false,
+    });
+    expect(requestActionBundleMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      digest: COMPOSITE_DIGEST,
+      signal: ac.signal,
+    });
+    expect(events.indexOf('bundle-extracted')).toBeLessThan(events.indexOf('run-started'));
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: run.id, status: 'succeeded'}),
+    );
+  });
+
+  it('fails a step whose composite action bundle cannot be loaded', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({config: {run: 'echo', action_bundles: [COMPOSITE_DIGEST]}});
+    const error = {
+      message: 'The composite action files could not be loaded: Action bundle load failed',
+      reason: 'action_unavailable' as const,
+    };
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    prepareStepActionBundleMock.mockResolvedValue({success: false, error, exit_code: null});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      status: 'failed',
+      error,
+      exitCode: null,
+      logOutcome: 'drained',
+      signal: ac.signal,
+    });
   });
 
   it('does not request step secrets when a run step has no secret bindings', async () => {
@@ -2091,14 +2227,14 @@ describe('runJobSteps', () => {
         _step: StepDto,
         options: {
           jobTempDir: string;
-          loadBundle: () => Promise<Uint8Array>;
+          loadBundle: (digest: string) => Promise<Uint8Array>;
           onLogLine: (line: string) => void;
           onSecret: (secret: string) => void;
           onToolRow: (row: unknown) => void;
         },
       ) => {
         options.onToolRow({kind: 'tool-call', timestamp: 1, id: 'call-1', name: 'x', input: '{}'});
-        await options.loadBundle();
+        await options.loadBundle('sha256:abc');
         options.onLogLine('Shipfox action Slack thread sha256:abc');
         options.onSecret('endpoint-token');
         return {success: true, error: null, exit_code: 0, outputs: {path: 'thread.md'}};
@@ -2127,6 +2263,7 @@ describe('runJobSteps', () => {
     expect(registerSecrets).toHaveBeenCalledWith(['slack-secret']);
     expect(requestActionBundleMock).toHaveBeenCalledWith(leaseClient, {
       stepId: actionStep.id,
+      digest: 'sha256:abc',
       signal: ac.signal,
     });
     expect(streamFor(actionStep.id).writeOutputLine).toHaveBeenCalledWith(
@@ -2774,6 +2911,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'drained',
       signal: ac.signal,
     });
@@ -2808,6 +2946,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
       signal: ac.signal,
     });
@@ -2832,6 +2971,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
       signal: ac.signal,
     });
@@ -2855,6 +2995,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
       signal: ac.signal,
     });
@@ -3087,6 +3228,10 @@ describe('runJobSteps', () => {
     expect(getFailureEventCursor.mock.invocationCallOrder[0]).toBeLessThan(
       executeAgentStepMock.mock.invocationCallOrder[0] ?? Infinity,
     );
+    expect(executeAgentStepMock).toHaveBeenCalledWith(
+      agent,
+      expect.objectContaining({credentialCaptureId: CREDENTIAL_CAPTURE_ID}),
+    );
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
       expect.objectContaining({
@@ -3128,6 +3273,10 @@ describe('runJobSteps', () => {
 
     await runLoop({signal: ac.signal, credentialFailureEvents});
 
+    expect(executeRunStepMock).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({credentialCaptureId: CREDENTIAL_CAPTURE_ID}),
+    );
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
       expect.objectContaining({
@@ -3714,10 +3863,12 @@ describe('runJobSteps', () => {
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},
       },
-      leaseToken: leaseTokenSource,
+      leaseToken: expect.any(Function),
       integrationToolsGatewayUrl: integrationGatewayUrl,
       onSessionEntry: expect.any(Function),
     });
+    const agentOptions = executeAgentStepMock.mock.calls[0]?.[1] as {leaseToken: () => string};
+    expect(agentOptions.leaseToken()).toBe(`lease-${agent.id}-1`);
     expect(requestAgentRuntimeConfigMock).toHaveBeenCalledWith(leaseClient, {
       stepId: agent.id,
       attempt: 1,
@@ -3861,7 +4012,7 @@ describe('runJobSteps', () => {
     );
   });
 
-  it('only claims a fresh workspace for the first resumed step after checkout', async () => {
+  it('tells each resumed session about the checkout once', async () => {
     const setup = buildSetupStep();
     const firstAgent = buildAgentStep({
       id: '00000000-0000-0000-0000-0000000000c1',
@@ -3875,6 +4026,10 @@ describe('runJobSteps', () => {
         mode: 'resume',
         segment: 0,
       },
+    });
+    const thirdAgent = buildAgentStep({
+      id: '00000000-0000-0000-0000-0000000000c5',
+      session: {id: SESSION_ID, key: 'main', mode: 'resume', segment: 0},
     });
     const transcriptDir = mkdtempSync(join(tmpdir(), 'shipfox-runner-session-'));
     const transcriptFile = join(transcriptDir, 'session.jsonl');
@@ -3909,6 +4064,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(firstAgent, 1))
       .mockResolvedValueOnce(stepResponse(secondAgent, 1))
+      .mockResolvedValueOnce(stepResponse(thirdAgent, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
 
     try {
@@ -3917,22 +4073,19 @@ describe('runJobSteps', () => {
       rmSync(transcriptDir, {recursive: true, force: true});
     }
 
-    expect(executeAgentStepMock.mock.calls[0]?.[1]).toEqual(
-      expect.objectContaining({
-        prompt: expect.stringContaining(
-          'This is a new execution in a fresh workspace checked out at refs/heads/main.',
-        ),
-      }),
-    );
-    expect(executeAgentStepMock.mock.calls[1]?.[1]).toEqual(
-      expect.objectContaining({
-        prompt:
-          'Resuming session "follow-up". The existing workspace is intact from the previous turn.\n\nFix it.',
-      }),
-    );
+    const prompts = executeAgentStepMock.mock.calls.map((call) => call[1]?.prompt);
+    expect(prompts).toEqual([
+      expect.stringContaining(
+        'Resuming session "main". This is a new execution in a fresh workspace checked out at refs/heads/main.',
+      ),
+      expect.stringContaining(
+        'Resuming session "follow-up". This is a new execution in a fresh workspace checked out at refs/heads/main.',
+      ),
+      'Resuming session "main". The existing workspace is intact from the previous turn.\n\nFix it.',
+    ]);
   });
 
-  it('consumes the checkout marker when a resumed session has no transcript', async () => {
+  it('still tells another resumed session about the checkout after one without a transcript', async () => {
     const setup = buildSetupStep();
     const firstAgent = buildAgentStep({
       id: '00000000-0000-0000-0000-0000000000c3',
@@ -3996,10 +4149,97 @@ describe('runJobSteps', () => {
     expect(executeAgentStepMock.mock.calls[0]?.[1]).not.toHaveProperty('prompt');
     expect(executeAgentStepMock.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
-        prompt:
-          'Resuming session "follow-up". The existing workspace is intact from the previous turn.\n\nFix it.',
+        prompt: expect.stringContaining(
+          'Resuming session "follow-up". This is a new execution in a fresh workspace checked out at refs/heads/main.',
+        ),
       }),
     );
+  });
+
+  describe('checkout notice on resume', () => {
+    const FRESH = 'This is a new execution in a fresh workspace checked out at refs/heads/main.';
+    const INTACT = 'The existing workspace is intact from the previous turn.';
+    const checkoutResult = {
+      repository: 'acme/repo',
+      ref: 'refs/heads/main',
+      commit: 'abc123',
+      path: '/work',
+    };
+
+    function sessionAgent(id: string, mode: 'resume' | 'fork'): StepDto {
+      return buildAgentStep({id, session: {id: SESSION_ID, key: 'main', mode, segment: 0}});
+    }
+
+    async function promptsAfterCheckout(steps: StepDto[]): Promise<unknown[]> {
+      const setup = buildSetupStep();
+      const transcriptDir = mkdtempSync(join(tmpdir(), 'shipfox-runner-session-'));
+      const transcriptFile = join(transcriptDir, 'session.jsonl');
+      writeFileSync(transcriptFile, 'session transcript');
+      executeSetupStepMock.mockResolvedValueOnce({
+        result: {success: true, checkout: checkoutResult, error: null, exit_code: 0},
+      });
+      executeCheckoutStepMock.mockResolvedValue({
+        result: {success: true, checkout: checkoutResult, error: null, exit_code: 0},
+      });
+      requestSessionTranscriptMock.mockResolvedValue({
+        blob: gzipSync(Buffer.from('session transcript')),
+        segment: 0,
+        harness: 'pi',
+      });
+      executeAgentStepMock.mockResolvedValue({
+        success: true,
+        response: 'done',
+        sessionFile: transcriptFile,
+        sessionId: 'native-session-1',
+        error: null,
+        exit_code: 0,
+      });
+      requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
+      for (const step of steps) requestNextStepMock.mockResolvedValueOnce(stepResponse(step, 1));
+      requestNextStepMock.mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+
+      try {
+        await runLoop({agentStateDir: transcriptDir, signal: new AbortController().signal});
+      } finally {
+        rmSync(transcriptDir, {recursive: true, force: true});
+      }
+      return executeAgentStepMock.mock.calls.map((call) => call[1]?.prompt);
+    }
+
+    it('tells a resumed session about a repeated checkout of the same ref', async () => {
+      const prompts = await promptsAfterCheckout([
+        sessionAgent('00000000-0000-0000-0000-0000000000d1', 'resume'),
+        buildCheckoutStep(),
+        sessionAgent('00000000-0000-0000-0000-0000000000d2', 'resume'),
+      ]);
+
+      expect(prompts).toEqual([expect.stringContaining(FRESH), expect.stringContaining(FRESH)]);
+    });
+
+    it('does not count a fork as the session seeing the checkout', async () => {
+      const prompts = await promptsAfterCheckout([
+        sessionAgent('00000000-0000-0000-0000-0000000000d3', 'fork'),
+        sessionAgent('00000000-0000-0000-0000-0000000000d4', 'resume'),
+        sessionAgent('00000000-0000-0000-0000-0000000000d5', 'resume'),
+      ]);
+
+      expect(prompts).toEqual([
+        undefined,
+        expect.stringContaining(FRESH),
+        expect.stringContaining(INTACT),
+      ]);
+    });
+
+    it('does not count a turn whose transcript was not committed', async () => {
+      commitSessionTranscriptMock.mockRejectedValueOnce(new Error('session store unavailable'));
+
+      const prompts = await promptsAfterCheckout([
+        sessionAgent('00000000-0000-0000-0000-0000000000d6', 'resume'),
+        sessionAgent('00000000-0000-0000-0000-0000000000d7', 'resume'),
+      ]);
+
+      expect(prompts).toEqual([expect.stringContaining(FRESH), expect.stringContaining(FRESH)]);
+    });
   });
 
   it('commits a loadable failed harness result before reporting it', async () => {
@@ -4769,7 +5009,7 @@ describe('runJobSteps', () => {
         thinking: 'high',
         credentials: {api_key: 'sk-runtime-secret'},
       },
-      leaseToken: leaseTokenSource,
+      leaseToken: expect.any(Function),
       integrationToolsGatewayUrl: integrationGatewayUrl,
     });
     expect(reportStepMock).toHaveBeenCalledWith(

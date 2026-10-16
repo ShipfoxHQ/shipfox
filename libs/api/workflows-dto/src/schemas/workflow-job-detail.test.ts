@@ -19,6 +19,7 @@ describe('stepSummaryDtoSchema', () => {
 function stepSummary(overrides: Record<string, unknown> = {}) {
   return {
     id: STEP_ID,
+    parent_step_id: null,
     key: 'gate',
     name: 'gate',
     type: 'run',

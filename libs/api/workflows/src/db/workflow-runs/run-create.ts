@@ -70,6 +70,7 @@ import {
   recordWorkflowConcurrencyAdmissionMetrics,
 } from '../workflow-concurrency.js';
 import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
+import {withStepIds} from './step-ids.js';
 
 export interface CreateWorkflowRunParams {
   workspaceId: string;
@@ -700,19 +701,23 @@ function materializeRunGraphJobs(params: {
       };
     },
     createSteps: () =>
-      job.steps.map((step) => ({
-        key: step.key,
-        name: step.name,
-        sourceLocation: step.sourceLocation,
-        status: step.status,
-        type: step.type,
-        config: step.config,
-        condition: step.condition ?? null,
-        runAfter: step.runAfter,
-        configPlan: step.configPlan ?? null,
-        authoredConfig: step.authoredConfig,
-        position: step.position,
-      })),
+      withStepIds(
+        job.steps.map((step) => ({
+          key: step.key,
+          name: step.name,
+          sourceLocation: step.sourceLocation,
+          status: step.status,
+          type: step.type,
+          config: step.config,
+          condition: step.condition ?? null,
+          runAfter: step.runAfter,
+          continueOnError: step.continueOnError,
+          configPlan: step.configPlan ?? null,
+          authoredConfig: step.authoredConfig,
+          position: step.position,
+          parentPosition: step.parentPosition,
+        })),
+      ),
   }));
 }
 

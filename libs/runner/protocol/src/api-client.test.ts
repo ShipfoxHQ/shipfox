@@ -279,7 +279,9 @@ describe('api-client auth contexts', () => {
   });
 
   it('heartbeat sends the job lease token', async () => {
-    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
+    stubFetch(() =>
+      jsonResponse({cancel: false, lease_token: 'lease-next', step_lease_tokens: []}),
+    );
 
     const response = await heartbeat(JOB_ID, 'lease-heartbeat');
 
@@ -287,6 +289,33 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
     expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
     expect(calls[0]?.body).toBeUndefined();
+  });
+
+  it('heartbeat sends the step lease tokens it should renew', async () => {
+    const renewed = {step_id: STEP_ID, attempt: 2, lease_token: 'step-lease-next'};
+    stubFetch(() =>
+      jsonResponse({cancel: false, lease_token: 'lease-next', step_lease_tokens: [renewed]}),
+    );
+
+    const response = await heartbeat(JOB_ID, 'lease-heartbeat', {
+      stepLeaseTokens: ['step-lease-current'],
+    });
+
+    expect(response.step_lease_tokens).toEqual([renewed]);
+    expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      step_lease_tokens: ['step-lease-current'],
+    });
+  });
+
+  it('heartbeat sends at most the step lease tokens the API accepts', async () => {
+    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
+    const tokens = Array.from({length: 70}, (_, index) => `step-lease-${index}`);
+
+    const response = await heartbeat(JOB_ID, 'lease-heartbeat', {stepLeaseTokens: tokens});
+
+    expect(response.step_lease_tokens).toEqual([]);
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({step_lease_tokens: tokens.slice(0, 64)});
   });
 
   it('requestNextStep sends the lease token, not the runner registration token', async () => {
@@ -802,6 +831,28 @@ describe('api-client auth contexts', () => {
     });
   });
 
+  it('reportStep includes actions_dir when the setup step reports it', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-actions-dir');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'succeeded',
+      exitCode: 0,
+      actionsDir: '/runner/tmp/job/actions',
+      logOutcome: 'drained',
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      status: 'succeeded',
+      attempt: 1,
+      exit_code: 0,
+      actions_dir: '/runner/tmp/job/actions',
+      log_outcome: 'drained',
+    });
+  });
+
   it('reportStep omits log_path when there is no finalized log', async () => {
     stubFetch(() => jsonResponse({ok: true, cancel: false}));
     const leaseClient = createLeaseClient('lease-no-log-path');
@@ -1015,6 +1066,18 @@ describe('action bundle transport', () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/action-bundle`);
     expect(calls[0]?.authorization).toBe('Bearer lease-action');
+  });
+
+  it('names the requested bundle digest in the query', async () => {
+    const digest = `sha256:${'b'.repeat(64)}`;
+    stubFetch(() => new Response(new Uint8Array([31, 139, 8, 0]), {status: 200}));
+    const leaseClient = createLeaseClient('lease-action');
+
+    await requestActionBundle(leaseClient, {stepId: STEP_ID, digest});
+
+    const url = new URL(calls[0]?.url ?? '');
+    expect(url.pathname).toContain(`runs/jobs/current/steps/${STEP_ID}/action-bundle`);
+    expect(url.searchParams.get('digest')).toBe(digest);
   });
 
   it('names the status and code of a failed load', async () => {

@@ -3,8 +3,11 @@ import {HTTPError} from 'ky';
 const heartbeatMock = vi.fn();
 
 vi.mock('@shipfox/runner-protocol', () => ({
-  heartbeat: (jobId: string, leaseToken: string, opts?: {signal?: AbortSignal}) =>
-    heartbeatMock(jobId, leaseToken, opts),
+  heartbeat: (
+    jobId: string,
+    leaseToken: string,
+    opts?: {signal?: AbortSignal; stepLeaseTokens?: readonly string[]},
+  ) => heartbeatMock(jobId, leaseToken, opts),
   HTTPError,
 }));
 
@@ -25,7 +28,7 @@ function buildHTTPError(status: number): HTTPError {
 
 describe('startHeartbeatLoop', () => {
   test('schedules first tick at intervalMs and calls heartbeat with the job id', async () => {
-    heartbeatMock.mockResolvedValue({cancel: false, lease_token: 'lease-1'});
+    heartbeatMock.mockResolvedValue({cancel: false, lease_token: 'lease-1', step_lease_tokens: []});
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', () => 'lease-1', ac, {
@@ -43,15 +46,19 @@ describe('startHeartbeatLoop', () => {
     expect(heartbeatMock.mock.calls[0]?.[0]).toBe('job-1');
     expect(heartbeatMock.mock.calls[0]?.[1]).toBe('lease-1');
     expect(ac.signal.aborted).toBe(false);
-    expect(handle.bumpGeneration).toEqual(expect.any(Function));
 
     handle.stop();
   });
 
   test('single-flight: does not start a second tick until the first heartbeat resolves', async () => {
-    let resolve: ((v: {cancel: boolean; lease_token: string}) => void) | undefined;
+    let resolve:
+      | ((v: {cancel: boolean; lease_token: string; step_lease_tokens: unknown[]}) => void)
+      | undefined;
     heartbeatMock.mockImplementation(
-      () => new Promise<{cancel: boolean; lease_token: string}>((r) => (resolve = r)),
+      () =>
+        new Promise<{cancel: boolean; lease_token: string; step_lease_tokens: unknown[]}>(
+          (r) => (resolve = r),
+        ),
     );
     const ac = new AbortController();
 
@@ -66,7 +73,7 @@ describe('startHeartbeatLoop', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
 
-    resolve?.({cancel: false, lease_token: 'lease-1'});
+    resolve?.({cancel: false, lease_token: 'lease-1', step_lease_tokens: []});
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(2);
 
@@ -77,16 +84,16 @@ describe('startHeartbeatLoop', () => {
     const renewedTokens: string[] = [];
     let leaseToken = 'lease-1';
     heartbeatMock
-      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-2'})
-      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-3'});
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-2', step_lease_tokens: []})
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-3', step_lease_tokens: []});
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', () => leaseToken, ac, {
       intervalMs: 100,
       maxStaleMs: 1000,
-      onLeaseTokenRenewed: (renewedLeaseToken) => {
-        renewedTokens.push(renewedLeaseToken);
-        leaseToken = renewedLeaseToken;
+      onLeaseTokensRenewed: (renewed) => {
+        renewedTokens.push(renewed.leaseToken);
+        leaseToken = renewed.leaseToken;
       },
     });
 
@@ -99,26 +106,31 @@ describe('startHeartbeatLoop', () => {
     handle.stop();
   });
 
-  test('discards a stale renewal when the generation changes while heartbeat is in flight', async () => {
-    let resolve: ((v: {cancel: boolean; lease_token: string}) => void) | undefined;
-    const renewedTokens: string[] = [];
-    heartbeatMock.mockImplementation(
-      () => new Promise<{cancel: boolean; lease_token: string}>((r) => (resolve = r)),
-    );
+  test('sends the held step lease tokens and hands back their renewals', async () => {
+    const renewed = [{step_id: 'step-1', attempt: 1, lease_token: 'lease-step-renewed'}];
+    heartbeatMock.mockResolvedValueOnce({
+      cancel: false,
+      lease_token: 'lease-1',
+      step_lease_tokens: renewed,
+    });
+    const onLeaseTokensRenewed = vi.fn();
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', () => 'lease-step-b', ac, {
+    const handle = startHeartbeatLoop('job-1', () => 'lease-1', ac, {
       intervalMs: 100,
-      maxStaleMs: 10_000,
-      onLeaseTokenRenewed: (leaseToken) => renewedTokens.push(leaseToken),
+      maxStaleMs: 1000,
+      getStepLeaseTokens: () => ['lease-step'],
+      onLeaseTokensRenewed,
     });
 
     await vi.advanceTimersByTimeAsync(100);
-    handle.bumpGeneration();
-    resolve?.({cancel: false, lease_token: 'lease-step-a-renewed'});
-    await Promise.resolve();
 
-    expect(renewedTokens).toEqual([]);
+    expect(heartbeatMock.mock.calls[0]?.[2]).toMatchObject({stepLeaseTokens: ['lease-step']});
+    expect(onLeaseTokensRenewed).toHaveBeenCalledWith({
+      leaseToken: 'lease-1',
+      sentStepLeaseTokens: ['lease-step'],
+      stepLeaseTokens: renewed,
+    });
 
     handle.stop();
   });
@@ -127,14 +139,16 @@ describe('startHeartbeatLoop', () => {
     let receivedSignal: AbortSignal | undefined;
     heartbeatMock.mockImplementation(
       (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
-        new Promise<{cancel: boolean; lease_token: string}>((_resolve, reject) => {
-          receivedSignal = opts?.signal;
-          opts?.signal?.addEventListener('abort', () => {
-            const err = new Error('aborted');
-            err.name = 'AbortError';
-            reject(err);
-          });
-        }),
+        new Promise<{cancel: boolean; lease_token: string; step_lease_tokens: unknown[]}>(
+          (_resolve, reject) => {
+            receivedSignal = opts?.signal;
+            opts?.signal?.addEventListener('abort', () => {
+              const err = new Error('aborted');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          },
+        ),
     );
     const ac = new AbortController();
 
@@ -164,6 +178,7 @@ describe('startHeartbeatLoop', () => {
       cancel: true,
       cancellation_reason: 'timed_out',
       lease_token: 'lease-2',
+      step_lease_tokens: [],
     });
     const ac = new AbortController();
 
@@ -212,7 +227,7 @@ describe('startHeartbeatLoop', () => {
   test('a transient failure does not stop a fenced job', async () => {
     heartbeatMock
       .mockRejectedValueOnce(buildHTTPError(500))
-      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-1'})
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-1', step_lease_tokens: []})
       .mockRejectedValue(buildHTTPError(500));
     const ac = new AbortController();
     const nowMs = vi.fn(() => Date.now());
@@ -254,7 +269,7 @@ describe('startHeartbeatLoop', () => {
   });
 
   test('initial isolation fence waits for the first heartbeat interval', async () => {
-    heartbeatMock.mockResolvedValue({cancel: false, lease_token: 'lease-1'});
+    heartbeatMock.mockResolvedValue({cancel: false, lease_token: 'lease-1', step_lease_tokens: []});
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', () => 'lease-1', ac, {
@@ -275,7 +290,7 @@ describe('startHeartbeatLoop', () => {
 
   test('successful confirmation resets the isolation deadline', async () => {
     heartbeatMock
-      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-1'})
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-1', step_lease_tokens: []})
       .mockImplementation(() => new Promise(() => undefined));
     const ac = new AbortController();
 
@@ -315,7 +330,7 @@ describe('startHeartbeatLoop', () => {
   test('non-404 errors are transient: log and schedule next tick', async () => {
     heartbeatMock
       .mockRejectedValueOnce(buildHTTPError(500))
-      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-1'});
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-1', step_lease_tokens: []});
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', () => 'lease-1', ac, {
@@ -337,14 +352,16 @@ describe('startHeartbeatLoop', () => {
     let aborted = false;
     heartbeatMock.mockImplementation(
       (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
-        new Promise<{cancel: boolean; lease_token: string}>((_resolve, reject) => {
-          opts?.signal?.addEventListener('abort', () => {
-            aborted = true;
-            const err = new Error('aborted');
-            err.name = 'AbortError';
-            reject(err);
-          });
-        }),
+        new Promise<{cancel: boolean; lease_token: string; step_lease_tokens: unknown[]}>(
+          (_resolve, reject) => {
+            opts?.signal?.addEventListener('abort', () => {
+              aborted = true;
+              const err = new Error('aborted');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          },
+        ),
     );
     const ac = new AbortController();
 

@@ -8,7 +8,7 @@
 "@shipfox/actions": patch
 ---
 
-An `action.yml` can set `steps` instead of `main` to declare a composite action. Sync expands it into the definition model. Composite actions cannot run yet, so sync rejects them unless `compositeActionsEnabled` is set.
+An `action.yml` can set `steps` instead of `main` to declare a composite action. Sync expands it into the definition model.
 
 - **Breaking:** `ActionManifest` is now a union of a JavaScript and a composite manifest, so `main` can be `undefined`. Narrow it with `isCompositeActionManifest`. `actionManifestSchema` is a transform, so it no longer exposes `.shape` or `.extend`.
 - **Manifest:** a composite manifest sets `steps` instead of `main`, and has no `runtime`, `post`, or `post_failure`. Its outputs need `value`, and its inputs can set `secret: true`. Inner steps reject `checkout` and `export`, and a tool step needs `connection`. `uses:` and prompt `file:` accept a leading `${{ action.path }}/`. `safeParseActionManifest` rejects composite manifests unless `compositeActions` is set.

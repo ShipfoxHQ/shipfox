@@ -1,5 +1,6 @@
 import type {
   StepAttemptDetailResponseDto,
+  WorkflowRunActionFileResponseDto,
   WorkflowRunAttemptDto,
   WorkflowRunJobListSummaryDto,
   WorkflowRunJobOverviewDto,
@@ -15,6 +16,7 @@ import type {
 import {
   type StepAttemptSession,
   toWorkflowRunOverviewExecutionDuration,
+  type WorkflowActionFile,
   type WorkflowRun,
   WorkflowRunAttempt,
   WorkflowRunAttemptSummary,
@@ -42,6 +44,7 @@ import {
   toEvaluationTrace,
   toStepAttemptInvocation,
   toStepGateResult,
+  toStepSourceLocation,
 } from './workflow-model-mapper.js';
 
 export {
@@ -195,6 +198,10 @@ export function toWorkflowRunSource(dto: WorkflowRunSourceResponseDto): Workflow
   };
 }
 
+export function toWorkflowActionFile(dto: WorkflowRunActionFileResponseDto): WorkflowActionFile {
+  return {digest: dto.digest, path: dto.path, content: dto.content};
+}
+
 export function toWorkflowRunOverview(dto: WorkflowRunOverviewResponseDto): WorkflowRunOverview {
   const attempt = toWorkflowRunAttempt(dto.attempt);
   return {
@@ -340,9 +347,7 @@ export function toWorkflowRunSelectionResolution(
     stepId: dto.step_id,
     stepAttemptId: dto.step_attempt_id,
     stepAttempt: dto.step_attempt,
-    sourceLocation: dto.source_location
-      ? {startLine: dto.source_location.start_line, endLine: dto.source_location.end_line}
-      : null,
+    sourceLocation: toStepSourceLocation(dto.source_location),
   };
 }
 

@@ -477,6 +477,16 @@ export async function persistJobExecutionDurationLimits(params: {
     .where(eq(jobExecutions.id, params.jobExecutionId));
 }
 
+export async function recordJobExecutionActionsDir(
+  params: {jobExecutionId: string; actionsDir: string},
+  tx: Tx,
+): Promise<void> {
+  await tx
+    .update(jobExecutions)
+    .set({actionsDir: params.actionsDir})
+    .where(eq(jobExecutions.id, params.jobExecutionId));
+}
+
 export async function markJobExecutionRunning(params: {
   jobExecutionId: string;
   expectedVersion: number;

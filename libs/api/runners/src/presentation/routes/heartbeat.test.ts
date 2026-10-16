@@ -120,7 +120,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json<{cancel: boolean; lease_token: string}>();
-    expect(body).toEqual({cancel: false, lease_token: expect.any(String)});
+    expect(body).toEqual({cancel: false, lease_token: expect.any(String), step_lease_tokens: []});
     const refreshedLease = getLeaseTokenClaims(body.lease_token);
     expect(refreshedLease).toMatchObject({
       jobId,
@@ -212,6 +212,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     expect(body).toEqual({
       cancel: true,
       lease_token: expect.any(String),
+      step_lease_tokens: [],
       cancellation_reason: 'run_cancelled',
     });
     const refreshedLease = getLeaseTokenClaims(body.lease_token);
@@ -247,6 +248,48 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     const body = res.json<{cancel: boolean; lease_token: string}>();
     const refreshedLease = getLeaseTokenClaims(body.lease_token);
     expect(refreshedLease).toMatchObject(stepScope);
+  });
+
+  it('renews the step-scoped tokens of the lease and drops foreign ones', async () => {
+    const {jobId, leaseToken} = await claimAvailableJob();
+    const lease = getLeaseTokenClaims(leaseToken);
+    if (!lease) throw new Error('Expected valid lease token');
+    const first = {currentStepId: crypto.randomUUID(), currentStepAttempt: 1};
+    const second = {currentStepId: crypto.randomUUID(), currentStepAttempt: 2};
+    const foreign = mintLeaseToken({
+      ...lease,
+      jobExecutionId: crypto.randomUUID(),
+      currentStepId: crypto.randomUUID(),
+      currentStepAttempt: 1,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${jobId}/heartbeat`,
+      headers: {authorization: `Bearer ${leaseToken}`},
+      payload: {
+        step_lease_tokens: [
+          mintLeaseToken({...lease, ...first}),
+          mintLeaseToken({...lease, ...second}),
+          foreign,
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      lease_token: string;
+      step_lease_tokens: {step_id: string; attempt: number; lease_token: string}[];
+    }>();
+    expect(getLeaseTokenClaims(body.lease_token)?.currentStepId).toBeUndefined();
+    expect(body.step_lease_tokens).toEqual([
+      {step_id: first.currentStepId, attempt: 1, lease_token: expect.any(String)},
+      {step_id: second.currentStepId, attempt: 2, lease_token: expect.any(String)},
+    ]);
+    expect(getLeaseTokenClaims(body.step_lease_tokens[1]?.lease_token ?? '')).toMatchObject({
+      jobExecutionId: lease.jobExecutionId,
+      ...second,
+    });
   });
 
   it('returns 404 when the jobId is unknown', async () => {

@@ -11,7 +11,7 @@ const {
 
   return {
     bridgeCloseMock,
-    createIntegrationToolsBridgeMock: vi.fn((params: {name: string; preferredPort?: number}) => ({
+    createIntegrationToolsBridgeMock: vi.fn((params: {name: string}) => ({
       name: params.name,
       server: {},
       listTools: vi.fn(),
@@ -386,7 +386,6 @@ describe('executeAgentStep', () => {
       expect.objectContaining({
         name: AGENT_TOOLS_MCP_SERVER_ID,
         gateway: {url: gatewayUrl, fetch: gatewayFetch},
-        preferredPort: expect.any(Number),
       }),
     );
     expect(runAgentMock).toHaveBeenCalledWith(
@@ -480,29 +479,6 @@ describe('executeAgentStep', () => {
       message: 'Agent step config has invalid MCP servers.',
       reason: 'agent_config_invalid',
     });
-  });
-
-  it('derives deterministic bridge ports in the non-ephemeral range', async () => {
-    runAgentMock.mockResolvedValue({});
-    const step = buildAgentStep({config: {prompt: 'p', mcpServers: [integrationToolsConfig()]}});
-    const options = {
-      runtime: RUNTIME,
-      leaseToken: 'lease-current',
-      integrationToolsGatewayUrl: new URL(
-        'https://api.example.test/runs/jobs/current/integration-tools/mcp',
-      ),
-    };
-
-    await executeAgentStep(step, options);
-    const firstPreferredPort = createIntegrationToolsBridgeMock.mock.calls[0]?.[0].preferredPort;
-
-    createIntegrationToolsBridgeMock.mockClear();
-    await executeAgentStep(step, options);
-    const secondPreferredPort = createIntegrationToolsBridgeMock.mock.calls[0]?.[0].preferredPort;
-
-    expect(firstPreferredPort).toBeGreaterThanOrEqual(25_000);
-    expect(firstPreferredPort).toBeLessThan(32_768);
-    expect(secondPreferredPort).toBe(firstPreferredPort);
   });
 
   it('closes integration tool bridges when the harness run fails', async () => {
@@ -694,7 +670,7 @@ describe('executeAgentStep', () => {
           provider: 'anthropic',
           model: 'claude-opus-4-8',
           thinking: 'high',
-          extensionPaths: ['pi-web-access', 'pi-mcp-adapter'],
+          extensionPaths: ['pi-web-access'],
         },
       }),
     );

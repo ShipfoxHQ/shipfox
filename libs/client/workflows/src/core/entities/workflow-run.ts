@@ -94,6 +94,13 @@ export interface WorkflowSourceSnapshot {
   format: 'yaml';
 }
 
+/** A file of a composite action, read from the snapshot the run used. */
+export interface WorkflowActionFile {
+  digest: string;
+  path: string;
+  content: string;
+}
+
 export interface WorkflowRunParent {
   id: string;
   number: number;

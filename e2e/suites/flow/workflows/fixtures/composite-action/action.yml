@@ -1,0 +1,68 @@
+name: Review kit
+description: Greets, reads an issue, checks the change, and reviews it, for the composite action E2E flow.
+inputs:
+  name:
+    required: true
+  repo:
+    required: true
+  issue:
+    type: number
+    required: true
+  token:
+    secret: true
+    required: true
+outputs:
+  greeting:
+    value: ${{ steps.greet.outputs.greeting }}
+  issue_title:
+    value: ${{ steps.read_issue.outputs.title }}
+integrations:
+  tracker:
+    provider: gitea
+    include: [get_issue]
+steps:
+  - key: greet
+    uses: fixture/example@1.0.0
+    with:
+      name: ${{ inputs.name }}
+  - key: use_token
+    env:
+      TOKEN: ${{ inputs.token }}
+    run: |
+      case "$TOKEN" in
+        composite-secret-*) ;;
+        *) echo "the secret input did not reach the step"; exit 1 ;;
+      esac
+      echo "token=$TOKEN"
+  - key: read_issue
+    tool: get_issue
+    connection: tracker
+    with:
+      repo: ${{ inputs.repo }}
+      index: ${{ inputs.issue }}
+    outputs:
+      title: ${{ result.title }}
+  - key: prepare
+    run: sh "${{ action.path }}/scripts/prepare.sh"
+  - key: check
+    run: |
+      if [ -f .composite-check-failed-once ]; then
+        echo "check passes after restart"
+        exit 0
+      fi
+      touch .composite-check-failed-once
+      echo "check fails once"
+      exit 1
+    gate:
+      success: step.exit_code == 0
+      on_failure:
+        restart_from: prepare
+        feedback: retrying from prepare
+  - key: review
+    harness: pi
+    provider: shipfox
+    model: gpt-6-luna
+    thinking: off
+    prompt:
+      - file: ${{ action.path }}/prompts/review.txt
+      - 'Review the change.'

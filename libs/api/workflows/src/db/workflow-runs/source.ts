@@ -2,6 +2,9 @@ import {WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {WorkflowRunOrigin, WorkflowSourceSnapshot} from '#core/entities/workflow-run.js';
 import {db} from '../db.js';
+import {jobExecutions} from '../schema/job-executions.js';
+import {jobs} from '../schema/jobs.js';
+import {steps} from '../schema/steps.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {workflowRuns} from '../schema/workflow-runs.js';
 
@@ -66,4 +69,26 @@ export async function getWorkflowRunSource(
     sourceSnapshot: row.sourceSnapshot ?? null,
     sourceSnapshotBytes: row.sourceSnapshotBytes ?? null,
   };
+}
+
+/** Whether a step of the run ran a composite action with this snapshot digest. */
+export async function workflowRunUsesCompositeAction(params: {
+  workflowRunId: string;
+  digest: string;
+}): Promise<boolean> {
+  const [row] = await db()
+    .select({id: steps.id})
+    .from(steps)
+    .innerJoin(jobExecutions, eq(steps.jobExecutionId, jobExecutions.id))
+    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .where(
+      and(
+        eq(workflowRunAttempts.workflowRunId, params.workflowRunId),
+        eq(steps.type, 'composite'),
+        sql`${steps.config} -> 'composite' ->> 'digest' = ${params.digest}`,
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }

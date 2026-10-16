@@ -37,9 +37,20 @@ export interface HostProcess {
    * they go quiet instead of waiting for `exited`. Rejects when the process could not be started.
    */
   readonly processExited: Promise<HostProcessExit>;
-  /** SIGKILLs the process and every descendant. Does nothing once the tree is gone. */
-  killTree(): Promise<void>;
+  /**
+   * Signals the process and every descendant. Does nothing once the tree is gone.
+   *
+   * `kill`, the default, SIGKILLs the tree. `terminate` SIGTERMs it, then SIGKILLs it if it is
+   * still alive after the host's grace period, and settles once the tree is gone or was SIGKILLed.
+   * A `kill` during that grace period SIGKILLs the tree at once.
+   */
+  killTree(mode?: KillTreeMode): Promise<void>;
 }
+
+export type KillTreeMode = 'kill' | 'terminate';
+
+/** How long `killTree('terminate')` waits after SIGTERM before it SIGKILLs. */
+export const DEFAULT_TERMINATE_GRACE_MS = 10_000;
 
 export type HostFileType = 'file' | 'directory' | 'symlink' | 'other';
 

@@ -371,6 +371,40 @@ describe('failure annotations', () => {
     );
   });
 
+  it('projects a failure that continue_on_error covered into a warning annotation', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      jobExecutionId: JOB_EXECUTION_ID,
+      status: 'failed',
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      exitCode: 1,
+      failureIgnored: true,
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 2});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: expect.objectContaining({
+          op: 'replace',
+          style: 'warning',
+          body: expect.stringContaining('`continue_on_error`'),
+        }),
+      }),
+    );
+  });
+
   it('names the step and the cause when its if condition cannot be evaluated', async () => {
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({
@@ -1658,6 +1692,7 @@ function stepEntity(overrides: Partial<Step> = {}): Step {
   return {
     id: '77777777-7777-4777-8777-777777777777',
     jobExecutionId: JOB_EXECUTION_ID,
+    parentStepId: null,
     key: 'run',
     name: 'Run tests',
     sourceLocation: null,
@@ -1668,6 +1703,7 @@ function stepEntity(overrides: Partial<Step> = {}): Step {
     config: {run: 'pnpm test'},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: {run: 'pnpm test'},
     error: {reason: 'agent_invocation_failed', message: 'Provider returned 500'},
@@ -1696,6 +1732,7 @@ function stepAttemptEntity(overrides: Partial<StepAttempt> = {}): StepAttempt {
     logPath: null,
     gateResult: null,
     restartFeedback: null,
+    failureIgnored: false,
     logOutcome: 'drained',
     invocations: [],
     startedAt: new Date('2026-08-05T12:00:00.000Z'),

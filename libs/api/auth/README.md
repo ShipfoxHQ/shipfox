@@ -246,17 +246,22 @@ progress and drives that job to completion.
   identity, it is **not** workspace-wide, and it is **not** a substitute for the
   long-lived runner credential used to claim work in the first place. The
   surrounding identifiers it carries (job, run, workspace, the claiming runner)
-  are context for consumers; they do not widen what the bearer may touch. When a
-  step is dispatched, the token may also carry the current step id and attempt so
-  log append can verify signed membership in that one step attempt without
-  querying workflow state.
+  are context for consumers; they do not widen what the bearer may touch. The
+  token from claim carries no step. When a step is dispatched, next-step mints a
+  separate token that also carries the step id and attempt, so step-scoped routes
+  such as log append can verify signed membership in that one step attempt without
+  querying workflow state. The runner keeps the claim token for the job and one
+  step-scoped token per running step.
 - **Trust boundary.** There is exactly one issuer: the scheduling side mints a
-  lease when a runner claims a job execution, next-step re-scopes it to the
-  dispatched step attempt, and heartbeat re-mints the same narrow capability
-  after server state accepts the heartbeat. Everything downstream only *verifies*
-  the token with an in-process signature check. It makes no callback to the
-  issuer. The runner, and the untrusted agent workload it hosts, never mints
-  or modifies a token; it only presents the one it was handed.
+  lease when a runner claims a job execution, next-step mints a step-scoped lease
+  for the dispatched step attempt, and heartbeat re-mints the same narrow
+  capability after server state accepts the heartbeat. Heartbeat also re-mints
+  each step-scoped token the runner sends with it, after verifying that the token
+  names the same job execution and runner session, and keeps its claims unchanged.
+  Everything downstream only *verifies* the token with an in-process signature
+  check. It makes no callback to the issuer. The runner, and the untrusted agent
+  workload it hosts, never mints or modifies a token; it only presents the ones it
+  was handed.
 - **Mechanics.** Signed with HMAC-SHA256 using the job-lease key derived from
   `AUTH_ROOT_KEY`. Its claims name the job, job execution, and surrounding
   context and nothing more, and it carries a fixed audience so a token minted for
@@ -275,8 +280,8 @@ progress and drives that job to completion.
   rides on the response to each heartbeat rather than depending on the token.
 - **Log append scope.** A step-scoped lease is a signed membership and attempt
   check for append-log authorization. It is not an active-step proof: until the
-  runner adopts a later step-scoped token or the lease expires, the bearer can
-  append to that step attempt's log stream. This is no broader than the job-scoped
+  lease expires, the bearer can append to that step attempt's log stream. The
+  runner stops renewing a step's token once the step ends. This is no broader than the job-scoped
   append authority it replaces, and step completion remains governed by
   server-side report/progression state.
 - **Threat model.** A leaked or replayed token has a deliberately small blast

@@ -142,6 +142,7 @@ function stepForClassification(params: Partial<Step> = {}): Step {
   return {
     id: 'step-1',
     jobExecutionId: 'job-execution-1',
+    parentStepId: null,
     key: 'build',
     name: 'Build',
     sourceLocation: null,
@@ -152,6 +153,7 @@ function stepForClassification(params: Partial<Step> = {}): Step {
     config: {run: 'echo ok'},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -1654,6 +1656,86 @@ describe('recordStepResult', () => {
     });
   });
 
+  describe('continue_on_error on a step', () => {
+    test('a failed step with the flag lets success steps run, skips failure steps, and the job succeeds', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(3);
+      const [ignored, onSuccess, onFailure] = steps.map((step) => step.id);
+      if (!ignored || !onSuccess || !onFailure) throw new Error('Expected three steps');
+      await db().update(stepsTable).set({continueOnError: true}).where(eq(stepsTable.id, ignored));
+      await db().update(stepsTable).set({runAfter: 'failure'}).where(eq(stepsTable.id, onFailure));
+
+      await nextStepForJob(jobId);
+      const afterFailure = await recordStepResult({
+        jobId,
+        stepId: ignored,
+        status: 'failed',
+        error: {message: 'boom'},
+      });
+      const next = await nextStepForJob(jobId);
+      await recordStepResult({jobId, stepId: onSuccess, status: 'succeeded'});
+
+      expect(afterFailure).toEqual({jobFinished: false});
+      expect(next).toEqual({
+        kind: 'step',
+        step: expect.objectContaining({id: onSuccess}),
+        dispatched: true,
+      });
+      expect(await nextStepForJob(jobId)).toEqual({kind: 'done', status: 'succeeded'});
+      const after = await getStepsByJobId(jobId);
+      expect(after.map((step) => step.status)).toEqual(['failed', 'succeeded', 'skipped']);
+      expect(after[2]?.statusReason).toBe('default_gate_rejected');
+    });
+
+    test('marks the ignored failure on the step and its attempt', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(1);
+      const only = steps[0]?.id as string;
+      await db().update(stepsTable).set({continueOnError: true}).where(eq(stepsTable.id, only));
+      await nextStepForJob(jobId);
+
+      await recordStepResult({jobId, stepId: only, status: 'failed', error: {message: 'boom'}});
+
+      const [step] = await getStepsByJobId(jobId);
+      const [attempt] = await getStepAttempts(jobId);
+      expect(step).toMatchObject({status: 'failed', statusReason: 'failure_ignored'});
+      expect(attempt).toMatchObject({status: 'failed', failureIgnored: true});
+    });
+
+    test('does not cover a step that fails before it starts', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(2);
+      const [errored, later] = steps.map((step) => step.id);
+      if (!errored || !later) throw new Error('Expected two steps');
+      await db()
+        .update(stepsTable)
+        .set({continueOnError: true, condition: conditionExpression('1 / 0 == 0')})
+        .where(eq(stepsTable.id, errored));
+
+      const result = await nextStepForJob(jobId);
+
+      expect(result).toEqual({kind: 'done', status: 'failed'});
+      const after = await getStepsByJobId(jobId);
+      expect(after.map((step) => [step.status, step.statusReason])).toEqual([
+        ['failed', null],
+        ['skipped', 'default_gate_rejected'],
+      ]);
+    });
+
+    test('a last failed step with the flag finishes the job as succeeded', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(1);
+      const only = steps[0]?.id as string;
+      await db().update(stepsTable).set({continueOnError: true}).where(eq(stepsTable.id, only));
+      await nextStepForJob(jobId);
+
+      const outcome = await recordStepResult({
+        jobId,
+        stepId: only,
+        status: 'failed',
+        error: {message: 'boom'},
+      });
+
+      expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    });
+  });
+
   test('never downgrades an already-terminal row', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     await nextStepForJob(jobId);
@@ -2767,6 +2849,25 @@ describe('durable gate restart', () => {
 
     expect(restart).toEqual({jobFinished: false});
     expect(await restartEventCount(jobId)).toBe(1);
+  });
+
+  test('continue_on_error applies only after the restart rules are exhausted', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.exit_code == 0',
+      maxAttempts: 2,
+    });
+    await db().update(stepsTable).set({continueOnError: true}).where(eq(stepsTable.id, reviewer));
+
+    await runStep(jobId, producer, 0);
+    const restart = await runStep(jobId, reviewer, 1);
+    await runStep(jobId, producer, 0);
+    const exhausted = await runStep(jobId, reviewer, 1);
+
+    expect(restart).toEqual({jobFinished: false});
+    expect(await restartEventCount(jobId)).toBe(1);
+    expect(exhausted).toEqual({jobFinished: true, status: 'succeeded'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === reviewer)?.status).toBe('failed');
   });
 
   test('uses the legacy limit of three when max_attempts is missing', async () => {

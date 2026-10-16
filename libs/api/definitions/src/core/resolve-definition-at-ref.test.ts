@@ -1385,7 +1385,6 @@ jobs:
         },
       ],
       actionsEnabled: true,
-      compositeActionsEnabled: true,
       ...clients,
     });
 

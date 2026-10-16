@@ -40,7 +40,6 @@ export function ActionStepDetails({
   runAttempt: number;
 }) {
   const inputs = presentedActionInputs(config);
-  const inputCount = Object.keys(inputs).length;
   return (
     <>
       <ActionIdentitySection
@@ -53,13 +52,7 @@ export function ActionStepDetails({
         workflowRunId={workflowRunId}
         runAttempt={runAttempt}
       />
-      <InspectorSection title="Inputs" count={inputCount || undefined}>
-        {inputCount === 0 ? (
-          <InspectorSectionEmpty>No inputs were passed to this action.</InspectorSectionEmpty>
-        ) : (
-          <JsonPropertyList value={inputs} copyLabel={(name) => `Copy input ${name}`} />
-        )}
-      </InspectorSection>
+      <ActionInputsSection inputs={inputs} />
       <InspectorSection title="Integrations" count={config.bindings.length || undefined}>
         {config.bindings.length === 0 ? (
           <InspectorSectionEmpty>This action declares no integrations.</InspectorSectionEmpty>
@@ -111,6 +104,20 @@ export function ActionStepDetails({
         )}
       </InspectorSection>
     </>
+  );
+}
+
+/** Resolved inputs of an action or composite action attempt. */
+export function ActionInputsSection({inputs}: {inputs: Record<string, unknown>}) {
+  const inputCount = Object.keys(inputs).length;
+  return (
+    <InspectorSection title="Inputs" count={inputCount || undefined}>
+      {inputCount === 0 ? (
+        <InspectorSectionEmpty>No inputs were passed to this action.</InspectorSectionEmpty>
+      ) : (
+        <JsonPropertyList value={inputs} copyLabel={(name) => `Copy input ${name}`} />
+      )}
+    </InspectorSection>
   );
 }
 

@@ -75,7 +75,7 @@ export interface HarnessInvocation {
   readonly repositoryContext?: RepositoryContext | undefined;
   readonly tools?: readonly string[] | undefined;
   readonly mcpServers?: readonly IntegrationToolsBridge[] | undefined;
-  /** Defaults to strict direct tools; discovery keeps the generic `mcp` proxy. */
+  /** Defaults to strict direct tools; discovery hands the tool servers to Pi's built-in MCP. */
   readonly toolSurface?: HarnessToolSurface | undefined;
   /** Materialized integration tool IDs requested by this step, without schemas or secrets. */
   readonly requestedIntegrationTools?: readonly RequestedIntegrationTool[] | undefined;
@@ -87,6 +87,8 @@ export interface HarnessInvocation {
   readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;
   readonly claude?: ClaudeRuntimeConfigDto | undefined;
   readonly gitConfigGlobal?: string | undefined;
+  /** Sent by the Git credential helper, so the step's credential failures are reported to it. */
+  readonly credentialCaptureId?: string | undefined;
   /** Where the agent's tools and processes run. Defaults to the runner's own machine. */
   readonly host?: ExecutionHost | undefined;
   /** Set when `host` is the job container. */

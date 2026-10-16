@@ -246,6 +246,59 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
+  it('scopes the session of an inner agent step to its composite use', async () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              key: 'setup',
+              uses: './.shipfox/actions/setup',
+              composite: {inputs: {session: {type: 'string', required: true}}},
+              with: {session: 'shared'},
+              steps: [
+                {key: 'scoped', prompt: 'Review it.', session: 'review'},
+                {key: 'chosen', prompt: 'Continue.', session: template('inputs.session')},
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(steps[2]?.config.session_scope).toBe('review-setup');
+    expect(steps[3]?.config.session_scope).toBeUndefined();
+  });
+
+  it('leaves the workflow and job env keys a composite sets to the composite', async () => {
+    const model = workflowModel({
+      env: {SHARED: 'workflow', WORKFLOW: 'kept'},
+      jobs: {
+        review: {
+          env: {SHARED: 'job'},
+          steps: [
+            {
+              uses: './.shipfox/actions/setup',
+              env: {SHARED: 'composite'},
+              steps: [{run: 'echo', env: {OWN: 'inner'}}],
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(steps[1]).toMatchObject({type: 'composite', config: {env: {SHARED: 'composite'}}});
+    expect(steps[2]?.config.env).toEqual({WORKFLOW: 'kept', OWN: 'inner'});
+  });
+
   it.each([
     ['an explicit value', {runAfter: 'failure' as const}, 'failure'],
     [
@@ -302,6 +355,7 @@ describe('materializeJobExecutionSteps', () => {
       sourceLocation: null,
       status: 'pending',
       type: 'checkout',
+      parentPosition: null,
       config: {
         checkout: {
           repository: 'acme/api',
@@ -314,6 +368,7 @@ describe('materializeJobExecutionSteps', () => {
         },
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 1,
     });
@@ -567,6 +622,7 @@ describe('materializeJobExecutionSteps', () => {
         sourceLocation: null,
         status: 'pending',
         type: 'setup',
+        parentPosition: null,
         config: {
           checkout: {
             permissions: {contents: 'read'},
@@ -574,6 +630,7 @@ describe('materializeJobExecutionSteps', () => {
           },
         },
         runAfter: 'success',
+        continueOnError: false,
         authoredConfig: null,
         position: 0,
       },
@@ -583,6 +640,7 @@ describe('materializeJobExecutionSteps', () => {
         sourceLocation: null,
         status: 'pending',
         type: 'run',
+        parentPosition: null,
         config: {
           run: `echo "${shellRef('__sf_0')}"`,
           env: {
@@ -591,6 +649,7 @@ describe('materializeJobExecutionSteps', () => {
           },
         },
         runAfter: 'success',
+        continueOnError: false,
         authoredConfig: {
           run: `echo "${template('executions[0].name')}"`,
           env: {BODY: template('execution.events[0].data.body')},

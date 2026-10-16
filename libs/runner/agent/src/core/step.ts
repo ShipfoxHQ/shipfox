@@ -1,4 +1,3 @@
-import {createHash} from 'node:crypto';
 import {
   AGENT_TOOLS_MCP_SERVER_ID,
   type AgentIntegrationMcpServerConfigDto,
@@ -61,10 +60,6 @@ import {
 
 const MAX_HARNESS_DIAGNOSTICS = 5;
 const MAX_HARNESS_DIAGNOSTIC_MESSAGE_LENGTH = 500;
-// Keep stable bridge ports below the OS ephemeral range and above this checkout's
-// 20000-24999 worktree-service reservation.
-const MCP_BRIDGE_PORT_START = 25_000;
-const MCP_BRIDGE_PORT_RANGE = 7_768;
 
 export async function executeAgentStep(
   step: StepDto,
@@ -85,6 +80,7 @@ export async function executeAgentStep(
       claude?: ClaudeRuntimeConfigDto | undefined;
     };
     gitConfigGlobal?: string | undefined;
+    credentialCaptureId?: string | undefined;
     carriedEnv?: CarriedEnv | undefined;
     /** Where the agent's processes run. Defaults to the runner's own machine. */
     host?: ExecutionHost | undefined;
@@ -132,7 +128,6 @@ export async function executeAgentStep(
     gateway,
     customServers,
     requestedGatewayTools,
-    jobExecutionId: step.job_execution_id,
   });
 
   try {
@@ -161,6 +156,7 @@ export async function executeAgentStep(
       ...(options.runtime.claude === undefined ? {} : {claude: options.runtime.claude}),
       signal: options.signal,
       gitConfigGlobal: options.gitConfigGlobal,
+      credentialCaptureId: options.credentialCaptureId,
       carriedEnv: options.carriedEnv,
       placement: agentPlacement(options.host, options.container),
       onSessionEntry: options.onSessionEntry,
@@ -219,7 +215,6 @@ function stepTools(params: {
   gateway: {url: URL; fetch: typeof fetch} | undefined;
   customServers: CustomMcpServers | undefined;
   requestedGatewayTools: readonly RequestedIntegrationTool[] | undefined;
-  jobExecutionId: string;
 }): {
   integrationToolsBridge: IntegrationToolsBridge | undefined;
   requestedIntegrationTools: readonly RequestedIntegrationTool[] | undefined;
@@ -233,10 +228,6 @@ function stepTools(params: {
       name: AGENT_TOOLS_MCP_SERVER_ID,
       gateway,
       customServers,
-      preferredPort: stableIntegrationToolsBridgePort(
-        params.jobExecutionId,
-        AGENT_TOOLS_MCP_SERVER_ID,
-      ),
     }),
     requestedIntegrationTools: [
       ...(requestedGatewayTools ?? []),
@@ -326,6 +317,7 @@ async function runSelectedHarness(params: {
   claude?: ClaudeRuntimeConfigDto | undefined;
   signal: AbortSignal | undefined;
   gitConfigGlobal: string | undefined;
+  credentialCaptureId: string | undefined;
   carriedEnv: CarriedEnv | undefined;
   placement: Pick<HarnessInvocation, 'host' | 'container'>;
   onSessionEntry: ((line: string) => void) | undefined;
@@ -353,6 +345,7 @@ async function runSelectedHarness(params: {
     customProvider,
     claude,
     gitConfigGlobal,
+    credentialCaptureId,
     carriedEnv,
     placement,
     onSessionEntry,
@@ -393,6 +386,7 @@ async function runSelectedHarness(params: {
         ...(claude === undefined ? {} : {claude}),
         signal,
         ...(gitConfigGlobal ? {gitConfigGlobal} : {}),
+        ...(credentialCaptureId ? {credentialCaptureId} : {}),
         ...(carriedEnv ? {carriedEnv} : {}),
         ...placement,
         ...(onSessionEntry ? {onSessionEntry} : {}),
@@ -682,13 +676,6 @@ function integrationToolsGateway(
     url: integrationToolsGatewayUrl,
     fetch: createIntegrationToolsGatewayFetch(leaseToken, integrationToolsGatewayUrl),
   };
-}
-
-function stableIntegrationToolsBridgePort(seed: string, serverName: string): number {
-  // pi-mcp-adapter includes the server URL in its metadata-cache hash. Keep the
-  // loopback port stable within a job so cached direct tools remain valid across steps.
-  const digest = createHash('sha256').update(`${seed}:${serverName}`).digest();
-  return MCP_BRIDGE_PORT_START + (digest.readUInt16BE(0) % MCP_BRIDGE_PORT_RANGE);
 }
 
 async function closeIntegrationToolsBridge(

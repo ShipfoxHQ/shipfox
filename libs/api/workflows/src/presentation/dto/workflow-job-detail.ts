@@ -19,7 +19,7 @@ import type {
   WorkflowStepPageRead,
   WorkflowStepSummaryRead,
 } from '#db/workflow-runs/job-detail.js';
-import {toStepErrorDto, toStepGateResultDto} from './step.js';
+import {toStepErrorDto, toStepGateResultDto, toStepSourceLocationDto} from './step.js';
 import {toJobExecutionSummaryDto, toJobOverviewDto} from './workflow-run.js';
 
 export function toWorkflowJobDetailDto(read: WorkflowJobDetailRead): WorkflowJobDetailDto {
@@ -89,22 +89,18 @@ function toStepAttemptPageDto(
 function toStepSummaryDto(step: WorkflowStepSummaryRead): StepSummaryDto {
   return {
     id: step.id,
+    parent_step_id: step.parentStepId,
     key: step.key,
     name: step.name,
     type: step.type,
     position: step.position,
     status: step.status,
     status_reason: step.statusReason,
-    source_location: step.sourceLocation
-      ? {
-          start_line: step.sourceLocation.startLine,
-          end_line: step.sourceLocation.endLine,
-        }
-      : null,
+    source_location: toStepSourceLocationDto(step.sourceLocation),
     current_attempt: step.currentAttempt,
     ...(step.gateMaxAttempts === undefined ? {} : {gate_max_attempts: step.gateMaxAttempts}),
     ...(step.mainStepId === undefined ? {} : {main_step_id: step.mainStepId}),
-    ...(step.affectsJob === undefined ? {} : {affects_job: step.affectsJob}),
+    affects_job: step.affectsJob,
     error: toStepErrorDto(step.error, step.type),
     attempts: toStepAttemptPageDto(step.attempts, step.type),
   };
@@ -124,6 +120,7 @@ function toStepAttemptSummaryDto(
     finished_at: attempt.finishedAt?.toISOString() ?? null,
     error: toStepErrorDto(attempt.error, stepType),
     gate_result: toStepGateResultSummaryDto(attempt.gateResult, attempt.status),
+    ...(attempt.failureIgnored ? {failure_ignored: true} : {}),
   };
 }
 

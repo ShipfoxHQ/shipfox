@@ -173,6 +173,17 @@ passes it a secret through `env`. A scripted model calls its tool. The spec chec
 model received the value derived from the secret, and that the step transcript masks the
 secret itself.
 
+## Composite actions
+
+`tests/composite-actions.e2e.ts` runs one local composite action, committed from
+`fixtures/composite-action/`. Its inner steps run the registry action
+`fixture/example@1.0.0`, print a secret input, call Gitea `get_issue` through an
+integration alias the caller binds, restart from an inner step after a gate
+fails once, run a script from `${{ action.path }}`, and run a scripted agent
+whose prompt reads a file from `${{ action.path }}`. The spec checks the
+composite step, its outputs, each inner step's `parent_step_id`, the masked
+log, and the restart attempts.
+
 ## Local run
 
 Each scenario starts a local runner process from `apps/runner/src/index.ts` through

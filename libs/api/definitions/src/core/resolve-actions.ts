@@ -86,8 +86,6 @@ export interface ResolveWorkflowActionsParams extends ActionSourceContext {
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   /** Lets the registry fill and repair its version cache. Defaults to true. */
   persistRegistryVersions?: boolean | undefined;
-  /** Accepts composite actions (`steps`). Defaults to `false`. */
-  compositeActions?: boolean | undefined;
   /**
    * Accepts registry references inside composite actions. Defaults to `true`;
    * the document parser already checks the workflow's own references.
@@ -254,7 +252,6 @@ async function resolveAction(
 ): Promise<ResolvedAction> {
   const {params: options} = walk;
   const {key: uses} = params;
-  const compositeActions = options.compositeActions ?? false;
   const ref = parseWorkflowActionRef(uses);
   if (ref.ok && ref.ref.kind === 'registry') {
     options.onProgress?.(uses);
@@ -264,16 +261,15 @@ async function resolveAction(
       workflowPath: params.referencedFrom,
       registry: options.registry,
       persist: options.persistRegistryVersions ?? true,
-      compositeActions,
     });
   }
 
   const upload = uploadedDirectory(options.uploads, uses);
   if (upload !== undefined) {
-    return await resolveUploadedAction({uses, files: upload, compositeActions});
+    return await resolveUploadedAction({uses, files: upload});
   }
   options.onProgress?.(uses);
-  return await readActionDirectory({...options, uses, compositeActions});
+  return await readActionDirectory({...options, uses});
 }
 
 /**
@@ -327,7 +323,7 @@ function tooManyActions(workflowPath: string): ActionResolutionError {
 }
 
 export async function readActionDirectory(
-  params: ActionSourceContext & {uses: string; compositeActions?: boolean | undefined},
+  params: ActionSourceContext & {uses: string},
 ): Promise<ResolvedAction> {
   const {uses} = params;
   const prefix = actionDirectoryPrefix(uses);
@@ -384,14 +380,13 @@ export async function readActionDirectory(
     {stopOnError: true},
   );
 
-  return await assembleAction({uses, files, compositeActions: params.compositeActions});
+  return await assembleAction({uses, files});
 }
 
 /** Validates an uploaded action directory with the limits a synced one gets. */
 export async function resolveUploadedAction(params: {
   uses: string;
   files: readonly ActionBundleFile[];
-  compositeActions?: boolean | undefined;
 }): Promise<ResolvedAction> {
   const {uses, files} = params;
   if (files.length > MAX_ACTION_FILES) {
@@ -405,11 +400,7 @@ export async function resolveUploadedAction(params: {
   for (const file of files) {
     sizes.add(`${prefix}${file.path}`, Buffer.byteLength(file.content, 'utf8'));
   }
-  return await assembleAction({
-    uses,
-    files: [...files],
-    compositeActions: params.compositeActions,
-  });
+  return await assembleAction({uses, files: [...files]});
 }
 
 async function assembleAction(params: {
@@ -417,7 +408,6 @@ async function assembleAction(params: {
   files: ActionBundleFile[];
   /** Prefixes file paths in diagnostics. Defaults to the repository directory of `uses`. */
   prefix?: string | undefined;
-  compositeActions?: boolean | undefined;
 }): Promise<ResolvedAction> {
   const {uses, files} = params;
   const prefix = params.prefix ?? actionDirectoryPrefix(uses);
@@ -435,7 +425,6 @@ async function assembleAction(params: {
   const manifest = parseActionManifest({
     manifestPath,
     content: manifestFile.content,
-    compositeActions: params.compositeActions ?? false,
   });
   for (const field of ['main', 'post'] as const) {
     const entry = manifest[field];
@@ -479,7 +468,6 @@ async function resolveRegistryAction(params: {
   workflowPath: string;
   registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   persist: boolean;
-  compositeActions: boolean;
 }): Promise<ResolvedAction> {
   const {uses, ref, workflowPath} = params;
   const registryPackage = `${ref.namespace}/${ref.name}`;
@@ -529,7 +517,6 @@ async function resolveRegistryAction(params: {
       uses,
       files,
       prefix: `${uses}/`,
-      compositeActions: params.compositeActions,
     });
   } catch (error) {
     if (!(error instanceof ActionResolutionError)) throw error;
@@ -649,11 +636,7 @@ async function fetchActionFile(params: ActionSourceContext, path: string): Promi
   }
 }
 
-function parseActionManifest(params: {
-  manifestPath: string;
-  content: string;
-  compositeActions: boolean;
-}): ActionManifest {
+function parseActionManifest(params: {manifestPath: string; content: string}): ActionManifest {
   let raw: unknown;
   try {
     raw = yaml.load(params.content);
@@ -668,7 +651,7 @@ function parseActionManifest(params: {
     });
   }
 
-  const result = safeParseActionManifest(raw, {compositeActions: params.compositeActions});
+  const result = safeParseActionManifest(raw, {compositeActions: true});
   if (result.success) return result.data;
 
   const details: ValidationError[] = result.error.issues.map((issue) => {

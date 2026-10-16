@@ -486,6 +486,39 @@ describe('bounded workflow agent-access tools', () => {
     expect(attempts.attempts[0]).not.toHaveProperty('gate_result');
   });
 
+  test('names the composite parent of each inner step', async () => {
+    const mocks = clients();
+    const innerStepId = uuid(9);
+    mocks.workflowHandlers.listWorkflowExecutionSteps.mockResolvedValue({
+      items: [
+        {...step(), key: 'setup', name: 'Setup', type: 'composite'},
+        {
+          ...step(),
+          id: innerStepId,
+          parent_step_id: stepId,
+          key: 'changed_files',
+          position: 1,
+          status: 'skipped',
+          status_reason: 'composite_skipped',
+        },
+      ],
+      nextCursor: null,
+    });
+    const listSteps = tool(mocks, 'list_workflow_execution_steps');
+
+    const response = await listSteps.execute({
+      context,
+      arguments: {job_id: jobId, execution_id: executionId},
+    });
+
+    const result = expectSuccess<ListWorkflowExecutionStepsResultDto>(response);
+    expect(result.steps).toMatchObject([
+      {id: stepId, parent_step_id: null, type: 'composite'},
+      {id: innerStepId, parent_step_id: stepId, status_reason: 'composite_skipped'},
+    ]);
+    expect(listSteps.validateResult?.(result)).toBe(true);
+  });
+
   test('forwards valid cursors through every workflow traversal page', async () => {
     const mocks = clients();
     const numberCursor = encodeNumberIdCursor({value: 1, id: attemptId});
@@ -721,6 +754,7 @@ function jobDetail(): WorkflowJobDetailDto {
 function step(): StepSummaryDto {
   return {
     id: stepId,
+    parent_step_id: null,
     key: 'run',
     name: 'Run command',
     type: 'run',

@@ -35,7 +35,10 @@ export function createPiSessionDiagnosticsExtension(
       });
 
       pi.on('tool_result', (event) => {
-        const structuredContent = structuredContentFromToolResult(event.details);
+        // Pi's built-in MCP tools return the server's CallToolResult as structured content.
+        const structuredContent =
+          structuredContentFromToolResult(event.details) ??
+          structuredContentFromToolResult(event.structuredContent);
         diagnostics.recordToolResult({
           toolCallId: event.toolCallId,
           toolName: event.toolName,

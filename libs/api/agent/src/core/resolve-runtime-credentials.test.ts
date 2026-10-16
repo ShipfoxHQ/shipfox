@@ -37,11 +37,11 @@ const expectedPiRequestUrls = {
     'https://gateway.example.test/inference/v1/chat/completions',
   ],
   'anthropic-messages': [
-    'https://gateway.example.test/inference/v1/messages',
-    'https://gateway.example.test/inference/v1/messages',
-    'https://gateway.example.test/inference/v1/messages',
-    'https://gateway.example.test/inference/v1/messages',
-    'https://gateway.example.test/inference/v1/messages',
+    'https://gateway.example.test/inference/v1/messages?beta=true',
+    'https://gateway.example.test/inference/v1/messages?beta=true',
+    'https://gateway.example.test/inference/v1/messages?beta=true',
+    'https://gateway.example.test/inference/v1/messages?beta=true',
+    'https://gateway.example.test/inference/v1/messages?beta=true',
   ],
 } satisfies Record<ManagedModelApi, readonly string[]>;
 

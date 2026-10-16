@@ -41,7 +41,6 @@ export interface AgentSessionCatalogFailure {
 export interface AgentSessionRegistration {
   readonly metadataMode: AgentSessionMetadataMode;
   readonly directToolNames: readonly string[];
-  readonly proxyFallback: boolean;
 }
 
 export interface AgentSessionToolCall {
@@ -134,7 +133,6 @@ interface AgentSessionDiagnosticsParams {
   >;
   readonly metadataMode: AgentSessionMetadataMode;
   readonly directToolNames?: readonly string[] | undefined;
-  readonly proxyFallback?: boolean | undefined;
   readonly providerTools?: readonly AgentSessionToolDescriptor[] | undefined;
   readonly catalogFailures?: readonly AgentSessionCatalogFailure[] | undefined;
 }
@@ -231,7 +229,6 @@ export class AgentSessionDiagnostics {
     this.#registration = {
       metadataMode: params.metadataMode,
       directToolNames: boundedUniqueStrings(params.directToolNames ?? []),
-      proxyFallback: params.proxyFallback ?? false,
     };
     this.#providerTools = (params.providerTools ?? [])
       .slice(0, MAX_DIAGNOSTIC_PROVIDER_TOOLS)

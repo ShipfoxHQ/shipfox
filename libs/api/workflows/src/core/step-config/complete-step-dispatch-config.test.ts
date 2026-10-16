@@ -60,6 +60,7 @@ function step(overrides: Partial<Step>): Step {
   return {
     id: 'step-1',
     jobExecutionId: 'exec-1',
+    parentStepId: null,
     key: 'deploy',
     name: 'Deploy',
     sourceLocation: null,
@@ -70,6 +71,7 @@ function step(overrides: Partial<Step>): Step {
     config: {},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,

@@ -1,4 +1,11 @@
+import {randomUUID} from 'node:crypto';
 import {recordCredentialRenewal} from '#credential-metrics.js';
+
+/**
+ * Names the failure capture of the step a Git process runs for. The step's processes inherit it,
+ * and the Git credential helper sends it with each request.
+ */
+export const CREDENTIAL_CAPTURE_ENV = 'SHIPFOX_CREDENTIAL_CAPTURE';
 
 export type BrokerCredential = {
   username: string;
@@ -53,8 +60,17 @@ export type CredentialFailureCapture<T> = {
 export type CredentialFailureEventSource = {
   getFailureEventCursor(): number;
   getFailureEventsSince(cursor: number): readonly CredentialFailureEvent[];
-  captureFailureEvents<T>(operation: () => Promise<T>): Promise<CredentialFailureCapture<T>>;
+  /**
+   * Runs the operation with a new capture id. The failures of requests that carry the id, or that
+   * join a renewal such a request started, are returned with its value.
+   */
+  captureFailureEvents<T>(
+    operation: (captureId: string) => Promise<T>,
+  ): Promise<CredentialFailureCapture<T>>;
 };
+
+/** The failure capture a credential request belongs to, from `CREDENTIAL_CAPTURE_ENV`. */
+export type CredentialRequestOptions = {captureId?: string | undefined};
 
 export type CredentialBrokerOptions = {
   now?: () => number;
@@ -114,7 +130,7 @@ export class CredentialBroker {
   private readonly renewalTimeoutMsValue: number;
   private publication: Promise<void> = Promise.resolve();
   private failureEventCursorValue = 0;
-  private activeFailureCapture: FailureEventCapture | undefined;
+  private readonly failureCaptures = new Map<string, FailureEventCapture>();
   private stopped = false;
 
   constructor(private readonly options: CredentialBrokerOptions) {
@@ -152,20 +168,29 @@ export class CredentialBroker {
     void this.publish(credential).catch(() => undefined);
   }
 
-  lookup(repositoryUrl: string): Promise<CredentialLookup | undefined> {
+  lookup(
+    repositoryUrl: string,
+    options: CredentialRequestOptions = {},
+  ): Promise<CredentialLookup | undefined> {
     if (this.stopped) return Promise.resolve(undefined);
     const url = tryNormalizeRepositoryUrl(repositoryUrl);
     if (url === undefined) return Promise.resolve(undefined);
     const entry = this.entries.get(url);
     if (!entry) return Promise.resolve(undefined);
-    if (entry.rejected) return this.lookupRejectedEntry(entry, url);
-    if (shouldRefresh(entry.credential, this.now())) return this.lookupRefreshEntry(entry, url);
+    const capture = this.failureCapture(options.captureId);
+    if (entry.rejected) return this.lookupRejectedEntry(entry, url, capture);
+    if (shouldRefresh(entry.credential, this.now())) {
+      return this.lookupRefreshEntry(entry, url, capture);
+    }
     if (!isLookupUsable(entry.credential, this.now())) return Promise.resolve(undefined);
 
     return Promise.resolve(toLookup(entry.credential));
   }
 
-  async reject(repositoryUrl: string): Promise<RejectionResult> {
+  async reject(
+    repositoryUrl: string,
+    options: CredentialRequestOptions = {},
+  ): Promise<RejectionResult> {
     if (this.stopped) return {};
     const url = tryNormalizeRepositoryUrl(repositoryUrl);
     if (url === undefined) return {};
@@ -185,15 +210,21 @@ export class CredentialBroker {
       flight?.entry === entry &&
       flight.rejectionRequested &&
       flight.rejectedGeneration !== rejectedGeneration;
-    await this.renewEntry(entry, rejectedGeneration, true);
+    const capture = this.failureCapture(options.captureId);
+    await this.renewEntry(entry, {rejectedGeneration, rejectionRequested: true, capture});
     if ((wasRefreshing || needsFollowUp) && !this.stopped) {
-      await this.renewEntry(entry, rejectedGeneration, true, true);
+      await this.renewEntry(entry, {
+        rejectedGeneration,
+        rejectionRequested: true,
+        bypassBackoff: true,
+        capture,
+      });
     }
     return rejectedGeneration === undefined ? {} : {rejectedGeneration};
   }
 
-  erase(repositoryUrl: string): Promise<RejectionResult> {
-    return this.reject(repositoryUrl);
+  erase(repositoryUrl: string, options: CredentialRequestOptions = {}): Promise<RejectionResult> {
+    return this.reject(repositoryUrl, options);
   }
 
   store(_repositoryUrl: string, _credential?: CredentialLookup): void {
@@ -213,16 +244,18 @@ export class CredentialBroker {
     return this.failureEvents.filter((event) => event.cursor > cursor);
   }
 
-  async captureFailureEvents<T>(operation: () => Promise<T>): Promise<CredentialFailureCapture<T>> {
-    const previous = this.activeFailureCapture;
+  async captureFailureEvents<T>(
+    operation: (captureId: string) => Promise<T>,
+  ): Promise<CredentialFailureCapture<T>> {
+    const captureId = randomUUID();
     const capture: FailureEventCapture = {active: true, events: []};
-    this.activeFailureCapture = capture;
+    this.failureCaptures.set(captureId, capture);
     try {
-      const value = await operation();
+      const value = await operation(captureId);
       return {value, events: [...capture.events]};
     } finally {
       capture.active = false;
-      this.activeFailureCapture = previous;
+      this.failureCaptures.delete(captureId);
     }
   }
 
@@ -269,18 +302,28 @@ export class CredentialBroker {
   private async lookupRejectedEntry(
     entry: Entry,
     url: string,
+    capture: FailureEventCapture | undefined,
   ): Promise<CredentialLookup | undefined> {
     if (entry.credential.renewal?.mode !== 'refresh-at') return undefined;
-    await this.renewEntry(entry, entry.rejectedGeneration, true);
+    await this.renewEntry(entry, {
+      rejectedGeneration: entry.rejectedGeneration,
+      rejectionRequested: true,
+      capture,
+    });
     return this.lookupRenewedEntry(url);
   }
 
   private async lookupRefreshEntry(
     entry: Entry,
     url: string,
+    capture: FailureEventCapture | undefined,
   ): Promise<CredentialLookup | undefined> {
-    await this.renewEntry(entry);
+    await this.renewEntry(entry, {capture});
     return this.lookupRenewedEntry(url);
+  }
+
+  private failureCapture(captureId: string | undefined): FailureEventCapture | undefined {
+    return captureId === undefined ? undefined : this.failureCaptures.get(captureId);
   }
 
   private lookupRenewedEntry(url: string): CredentialLookup | undefined {
@@ -292,16 +335,22 @@ export class CredentialBroker {
 
   private renewEntry(
     entry: Entry,
-    rejectedGeneration?: string,
-    rejectionRequested = false,
-    bypassBackoff = false,
+    {
+      rejectedGeneration,
+      rejectionRequested = false,
+      bypassBackoff = false,
+      capture,
+    }: {
+      rejectedGeneration?: string | undefined;
+      rejectionRequested?: boolean;
+      bypassBackoff?: boolean;
+      capture?: FailureEventCapture | undefined;
+    } = {},
   ): Promise<void> {
     const flightKey = `${entry.subject}\u0000${entry.url}`;
     const existing = this.flights.get(flightKey);
     if (existing?.entry === entry) {
-      if (this.activeFailureCapture !== undefined) {
-        existing.failureCaptures.add(this.activeFailureCapture);
-      }
+      if (capture !== undefined) existing.failureCaptures.add(capture);
       return existing.promise;
     }
     if (!bypassBackoff && entry.backoffUntil !== undefined && this.now() < entry.backoffUntil)
@@ -315,7 +364,7 @@ export class CredentialBroker {
       return Promise.resolve();
 
     const failureCaptures = new Set<FailureEventCapture>();
-    if (this.activeFailureCapture !== undefined) failureCaptures.add(this.activeFailureCapture);
+    if (capture !== undefined) failureCaptures.add(capture);
     const flight: Flight = {
       entry,
       promise: Promise.resolve(),

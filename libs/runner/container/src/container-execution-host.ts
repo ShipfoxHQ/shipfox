@@ -2,15 +2,17 @@ import {randomUUID} from 'node:crypto';
 import {chmodSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {Readable} from 'node:stream';
-import type {
-  ExecutionHost,
-  HostDirEntry,
-  HostFileType,
-  HostProcess,
-  HostReadFileOptions,
-  HostStat,
-  HostWriteFileOptions,
-  SpawnRequest,
+import {
+  DEFAULT_TERMINATE_GRACE_MS,
+  type ExecutionHost,
+  type HostDirEntry,
+  type HostFileType,
+  type HostProcess,
+  type HostReadFileOptions,
+  type HostStat,
+  type HostWriteFileOptions,
+  type KillTreeMode,
+  type SpawnRequest,
 } from '#execution-host.js';
 import {localExecutionHost} from '#local-execution-host.js';
 import {runCommand} from '#run-command.js';
@@ -32,13 +34,27 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const EXEC_PREAMBLE =
   'echo $$ > "$1.pid"; shipfox_path=$PATH; . "$1"; PATH=$shipfox_path rm -f "$1"; shift; exec "$@"';
 
-// While the process may not have started yet, waits for the preamble to record the PID.
+// While the process may not have started yet, waits for the preamble to record the PID. With a
+// grace period in tenths of a second, SIGTERMs the group first and SIGKILLs it only if it outlives
+// the grace period. Once the group is signaled to death or found gone, the PID is overwritten
+// with a marker instead of deleting the file, so a later or racing call neither signals a reused
+// PID nor waits for a file that will not return.
 const KILL_SCRIPT = `
 i=0
 while [ -n "$2" ] && [ ! -s "$1" ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 [ -s "$1" ] || exit 1
 read -r pid < "$1"
-rm -f "$1"
+[ "$pid" = killed ] && exit 0
+if [ -n "$3" ]; then
+  if ! kill -TERM "-$pid"; then echo killed > "$1"; exit 1; fi
+  i=0
+  while [ "$i" -lt "$3" ]; do
+    if ! kill -0 "-$pid" 2>/dev/null; then echo killed > "$1"; exit 0; fi
+    sleep 0.1
+    i=$((i+1))
+  done
+fi
+echo killed > "$1"
 kill -KILL "-$pid"
 `;
 
@@ -82,6 +98,8 @@ export interface ContainerExecutionHostParams {
    * the runner writes there are readable inside.
    */
   tempDir: string;
+  /** How long `killTree('terminate')` waits after SIGTERM before it SIGKILLs. 10 s by default. */
+  terminateGraceMs?: number | undefined;
 }
 
 export interface ContainerImageProbe {
@@ -112,11 +130,13 @@ export class ContainerFileError extends Error {
 export class ContainerExecutionHost implements ExecutionHost {
   private readonly container: string;
   private readonly tempDir: string;
+  private readonly terminateGraceMs: number;
   private image: Promise<ContainerImageProbe> | undefined;
 
   constructor(params: ContainerExecutionHostParams) {
     this.container = params.container;
     this.tempDir = params.tempDir;
+    this.terminateGraceMs = params.terminateGraceMs ?? DEFAULT_TERMINATE_GRACE_MS;
   }
 
   /** What the image gives a step: its shell and its `PATH`. Probed once. */
@@ -151,8 +171,8 @@ export class ContainerExecutionHost implements ExecutionHost {
     });
 
     let finished = false;
-    let killing: Promise<void> | undefined;
-    const killGroup = async (): Promise<boolean> => {
+    const pending: Partial<Record<KillTreeMode, Promise<void>>> = {};
+    const killGroup = async (mode: KillTreeMode): Promise<boolean> => {
       const result = await runCommand({
         argv: [
           'docker',
@@ -164,6 +184,7 @@ export class ContainerExecutionHost implements ExecutionHost {
           'sh',
           pidFile,
           finished ? '' : 'wait',
+          mode === 'terminate' ? String(Math.ceil(this.terminateGraceMs / 100)) : '',
         ],
       }).catch(() => undefined);
       return result?.exitCode === 0;
@@ -171,7 +192,7 @@ export class ContainerExecutionHost implements ExecutionHost {
     const exited = child.exited.then(async (exit) => {
       // The kill comes first so the step does not settle while a background process runs on.
       finished = true;
-      if (request.killTreeOnExit) await killGroup();
+      if (request.killTreeOnExit) await killGroup('kill');
       return exit;
     });
     // A failed start rejects `exited` for the caller, so it must not also be unhandled here.
@@ -183,13 +204,16 @@ export class ContainerExecutionHost implements ExecutionHost {
       ...(child.stdin ? {stdin: child.stdin} : {}),
       exited,
       processExited: child.processExited,
-      killTree: () => {
+      killTree: (mode: KillTreeMode = 'kill') => {
         // Killing the local client alone would leave the process running in the container. The
         // group can outlive the client, so a finished client does not mean a finished tree.
-        killing ??= (async () => {
-          if (!(await killGroup())) await child.killTree();
-        })();
-        return killing;
+        const signaling =
+          pending[mode] ??
+          (async () => {
+            if (!(await killGroup(mode))) await child.killTree();
+          })();
+        pending[mode] = signaling;
+        return signaling;
       },
     };
   }

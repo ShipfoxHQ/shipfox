@@ -1,0 +1,14 @@
+provider: github
+kind: error
+modes: [real, fake]
+steps:
+  # The comment exists and a person wrote it, so the app refuses before it writes. The body is the
+  # comment's own, which the fixture read pins, so a broken refusal leaves the comment unchanged.
+  - tool: update_issue_comment
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      comment_id: $fixture.github.issue_comment.id
+      body: $fixture.github.issue_comment.body
+    expect:
+      error: access-denied

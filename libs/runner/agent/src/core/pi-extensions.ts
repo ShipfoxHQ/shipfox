@@ -3,7 +3,7 @@ import {createRequire} from 'node:module';
 import {dirname, resolve as resolvePath, sep} from 'node:path';
 import type {ResourceLoader} from '@earendil-works/pi-coding-agent';
 
-export const PI_HARNESS_EXTENSION_PACKAGE_NAMES = ['pi-web-access', 'pi-mcp-adapter'] as const;
+export const PI_HARNESS_EXTENSION_PACKAGE_NAMES = ['pi-web-access'] as const;
 const require = createRequire(import.meta.url);
 const resolvedDirectories = new Map<string, string>();
 const availabilityByPackageName = new Map<string, boolean>();

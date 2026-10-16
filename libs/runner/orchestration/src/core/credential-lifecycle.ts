@@ -120,7 +120,7 @@ export function createJobCredentialLifecycle(options: {
     getFailureEventCursor: () => broker.getFailureEventCursor(),
     getFailureEventsSince: (cursor: number): readonly CredentialFailureEvent[] =>
       broker.getFailureEventsSince(cursor),
-    captureFailureEvents: <T>(operation: () => Promise<T>) =>
+    captureFailureEvents: <T>(operation: (captureId: string) => Promise<T>) =>
       broker.captureFailureEvents(operation),
     close: async () => {
       renewalController.abort();

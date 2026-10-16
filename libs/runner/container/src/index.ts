@@ -12,6 +12,7 @@ export type {
   HostReadFileOptions,
   HostStat,
   HostWriteFileOptions,
+  KillTreeMode,
   SpawnRequest,
 } from '#execution-host.js';
 export {
@@ -25,4 +26,8 @@ export {
   type StartJobContainerParams,
   startJobContainer,
 } from '#job-container.js';
-export {LocalExecutionHost, localExecutionHost} from '#local-execution-host.js';
+export {
+  LocalExecutionHost,
+  type LocalExecutionHostParams,
+  localExecutionHost,
+} from '#local-execution-host.js';

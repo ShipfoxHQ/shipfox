@@ -69,6 +69,27 @@ steps:
       expect:
         values:
           result[0].body: Contract comment
+  # The app may only edit its own comments, so the case edits the comment it just wrote.
+  - key: update_comment
+    tool: update_issue_comment
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      comment_id: $steps.comment.id
+      body: Contract comment updated
+    expect:
+      shape: {id: number, body: string, user: {login: string}}
+      values: {body: Contract comment updated}
+    effect:
+      tool: issue_read
+      method: get_comments
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.create.number
+      expect:
+        values:
+          result[0].body: Contract comment updated
   # The sandbox has no delete tool, so the issue ends closed.
   - key: close
     tool: issue_write

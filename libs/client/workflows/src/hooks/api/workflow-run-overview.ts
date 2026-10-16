@@ -1,6 +1,7 @@
 import {
   WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT,
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
+  workflowRunActionFileResponseSchema,
   workflowRunAttemptsResponseSchema,
   workflowRunLineageHeadResponseSchema,
   workflowRunOverviewJobsResponseSchema,
@@ -20,6 +21,7 @@ import {
 } from '@tanstack/react-query';
 import {
   isWorkflowRunTerminal,
+  type WorkflowActionFile,
   type WorkflowRunAttemptIdentity,
   type WorkflowRunAttemptReference,
   type WorkflowRunLineageHead,
@@ -28,6 +30,7 @@ import {
   type WorkflowRunSource,
 } from '#core/workflow-run.js';
 import {
+  toWorkflowActionFile,
   toWorkflowRunLineageHead,
   toWorkflowRunOverview,
   toWorkflowRunOverviewJobPage,
@@ -44,6 +47,8 @@ export const workflowRunOverviewQueryKeys = {
   overview: workflowRunsQueryKeys.overview,
   jobs: workflowRunsQueryKeys.overviewJobs,
   source: workflowRunsQueryKeys.source,
+  actionFile: (workflowRunId: string, digest: string, path: string) =>
+    [...workflowRunsQueryKeys.all, 'action-file', workflowRunId, digest, path] as const,
   concurrencyReference: (identity: WorkflowRunAttemptIdentity) =>
     [
       ...workflowRunsQueryKeys.all,
@@ -65,6 +70,15 @@ type WorkflowRunOverviewJobsQueryKey =
 type WorkflowRunSourceQueryKey =
   | ReturnType<typeof workflowRunOverviewQueryKeys.source>
   | readonly ['workflow-runs', 'source'];
+type WorkflowRunActionFileQueryKey =
+  | ReturnType<typeof workflowRunOverviewQueryKeys.actionFile>
+  | readonly ['workflow-runs', 'action-file'];
+type WorkflowRunActionFileQueryOptions = UseQueryOptions<
+  WorkflowActionFile,
+  Error,
+  WorkflowActionFile,
+  WorkflowRunActionFileQueryKey
+>;
 type WorkflowRunLineageHeadQueryOptions = UseQueryOptions<
   WorkflowRunLineageHead,
   Error,
@@ -371,6 +385,63 @@ export function workflowRunSourceQueryOptions({
 
 export function useWorkflowRunSourceQuery(input: WorkflowRunSourceQueryInput) {
   return useQuery(workflowRunSourceQueryOptions(input));
+}
+
+export interface WorkflowRunActionFileQueryInput {
+  workflowRunId: string | undefined;
+  /** The composite action file, as named by an inner step's source location. */
+  file: {digest: string; path: string} | undefined;
+  enabled?: boolean | undefined;
+}
+
+/** A snapshot file never changes, so one read serves every later view of it. */
+export function workflowRunActionFileQueryOptions({
+  workflowRunId,
+  file,
+  enabled = true,
+}: WorkflowRunActionFileQueryInput): WorkflowRunActionFileQueryOptions {
+  return queryOptions({
+    queryKey:
+      workflowRunId && file
+        ? workflowRunOverviewQueryKeys.actionFile(workflowRunId, file.digest, file.path)
+        : ([...workflowRunsQueryKeys.all, 'action-file'] as const),
+    enabled: Boolean(workflowRunId) && file !== undefined && enabled,
+    queryFn: ({signal}) =>
+      getWorkflowRunActionFile({
+        workflowRunId: workflowRunId ?? '',
+        digest: file?.digest ?? '',
+        path: file?.path ?? '',
+        signal,
+      }),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchInterval: false,
+  });
+}
+
+export function useWorkflowRunActionFileQuery(input: WorkflowRunActionFileQueryInput) {
+  return useQuery(workflowRunActionFileQueryOptions(input));
+}
+
+async function getWorkflowRunActionFile({
+  workflowRunId,
+  digest,
+  path,
+  signal,
+}: {
+  workflowRunId: string;
+  digest: string;
+  path: string;
+  signal?: AbortSignal;
+}): Promise<WorkflowActionFile> {
+  return toWorkflowActionFile(
+    await checkedApiRequest(
+      workflowRunActionFileResponseSchema,
+      `/workflows/runs/${workflowRunId}/action-snapshots/${encodeURIComponent(digest)}/files/${encodeURIComponent(path)}`,
+      {signal},
+    ),
+  );
 }
 
 async function getWorkflowRunSource(

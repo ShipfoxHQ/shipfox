@@ -354,26 +354,20 @@ describe('createIntegrationToolsBridge', () => {
     }
   });
 
-  it('reuses a preferred loopback port after a bridge is recreated', async () => {
+  it('refuses a second activation with another token', async () => {
     gateway = await startFakeGateway(() => 'lease');
-    const first = gatewayBridge({
+    const bridge = gatewayBridge({
       name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => 'lease'),
     });
-    const firstEndpoint = await first.activateHttp();
-    await first.close();
 
-    const second = gatewayBridge({
-      name: 'shipfox',
-      url: gateway.url,
-      fetch: leaseFetch(() => 'lease'),
-      preferredPort: Number(firstEndpoint.port),
-    });
-    const secondEndpoint = await second.activateHttp();
-    await second.close();
+    await bridge.activateHttp({authToken: 'first'});
 
-    expect(secondEndpoint.port).toBe(firstEndpoint.port);
+    await expect(bridge.activateHttp({authToken: 'second'})).rejects.toThrow(
+      'already active with another token',
+    );
+    await bridge.close();
   });
 
   it('allows repeated close before activation', async () => {
@@ -502,7 +496,6 @@ function gatewayBridge(params: {
   name: string;
   url: URL;
   fetch: typeof fetch;
-  preferredPort?: number;
 }): IntegrationToolsBridge {
   const {url, fetch, ...rest} = params;
   return createIntegrationToolsBridge({...rest, gateway: {url, fetch}});

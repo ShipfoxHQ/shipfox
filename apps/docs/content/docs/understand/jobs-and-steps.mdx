@@ -228,6 +228,44 @@ In this workflow:
 - Use `always` for work that must run in both cases, such as a summary or a
   cleanup. Its `if` can read a status to do different work in each case.
 
+### Let a step fail without failing the job
+
+Set `continue_on_error: true` on a step whose failure must not stop the job.
+The step still ends `failed`, and the run page marks the failure as ignored.
+The rest of the job acts as if the step succeeded:
+
+- A later step with `run_after: success` runs.
+- A later step with `run_after: failure` does not run because of this step.
+- `execution.failed` stays `false`.
+- The job can succeed with this step failed.
+
+`steps.<key>.status` still reads `failed`, so a later step can check it:
+
+```yaml
+steps:
+  - key: lint
+    continue_on_error: true
+    run: npm run lint
+  - run: npm test
+  - if: ${{ steps.lint.status == "failed" }}
+    run: echo "Lint failed. The job goes on."
+```
+
+In this job, `npm test` runs when `lint` fails. The last step runs only when
+`lint` failed. The job succeeds when `npm test` passes.
+
+A step with a [feedback loop](/understand/feedback-loops) restarts first.
+`continue_on_error` applies only to its last failure, after its restart limit
+is used up.
+
+`continue_on_error` covers a failure of the step's own work. It does not cover
+a step that cannot start, such as an `if` that cannot be evaluated or an input
+that cannot be filled. It also does not cover a job that times out. Those
+failures still fail the job.
+
+A step that uses a composite action cannot set `continue_on_error`. Set it on
+the steps inside the action.
+
 ### Read outputs after a failure
 
 A skipped step sets no outputs. An output without a `default` then has no

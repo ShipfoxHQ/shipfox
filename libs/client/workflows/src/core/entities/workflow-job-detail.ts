@@ -36,6 +36,8 @@ export interface WorkflowJobStepAttemptSummary {
   finishedAt: string | null;
   error: StepError | null;
   gateResult: StepGateResult;
+  /** `continue_on_error` covered this failed attempt. */
+  failureIgnored?: boolean | undefined;
 }
 
 /** A step summary. Detailed configuration and diagnostics are separate lazy reads. */
@@ -52,9 +54,11 @@ export interface WorkflowJobStepSummary {
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
   gateMaxAttempts?: number | undefined;
+  /** The composite action step that holds this step. Set on inner rows only. */
+  parentStepId?: string | undefined;
   /** The step whose action declared this post. Set on post rows only. */
   mainStepId?: string | undefined;
-  /** False when a failed post leaves the job result unchanged. Set on post rows only. */
+  /** False when a failure of this step leaves the job result unchanged. */
   affectsJob?: boolean | undefined;
   error: StepError | null;
   attempts: WorkflowJobPage<WorkflowJobStepAttemptSummary>;

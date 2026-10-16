@@ -178,6 +178,7 @@ describe('materializeWorkflowModel', () => {
       sourceLocation: null,
       status: 'pending',
       type: 'setup',
+      parentPosition: null,
       config: {
         checkout: {
           permissions: {contents: 'read'},
@@ -185,6 +186,7 @@ describe('materializeWorkflowModel', () => {
         },
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 0,
     };
@@ -205,8 +207,10 @@ describe('materializeWorkflowModel', () => {
             sourceLocation: {startLine: 5, endLine: 6},
             status: 'pending',
             type: 'run',
+            parentPosition: null,
             config: {run: 'npm install'},
             runAfter: 'success',
+            continueOnError: false,
             authoredConfig: null,
             position: 1,
           },
@@ -216,6 +220,7 @@ describe('materializeWorkflowModel', () => {
             sourceLocation: {startLine: 7, endLine: 14},
             status: 'pending',
             type: 'run',
+            parentPosition: null,
             config: {
               run: 'npm run build',
               gate: {
@@ -224,6 +229,7 @@ describe('materializeWorkflowModel', () => {
               },
             },
             runAfter: 'success',
+            continueOnError: false,
             authoredConfig: null,
             position: 2,
           },
@@ -244,8 +250,10 @@ describe('materializeWorkflowModel', () => {
             sourceLocation: null,
             status: 'pending',
             type: 'run',
+            parentPosition: null,
             config: {run: 'npm test'},
             runAfter: 'success',
+            continueOnError: false,
             authoredConfig: null,
             position: 1,
           },
@@ -313,6 +321,7 @@ describe('materializeWorkflowModel', () => {
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
+      parentPosition: null,
       config: {
         harness: 'pi',
         model: 'claude-opus-4-8',
@@ -321,6 +330,7 @@ describe('materializeWorkflowModel', () => {
         prompt: 'Fix the tests.',
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 2,
     });
@@ -330,6 +340,7 @@ describe('materializeWorkflowModel', () => {
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
+      parentPosition: null,
       config: {
         harness: 'pi',
         model: 'gpt-5.5-pro',
@@ -342,6 +353,7 @@ describe('materializeWorkflowModel', () => {
         },
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 3,
     });
@@ -392,6 +404,7 @@ describe('materializeWorkflowModel', () => {
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
+      parentPosition: null,
       config: {
         harness: 'pi',
         model: 'claude-opus-4-8',
@@ -400,6 +413,7 @@ describe('materializeWorkflowModel', () => {
         prompt: 'Fix the failing tests.',
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 1,
     });
@@ -1509,6 +1523,7 @@ describe('materializeWorkflowModel', () => {
         sourceLocation: null,
         status: 'pending',
         type: 'setup',
+        parentPosition: null,
         config: {
           checkout: {
             permissions: {contents: 'read'},
@@ -1516,6 +1531,7 @@ describe('materializeWorkflowModel', () => {
           },
         },
         runAfter: 'success',
+        continueOnError: false,
         authoredConfig: null,
         position: 0,
       },

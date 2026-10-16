@@ -32,6 +32,7 @@ import {
   insertRunningStepAttempt,
   markStepRunning,
   markStepSkipped,
+  recordJobExecutionActionsDir,
   settleJobFailed,
   writeJobStepsSettledOutbox,
 } from '#db/workflow-runs.js';
@@ -41,6 +42,18 @@ import {
   recordWorkflowStepRestartExhausted,
 } from '#metrics/instance.js';
 import {createAgentDefaultsResolver} from './agent-defaults.js';
+import {
+  closableComposite,
+  compositeFailed,
+  compositeScopeValues,
+  earlierSiblingFailed,
+  inheritsCompositeConfig,
+  openedCompositeAttempt,
+  parentStepOf,
+  scopedSessionKey,
+  sessionScopeOf,
+  withCompositeConfig,
+} from './composite-step.js';
 import {
   conditionErrorSummary,
   defaultStepConditionTrace,
@@ -82,6 +95,7 @@ import {
   completeStepDispatchConfig,
   planReadsContext,
 } from './step-config/complete-step-dispatch-config.js';
+import {completeStepField, completeStepFieldWithType} from './step-config/fields.js';
 import {buildPostDispatchConfig, selectPostMainAttempt} from './step-config/post-step.js';
 import {readStepRestart} from './step-config/restart-failure-block.js';
 import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
@@ -167,6 +181,8 @@ interface PendingStepDispatchParams {
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
   readonly steps: readonly Step[];
   readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
+  /** What the composite that holds the step resolved when it opened. */
+  readonly compositeConfig?: Record<string, unknown> | undefined;
 }
 
 interface ResolvePendingStepParams {
@@ -210,8 +226,8 @@ async function nextStepForJobExecutionInTransaction(
   if (hasNoSteps) throw new JobNotFoundError(jobExecutionId);
 
   // Re-deliver the in-flight step rather than advancing, so a retried pull
-  // cannot skip a step.
-  const running = steps.find((step) => step.status === 'running');
+  // cannot skip a step. A running composite is open on the server, not in flight.
+  const running = steps.find((step) => step.status === 'running' && step.type !== 'composite');
   const hasRunningStep = running !== undefined;
   if (hasRunningStep) {
     return resolveRunningStep(jobExecutionId, running, tx, agent, runnerPlatform);
@@ -219,7 +235,10 @@ async function nextStepForJobExecutionInTransaction(
 
   const firstPending = steps.find((step) => step.status === 'pending');
   const hasPendingStep = firstPending !== undefined;
-  if (!hasPendingStep) return {kind: 'done', status: deriveCompletion(steps)};
+  const hasOpenComposite = steps.some(
+    (step) => step.type === 'composite' && step.status === 'running',
+  );
+  if (!hasPendingStep && !hasOpenComposite) return {kind: 'done', status: deriveCompletion(steps)};
 
   const jobExecution = await getJobExecutionById(jobExecutionId, tx);
   if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
@@ -299,24 +318,30 @@ async function resolveRunningStep(
   };
 }
 
-async function resolveNextPendingStep({
-  jobExecutionId,
-  steps,
-  jobExecution,
-  attempts,
-  jobs,
-  runContext,
-  vars,
-  workflowContext,
-  tx,
-  agent,
-  runnerPlatform,
-}: ResolvePendingStepParams): Promise<NextStepResolution> {
+async function resolveNextPendingStep(
+  params: ResolvePendingStepParams,
+): Promise<NextStepResolution> {
+  const {jobExecutionId, jobExecution, tx} = params;
   let skippedAny = false;
-  let currentSteps = steps;
+  let currentSteps = params.steps;
+  let currentAttempts = params.attempts;
   let executions: readonly JobExecution[] | undefined;
 
   while (true) {
+    const closing = closableComposite(currentSteps);
+    if (closing !== undefined) {
+      return closeComposite({
+        jobExecutionId,
+        composite: closing,
+        steps: currentSteps,
+        attempts: currentAttempts,
+        jobExecution,
+        tx,
+        agent: params.agent,
+        runnerPlatform: params.runnerPlatform,
+      });
+    }
+
     const pending = currentSteps.find((step) => step.status === 'pending');
     if (pending === undefined) {
       const status = deriveCompletion(currentSteps);
@@ -332,82 +357,357 @@ async function resolveNextPendingStep({
     }
 
     executions = await executionsForStep({pending, jobExecution, executions, tx});
-
-    const runner = await stepRunnerPlatform(pending, runnerPlatform);
-
-    const context = assembleStepDispatchContext({
-      steps: currentSteps,
-      attempts,
-      targetStepId: pending.id,
-      runContext: {
-        run: runContext.run,
-        triggerPayload: runContext.run.triggerPayload,
-        inputs: runContext.run.inputs,
-      },
-      job: runContext.job,
-      jobExecution,
-      executions,
-      jobs,
-      vars,
-      runner,
-    });
-    const condition = pendingStepCondition({
+    const progress = await progressPendingStep({
+      ...params,
       pending,
       steps: currentSteps,
-      attempts,
-      context,
+      attempts: currentAttempts,
+      executions,
     });
-    if (condition.kind === 'run') {
-      return dispatchPendingStep({
-        jobExecutionId,
-        pending,
-        jobExecution,
-        context,
-        workflowContext,
-        tx,
-        agent,
-        runnerPlatform,
-        steps: currentSteps,
-        attempts,
-      });
-    }
+    if (progress.kind === 'resolved') return progress.resolution;
+    currentSteps = progress.steps;
+    currentAttempts = progress.attempts;
+    skippedAny ||= progress.skipped;
+  }
+}
 
-    if (condition.kind === 'fail') {
-      return failPendingStep({
-        jobExecutionId,
-        pending,
-        jobExecution,
-        tx,
-        agent,
-        runnerPlatform,
-        error: conditionErroredStepError({
-          step: pending,
-          jobKey: workflowContext.jobKey,
-          summary: condition.summary,
+type PendingStepProgress =
+  | {readonly kind: 'resolved'; readonly resolution: NextStepResolution}
+  | {
+      readonly kind: 'continue';
+      readonly steps: Step[];
+      readonly attempts: StepAttempt[];
+      readonly skipped: boolean;
+    };
+
+// Decides one pending step: dispatch it, open it when it is a composite, fail it, or skip it.
+async function progressPendingStep(
+  params: ResolvePendingStepParams & {
+    readonly pending: Step;
+    readonly attempts: StepAttempt[];
+    readonly executions: readonly JobExecution[] | undefined;
+  },
+): Promise<PendingStepProgress> {
+  const {jobExecutionId, pending, steps, attempts, jobExecution, runContext, workflowContext, tx} =
+    params;
+
+  // The inner steps of a composite that did not open, or that already failed, never run.
+  const composite = parentStepOf(pending, steps);
+  if (composite !== undefined && composite.status !== 'running') {
+    const skipped = await skipPendingStep({
+      jobExecutionId,
+      pending,
+      steps,
+      statusReason: 'composite_skipped',
+      evaluationTrace: [],
+      tx,
+    });
+    return {kind: 'continue', steps: skipped, attempts, skipped: true};
+  }
+
+  const runner = await stepRunnerPlatform(pending, params.runnerPlatform);
+  const context = assembleStepDispatchContext({
+    steps,
+    attempts,
+    targetStepId: pending.id,
+    runContext: {
+      run: runContext.run,
+      triggerPayload: runContext.run.triggerPayload,
+      inputs: runContext.run.inputs,
+    },
+    job: runContext.job,
+    jobExecution,
+    executions: params.executions,
+    jobs: params.jobs,
+    vars: params.vars,
+    runner,
+    ...(composite === undefined
+      ? {}
+      : {
+          scopeValues: compositeScopeValues({
+            composite,
+            attempts,
+            actionsDir: jobExecution.actionsDir,
+          }),
         }),
-        evaluationTrace: condition.evaluationTrace,
-      });
+  });
+  const condition = pendingStepCondition({pending, steps, attempts, context});
+
+  if (condition.kind === 'run') {
+    const dispatchParams: PendingStepDispatchParams = {
+      jobExecutionId,
+      pending,
+      jobExecution,
+      context,
+      workflowContext,
+      tx,
+      agent: params.agent,
+      runnerPlatform: params.runnerPlatform,
+      steps,
+      attempts,
+      compositeConfig:
+        composite === undefined
+          ? undefined
+          : (openedCompositeAttempt(composite, attempts)?.config ?? undefined),
+    };
+    if (pending.type !== 'composite') {
+      return {kind: 'resolved', resolution: await dispatchPendingStep(dispatchParams)};
     }
 
-    const skipped = await markStepSkipped(
+    // The server opens a composite itself, then goes on with its first inner step.
+    const failed = await openComposite(dispatchParams);
+    if (failed !== undefined) return {kind: 'resolved', resolution: failed};
+    return {
+      kind: 'continue',
+      steps: await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx),
+      attempts: await getStepAttemptsByJobExecutionId(jobExecutionId, tx),
+      skipped: false,
+    };
+  }
+
+  if (condition.kind === 'fail') {
+    const resolution = await failPendingStep({
+      jobExecutionId,
+      pending,
+      jobExecution,
+      tx,
+      agent: params.agent,
+      runnerPlatform: params.runnerPlatform,
+      error: conditionErroredStepError({
+        step: pending,
+        jobKey: workflowContext.jobKey,
+        summary: condition.summary,
+      }),
+      evaluationTrace: condition.evaluationTrace,
+    });
+    return {kind: 'resolved', resolution};
+  }
+
+  const skipped = await skipPendingStep({
+    jobExecutionId,
+    pending,
+    steps,
+    statusReason: condition.statusReason,
+    evaluationTrace: condition.evaluationTrace,
+    tx,
+  });
+  return {kind: 'continue', steps: skipped, attempts, skipped: true};
+}
+
+async function skipPendingStep(params: {
+  readonly jobExecutionId: string;
+  readonly pending: Step;
+  readonly steps: Step[];
+  readonly statusReason: StepStatusReason;
+  readonly evaluationTrace: readonly PersistedEvaluationTraceEntry[];
+  readonly tx: Tx;
+}): Promise<Step[]> {
+  const {pending} = params;
+  const skipped = await markStepSkipped(
+    {
+      jobExecutionId: params.jobExecutionId,
+      stepId: pending.id,
+      statusReason: params.statusReason,
+      evaluationTrace: params.evaluationTrace,
+    },
+    params.tx,
+  );
+  const skippedStep = skipped ?? {
+    ...pending,
+    status: 'skipped' as const,
+    statusReason: params.statusReason,
+    evaluationTrace: params.evaluationTrace,
+    error: null,
+  };
+  return params.steps.map((step) => (step.id === pending.id ? skippedStep : step));
+}
+
+// Opens a composite in the caller's scope: fills its `with` into typed inputs, and its env and
+// working directory, which become the base of its inner steps. Returns the next step only when
+// the composite fails to open.
+async function openComposite(
+  params: PendingStepDispatchParams,
+): Promise<NextStepResolution | undefined> {
+  const {jobExecutionId, pending, jobExecution, context, tx} = params;
+  try {
+    const completed = await completeStepDispatchConfig({
+      step: pending,
+      context,
+      definitionId: jobExecution.jobId,
+    });
+    const config =
+      params.compositeConfig === undefined
+        ? completed.config
+        : withCompositeConfig({
+            stepType: pending.type,
+            config: completed.config,
+            compositeConfig: params.compositeConfig,
+          });
+    const stepAttemptId = await insertRunningStepAttempt(
+      {jobExecutionId, stepId: pending.id, attempt: pending.currentAttempt},
+      tx,
+    );
+    await dispatchStepWithCompletedConfig(
       {
         jobExecutionId,
         stepId: pending.id,
-        statusReason: condition.statusReason,
-        evaluationTrace: condition.evaluationTrace,
+        attempt: pending.currentAttempt,
+        stepAttemptId,
+        config,
+        evaluationTrace: completed.trace,
       },
       tx,
     );
-    const skippedStep = skipped ?? {
-      ...pending,
-      status: 'skipped' as const,
-      statusReason: condition.statusReason,
-      evaluationTrace: condition.evaluationTrace,
-      error: null,
-    };
-    currentSteps = currentSteps.map((step) => (step.id === pending.id ? skippedStep : step));
-    skippedAny = true;
+    return undefined;
+  } catch (error) {
+    const configError = toDispatchConfigError(error);
+    if (configError === null) throw error;
+    return failPendingStep({
+      jobExecutionId,
+      pending,
+      jobExecution,
+      tx,
+      agent: params.agent,
+      runnerPlatform: params.runnerPlatform,
+      error: dispatchConfigError(
+        configError instanceof InterpolationUnresolvableError
+          ? configError.at({
+              jobKey: params.workflowContext.jobKey,
+              step: {
+                key: pending.key ?? undefined,
+                name: pending.name,
+                index: pending.position,
+                line: pending.sourceLocation?.startLine,
+              },
+            })
+          : configError,
+      ),
+    });
   }
+}
+
+async function closeComposite(params: {
+  readonly jobExecutionId: string;
+  readonly composite: Step;
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+  readonly jobExecution: JobExecution;
+  readonly tx: Tx;
+  readonly agent?: AgentInterModuleClient | undefined;
+  readonly runnerPlatform?: RunnerPlatformLoader | undefined;
+}): Promise<NextStepResolution> {
+  const {jobExecutionId, tx} = params;
+  const progression = await recordCompositeResult(params);
+  recordStepProgressionMetrics(progression.metrics);
+  if (progression.outcome.jobFinished) return {kind: 'done', status: progression.outcome.status};
+  return nextStepForJobExecutionInTransaction(
+    jobExecutionId,
+    tx,
+    params.agent,
+    params.runnerPlatform,
+  );
+}
+
+// Closes a composite once its inner steps have finished: it fails when an inner step failed, and
+// otherwise fills its outputs from its inner steps. The result then goes through the same path as
+// a reported step, so its gate can restart it, and an outer composite it finishes closes too.
+function recordCompositeResult(params: {
+  readonly jobExecutionId: string;
+  readonly composite: Step;
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+  readonly jobExecution: JobExecution;
+  readonly tx: Tx;
+}): Promise<RecordStepResultTransactionResult> {
+  const {composite} = params;
+  const outputs = compositeFailed(composite, params.steps)
+    ? ({kind: 'failed', error: INNER_STEP_FAILED_ERROR} as const)
+    : fillCompositeOutputs(params);
+  return recordStepResultInTransaction(
+    {
+      jobExecutionId: params.jobExecutionId,
+      stepId: composite.id,
+      attempt: composite.currentAttempt,
+      status: outputs.kind === 'filled' ? 'succeeded' : 'failed',
+      error: outputs.kind === 'filled' ? null : outputs.error,
+      output: outputs.kind === 'filled' ? outputs.output : null,
+      logOutcome: 'drained',
+    },
+    params.tx,
+  );
+}
+
+// A report that finishes the last inner step closes its composite right away, so the job does not
+// depend on the runner pulling again to settle.
+async function closeFinishedComposite(params: {
+  readonly jobExecutionId: string;
+  readonly jobExecution: JobExecution;
+  readonly tx: Tx;
+}): Promise<RecordStepResultTransactionResult | undefined> {
+  const steps = await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, params.tx);
+  const composite = closableComposite(steps);
+  if (composite === undefined) return undefined;
+  const attempts = await getStepAttemptsByJobExecutionId(params.jobExecutionId, params.tx);
+  return recordCompositeResult({...params, composite, steps, attempts});
+}
+
+const INNER_STEP_FAILED_ERROR = {
+  message: 'A step of the composite action failed.',
+  source: 'workflows',
+};
+
+function fillCompositeOutputs(params: {
+  readonly composite: Step;
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+  readonly jobExecution: JobExecution;
+}):
+  | {readonly kind: 'filled'; readonly output: Record<string, unknown> | null}
+  | {readonly kind: 'failed'; readonly error: Record<string, unknown>} {
+  const {composite} = params;
+  const templates = composite.configPlan?.composite?.outputs ?? {};
+  if (Object.keys(templates).length === 0) return {kind: 'filled', output: null};
+  const declarations = readStepOutputs(composite.config) ?? {};
+  const context = assembleStepDispatchContext({
+    steps: params.steps,
+    attempts: params.attempts,
+    targetStepId: composite.id,
+    scopeParentStepId: composite.id,
+    scopeValues: compositeScopeValues({
+      composite,
+      attempts: params.attempts,
+      actionsDir: params.jobExecution.actionsDir,
+    }),
+  });
+  const output: Record<string, unknown> = {};
+  for (const [name, template] of Object.entries(templates)) {
+    const fieldParams = {
+      field: 'action.outputs' as const,
+      errorField: 'action.outputs' as const,
+      template: {segments: template},
+      context,
+      definitionId: params.jobExecution.jobId,
+    };
+    try {
+      // Typed outputs keep the value of a whole expression, so a list stays a list.
+      output[name] =
+        (declarations[name]?.type ?? 'string') === 'string'
+          ? completeStepField(fieldParams)
+          : completeStepFieldWithType(fieldParams);
+    } catch (error) {
+      if (!(error instanceof InterpolationUnresolvableError)) throw error;
+      return {
+        kind: 'failed',
+        error: {
+          message: `Output "${name}" of the composite action can't be filled: ${error.message}`,
+          reason: 'output_invalid',
+          field: `outputs.${name}`,
+          outputKey: name,
+        },
+      };
+    }
+  }
+  return {kind: 'filled', output};
 }
 
 function pendingStepCondition(params: {
@@ -417,7 +717,11 @@ function pendingStepCondition(params: {
   readonly context: WorkflowEvaluationContext;
 }): StepConditionOutcome {
   if (params.pending.type !== 'post') {
-    return evaluateStepCondition({step: params.pending, context: params.context});
+    return evaluateStepCondition({
+      step: params.pending,
+      steps: params.steps,
+      context: params.context,
+    });
   }
   // A post runs after every authored step, unless its main entry never reached the runner.
   const start = selectPostMainAttempt({
@@ -471,7 +775,10 @@ async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<N
 
   const pending = pendingStepForDispatch(params.pending);
   const dispatchParams = pending === params.pending ? params : {...params, pending};
-  const hasConfigPlan = pending.configPlan !== null || pending.type === 'tool';
+  const inheritsComposite =
+    params.compositeConfig !== undefined &&
+    inheritsCompositeConfig(pending, params.compositeConfig);
+  const hasConfigPlan = pending.configPlan !== null || pending.type === 'tool' || inheritsComposite;
   if (hasConfigPlan) return dispatchPendingStepWithConfigPlan(dispatchParams);
 
   // A fully resolved agent step still carries a session intent in its config.
@@ -511,6 +818,7 @@ async function dispatchPendingStepWithConfigPlan({
   agent,
   runnerPlatform,
   attempts,
+  compositeConfig,
 }: PendingStepDispatchParams): Promise<NextStepResolution> {
   try {
     const firstAttempt = attempts.find(
@@ -524,6 +832,10 @@ async function dispatchPendingStepWithConfigPlan({
       definitionId: jobExecution.jobId,
       firstAttemptPrompt: typeof firstAttemptPrompt === 'string' ? firstAttemptPrompt : undefined,
     });
+    const config =
+      compositeConfig === undefined
+        ? completed.config
+        : withCompositeConfig({stepType: pending.type, config: completed.config, compositeConfig});
     const session = completed.sessionIntent;
     const dispatchAt = new Date();
 
@@ -545,12 +857,12 @@ async function dispatchPendingStepWithConfigPlan({
         stepId: pending.id,
         attempt: pending.currentAttempt,
         stepAttemptId,
-        config: completed.config,
+        config,
         evaluationTrace: completed.trace,
       },
       tx,
     );
-    const step = marked ?? {...pending, config: completed.config};
+    const step = marked ?? {...pending, config};
     if (session !== undefined) {
       return {
         kind: 'session-claim',
@@ -739,7 +1051,7 @@ async function claimStepSessionForDispatch(params: {
       workspaceId: params.workflowContext.workspaceId,
       projectId: params.workflowContext.projectId,
       workflowRunAttemptId: params.workflowContext.workflowRunAttemptId,
-      key: params.session.key,
+      key: scopedSessionKey(params.session.key, sessionScopeOf(params.config)),
       harness,
       harnessExplicit: params.harnessExplicit,
       stepAttemptId: params.stepAttemptId,
@@ -1036,10 +1348,14 @@ function agentSessionClaimMessage(
 
 function evaluateStepCondition(params: {
   readonly step: Step;
+  readonly steps: readonly Step[];
   readonly context: WorkflowEvaluationContext;
 }): StepConditionOutcome {
   const execution = params.context.values.execution as {failed?: unknown} | undefined;
-  const failed = execution?.failed === true;
+  const failed =
+    params.step.parentStepId === null
+      ? execution?.failed === true
+      : earlierSiblingFailed(params.step, params.steps);
   const {runAfter} = params.step;
   if ((runAfter === 'success' && failed) || (runAfter === 'failure' && !failed)) {
     return {
@@ -1300,6 +1616,8 @@ export interface RecordStepResultParams {
   response?: string | null;
   exitCode?: number | null;
   logPath?: string | null;
+  /** Where the runner unpacks action bundles. Reported with the setup step. */
+  actionsDir?: string | undefined;
   // The attempt the runner was dispatched. Omitted = "the step's current
   // attempt" (back-compat for callers that don't track attempts yet).
   attempt?: number;
@@ -1355,6 +1673,10 @@ export async function recordStepResultInTransaction(
   if (reportClassification instanceof Error) throw reportClassification;
   if (reportClassification === 'noop') return {outcome: outcomeFromSteps(steps), metrics: {}};
 
+  if (target.type === 'setup' && params.actionsDir !== undefined) {
+    await recordJobExecutionActionsDir({jobExecutionId, actionsDir: params.actionsDir}, tx);
+  }
+
   // Migration/back-compat boundary: a running step may predate the
   // step_attempts table or have been marked running by legacy code. Create
   // the audit row just before finalization if dispatch did not already do it.
@@ -1385,7 +1707,7 @@ export async function recordStepResultInTransaction(
     tx,
   });
 
-  return applyStepTransition(
+  const progression = await applyStepTransition(
     transition.decision,
     {
       jobId: jobExecution.jobId,
@@ -1396,6 +1718,10 @@ export async function recordStepResultInTransaction(
     },
     tx,
   );
+  if (progression.outcome.jobFinished) return progression;
+  const closed = await closeFinishedComposite({jobExecutionId, jobExecution, tx});
+  if (closed === undefined) return progression;
+  return {outcome: closed.outcome, metrics: {...progression.metrics, ...closed.metrics}};
 }
 
 function normalizeReportedStepResult(
@@ -1593,9 +1919,9 @@ function coerceReportedStepOutput(
   stepType: Step['type'],
 ): OutputCoercionResult {
   const declarations = readStepOutputs(config);
-  // Tool steps report typed values from CEL mappings, not runner text, so a string
-  // that looks like JSON must stay a string.
-  const parseJsonText = stepType !== 'tool';
+  // Tool steps and composite actions report typed values from expressions, not runner text,
+  // so a string that looks like JSON must stay a string.
+  const parseJsonText = stepType !== 'tool' && stepType !== 'composite';
   if (declarations === undefined) return {kind: 'not-applicable'};
   if (result.status !== 'succeeded') {
     if (result.output === null) return {kind: 'not-applicable'};

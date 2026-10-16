@@ -37,6 +37,7 @@ const {
   setActiveToolsByNameMock,
   disposeMock,
   extensionShutdownMock,
+  createMcpExtensionMock,
 } = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
   createAgentSessionServicesMock: vi.fn(),
@@ -67,6 +68,7 @@ const {
   disposeMock: vi.fn(),
   extensionShutdownMock: vi.fn(),
   modelRuntimeCreateMock: vi.fn(),
+  createMcpExtensionMock: vi.fn((options: unknown) => ({name: 'pi-builtin-mcp', options})),
 }));
 const {assertEgressAllowedMock, EgressDeniedErrorMock} = vi.hoisted(() => {
   class EgressDeniedError extends Error {
@@ -95,6 +97,7 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
   getShellConfig: () => ({shell: '/bin/bash', args: ['-c']}),
   createAgentSessionFromServices: createAgentSessionMock,
   createAgentSessionServices: createAgentSessionServicesMock,
+  createMcpExtension: createMcpExtensionMock,
   defineTool: defineToolMock,
   ModelRuntime: {
     create: modelRuntimeCreateMock,
@@ -137,7 +140,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -185,7 +187,6 @@ function extensionDirectory(packageName: string): string {
 }
 
 const piWebAccessDirectory = extensionDirectory('pi-web-access');
-const piMcpAdapterDirectory = extensionDirectory('pi-mcp-adapter');
 
 // The tools that replace pi's built-ins, as the session receives them after the runner's own.
 function hostTools(...names: string[]) {
@@ -196,7 +197,7 @@ const DEFAULT_HOST_TOOLS = hostTools('read', 'bash', 'edit', 'write');
 function piServices(
   cwd = '/work',
   diagnostics: Array<{type: string; message: string}> = [],
-  loadedDirectories: readonly string[] = [piWebAccessDirectory, piMcpAdapterDirectory],
+  loadedDirectories: readonly string[] = [piWebAccessDirectory],
   extensionErrors: Array<{path: string; error: string}> = [],
 ) {
   return {
@@ -266,6 +267,9 @@ function customProvider(
   };
 }
 
+type FinishTurnHook = (turn: {message: {stopReason: string}}) => Promise<unknown>;
+const completedTurn = {message: {stopReason: 'stop'}};
+
 function mcpBridge(overrides: Partial<IntegrationToolsBridge> = {}): IntegrationToolsBridge {
   return {
     name: 'shipfox',
@@ -315,6 +319,7 @@ describe('piHarnessAdapter', () => {
     setActiveToolsByNameMock.mockReset();
     disposeMock.mockReset();
     extensionShutdownMock.mockReset();
+    createMcpExtensionMock.mockClear();
     recordPiProviderRetryOutcomeMock.mockReset();
     modelRuntimeCreateMock.mockReset();
     piExtensionTestState.resolver = undefined;
@@ -670,7 +675,7 @@ describe('piHarnessAdapter', () => {
     expect(createAgentSessionMock).toHaveBeenCalled();
   });
 
-  it('configures eager loopback MCP direct and proxy access in the runner job agent-state directory', async () => {
+  it('connects runner-supplied servers through the built-in MCP extension with direct tools', async () => {
     sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
     const agentStateDir = join(sessionDir, 'runner-agent');
     const bridge = mcpBridge({
@@ -684,146 +689,66 @@ describe('piHarnessAdapter', () => {
         ],
       }),
     });
-    let configPath = '';
-    let config: unknown;
-    let argvDuringServiceCreation: readonly string[] | undefined;
-    const originalArgv = process.argv.slice();
-    process.argv.splice(
-      0,
-      process.argv.length,
-      'node',
-      'runner',
-      '--mcp-config',
-      '/tmp/old-mcp.json',
-      'serve',
-      '--mcp-config=/tmp/equals-mcp.json',
+
+    await piHarnessAdapter.run(
+      invocation({
+        cwd: sessionDir,
+        agentStateDir,
+        mcpServers: [bridge],
+        toolSurface: 'discovery',
+      }),
     );
-    createAgentSessionServicesMock.mockImplementation((options) => {
-      configPath = options.extensionFlagValues.get('mcp-config');
-      config = JSON.parse(readFileSync(configPath, 'utf8'));
-      argvDuringServiceCreation = process.argv.slice();
-      return piServices(sessionDir);
-    });
 
-    try {
-      await piHarnessAdapter.run(
-        invocation({
-          cwd: sessionDir,
-          agentStateDir,
-          mcpServers: [bridge],
-          toolSurface: 'discovery',
-        }),
-      );
-    } finally {
-      process.argv.splice(0, process.argv.length, ...originalArgv);
-    }
-
-    expect(bridge.activateHttp).toHaveBeenCalledTimes(1);
+    expect(bridge.activateHttp).toHaveBeenCalledWith(
+      expect.objectContaining({authToken: expect.any(String)}),
+    );
+    const {authToken} = vi.mocked(bridge.activateHttp).mock.calls[0]?.[0] ?? {};
     expect(bridge.listTools).toHaveBeenCalledTimes(1);
     expect(bindExtensionsMock).toHaveBeenCalledWith(expect.objectContaining({mode: 'print'}));
-    expect(configPath).toMatch(`${agentStateDir}/pi-mcp-`);
-    expect(argvDuringServiceCreation).toEqual([
-      'node',
-      'runner',
-      '--mcp-config',
-      configPath,
-      'serve',
-      '--mcp-config=/tmp/equals-mcp.json',
-    ]);
-    expect(process.argv).toEqual(originalArgv);
-    expect(sessionManagerCreateMock).toHaveBeenCalledWith(
-      sessionDir,
-      join(agentStateDir, 'agent-sessions'),
-    );
-    expect(config).toEqual({
-      settings: {toolPrefix: 'none'},
-      mcpServers: {
-        shipfox: {
-          url: 'http://127.0.0.1:43123/mcp',
-          auth: false,
-          lifecycle: 'eager',
-          directTools: true,
-          exposeResources: false,
-        },
-      },
-    });
+    const serviceOptions = createAgentSessionServicesMock.mock.calls[0]?.[0];
+    expect(serviceOptions).not.toHaveProperty('extensionFlagValues');
     expectResolvedExtensionPaths(
-      createAgentSessionServicesMock.mock.calls[0]?.[0].resourceLoaderOptions
-        .additionalExtensionPaths,
-      ['pi-web-access', 'pi-mcp-adapter'],
+      serviceOptions.resourceLoaderOptions.additionalExtensionPaths,
+      ['pi-web-access'],
       sessionDir,
     );
-    expect(
-      createAgentSessionServicesMock.mock.calls[0]?.[0].resourceLoaderOptions.extensionFactories,
-    ).toEqual(
+    expect(serviceOptions.resourceLoaderOptions.extensionFactories).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          name: PI_TOOL_ERROR_NORMALIZER_EXTENSION_NAME,
-        }),
-        expect.objectContaining({
-          name: PI_TOOL_SVG_NORMALIZER_EXTENSION_NAME,
-        }),
+        expect.objectContaining({name: 'pi-builtin-mcp'}),
+        expect.objectContaining({name: PI_TOOL_SVG_NORMALIZER_EXTENSION_NAME}),
         expect.objectContaining({name: 'shipfox-pi-session-diagnostics'}),
       ]),
     );
+    // Pi's built-in MCP tools report errors through isError themselves.
+    expect(serviceOptions.resourceLoaderOptions.extensionFactories).not.toContainEqual(
+      expect.objectContaining({name: PI_TOOL_ERROR_NORMALIZER_EXTENSION_NAME}),
+    );
+    const mcpOptions = createMcpExtensionMock.mock.calls[0]?.[0] as {
+      loadConfig: () => unknown;
+    };
+    expect(mcpOptions.loadConfig()).toEqual({
+      servers: [
+        {
+          name: 'shipfox',
+          source: 'shipfox-runner',
+          config: {
+            type: 'http',
+            url: 'http://127.0.0.1:43123/mcp',
+            headers: {Authorization: `Bearer ${authToken}`},
+            exposure: 'direct',
+          },
+        },
+      ],
+      errors: [],
+    });
     expect(extensionShutdownMock).toHaveBeenCalledWith({type: 'session_shutdown', reason: 'quit'});
     expect(disposeMock).toHaveBeenCalledAfter(extensionShutdownMock);
-    expect(existsSync(configPath)).toBe(false);
   });
 
-  it('serializes Pi MCP config argv setup across concurrent sessions', async () => {
-    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
-    const firstAgentStateDir = join(sessionDir, 'first-agent');
-    const secondAgentStateDir = join(sessionDir, 'second-agent');
-    const originalArgv = process.argv.slice();
-    let releaseFirstService!: () => void;
-    const firstServiceReleased = new Promise<void>((resolve) => {
-      releaseFirstService = resolve;
-    });
-    const observed: Array<{configPath: string; argv: readonly string[]}> = [];
-    let startFirstService!: () => void;
-    const firstServiceStarted = new Promise<void>((resolve) => {
-      startFirstService = resolve;
-    });
-    createAgentSessionServicesMock.mockImplementation(async (options) => {
-      observed.push({
-        configPath: options.extensionFlagValues.get('mcp-config'),
-        argv: process.argv.slice(),
-      });
-      if (observed.length === 1) {
-        startFirstService();
-        await firstServiceReleased;
-      }
-      return piServices();
-    });
+  it('does not load the MCP extension without discovery servers', async () => {
+    await piHarnessAdapter.run(invocation({toolSurface: 'discovery'}));
 
-    const first = piHarnessAdapter.run(
-      invocation({
-        agentStateDir: firstAgentStateDir,
-        mcpServers: [mcpBridge()],
-        toolSurface: 'discovery',
-      }),
-    );
-    await firstServiceStarted;
-
-    const second = piHarnessAdapter.run(
-      invocation({
-        agentStateDir: secondAgentStateDir,
-        mcpServers: [mcpBridge()],
-        toolSurface: 'discovery',
-      }),
-    );
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(observed).toHaveLength(1);
-
-    releaseFirstService();
-    await Promise.all([first, second]);
-
-    expect(observed).toHaveLength(2);
-    expect(observed[0]?.argv).toContain(observed[0]?.configPath);
-    expect(observed[1]?.argv).toContain(observed[1]?.configPath);
-    expect(observed[0]?.configPath).not.toBe(observed[1]?.configPath);
-    expect(process.argv).toEqual(originalArgv);
+    expect(createMcpExtensionMock).not.toHaveBeenCalled();
   });
 
   it('fails closed before session creation when direct-tool metadata is unavailable', async () => {
@@ -984,29 +909,7 @@ describe('piHarnessAdapter', () => {
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('names only the Pi extension directory that was not loaded', async () => {
-    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
-    createAgentSessionServicesMock.mockResolvedValue(
-      piServices('/work', [], [piWebAccessDirectory]),
-    );
-
-    const error = await piHarnessAdapter
-      .run(
-        invocation({
-          cwd: sessionDir,
-          agentStateDir: join(sessionDir, 'runner-agent'),
-          mcpServers: [mcpBridge()],
-          toolSurface: 'discovery',
-        }),
-      )
-      .catch((caught) => caught);
-
-    expect(error.message).toContain(piMcpAdapterDirectory);
-    expect(error.message).not.toContain(piWebAccessDirectory);
-    expect(createAgentSessionMock).not.toHaveBeenCalled();
-  });
-
-  it('wraps resolver failures as harness-unavailable and cleans the MCP temp directory', async () => {
+  it('wraps resolver failures as harness-unavailable', async () => {
     sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
     const resolverError = new Error('Cannot find package entry');
     piExtensionTestState.resolver = () => {
@@ -1027,10 +930,9 @@ describe('piHarnessAdapter', () => {
     expect(error).toBeInstanceOf(AgentHarnessUnavailableError);
     expect(error).toMatchObject({
       message: expect.stringContaining('pi-web-access'),
-      environment: {extensionPaths: ['pi-web-access', 'pi-mcp-adapter']},
+      environment: {extensionPaths: ['pi-web-access']},
     });
     expect(createAgentSessionServicesMock).not.toHaveBeenCalled();
-    expect(readdirSync(join(sessionDir, 'runner-agent'))).toEqual([]);
   });
 
   it('registers the output tool for steps with declared outputs', async () => {
@@ -1045,7 +947,7 @@ describe('piHarnessAdapter', () => {
           expect.objectContaining({
             name: 'set_output',
             promptGuidelines: [
-              'Call set_output({key: "<output-key>", value: "<value>"}) directly for each required workflow output; do not call it through mcp. The exact key, value encoding, and JSON Schema for each are in the task prompt.',
+              'Call set_output({key: "<output-key>", value: "<value>"}) directly for each required workflow output. The exact key, value encoding, and JSON Schema for each are in the task prompt.',
             ],
           }),
           ...DEFAULT_HOST_TOOLS,
@@ -1087,24 +989,7 @@ describe('piHarnessAdapter', () => {
     );
   });
 
-  it('adds the MCP proxy once when native tools are explicitly selected', async () => {
-    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
-    await piHarnessAdapter.run(
-      invocation({
-        cwd: sessionDir,
-        agentStateDir: join(sessionDir, 'runner-agent'),
-        mcpServers: [mcpBridge()],
-        toolSurface: 'discovery',
-        tools: ['read', 'mcp', 'web_search'],
-      }),
-    );
-
-    expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({tools: ['read', 'mcp', 'web_search']}),
-    );
-  });
-
-  it('appends the MCP proxy tool to an explicit tools list that omits it', async () => {
+  it('keeps the MCP server tools when native tools are explicitly selected', async () => {
     sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
     await piHarnessAdapter.run(
       invocation({
@@ -1117,7 +1002,7 @@ describe('piHarnessAdapter', () => {
     );
 
     expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({tools: ['read', 'web_search', 'mcp']}),
+      expect.objectContaining({tools: ['read', 'web_search', 'mcp__shipfox__*']}),
     );
   });
 
@@ -1143,6 +1028,9 @@ describe('piHarnessAdapter', () => {
       }),
     );
 
+    expect(
+      createAgentSessionServicesMock.mock.calls[0]?.[0].resourceLoaderOptions.extensionFactories,
+    ).toContainEqual(expect.objectContaining({name: PI_TOOL_ERROR_NORMALIZER_EXTENSION_NAME}));
     const options = createAgentSessionMock.mock.calls[0]?.[0];
     expect(options).toEqual(
       expect.objectContaining({
@@ -1258,8 +1146,7 @@ describe('piHarnessAdapter', () => {
       'bash',
       'edit',
       'write',
-      'mcp',
-      'linear_main__get_issue',
+      'mcp__shipfox__linear_main__get_issue',
     ]);
     const bridge = mcpBridge({
       listTools: vi.fn().mockResolvedValue({
@@ -1284,8 +1171,7 @@ describe('piHarnessAdapter', () => {
       'bash',
       'edit',
       'write',
-      'mcp',
-      'linear_main__get_issue',
+      'mcp__shipfox__linear_main__get_issue',
     ]);
   });
 
@@ -1367,7 +1253,7 @@ describe('piHarnessAdapter', () => {
   it('fails closed when a direct integration tool collides with a Pi built-in', async () => {
     const bridge = mcpBridge({
       listTools: vi.fn().mockResolvedValue({
-        tools: [{name: 'mcp', inputSchema: {type: 'object'}}],
+        tools: [{name: 'bash', inputSchema: {type: 'object'}}],
       }),
     });
 
@@ -1379,7 +1265,7 @@ describe('piHarnessAdapter', () => {
       name: 'AgentInvocationError',
       failurePhase: 'integration_tool_catalog_unavailable',
       message:
-        'Pi integration tool catalog unavailable for "shipfox": Integration tool name collides with Pi built-in tool "mcp".',
+        'Pi integration tool catalog unavailable for "shipfox": Integration tool name collides with Pi built-in tool "bash".',
     });
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
@@ -1407,7 +1293,7 @@ describe('piHarnessAdapter', () => {
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('keeps the MCP proxy available when discovery metadata is unavailable', async () => {
+  it('still connects the MCP server when discovery metadata is unavailable', async () => {
     sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-pi-mcp-'));
     const bridge = mcpBridge({
       listTools: vi.fn().mockRejectedValue(new Error('gateway unavailable')),
@@ -1424,8 +1310,9 @@ describe('piHarnessAdapter', () => {
     );
 
     expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({tools: ['read', 'mcp']}),
+      expect.objectContaining({tools: ['read', 'mcp__shipfox__*']}),
     );
+    expect(createMcpExtensionMock).toHaveBeenCalledTimes(1);
   });
 
   it('omits the Pi tools option when no tools are selected', async () => {
@@ -1553,17 +1440,17 @@ describe('piHarnessAdapter', () => {
     let customTools: Array<{
       execute: (toolCallId: string, params: {key: string; value: string}) => Promise<unknown>;
     }> = [];
-    let shouldStopAfterTurn: (() => boolean) | undefined;
+    let finishTurn: FinishTurnHook | undefined;
     createAgentSessionMock.mockImplementation((options) => {
       customTools = options.customTools;
       return Promise.resolve({
         session: {
           agent: {
-            set shouldStopAfterTurn(value: typeof shouldStopAfterTurn) {
-              shouldStopAfterTurn = value;
+            set finishTurn(value: typeof finishTurn) {
+              finishTurn = value;
             },
-            get shouldStopAfterTurn() {
-              return shouldStopAfterTurn;
+            get finishTurn() {
+              return finishTurn;
             },
           },
           prompt: promptMock,
@@ -1578,9 +1465,10 @@ describe('piHarnessAdapter', () => {
     });
     promptMock.mockImplementation(async () => {
       await customTools[0]?.execute('tool-1', {key: 'summary', value: 'done'});
-      expect(shouldStopAfterTurn?.()).toBe(false);
+      await expect(finishTurn?.(completedTurn)).resolves.toBeUndefined();
       await customTools[0]?.execute('tool-2', {key: 'count', value: '2'});
-      expect(shouldStopAfterTurn?.()).toBe(true);
+      await expect(finishTurn?.(completedTurn)).resolves.toEqual({action: 'end'});
+      await expect(finishTurn?.({message: {stopReason: 'error'}})).resolves.toBeUndefined();
     });
 
     const result = await piHarnessAdapter.run(
@@ -1604,7 +1492,7 @@ describe('piHarnessAdapter', () => {
           isError: boolean;
         }) => Promise<unknown>)
       | undefined;
-    let shouldStopAfterTurn: (() => boolean) | undefined;
+    let finishTurn: FinishTurnHook | undefined;
     createAgentSessionMock.mockImplementation((options) => {
       customTools = options.customTools;
       return Promise.resolve({
@@ -1616,11 +1504,11 @@ describe('piHarnessAdapter', () => {
             get afterToolCall() {
               return afterToolCall;
             },
-            set shouldStopAfterTurn(value: typeof shouldStopAfterTurn) {
-              shouldStopAfterTurn = value;
+            set finishTurn(value: typeof finishTurn) {
+              finishTurn = value;
             },
-            get shouldStopAfterTurn() {
-              return shouldStopAfterTurn;
+            get finishTurn() {
+              return finishTurn;
             },
           },
           prompt: promptMock,
@@ -1643,27 +1531,17 @@ describe('piHarnessAdapter', () => {
           result: {details: {}, content: []},
           isError: false,
         });
-        expect(shouldStopAfterTurn?.()).toBe(false);
+        await expect(finishTurn?.(completedTurn)).resolves.toBeUndefined();
       })
       .mockImplementationOnce(async () => {
         await afterToolCall?.({
-          toolCall: {name: 'mcp'},
-          args: {
-            tool: 'github__pull_request_read',
-            args: JSON.stringify({method: 'get_comments'}),
-          },
+          toolCall: {name: 'mcp__shipfox__github__pull_request_read'},
+          args: {method: 'get_comments'},
           context: {},
-          result: {
-            details: {
-              mode: 'call',
-              server: 'shipfox',
-              tool: 'github__pull_request_read',
-            },
-            content: [],
-          },
+          result: {details: {server: 'shipfox', tool: 'github__pull_request_read'}, content: []},
           isError: false,
         });
-        expect(shouldStopAfterTurn?.()).toBe(true);
+        await expect(finishTurn?.(completedTurn)).resolves.toEqual({action: 'end'});
       });
 
     const result = piHarnessAdapter.run(
@@ -2388,8 +2266,8 @@ describe('piHarnessAdapter', () => {
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('maps Azure runtime credentials into pi provider env', async () => {
-    const model = {provider: 'azure-openai-responses', id: 'gpt-5.5-pro'};
+  it('maps Azure runtime credentials into the renamed pi provider and its env', async () => {
+    const model = {provider: 'azure', id: 'gpt-5.5-pro'};
     findMock.mockReturnValue(model);
 
     await piHarnessAdapter.run(
@@ -2403,7 +2281,8 @@ describe('piHarnessAdapter', () => {
       }),
     );
 
-    await expect(runtimeCredential('azure-openai-responses')).resolves.toEqual({
+    expect(findMock).toHaveBeenCalledWith('azure', 'gpt-5.5-pro');
+    await expect(runtimeCredential('azure')).resolves.toEqual({
       type: 'api_key',
       key: 'sk-azure-secret',
       env: {AZURE_OPENAI_BASE_URL: 'https://shipfox.openai.azure.com'},

@@ -1,5 +1,6 @@
 export {jobFactory} from './factories/job.js';
 export {
+  TEST_COMPOSITE_DIGEST,
   type TestAgentMcpServer,
   type TestJobContainer,
   type TestWorkflowStep,

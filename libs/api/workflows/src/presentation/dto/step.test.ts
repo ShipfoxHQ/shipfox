@@ -13,6 +13,7 @@ function step(overrides: Partial<Step> & {type: string}): Step {
   return {
     id: '00000000-0000-0000-0000-000000000001',
     jobExecutionId: '00000000-0000-0000-0000-0000000000bb',
+    parentStepId: null,
     key: null,
     name: 'step',
     sourceLocation: null,
@@ -22,6 +23,7 @@ function step(overrides: Partial<Step> & {type: string}): Step {
     config: {},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -557,6 +559,7 @@ const baseAttempt: StepAttempt = {
   logPath: null,
   gateResult: {passed: 'yes'},
   restartFeedback: null,
+  failureIgnored: false,
   logOutcome: null,
   invocations: [],
   startedAt: new Date('2026-01-01T00:00:00.000Z'),

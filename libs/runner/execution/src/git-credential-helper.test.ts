@@ -4,6 +4,7 @@ const requestCredentialSocketMock = vi.fn();
 const capability = 'job-capability';
 
 vi.mock('@shipfox/runner-workspace/credential-socket', () => ({
+  CREDENTIAL_CAPTURE_ENV: 'SHIPFOX_CREDENTIAL_CAPTURE',
   requestCredentialSocket: (...args: unknown[]) => requestCredentialSocketMock(...args),
 }));
 
@@ -43,6 +44,23 @@ describe('Git credential helper', () => {
       capability,
     });
     expect(output.value()).toBe('username=runner\npassword=token-a\n\n');
+  });
+
+  it('forwards the credential capture of the step', async () => {
+    requestCredentialSocketMock.mockResolvedValue({version: 1, ok: true});
+
+    await runGitCredentialHelper({
+      argv: ['/helper', '--socket', '/tmp/job.sock', '--capability', capability, 'erase'],
+      input: 'protocol=https\nhost=example.test\npath=acme/repository.git\n\n',
+      env: {SHIPFOX_CREDENTIAL_CAPTURE: 'capture-1'},
+    });
+
+    expect(requestCredentialSocketMock).toHaveBeenCalledWith('/tmp/job.sock', {
+      operation: 'erase',
+      repositoryUrl: 'https://example.test/acme/repository/',
+      capability,
+      captureId: 'capture-1',
+    });
   });
 
   it('forwards a configured socket timeout', async () => {

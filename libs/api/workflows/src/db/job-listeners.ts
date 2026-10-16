@@ -77,6 +77,7 @@ import {steps} from './schema/steps.js';
 import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
 import {lockWorkflowRun} from './workflow-runs/shared.js';
+import {withStepIds} from './workflow-runs/step-ids.js';
 import {
   bulkUpdateStepStatuses,
   getDirectDependencyJobContexts,
@@ -987,20 +988,24 @@ async function persistMaterializedListenerExecution(
 
   if (params.materialized.status === 'pending' && params.materialized.steps.length > 0) {
     await tx.insert(steps).values(
-      params.materialized.steps.map((step) => ({
-        jobExecutionId: execution.id,
-        key: step.key,
-        name: step.name,
-        sourceLocation: step.sourceLocation,
-        status: step.status,
-        type: step.type,
-        config: step.config,
-        configPlan: step.configPlan ?? null,
-        authoredConfig: step.authoredConfig,
-        condition: step.condition ?? null,
-        runAfter: step.runAfter,
-        position: step.position,
-      })),
+      withStepIds(
+        params.materialized.steps.map((step) => ({
+          jobExecutionId: execution.id,
+          key: step.key,
+          name: step.name,
+          sourceLocation: step.sourceLocation,
+          status: step.status,
+          type: step.type,
+          config: step.config,
+          configPlan: step.configPlan ?? null,
+          authoredConfig: step.authoredConfig,
+          condition: step.condition ?? null,
+          runAfter: step.runAfter,
+          continueOnError: step.continueOnError,
+          position: step.position,
+          parentPosition: step.parentPosition,
+        })),
+      ),
     );
   }
 

@@ -127,6 +127,7 @@ async function applyFailedStepTransition(
       logPath: ctx.result.logPath ?? null,
       logOutcome: ctx.logOutcome,
       gateResult: ctx.gateResult ?? null,
+      failureIgnored: decision.failureIgnored === true,
     },
     tx,
   );
@@ -135,6 +136,7 @@ async function applyFailedStepTransition(
     jobExecutionId: ctx.jobExecutionId,
     failedStepId: decision.failedStepId,
     error: decision.failureError ?? {message: 'Step failed'},
+    failureIgnored: decision.failureIgnored === true,
   });
   const stepRestartExhausted = decision.kind === 'fail-job-restart-exhausted';
   if (status !== null) {

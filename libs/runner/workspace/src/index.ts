@@ -30,6 +30,7 @@ export {
 export {
   type BrokerCredential,
   type BrokerCredentialInput,
+  CREDENTIAL_CAPTURE_ENV,
   CredentialBroker,
   type CredentialBrokerOptions,
   CredentialBrokerShutdownError,
@@ -41,6 +42,7 @@ export {
   type CredentialLookup,
   type CredentialRenewal,
   type CredentialRenewalRequest,
+  type CredentialRequestOptions,
   createCredentialBroker,
   DEFAULT_CREDENTIAL_REJECTION_COOLDOWN_MS,
   DEFAULT_CREDENTIAL_RENEWAL_TIMEOUT_MS,

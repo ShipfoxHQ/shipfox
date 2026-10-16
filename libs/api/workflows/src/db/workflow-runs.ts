@@ -63,6 +63,7 @@ export {
   markJobExecutionRunning,
   persistJobExecutionDurationLimits,
   queueJobExecution,
+  recordJobExecutionActionsDir,
   recordJobExecutionStartedAt,
   resolveJobExecutionAfterLeaseExpiry,
   updateJobExecutionStatus,
@@ -178,7 +179,7 @@ export {
 } from './workflow-runs/runs.js';
 export {getStepDispatchRunContext, getWorkflowContextForJob} from './workflow-runs/shared.js';
 export type {WorkflowRunSourceRead} from './workflow-runs/source.js';
-export {getWorkflowRunSource} from './workflow-runs/source.js';
+export {getWorkflowRunSource, workflowRunUsesCompositeAction} from './workflow-runs/source.js';
 export type {
   ApplyStepResultParams,
   BulkUpdateStepStatusesParams,

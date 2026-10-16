@@ -223,6 +223,7 @@ describe('githubContractFake', () => {
     await fake.seed({
       repository: {owner: 'contracts-sandbox', name: 'fixtures'},
       issue: {number: 1, title: 'Fixture issue', comment_count: 3},
+      issue_comment: {id: 6_000_362_435, author: 'noe-charmet', body: 'Comment 1: café 日本語 🚀'},
       parent_issue: {number: 3, title: 'Parent'},
       sub_issue: {number: 4, title: 'Sub-issue'},
       pull_request: {number: 35, title: 'Fixture PR: open', head_ref: 'fixture/open-pr'},
@@ -232,9 +233,9 @@ describe('githubContractFake', () => {
     });
 
     expect(await read(`${base}/issues/1/comments`)).toMatchObject([
-      {body: 'Comment 1: café 日本語'},
-      {body: 'Comment 2: café 日本語'},
-      {body: 'Comment 3: café 日本語'},
+      {id: 6_000_362_435, body: 'Comment 1: café 日本語 🚀', user: {login: 'noe-charmet'}},
+      {id: 2, body: 'Comment 2: café 日本語', user: {login: 'e2e-author'}},
+      {id: 3, body: 'Comment 3: café 日本語'},
     ]);
     expect(await read(`${base}/issues/3/sub_issues`)).toMatchObject([{number: 4}]);
     expect(await read(`${base}/issues/4/parent`)).toMatchObject({number: 3});

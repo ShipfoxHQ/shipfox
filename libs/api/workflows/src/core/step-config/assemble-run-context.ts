@@ -953,6 +953,8 @@ function assembleStepsContext(params: {
 function buildStepAttemptContext(params: {
   readonly steps: readonly Step[];
   readonly attempts: readonly StepAttempt[];
+  /** The composite whose inner steps `steps` names. Null for the job steps. */
+  readonly scopeParentStepId?: string | null | undefined;
 }): {
   readonly stepsContext: Record<string, Record<string, unknown>>;
   readonly stepsFailed: boolean;
@@ -962,8 +964,11 @@ function buildStepAttemptContext(params: {
   readonly terminalAttemptsByStepId: ReadonlyMap<string, readonly StepAttempt[]>;
 } {
   const stepsById = new Map(params.steps.map((step) => [step.id, step] as const));
+  // Keys are unique among siblings only, so `steps` and restart targets read one scope.
+  const scopeParentStepId = params.scopeParentStepId ?? null;
+  const scopedSteps = params.steps.filter((step) => step.parentStepId === scopeParentStepId);
   const stepsByKey = new Map(
-    params.steps.flatMap((step) => (step.key === null ? [] : [[step.key, step] as const])),
+    scopedSteps.flatMap((step) => (step.key === null ? [] : [[step.key, step] as const])),
   );
   const terminalAttemptsByStepId = new Map<string, StepAttempt[]>();
   const orderedAttempts = [...params.attempts].sort(
@@ -979,7 +984,7 @@ function buildStepAttemptContext(params: {
 
   const stepsContext: Record<string, Record<string, unknown>> = {};
 
-  for (const step of params.steps) {
+  for (const step of scopedSteps) {
     if (step.key === null) continue;
     const attempts = terminalAttemptsByStepId.get(step.id) ?? [];
     const latestAttempt = attempts.at(-1);
@@ -1025,9 +1030,20 @@ export function assembleStepDispatchContext(params: {
   readonly vars?: Record<string, string> | undefined;
   /** The platform of the runner that claimed the job, loaded only when the step reads it. */
   readonly runner?: {readonly os: string; readonly arch: string} | undefined;
+  /**
+   * The composite whose inner steps `steps` names. Defaults to the target's own scope. Closing a
+   * composite reads its inner steps.
+   */
+  readonly scopeParentStepId?: string | null | undefined;
+  /** Roots a composite replaces for its inner steps: `inputs` and `action`. */
+  readonly scopeValues?: Readonly<Record<string, unknown>> | undefined;
 }): WorkflowEvaluationContext {
   const targetStep = params.steps.find((step) => step.id === params.targetStepId);
-  const stepAttemptContext = buildStepAttemptContext(params);
+  const stepAttemptContext = buildStepAttemptContext({
+    steps: params.steps,
+    attempts: params.attempts,
+    scopeParentStepId: dispatchScope(params.scopeParentStepId, targetStep),
+  });
   const restart =
     targetStep === undefined || targetStep.currentAttempt <= 1
       ? undefined
@@ -1078,8 +1094,18 @@ export function assembleStepDispatchContext(params: {
       ...(params.runner === undefined
         ? {}
         : {runner: {os: params.runner.os, arch: params.runner.arch}}),
+      ...params.scopeValues,
     },
   };
+}
+
+// A step reads its own scope: the job, or the composite that holds it.
+function dispatchScope(
+  scopeParentStepId: string | null | undefined,
+  targetStep: Step | undefined,
+): string | null {
+  if (scopeParentStepId !== undefined) return scopeParentStepId;
+  return targetStep?.parentStepId ?? null;
 }
 
 function restartProvenance(params: {

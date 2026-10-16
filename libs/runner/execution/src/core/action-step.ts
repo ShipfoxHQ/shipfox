@@ -133,7 +133,7 @@ export interface ActionStepOptions
   runId: string;
   jobId: string;
   /** Loads the gzipped bundle. Called only when the job has not extracted this digest yet. */
-  loadBundle: () => Promise<Uint8Array>;
+  loadBundle: (digest: string) => Promise<Uint8Array>;
   secretEnv?: Readonly<Record<string, string>>;
   /** Secret input values. They reach the inputs file only, never the environment. */
   secretInputs?: Readonly<Record<string, string>>;
@@ -176,7 +176,7 @@ export async function executeActionStep(
     actionPath = await prepareActionBundle({
       jobTempDir,
       digest: config.action.digest,
-      load: options.loadBundle,
+      load: () => options.loadBundle(config.action.digest),
       shared: options.container !== undefined,
     });
   } catch (error) {

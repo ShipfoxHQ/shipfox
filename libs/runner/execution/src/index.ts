@@ -1,3 +1,4 @@
+export {actionsDirectory, prepareStepActionBundle} from '#core/action-bundle.js';
 export type {
   ActionCacheRequest,
   ActionCacheResponse,

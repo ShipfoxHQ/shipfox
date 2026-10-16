@@ -27,6 +27,25 @@ github:
           issue_number: $fixture.github.issue.number
         expect:
           values: {number: $fixture.github.issue.number, title: $fixture.github.issue.title}
+    # The first comment of issue 1. A person wrote it, so the app must refuse to edit it. The read
+    # pins its body too: the refusal case sends that body back, so a broken refusal changes nothing.
+    issue_comment:
+      id: 6000362435
+      author: noe-charmet
+      body: 'Comment 1: café 日本語 🚀 **markdown**'
+      read:
+        tool: issue_read
+        method: get_comments
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          issue_number: $fixture.github.issue.number
+          per_page: 1
+        expect:
+          values:
+            result[0].id: $fixture.github.issue_comment.id
+            result[0].user.login: $fixture.github.issue_comment.author
+            result[0].body: $fixture.github.issue_comment.body
     closed_issue:
       number: 2
       title: 'Fixture issue: closed'

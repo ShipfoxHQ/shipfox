@@ -9,9 +9,11 @@ export const STEP_STATUS_REASONS = [
   'condition_rejected',
   'condition_errored',
   'main_not_started',
+  'composite_skipped',
   'timed_out',
   'run_cancelled',
   'runner_lost',
+  'failure_ignored',
 ] as const;
 
 export const stepStatusReasonSchema = z.enum(STEP_STATUS_REASONS);
@@ -174,10 +176,23 @@ export const stepErrorDtoSchema = z
 
 export type StepErrorDto = z.infer<typeof stepErrorDtoSchema>;
 
+/** A composite action's manifest, the file that holds an inner step. */
+export const stepSourceFileSchema = z.object({
+  kind: z.literal('action'),
+  uses: z.string().min(1),
+  digest: z.string().min(1),
+  /** The manifest path inside the action directory, `action.yml` or `action.yaml`. */
+  path: z.string().min(1),
+});
+
+export type StepSourceFileDto = z.infer<typeof stepSourceFileSchema>;
+
 export const stepSourceLocationSchema = z
   .object({
     start_line: z.number().int().positive(),
     end_line: z.number().int().positive(),
+    /** The file that holds the lines. Absent means the workflow file. */
+    file: stepSourceFileSchema.optional(),
   })
   .refine((value) => value.end_line >= value.start_line, {
     message: 'end_line must be greater than or equal to start_line',
@@ -189,6 +204,8 @@ export type StepSourceLocationDto = z.infer<typeof stepSourceLocationSchema>;
 export const stepDtoSchema = z.object({
   id: z.string().uuid(),
   job_execution_id: z.string().uuid(),
+  /** The composite action step that holds this step. Null for a job step. */
+  parent_step_id: z.string().uuid().nullable().optional(),
   key: z.string().nullable(),
   name: z.string(),
   source_location: stepSourceLocationSchema.nullable(),

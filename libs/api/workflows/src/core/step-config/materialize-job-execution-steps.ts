@@ -1,4 +1,8 @@
-import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions-dto';
+import {
+  DEFAULT_JOB_CHECKOUT,
+  flattenJobSteps,
+  type WorkflowModel,
+} from '@shipfox/api-definitions-dto';
 import type {WorkflowExpression} from '@shipfox/expression';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {
@@ -17,6 +21,7 @@ import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
+type WorkflowModelCompositeStep = Extract<WorkflowModelStep, {kind: 'composite'}>;
 type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
 
 const FIRST_LINE_PATTERN = /\r?\n/;
@@ -26,10 +31,13 @@ export interface MaterializedWorkflowStep {
   readonly name: string;
   readonly sourceLocation: WorkflowSourceLocation | null;
   readonly status: 'pending';
-  readonly type: Exclude<WorkflowModelStep['kind'], 'composite'> | 'setup' | 'post';
+  readonly type: WorkflowModelStep['kind'] | 'setup' | 'post';
+  /** The position of the composite step that holds this step. Null for a job step. */
+  readonly parentPosition: number | null;
   readonly config: Readonly<Record<string, unknown>>;
   readonly condition?: WorkflowExpression;
   readonly runAfter: StepRunAfter;
+  readonly continueOnError: boolean;
   readonly configPlan?: StepConfigDispatchPlan;
   readonly authoredConfig: Readonly<Record<string, unknown>> | null;
   readonly diagnostics?: readonly WorkflowStepTemplateDiagnostic[];
@@ -60,7 +68,9 @@ const SETUP_STEP: Omit<MaterializedWorkflowStep, 'config'> = {
   sourceLocation: null,
   status: 'pending',
   type: 'setup',
+  parentPosition: null,
   runAfter: 'success',
+  continueOnError: false,
   authoredConfig: null,
   position: 0,
 };
@@ -80,25 +90,24 @@ export async function materializeJobExecutionSteps(
   } = params;
 
   const authored = await Promise.all(
-    job.steps.map(async (step, stepPosition) => {
-      // Sync rejects composite actions until the run engine expands them.
-      if (step.kind === 'composite') {
-        throw new Error(`Composite action step "${step.id}" cannot run yet`);
-      }
+    scopedJobSteps(job).map(async ({step, position, parentPosition, composites}) => {
       const stepContext = {
         ...context.values,
         job: {key: job.key, name: job.name ?? job.key},
       };
+      // A composite's env is the base of its inner steps. It is filled when the composite opens,
+      // so the workflow and job values of those keys must not shadow it.
+      const inheritedEnvKeys = compositeEnvKeys(composites);
       const resolved = await resolveStepConfig({
         jobKey: job.key,
         step,
-        workflowEnv: model.env,
-        workflowEnvTemplates: model.templates?.env,
-        jobEnv: job.env,
-        jobEnvTemplates: job.templates?.env,
+        workflowEnv: withoutKeys(model.env, inheritedEnvKeys),
+        workflowEnvTemplates: withoutKeys(model.templates?.env, inheritedEnvKeys),
+        jobEnv: withoutKeys(job.env, inheritedEnvKeys),
+        jobEnvTemplates: withoutKeys(job.templates?.env, inheritedEnvKeys),
         context: stepContext,
         site: context.site,
-        resolveAgentDefaults: resolveAgentDefaultsForStep?.(stepPosition) ?? resolveAgentDefaults,
+        resolveAgentDefaults: resolveAgentDefaultsForStep?.(position - 1) ?? resolveAgentDefaults,
         definitionId,
         agentToolContext,
         agentToolSnapshot,
@@ -117,7 +126,7 @@ export async function materializeJobExecutionSteps(
           step: {
             key: step.key,
             name: step.name,
-            index: stepPosition + 1,
+            index: position,
             line: step.sourceLocation?.startLine,
           },
         });
@@ -128,18 +137,20 @@ export async function materializeJobExecutionSteps(
         sourceLocation: step.sourceLocation ?? null,
         status: 'pending' as const,
         type: step.kind,
-        config: materializedStepConfig({
-          config: resolved.config,
+        parentPosition,
+        config: scopedStepConfig({
+          config: materializedStepConfig({config: resolved.config, step, position}),
           step,
-          stepPosition,
+          composites,
         }),
         ...(step.if === undefined ? {} : {condition: step.if}),
         // Models stored before `run_after` keep their old gate: an `if` replaced it.
         runAfter: step.runAfter ?? (step.if === undefined ? 'success' : 'always'),
+        continueOnError: step.continueOnError === true,
         authoredConfig: resolved.authoredConfig,
         ...materializedConfigPlan(resolved.configPlan, resolved.trace),
         ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
-        position: stepPosition + 1,
+        position,
       };
     }),
   );
@@ -151,22 +162,90 @@ export async function materializeJobExecutionSteps(
   ];
 }
 
-// One post row per action step that declares `post`, last authored action first. The rows exist
-// from the start so positions stay dense; a post whose main entry never reached the runner is
-// skipped at dispatch.
+interface ScopedModelStep {
+  readonly step: WorkflowModelStep;
+  /** The row position: the index in `flattenJobSteps` plus one, after the setup step. */
+  readonly position: number;
+  readonly parentPosition: number | null;
+  /** The composite steps that hold the step, outermost first. */
+  readonly composites: readonly WorkflowModelCompositeStep[];
+}
+
+// Pre-order, like `flattenJobSteps`: a composite, then its inner steps, nested composites inline.
+function scopedJobSteps(job: WorkflowModelJob): ScopedModelStep[] {
+  const scoped: ScopedModelStep[] = [];
+  const visit = (
+    steps: readonly WorkflowModelStep[],
+    parentPosition: number | null,
+    composites: readonly WorkflowModelCompositeStep[],
+  ): void => {
+    for (const step of steps) {
+      const position = scoped.length + 1;
+      scoped.push({step, position, parentPosition, composites});
+      if (step.kind === 'composite') visit(step.steps, position, [...composites, step]);
+    }
+  };
+  visit(job.steps, null, []);
+  return scoped;
+}
+
+function compositeEnvKeys(composites: readonly WorkflowModelCompositeStep[]): ReadonlySet<string> {
+  return new Set(composites.flatMap((composite) => Object.keys(composite.env ?? {})));
+}
+
+function withoutKeys<Value>(
+  record: Readonly<Record<string, Value>> | undefined,
+  keys: ReadonlySet<string>,
+): Readonly<Record<string, Value>> | undefined {
+  if (record === undefined || keys.size === 0) return record;
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)));
+}
+
+// A runner step inside a composite gets the files of every composite that holds it: it can read
+// its own `action.path`, and an outer path through the env, working directory, or inputs it
+// inherits. A runner extracts each bundle once per job. An inner agent session is scoped to the
+// composite use when it is claimed.
+function scopedStepConfig(params: {
+  readonly config: Readonly<Record<string, unknown>>;
+  readonly step: WorkflowModelStep;
+  readonly composites: readonly WorkflowModelCompositeStep[];
+}): Readonly<Record<string, unknown>> {
+  if (params.composites.length === 0) return params.config;
+  const runsOnRunner = params.step.kind !== 'composite' && params.step.kind !== 'tool';
+  const sessionScope = params.step.kind === 'agent' ? params.step.session?.scope : undefined;
+  return {
+    ...params.config,
+    ...(runsOnRunner
+      ? {
+          action_bundles: [
+            ...new Set(params.composites.map((composite) => composite.composite.digest)),
+          ],
+        }
+      : {}),
+    ...(sessionScope === undefined ? {} : {session_scope: sessionScope}),
+  };
+}
+
+// One post row per action step that declares `post`, last action in run order first. The rows
+// exist from the start so positions stay dense; a post whose main entry never reached the runner
+// is skipped at dispatch.
 function postStepsForJob(params: {
   readonly job: WorkflowModelJob;
   readonly authored: readonly MaterializedWorkflowStep[];
 }): MaterializedWorkflowStep[] {
   const posts: MaterializedWorkflowStep[] = [];
-  for (let index = params.job.steps.length - 1; index >= 0; index -= 1) {
-    const step = params.job.steps[index];
+  const steps = flattenJobSteps(params.job);
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    const step = steps[index];
     const main = params.authored[index];
     if (step?.kind !== 'action' || main === undefined || step.action.post === undefined) continue;
+    const parent =
+      main.parentPosition === null ? undefined : params.authored[main.parentPosition - 1];
     posts.push(
       postStepForAction({
         step,
         main,
+        parentName: parent?.name,
         position: params.authored.length + 1 + posts.length,
       }),
     );
@@ -177,6 +256,7 @@ function postStepsForJob(params: {
 function postStepForAction(params: {
   readonly step: Extract<WorkflowModelStep, {kind: 'action'}>;
   readonly main: MaterializedWorkflowStep;
+  readonly parentName: string | undefined;
   readonly position: number;
 }): MaterializedWorkflowStep {
   const {step, main, position} = params;
@@ -186,10 +266,14 @@ function postStepForAction(params: {
   }
   return {
     key: null,
-    name: `Post ${main.name}`,
+    name:
+      params.parentName === undefined
+        ? `Post ${main.name}`
+        : `Post ${params.parentName} › ${main.name}`,
     sourceLocation: main.sourceLocation,
     status: 'pending',
     type: 'post',
+    parentPosition: null,
     config: {
       post: {main_position: main.position, failure: step.action.postFailure ?? 'warn'},
       // The runner starts the post entry where it would start `main`.
@@ -197,8 +281,12 @@ function postStepForAction(params: {
       job_key: jobKey,
       // The post reaches the same tools as its main entry.
       integrations,
+      ...(main.config.action_bundles === undefined
+        ? {}
+        : {action_bundles: main.config.action_bundles}),
     },
     runAfter: 'always',
+    continueOnError: false,
     authoredConfig: null,
     position,
   };
@@ -258,11 +346,11 @@ function isRootPath(path: string | undefined): boolean {
 function materializedStepConfig(params: {
   readonly config: Readonly<Record<string, unknown>>;
   readonly step: WorkflowModelStep;
-  readonly stepPosition: number;
+  readonly position: number;
 }): Readonly<Record<string, unknown>> {
   if (
     params.step.kind !== 'checkout' ||
-    params.stepPosition !== 0 ||
+    params.position !== 1 ||
     params.step.checkout.path !== undefined
   ) {
     return params.config;
@@ -285,7 +373,7 @@ function materializedConfigPlan(
 }
 
 function stepDisplayName(
-  step: Exclude<WorkflowModelStep, {kind: 'composite'}>,
+  step: WorkflowModelStep,
   config: Readonly<Record<string, unknown>>,
 ): string {
   const {kind} = step;
@@ -310,6 +398,8 @@ function stepDisplayName(
     }
     case 'action':
       return step.action.name;
+    case 'composite':
+      return step.composite.name;
     default:
       return assertNever(step);
   }

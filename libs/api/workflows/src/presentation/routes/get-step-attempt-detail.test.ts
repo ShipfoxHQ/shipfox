@@ -122,6 +122,7 @@ function stepEntity(): Step {
   return {
     id: STEP_ID,
     jobExecutionId: crypto.randomUUID(),
+    parentStepId: null,
     key: 'test',
     name: 'Run tests',
     sourceLocation: null,
@@ -132,6 +133,7 @@ function stepEntity(): Step {
     config: {run: 'pnpm test'},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: {run: 'pnpm test'},
     error: {reason: 'command_failed', message: 'Command failed'},
@@ -159,6 +161,7 @@ function stepAttemptEntity(): StepAttempt {
     logPath: null,
     gateResult: null,
     restartFeedback: null,
+    failureIgnored: false,
     logOutcome: 'drained',
     invocations: [],
     startedAt: new Date('2026-08-05T12:00:00.000Z'),

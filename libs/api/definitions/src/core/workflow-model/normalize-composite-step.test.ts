@@ -210,6 +210,36 @@ describe('normalizeWorkflowDocument composite steps', () => {
     ]);
   });
 
+  test('fills the inner reads of the composite inputs when a step dispatches', () => {
+    const setup = composite(SETUP, {
+      inputs: {base_sha: {required: true}},
+      steps: [
+        {run: 'echo', env: {BASE: expr('inputs.base_sha'), RUN: expr('run.id')}},
+        {key: 'nested', uses: './.shipfox/actions/inner', with: {sha: expr('inputs.base_sha')}},
+      ],
+    });
+    const inner = composite('./.shipfox/actions/inner', {
+      inputs: {sha: {required: true}},
+      steps: [{run: 'echo'}],
+    });
+
+    const step = compositeStep(
+      normalize(document({uses: SETUP, with: {base_sha: expr('inputs.sha')}}), [setup, inner]),
+    );
+
+    expect(step.templates?.with).toEqual({
+      base_sha: [expect.objectContaining({roots: ['inputs'], fillTarget: 'run-creation'})],
+    });
+    const [run, nested] = step.steps;
+    expect(run?.kind === 'run' ? run.templates?.env : undefined).toEqual({
+      BASE: [expect.objectContaining({roots: ['inputs'], fillTarget: 'step-dispatch'})],
+      RUN: [expect.objectContaining({roots: ['run'], fillTarget: 'run-creation'})],
+    });
+    expect(nested?.kind === 'composite' ? nested.templates?.with : undefined).toEqual({
+      sha: [expect.objectContaining({roots: ['inputs'], fillTarget: 'step-dispatch'})],
+    });
+  });
+
   test('scopes the ids of nested composites under each use', () => {
     const inner = composite('./.shipfox/actions/inner', {steps: [{key: 'lint', run: 'lint'}]});
     const outer = composite(SETUP, {
@@ -303,6 +333,28 @@ describe('normalizeWorkflowDocument composite steps', () => {
     expect(summarize(issues)).toEqual([
       {code: 'composite-secrets-forbidden', path: 'jobs.build.steps.0', at: 'steps.0.env.TOKEN'},
     ]);
+  });
+
+  test('rejects continue_on_error on the step that uses a composite', () => {
+    const setup = composite(SETUP, {steps: [{run: 'npm ci', continue_on_error: true}]});
+
+    const issues = issuesFor(document({uses: SETUP, continue_on_error: true}), [setup]);
+
+    expect(summarize(issues)).toEqual([
+      {
+        code: 'composite-continue-on-error-unsupported',
+        path: 'jobs.build.steps.0.continue_on_error',
+        at: undefined,
+      },
+    ]);
+  });
+
+  test('carries continue_on_error on a step inside a composite', () => {
+    const setup = composite(SETUP, {steps: [{run: 'npm ci', continue_on_error: true}]});
+
+    const step = compositeStep(normalize(document({uses: SETUP}), [setup]));
+
+    expect(step.steps[0]?.continueOnError).toBe(true);
   });
 
   test('rejects the action root outside a composite', () => {

@@ -1,5 +1,5 @@
 import type {ModelProviderCatalogSeedDto, SupportedModelProviderId} from '@shipfox/api-agent-dto';
-import {MODEL_PROVIDER_CATALOG_SEED, MODEL_PROVIDER_IDS} from '@shipfox/api-agent-dto';
+import {MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
 
 export function getModelProviderEntry(id: string): ModelProviderCatalogSeedDto | undefined {
   return MODEL_PROVIDER_CATALOG_SEED.find((entry) => entry.id === id);
@@ -30,6 +30,4 @@ export function listSupportedModelProviders(): readonly ModelProviderCatalogSeed
   return MODEL_PROVIDER_CATALOG_SEED.filter((entry) => entry.support_status === 'supported');
 }
 
-export function isReservedModelProviderId(value: string): boolean {
-  return (MODEL_PROVIDER_IDS as readonly string[]).includes(value);
-}
+export {isReservedModelProviderId} from '@shipfox/api-agent-dto';

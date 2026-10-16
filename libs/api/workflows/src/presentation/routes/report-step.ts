@@ -62,6 +62,7 @@ export function createReportStepRoute(runners: RunnersInterModuleClient) {
         response: request.body.response ?? null,
         exitCode: request.body.exit_code ?? request.body.error?.exit_code ?? null,
         ...(request.body.log_path === undefined ? {} : {logPath: request.body.log_path}),
+        ...(request.body.actions_dir === undefined ? {} : {actionsDir: request.body.actions_dir}),
         logOutcome: request.body.log_outcome,
         ...(request.body.attempt !== undefined ? {attempt: request.body.attempt} : {}),
       });

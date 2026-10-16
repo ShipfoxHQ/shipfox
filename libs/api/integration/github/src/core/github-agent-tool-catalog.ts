@@ -705,6 +705,23 @@ export const githubAgentToolCatalog = [
     outputSchema: openObjectSchema('Created issue comment or reaction'),
   }),
   tool({
+    id: 'update_issue_comment',
+    category: 'issues',
+    description:
+      'Replace the body of an issue or pull request conversation comment that this GitHub app wrote. Use it to keep one status comment up to date instead of posting a new one. Comments written by anyone else are rejected.',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: scopes.issueAndPullRequestCommentsWrite,
+    inputSchema: repositoryInputSchema(
+      {
+        comment_id: integerSchema('The numeric ID of the issue or pull request comment to edit'),
+        body: stringSchema('New comment content. Replaces the existing body'),
+      },
+      ['comment_id', 'body'],
+    ),
+    outputSchema: openObjectSchema('Updated issue comment'),
+  }),
+  tool({
     id: 'issue_write',
     category: 'issues',
     description: 'Create a new or update an existing issue in a GitHub repository.',

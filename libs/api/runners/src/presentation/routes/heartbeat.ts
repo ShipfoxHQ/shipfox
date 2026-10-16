@@ -11,7 +11,7 @@ export function createHeartbeatRoute(auth: AuthInterModuleClient) {
     method: 'POST',
     path: '/:jobId/heartbeat',
     description:
-      'Keeps a running job execution alive while the runner is still working on it. Returns whether the server has asked the runner to cancel.',
+      'Keeps a running job execution alive while the runner is still working on it. Returns whether the server has asked the runner to cancel, a renewed job lease token, and a renewed token for each step-scoped lease token the runner sent.',
     schema: {
       params: z.object({jobId: z.string().uuid()}),
       body: heartbeatBodySchema.nullish(),
@@ -39,22 +39,40 @@ export function createHeartbeatRoute(auth: AuthInterModuleClient) {
         runnerSessionId: lease.runnerSessionId,
       });
 
-      const {token: leaseToken} = await auth.mintJobLeaseToken({
-        workflowRunId: heartbeatResult.runningJobExecution.workflowRunId,
-        workflowRunAttemptId: heartbeatResult.runningJobExecution.workflowRunAttemptId,
-        jobId: heartbeatResult.runningJobExecution.jobId,
-        jobExecutionId: heartbeatResult.runningJobExecution.jobExecutionId,
-        projectId: heartbeatResult.runningJobExecution.projectId,
-        workspaceId: heartbeatResult.runningJobExecution.workspaceId,
-        runnerSessionId: heartbeatResult.runningJobExecution.runnerSessionId,
-        ...(lease.currentStepId && lease.currentStepAttempt !== undefined
-          ? {currentStepId: lease.currentStepId, currentStepAttempt: lease.currentStepAttempt}
-          : {}),
-      });
+      const running = heartbeatResult.runningJobExecution;
+      const stepLeaseTokens = request.body?.step_lease_tokens ?? [];
+      const [{token: leaseToken}, renewedStepLeaseTokens] = await Promise.all([
+        auth.mintJobLeaseToken({
+          workflowRunId: running.workflowRunId,
+          workflowRunAttemptId: running.workflowRunAttemptId,
+          jobId: running.jobId,
+          jobExecutionId: running.jobExecutionId,
+          projectId: running.projectId,
+          workspaceId: running.workspaceId,
+          runnerSessionId: running.runnerSessionId,
+          ...(lease.currentStepId && lease.currentStepAttempt !== undefined
+            ? {currentStepId: lease.currentStepId, currentStepAttempt: lease.currentStepAttempt}
+            : {}),
+        }),
+        stepLeaseTokens.length === 0
+          ? []
+          : auth
+              .renewStepLeaseTokens({
+                jobExecutionId: running.jobExecutionId,
+                runnerSessionId: running.runnerSessionId,
+                tokens: stepLeaseTokens,
+              })
+              .then((renewed) => renewed.tokens),
+      ]);
 
       return {
         cancel: heartbeatResult.cancellationRequested,
         lease_token: leaseToken,
+        step_lease_tokens: renewedStepLeaseTokens.map((renewed) => ({
+          step_id: renewed.stepId,
+          attempt: renewed.attempt,
+          lease_token: renewed.token,
+        })),
         ...(heartbeatResult.cancellationReason
           ? {cancellation_reason: heartbeatResult.cancellationReason}
           : {}),

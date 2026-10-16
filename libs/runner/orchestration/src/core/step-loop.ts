@@ -25,6 +25,7 @@ import {ContainerExecutionHost} from '@shipfox/runner-container';
 import {
   type ActionStepOptions,
   type ActionToolsUpstream,
+  actionsDirectory,
   type CheckoutDestination,
   type CheckoutDestinations,
   type CommandStartMetadata,
@@ -32,6 +33,7 @@ import {
   executeCheckoutStep,
   executeRunStep,
   executeSetupStep,
+  prepareStepActionBundle,
   reportOutOfMemoryKills,
   resolveCgroupMemoryEventsPath,
   type SetupContainerSecrets,
@@ -91,6 +93,7 @@ import {
   hashFilesLogLines,
   type StepHashValues,
 } from '#core/step-hash-files.js';
+import type {StepLease, StepLeases} from '#core/step-lease-tokens.js';
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -131,8 +134,10 @@ const loadRunnerAgentStep = createRunnerAgentStepLoader();
 // drains an aborted last one (bounded) before runJob deletes the runner-owned spool directory.
 export async function runJobSteps(params: {
   jobId: string;
+  /** Sends the job token: next and report. */
   leaseClient: KyInstance;
-  leaseToken: LeaseTokenSource;
+  /** Holds the step-scoped token of each step, for the calls the step makes. */
+  stepLeases: StepLeases;
   /** Secrets masked out of captured output before it reaches the spool. */
   secrets: string[];
   /** Receives the complete job secret registry whenever one of its sets changes. */
@@ -157,7 +162,6 @@ export async function runJobSteps(params: {
   /** Called before the setup step creates the job container, so a failed start is still cleaned up. */
   onJobContainerRequested?: () => void;
   jobContext: SetupJobContext;
-  onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
   const {signal} = params;
 
@@ -178,7 +182,8 @@ export async function runJobSteps(params: {
     actionState: new Map(),
     stepHashes: new Map(),
     activeStream: undefined,
-    checkoutRef: undefined,
+    checkout: undefined,
+    sessionCheckoutGenerations: new Map(),
   };
 
   try {
@@ -211,7 +216,16 @@ interface JobStepLoopState {
   /** The `hashFiles()` values of each step attempt, for the post of the same step. */
   stepHashes: Map<string, StepHashValues>;
   activeStream: LogStreamLifecycle | undefined;
-  checkoutRef: string | undefined;
+  /** The latest checkout of this job. */
+  checkout: JobCheckout | undefined;
+  /** The checkout generation each agent session last committed a turn against, by session key. */
+  sessionCheckoutGenerations: Map<string, number>;
+}
+
+/** A successful checkout. The generation counts checkouts, since one can repeat the same ref. */
+interface JobCheckout {
+  ref: string;
+  generation: number;
 }
 
 async function runJobStepIteration(
@@ -226,7 +240,25 @@ async function runJobStepIteration(
     signal: params.signal,
   });
   if (!pulled || params.signal.aborted) return 'stop';
-  params.onLeaseTokenAdopted?.(pulled.leaseToken);
+  const {step, attempt} = pulled;
+  const stepLease = params.stepLeases.hold({
+    stepId: step.id,
+    attempt,
+    leaseToken: pulled.leaseToken,
+  });
+  try {
+    return await runPulledStep(params, state, pulled, stepLease);
+  } finally {
+    stepLease.release();
+  }
+}
+
+async function runPulledStep(
+  params: Parameters<typeof runJobSteps>[0],
+  state: JobStepLoopState,
+  pulled: PulledStep,
+  stepLease: StepLease,
+): Promise<'continue' | 'stop'> {
   const {step, attempt} = pulled;
   const carriedEnv = carriedEnvForStep(state.carriedEnv, pulled.envSources);
   const stateSeed = postStateSeed(state.actionState, step);
@@ -255,8 +287,8 @@ async function runJobStepIteration(
     attempt,
     cwd: params.cwd,
     agentStateDir: params.agentStateDir,
-    leaseClient: params.leaseClient,
-    leaseToken: params.leaseToken,
+    leaseClient: stepLease.client,
+    leaseToken: stepLease.token,
     secrets: params.secrets,
     ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
     ...(params.registerSecrets ? {registerSecrets: params.registerSecrets} : {}),
@@ -269,10 +301,8 @@ async function runJobStepIteration(
     ambientGitConfigPath: state.ambientGitConfigPath,
     ambientGitConfigSecrets: state.ambientGitConfigSecrets,
     annotationContexts: state.annotationContexts,
-    checkoutRef: state.checkoutRef,
-    consumeCheckoutRef: () => {
-      state.checkoutRef = undefined;
-    },
+    checkout: state.checkout,
+    sessionCheckoutGenerations: state.sessionCheckoutGenerations,
     jobId: params.jobId,
     stepLabel,
     logsDir: params.logsDir,
@@ -293,8 +323,8 @@ async function runJobStepIteration(
   const capturedExecution =
     credentialFailureCursor === undefined || params.credentialFailureEvents === undefined
       ? {value: await executeStep(executeStepParams), events: undefined}
-      : await params.credentialFailureEvents.captureFailureEvents(() =>
-          executeStep(executeStepParams),
+      : await params.credentialFailureEvents.captureFailureEvents((credentialCaptureId) =>
+          executeStep({...executeStepParams, credentialCaptureId}),
         );
   const execution = capturedExecution.value;
   applyStepExecutionState(
@@ -306,16 +336,17 @@ async function runJobStepIteration(
     execution,
   );
   if (params.signal.aborted) return 'stop';
-  return finishStepExecution(
+  return finishStepExecution({
     params,
     state,
     step,
     attempt,
     stepLabel,
     execution,
+    stepLeaseClient: stepLease.client,
     credentialFailureCursor,
-    capturedExecution.events,
-  );
+    capturedCredentialFailureEvents: capturedExecution.events,
+  });
 }
 
 function stepPreparation(
@@ -405,20 +436,34 @@ function applyStepExecutionState(
       execution.result.checkout,
       credentialSubject,
     );
-    state.checkoutRef = execution.result.checkout.ref;
+    state.checkout = {
+      ref: execution.result.checkout.ref,
+      generation: (state.checkout?.generation ?? 0) + 1,
+    };
   }
 }
 
-async function finishStepExecution(
-  params: Parameters<typeof runJobSteps>[0],
-  state: JobStepLoopState,
-  step: StepDto,
-  attempt: number,
-  stepLabel: string,
-  execution: StepExecution,
-  credentialFailureCursor: number | undefined,
-  capturedCredentialFailureEvents: readonly CredentialFailureEvent[] | undefined,
-): Promise<'continue' | 'stop'> {
+async function finishStepExecution({
+  params,
+  state,
+  step,
+  attempt,
+  stepLabel,
+  execution,
+  stepLeaseClient,
+  credentialFailureCursor,
+  capturedCredentialFailureEvents,
+}: {
+  params: Parameters<typeof runJobSteps>[0];
+  state: JobStepLoopState;
+  step: StepDto;
+  attempt: number;
+  stepLabel: string;
+  execution: StepExecution;
+  stepLeaseClient: KyInstance;
+  credentialFailureCursor: number | undefined;
+  capturedCredentialFailureEvents: readonly CredentialFailureEvent[] | undefined;
+}): Promise<'continue' | 'stop'> {
   const logOutcome =
     (await settleStream({stream: state.activeStream, signal: params.signal})) ??
     execution.logOutcome ??
@@ -427,11 +472,15 @@ async function finishStepExecution(
   if (params.signal.aborted) return 'stop';
   const settlement = await settleAgentSessionCommit({
     execution,
-    leaseClient: params.leaseClient,
+    leaseClient: stepLeaseClient,
     step,
     attempt,
     signal: params.signal,
   });
+  const seenCheckout = execution.sessionCommit?.seenCheckout;
+  if (settlement.committed && seenCheckout !== undefined) {
+    state.sessionCheckoutGenerations.set(seenCheckout.key, seenCheckout.generation);
+  }
   // Once the transcript commit has completed, reporting is the durable boundary:
   // an abort must not leave a committed attempt invisible to the API.
   if (params.signal.aborted && !settlement.committed) return 'stop';
@@ -444,7 +493,7 @@ async function finishStepExecution(
     credentialScopes: execution.credentialScopes,
   });
   await publishStepAnnotations({
-    leaseClient: params.leaseClient,
+    leaseClient: stepLeaseClient,
     step,
     attempt,
     annotations: result.annotations,
@@ -459,6 +508,7 @@ async function finishStepExecution(
     result,
     logOutcome,
     ...(logPath === undefined ? {} : {logPath}),
+    ...(step.type === 'setup' ? {actionsDir: actionsDirectory(params.tempDir)} : {}),
     jobId: params.jobId,
     jobExecutionId: params.jobContext.jobExecutionId,
     stepLabel,
@@ -810,8 +860,10 @@ export async function executeStep(params: {
   ambientGitConfigPath?: string | undefined;
   ambientGitConfigSecrets?: string[] | undefined;
   annotationContexts?: AnnotationContextRegistry | undefined;
-  checkoutRef?: string | undefined;
-  consumeCheckoutRef?: (() => void) | undefined;
+  checkout?: JobCheckout | undefined;
+  sessionCheckoutGenerations?: ReadonlyMap<string, number> | undefined;
+  /** The step's credential failure capture, passed to its processes for the Git helper. */
+  credentialCaptureId?: string | undefined;
   gitConfigPath: string;
   /**
    * Runner-owned job directory outside the workspace, for the scratch files of steps and for
@@ -839,7 +891,7 @@ export async function executeStep(params: {
     step,
     attempt,
     cwd,
-    checkoutRef,
+    checkout,
     leaseClient,
     secrets,
     subscribeSecrets,
@@ -927,6 +979,17 @@ export async function executeStep(params: {
       return execution;
     }
 
+    const bundleFailure = await prepareStepActionBundle({
+      config: step.config,
+      jobTempDir: params.jobTempDir,
+      load: (digest) =>
+        requestActionBundle(leaseClient, {stepId: step.id, digest, signal: params.signal}),
+      shared: params.container !== undefined,
+    });
+    if (bundleFailure) {
+      return {result: bundleFailure, logOutcome: 'drained', preparedWorkspace: false};
+    }
+
     const workingDirectory = await resolveStepWorkingDirectory(cwd, step.config.working_directory);
     if (!workingDirectory.ok) return workingDirectory.execution;
     const stepCwd = workingDirectory.path;
@@ -949,7 +1012,7 @@ export async function executeStep(params: {
         },
         registerStreamSecrets,
         secretState,
-        checkoutRef,
+        checkout,
       });
       stream = execution.stream;
       return {...execution, credentialScopes};
@@ -1259,7 +1322,7 @@ async function executeAgentStepBranch(params: {
   onStream: (stream: SessionLogStream | undefined) => void;
   registerStreamSecrets: (stream: SessionLogStream | undefined) => void;
   secretState: StepSecretState;
-  checkoutRef?: string | undefined;
+  checkout?: JobCheckout | undefined;
 }): Promise<StepExecution> {
   const input = params.params;
   let runtimeConfigResponse: Awaited<ReturnType<typeof requestAgentRuntimeConfigWithTiming>>;
@@ -1316,12 +1379,15 @@ async function executeAgentStepBranch(params: {
     params.onStream(sessionStream);
     params.registerStreamSecrets(sessionStream);
     const {executeAgentStep} = await loadRunnerAgentStep();
-    consumeCheckoutRefIfUsed({
-      consume: input.consumeCheckoutRef,
-      checkoutRef: params.checkoutRef,
+    const resumePrompt = buildResumePrompt(
       session,
-    });
-    const resumePrompt = buildResumePrompt(session, params.checkoutRef, input.step.config.prompt);
+      unseenCheckoutRef({
+        checkout: params.checkout,
+        session,
+        sessionCheckoutGenerations: input.sessionCheckoutGenerations,
+      }),
+      input.step.config.prompt,
+    );
     const placement = await agentPlacementOptions(input);
     const mcpServerOptions = customMcpServerOptions(secretMaterial, [
       ...input.secrets,
@@ -1337,6 +1403,7 @@ async function executeAgentStepBranch(params: {
           ...(session.invocation === undefined ? {} : {session: session.invocation}),
           ...(resumePrompt === undefined ? {} : {prompt: resumePrompt}),
           ...placement,
+          ...credentialCaptureOption(input),
           ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
           runtime: {
             harness: runtimeConfig.harness,
@@ -1368,6 +1435,9 @@ async function executeAgentStepBranch(params: {
               harness: runtimeConfig.harness,
               model: runtimeConfig.model,
               provider: runtimeConfig.provider_id,
+              ...(session.key === undefined || params.checkout === undefined
+                ? {}
+                : {seenCheckout: {key: session.key, generation: params.checkout.generation}}),
             }
           : undefined,
       result: maskAgentResult(
@@ -1447,6 +1517,8 @@ interface AgentSessionCommitContext {
   readonly harness: string;
   readonly model: string;
   readonly provider: string;
+  /** The checkout the turn ran against. The session has seen it once the turn is committed. */
+  readonly seenCheckout?: {readonly key: string; readonly generation: number} | undefined;
 }
 
 async function prepareAgentSession(
@@ -1508,13 +1580,19 @@ function buildResumePrompt(
   return `${resumePreamble(session, checkoutRef)}\n\n${prompt}`;
 }
 
-function consumeCheckoutRefIfUsed(params: {
-  consume: (() => void) | undefined;
-  checkoutRef: string | undefined;
+// A resumed session hears about each checkout until it commits a turn after it. A fork writes
+// nothing back to its session, and a turn that is not committed is not part of it either.
+function unseenCheckoutRef(params: {
+  checkout: JobCheckout | undefined;
   session: AgentSessionState;
-}): void {
-  if (params.checkoutRef === undefined || params.session.mode !== 'resume') return;
-  params.consume?.();
+  sessionCheckoutGenerations: ReadonlyMap<string, number> | undefined;
+}): string | undefined {
+  const {checkout, session, sessionCheckoutGenerations} = params;
+  if (checkout === undefined || session.key === undefined || session.mode !== 'resume') {
+    return undefined;
+  }
+  const seen = sessionCheckoutGenerations?.get(session.key);
+  return seen === checkout.generation ? undefined : checkout.ref;
 }
 
 function sessionCommitSdkVersion(harness: string): string {
@@ -1821,6 +1899,7 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
         ...(input.container ? await containerRunStepOptions(input.container) : {}),
         // The Git config on the runner points at helpers on the runner, so a container gets its own.
         ...gitConfigGlobalOption(input),
+        ...credentialCaptureOption(input),
         ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
         ...(secretMaterial ? {secretEnv: secretMaterial.secretEnv} : {}),
         ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
@@ -1842,6 +1921,12 @@ async function outOfMemoryReportOptions(input: {
     annotationContext: `out-of-memory-${input.step.id}`,
     signal: input.signal,
   };
+}
+
+function credentialCaptureOption(input: {credentialCaptureId?: string | undefined}): {
+  credentialCaptureId?: string;
+} {
+  return input.credentialCaptureId ? {credentialCaptureId: input.credentialCaptureId} : {};
 }
 
 function gitConfigGlobalOption(input: {
@@ -1932,8 +2017,8 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     jobTempDir: input.jobTempDir,
     runId: input.jobContext.workflowRunId,
     jobId: input.jobContext.jobId,
-    loadBundle: () =>
-      requestActionBundle(input.leaseClient, {stepId: input.step.id, signal: input.signal}),
+    loadBundle: (digest) =>
+      requestActionBundle(input.leaseClient, {stepId: input.step.id, digest, signal: input.signal}),
     ...(input.container ? await containerActionOptions(input.container) : {}),
     ...gitConfigGlobalOption(input),
     ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
@@ -2505,6 +2590,8 @@ export async function reportStepResult(params: {
   logOutcome: LogOutcomeDto;
   /** Finalized text log on the runner. Omitted when there is none. */
   logPath?: string;
+  /** Where the job extracts action bundles. Reported with the setup step only. */
+  actionsDir?: string;
   jobId: string;
   jobExecutionId: string;
   stepLabel: string;
@@ -2517,6 +2604,7 @@ export async function reportStepResult(params: {
     result,
     logOutcome,
     logPath,
+    actionsDir,
     jobId,
     jobExecutionId,
     stepLabel,
@@ -2557,6 +2645,7 @@ export async function reportStepResult(params: {
     ...(result.outputs ? {outputs: result.outputs} : {}),
     ...(result.checkout === undefined ? {} : {checkout: result.checkout}),
     ...(logPath === undefined ? {} : {logPath}),
+    ...(actionsDir === undefined ? {} : {actionsDir}),
     logOutcome,
     signal,
   });

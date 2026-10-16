@@ -603,6 +603,7 @@ function executionSummaryDto(id: string, sequence: number) {
 function stepSummaryDto(id: string) {
   return {
     id,
+    parent_step_id: null,
     key: 'tests',
     name: 'tests',
     type: 'run' as const,

@@ -138,6 +138,7 @@ export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGra
       result: 'json',
       methods: {add: 'write', remove: 'write', reprioritize: 'write'},
     },
+    update_issue_comment: {sensitivity: 'write', result: 'json'},
     update_pull_request: {sensitivity: 'write', result: 'json'},
     update_pull_request_branch: {sensitivity: 'write', result: 'json'},
   },

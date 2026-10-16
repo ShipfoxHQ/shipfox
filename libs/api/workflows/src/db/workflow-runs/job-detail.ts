@@ -116,6 +116,7 @@ export interface WorkflowJobExecutionDetailRead extends WorkflowRunJobExecutionS
 
 export interface WorkflowStepSummaryRead {
   id: string;
+  parentStepId: string | null;
   key: string | null;
   name: string;
   type: StepType;
@@ -127,8 +128,8 @@ export interface WorkflowStepSummaryRead {
   gateMaxAttempts: number | undefined;
   /** Set on post rows only. */
   mainStepId: string | undefined;
-  /** Set on post rows only. False when a failed post leaves the job result unchanged. */
-  affectsJob: boolean | undefined;
+  /** False when a failure of this step leaves the job result unchanged. */
+  affectsJob: boolean;
   error: Record<string, unknown> | null;
   attempts: {
     items: WorkflowStepAttemptSummaryRead[];
@@ -147,6 +148,7 @@ export interface WorkflowStepAttemptSummaryRead {
   finishedAt: Date | null;
   error: Record<string, unknown> | null;
   gateResult: Record<string, unknown> | null;
+  failureIgnored: boolean;
 }
 
 export interface WorkflowStepPageRead {
@@ -1033,6 +1035,7 @@ interface ExecutionProjection extends WorkflowRunJobExecutionSummaryRow {
 
 interface StepRow {
   id: string;
+  parentStepId: string | null;
   key: string | null;
   name: string;
   type: StepType;
@@ -1247,6 +1250,7 @@ async function loadStepPage(
   const rows = await tx
     .select({
       id: steps.id,
+      parentStepId: steps.parentStepId,
       key: steps.key,
       name: steps.name,
       type: steps.type,
@@ -1327,6 +1331,7 @@ async function loadStepAttemptPageRows(
       finishedAt: stepAttempts.finishedAt,
       error: stepAttempts.error,
       gateResult: stepAttempts.gateResult,
+      failureIgnored: stepAttempts.failureIgnored,
     })
     .from(stepAttempts)
     .where(and(...conditions))
@@ -1356,6 +1361,7 @@ async function loadStepAttemptPreviews(
       finishedAt: stepAttempts.finishedAt,
       error: stepAttempts.error,
       gateResult: stepAttempts.gateResult,
+      failureIgnored: stepAttempts.failureIgnored,
       rowNumber: sql<number>`row_number() over (
         partition by ${stepAttempts.stepId}
         order by ${stepAttempts.attempt} desc, ${stepAttempts.id} desc
@@ -1389,6 +1395,7 @@ async function loadStepAttemptPreviews(
       finishedAt: row.finishedAt,
       error: (row.error as Record<string, unknown> | null) ?? null,
       gateResult: (row.gateResult as Record<string, unknown> | null) ?? null,
+      failureIgnored: row.failureIgnored,
       rowNumber: Number(row.rowNumber),
       totalCount: Number(row.totalCount),
     });
@@ -1418,6 +1425,7 @@ function toStepSummary(
     : undefined;
   return {
     id: row.id,
+    parentStepId: row.parentStepId,
     key: row.key,
     name: row.name,
     type: row.type,
@@ -1431,7 +1439,7 @@ function toStepSummary(
         ? undefined
         : (gateOnFailure.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP),
     mainStepId: row.type === 'post' ? (row.mainStepId ?? undefined) : undefined,
-    affectsJob: row.type === 'post' ? stepAffectsConclusion(row) : undefined,
+    affectsJob: stepAffectsConclusion(row),
     error: (row.error as Record<string, unknown> | null) ?? null,
     attempts,
   };
@@ -1464,6 +1472,7 @@ function toStepAttemptSummary(row: StepAttemptSummaryRow): WorkflowStepAttemptSu
     finishedAt: row.finishedAt,
     error: row.error,
     gateResult: row.gateResult,
+    failureIgnored: row.failureIgnored,
   };
 }
 

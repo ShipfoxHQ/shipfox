@@ -79,6 +79,15 @@ export type WorkflowRunSourceUnavailableReasonDto = z.infer<
   typeof workflowRunSourceUnavailableReasonSchema
 >;
 
+/** A file of a composite action that a run used, read from its snapshot. */
+export const workflowRunActionFileResponseSchema = z.object({
+  digest: z.string().min(1),
+  path: z.string().min(1),
+  content: z.string(),
+});
+
+export type WorkflowRunActionFileResponseDto = z.infer<typeof workflowRunActionFileResponseSchema>;
+
 export const workflowRunSourceResponseSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('available'),

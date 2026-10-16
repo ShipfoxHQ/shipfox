@@ -118,7 +118,6 @@
     "@shipfox/runner-execution": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*",
     "@shipfox/runner-workspace": "workspace:*",
-    "pi-mcp-adapter": "catalog:",
     "pi-web-access": "catalog:",
     "typebox": "catalog:",
     "zod": "catalog:"

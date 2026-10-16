@@ -46,8 +46,10 @@ export {
   RUNNER_SESSION_EXHAUSTED_CODE,
 } from './claim-job.js';
 export {
+  HEARTBEAT_STEP_LEASE_TOKENS_MAX,
   type HeartbeatBodyDto,
   type HeartbeatResponseDto,
+  type HeartbeatStepLeaseTokenDto,
   heartbeatBodySchema,
   heartbeatResponseSchema,
 } from './heartbeat.js';

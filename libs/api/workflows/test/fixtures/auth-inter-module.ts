@@ -8,6 +8,9 @@ export const workflowsTestAuthClient: AuthInterModuleClient = {
   async mintJobLeaseToken(claims) {
     return {token: await mintLeaseToken(claims)};
   },
+  renewStepLeaseTokens() {
+    throw new Error('Step lease token renewal is not configured');
+  },
   mintAgentLogDownloadToken() {
     return Promise.resolve({token: 'test-download-token', expiresAt: new Date().toISOString()});
   },

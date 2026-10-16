@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@shipfox/actions": "workspace:*",
+    "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",

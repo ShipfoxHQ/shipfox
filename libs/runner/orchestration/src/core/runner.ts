@@ -54,6 +54,7 @@ import {config} from '#config.js';
 import {createBootTimelineCollector, createRunnerBootPhaseTimeline} from '#core/boot-timeline.js';
 import {createJobCredentialLifecycle} from '#core/credential-lifecycle.js';
 import {startHeartbeatLoop} from '#core/heartbeat-loop.js';
+import {StepLeaseTokens} from '#core/step-lease-tokens.js';
 import {runJobSteps} from '#core/step-loop.js';
 
 let running = true;
@@ -361,6 +362,8 @@ export async function runJob(
   currentJobAbortController = ac;
 
   const runnerSecret = runnerRegistrationToken();
+  // The token from claim has no step scope: it is the job token for next, report, heartbeat,
+  // and checkout credential renewals. Each step uses the step-scoped token `next` minted for it.
   const initialLeaseToken = job.lease_token;
   let currentLeaseToken = initialLeaseToken;
   let previousRenewedLeaseToken: string | undefined;
@@ -392,6 +395,7 @@ export async function runJob(
         ...runnerSecrets,
         initialLeaseToken,
         ...rotatingLeaseSecrets(),
+        ...stepLeaseTokens.secrets(),
         ...registeredSecrets,
         ...brokerSecrets,
         ...inferenceSecrets,
@@ -399,12 +403,16 @@ export async function runJob(
     );
     notifySecretSubscribers();
   };
-  const rememberLeaseToken = (leaseToken: string) => {
-    if (leaseToken === currentLeaseToken) return;
+  const stepLeaseTokens = new StepLeaseTokens({
+    createClient: createLeaseClient,
+    onChange: () => rebuildSecrets(),
+  });
+  const adoptJobLeaseToken = (leaseToken: string): boolean => {
+    if (leaseToken === currentLeaseToken) return false;
     previousRenewedLeaseToken = currentRenewedLeaseToken;
     currentRenewedLeaseToken = leaseToken;
     currentLeaseToken = leaseToken;
-    rebuildSecrets();
+    return true;
   };
   const registerSecrets = (additionalSecrets: string[]) => {
     let changed = false;
@@ -466,7 +474,15 @@ export async function runJob(
     ...(job.isolation_timeout_seconds !== undefined
       ? {isolationTimeoutSeconds: job.isolation_timeout_seconds}
       : {}),
-    onLeaseTokenRenewed: rememberLeaseToken,
+    getStepLeaseTokens: () => stepLeaseTokens.tokens(),
+    onLeaseTokensRenewed: (renewed) => {
+      const jobTokenChanged = adoptJobLeaseToken(renewed.leaseToken);
+      const stepTokensChanged = stepLeaseTokens.renew({
+        sent: renewed.sentStepLeaseTokens,
+        renewed: renewed.stepLeaseTokens,
+      });
+      if (jobTokenChanged || stepTokensChanged) rebuildSecrets();
+    },
   });
   let releaseAgentStateLock: (() => Promise<void>) | undefined;
   let releaseTempLock: (() => Promise<void>) | undefined;
@@ -499,7 +515,7 @@ export async function runJob(
     await runJobSteps({
       jobId: job.job_id,
       leaseClient,
-      leaseToken: () => currentLeaseToken,
+      stepLeases: stepLeaseTokens,
       secrets,
       subscribeSecrets: (subscriber) => {
         secretSubscribers.add(subscriber);
@@ -531,10 +547,6 @@ export async function runJob(
         workflowRunAttemptId: job.workflow_run_attempt_id,
         jobId: job.job_id,
         jobExecutionId: job.job_execution_id,
-      },
-      onLeaseTokenAdopted: (leaseToken) => {
-        rememberLeaseToken(leaseToken);
-        heartbeatLoop.bumpGeneration();
       },
     });
     logger().info({jobId: job.job_id}, 'Job step loop finished');

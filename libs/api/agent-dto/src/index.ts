@@ -155,6 +155,7 @@ export {
   PI_HARNESS_TOOL_PACKAGE_NAMES,
   parsePiEnabledToolPackages,
   piAgentThinkingSchema,
+  piModelProviderId,
   providerIdSchema,
   SESSION_TRANSCRIPT_CONTENT_TYPE,
   SESSION_TRANSCRIPT_HARNESS_HEADER,

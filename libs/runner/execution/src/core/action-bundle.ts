@@ -1,10 +1,58 @@
 import {access, chmod, mkdir, mkdtemp, readdir, rename, rm, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
-import {decodeActionBundle} from '@shipfox/workflow-document';
+import {
+  actionBundleDigestSchema,
+  actionBundleDirectoryName,
+  decodeActionBundle,
+} from '@shipfox/workflow-document';
+import {z} from 'zod';
+import type {StepResult} from '#core/step-result.js';
 
 const READ_ONLY_FILE_MODE = 0o444;
 const SHARED_DIRECTORY_MODE = 0o755;
 const MODULE_PACKAGE_JSON = `${JSON.stringify({type: 'module'})}\n`;
+
+const stepActionBundlesSchema = z.array(actionBundleDigestSchema);
+
+/** Where the bundles of a job are extracted, one directory per digest. */
+export function actionsDirectory(jobTempDir: string): string {
+  return join(jobTempDir, 'actions');
+}
+
+/**
+ * Extracts the bundles named by `action_bundles` in the step config: the composite actions that
+ * hold the step, whose files it can read under `action.path`. Returns a failed result when a
+ * bundle cannot be loaded, and undefined otherwise, including for a step without bundles.
+ */
+export async function prepareStepActionBundle(params: {
+  config: Record<string, unknown>;
+  jobTempDir: string;
+  load: (digest: string) => Promise<Uint8Array>;
+  shared?: boolean;
+}): Promise<StepResult | undefined> {
+  const configured = params.config.action_bundles;
+  if (configured === undefined || configured === null) return undefined;
+  try {
+    for (const digest of stepActionBundlesSchema.parse(configured)) {
+      await prepareActionBundle({
+        jobTempDir: params.jobTempDir,
+        digest,
+        load: () => params.load(digest),
+        ...(params.shared ? {shared: true} : {}),
+      });
+    }
+    return undefined;
+  } catch (error) {
+    return {
+      success: false,
+      error: {
+        message: `The composite action files could not be loaded: ${error instanceof Error ? error.message : String(error)}`,
+        reason: 'action_unavailable',
+      },
+      exit_code: null,
+    };
+  }
+}
 
 /**
  * Extracts an action bundle once per job execution to `<job temp>/actions/<digest>/` and returns
@@ -18,8 +66,8 @@ export async function prepareActionBundle(params: {
   load: () => Promise<Uint8Array>;
   shared?: boolean;
 }): Promise<string> {
-  const actionsDir = join(params.jobTempDir, 'actions');
-  const target = join(actionsDir, params.digest.replace(':', '-'));
+  const actionsDir = actionsDirectory(params.jobTempDir);
+  const target = join(actionsDir, actionBundleDirectoryName(params.digest));
   if (await exists(target)) return target;
 
   const files = await decodeActionBundle({gzip: await params.load(), digest: params.digest});

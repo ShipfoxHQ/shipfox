@@ -136,6 +136,7 @@ const interpolationFieldSchema = z.enum([
   'tool.with',
   'tool.outputs',
   'action.with',
+  'action.outputs',
   'checkout.project',
   'checkout.connection',
   'checkout.repository',

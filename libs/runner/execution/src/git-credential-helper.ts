@@ -1,6 +1,7 @@
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
 import {assertCredentialSocketTimeout, normalizeRepositoryUrl} from '@shipfox/runner-workspace';
 import {
+  CREDENTIAL_CAPTURE_ENV,
   type CredentialSocketOperation,
   requestCredentialSocket,
 } from '@shipfox/runner-workspace/credential-socket';
@@ -25,6 +26,7 @@ export async function runGitCredentialHelper(params?: {
   argv?: readonly string[];
   input?: string | Buffer;
   output?: NodeJS.WritableStream;
+  env?: NodeJS.ProcessEnv;
 }): Promise<void> {
   const argv = params?.argv ?? process.argv.slice(2);
   const socketPath = readSocketPath(argv);
@@ -34,10 +36,12 @@ export async function runGitCredentialHelper(params?: {
   const input = params?.input ?? (await readBoundedStdin());
   const fields = parseGitCredentialInput(input);
   const repositoryUrl = repositoryUrlOf(fields);
+  const captureId = (params?.env ?? process.env)[CREDENTIAL_CAPTURE_ENV];
   const request = {
     operation,
     repositoryUrl,
     capability,
+    ...(captureId ? {captureId} : {}),
   };
   const response =
     timeoutMs === undefined

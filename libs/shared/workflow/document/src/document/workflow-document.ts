@@ -1192,6 +1192,10 @@ const workflowDocumentStepBaseSchema = z.strictObject({
     description:
       'Picks when this step runs relative to earlier steps in the job: `success` (default) skips it after a failed step, `failure` runs it only after a failed step, `always` runs it either way. The `if` is checked after `run_after` passes.',
   }),
+  continue_on_error: z.boolean().optional().meta({
+    description:
+      'Lets the job go on as if this step succeeded when it fails. The step still ends `failed`, but its failure does not count for `run_after` or for the job result. Gate restarts run first. It does not cover a step that cannot start or a job that times out.',
+  }),
   name: z.string().min(1).optional().meta({description: 'Sets the name shown for the step.'}),
   working_directory: z.string().min(1).optional().meta({
     description:

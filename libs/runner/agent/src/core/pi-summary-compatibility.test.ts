@@ -158,9 +158,11 @@ function expectTextOnlySummaryRequests(requests: readonly Context[]): void {
   expect(requests.length).toBeGreaterThan(0);
 
   for (const context of requests) {
-    expect(context.messages).toHaveLength(1);
+    // Pi carries the system prompt as a transcript message.
+    const messages = context.messages.filter((message) => message.role !== 'system');
+    expect(messages).toHaveLength(1);
 
-    const [message] = context.messages;
+    const [message] = messages;
     expect(message?.role).toBe('user');
     if (message?.role !== 'user') continue;
     if (!Array.isArray(message.content)) throw new Error('Summary payload was not a content array');

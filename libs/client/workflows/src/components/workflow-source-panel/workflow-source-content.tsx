@@ -11,9 +11,9 @@ import {
 } from '@shipfox/react-ui/code-block';
 import {cn} from '@shipfox/react-ui/utils';
 import type {ReactNode} from 'react';
+import {WORKFLOW_SOURCE_FILENAME} from '#core/composite-step.js';
 import type {WorkflowSourceSnapshot} from '#core/workflow-run.js';
 
-const WORKFLOW_SOURCE_FILENAME = 'workflow.yaml';
 const WORKFLOW_SOURCE_CODE_THEMES = {
   light: 'vitesse-dark',
   dark: 'vitesse-dark',
@@ -23,6 +23,10 @@ export interface WorkflowSourceContentProps {
   source: WorkflowSourceSnapshot;
   highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
   scrollHighlightedIntoView?: boolean | undefined;
+  /** The file name shown in the header. Defaults to the workflow file. */
+  filename?: string | undefined;
+  /** Replaces the file name in the header, for example with a path back to a calling step. */
+  breadcrumb?: ReactNode;
   headerAction?: ReactNode;
   className?: string | undefined;
 }
@@ -31,13 +35,15 @@ export function WorkflowSourceContent({
   source,
   highlightedLineRange,
   scrollHighlightedIntoView,
+  filename = WORKFLOW_SOURCE_FILENAME,
+  breadcrumb,
   headerAction,
   className,
 }: WorkflowSourceContentProps) {
   const data = [
     {
       language: 'yaml',
-      filename: WORKFLOW_SOURCE_FILENAME,
+      filename,
       code: source.content,
     },
   ];
@@ -51,9 +57,11 @@ export function WorkflowSourceContent({
       )}
     >
       <CodeBlockHeader className="shrink-0 border-b border-border-contrast-base bg-background-contrast-base">
-        <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
-        </CodeBlockFiles>
+        {breadcrumb ?? (
+          <CodeBlockFiles>
+            {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
+          </CodeBlockFiles>
+        )}
         <CodeBlockCopyButton />
         {headerAction}
       </CodeBlockHeader>

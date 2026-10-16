@@ -19,15 +19,19 @@ function hasControlCharacter(value: string): boolean {
   });
 }
 
-const stepLogPathSchema = z
-  .string()
-  .min(1)
-  .refine((value) => value.startsWith('/'), 'log_path must be an absolute path')
-  .refine((value) => !hasControlCharacter(value), 'log_path must not contain control characters')
-  .refine(
-    (value) => utf8Encoder.encode(value).byteLength <= STEP_LOG_PATH_MAX_BYTES,
-    `log_path must be at most ${STEP_LOG_PATH_MAX_BYTES} bytes`,
-  );
+function runnerPathSchema(field: string) {
+  return z
+    .string()
+    .min(1)
+    .refine((value) => value.startsWith('/'), `${field} must be an absolute path`)
+    .refine((value) => !hasControlCharacter(value), `${field} must not contain control characters`)
+    .refine(
+      (value) => utf8Encoder.encode(value).byteLength <= STEP_LOG_PATH_MAX_BYTES,
+      `${field} must be at most ${STEP_LOG_PATH_MAX_BYTES} bytes`,
+    );
+}
+
+const stepLogPathSchema = runnerPathSchema('log_path');
 
 export const stepEnvSourceSchema = z.object({
   position: z.number().int().nonnegative().describe('Position of an earlier step in the job.'),
@@ -132,6 +136,11 @@ export const reportStepBodySchema = z
       .optional()
       .describe(
         'Absolute path to the finalized plain-text log for this step attempt, when available.',
+      ),
+    actions_dir: runnerPathSchema('actions_dir')
+      .optional()
+      .describe(
+        'Absolute path of the directory where the runner unpacks action bundles. Reported with the setup step.',
       ),
     response: z
       .string()

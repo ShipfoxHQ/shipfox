@@ -1057,6 +1057,7 @@ function normalizeStep(params: {
   const stepBase = {
     id: stepId,
     runAfter: params.step.run_after ?? 'success',
+    ...(params.step.continue_on_error === true ? {continueOnError: true as const} : {}),
     ...(stepKey === undefined ? {} : {key: stepKey}),
     ...(params.step.name === undefined ? {} : {name: params.step.name}),
     ...(params.step.working_directory === undefined
@@ -2198,7 +2199,15 @@ function validateRunnerLabels(params: {
 
 export type WorkflowModelStepBaseFields = Pick<
   WorkflowModelStep,
-  'id' | 'key' | 'runAfter' | 'name' | 'workingDirectory' | 'outputs' | 'sourceLocation' | 'gate'
+  | 'id'
+  | 'key'
+  | 'runAfter'
+  | 'continueOnError'
+  | 'name'
+  | 'workingDirectory'
+  | 'outputs'
+  | 'sourceLocation'
+  | 'gate'
 >;
 
 function optionalRunStepTemplates(params: {

@@ -38,6 +38,7 @@ function makeStep(overrides: Partial<WorkflowStepObservation> = {}): WorkflowSte
   const current = attempts.find((attempt) => attempt.attempt === currentAttempt) ?? attempts.at(-1);
   return {
     id: '55555555-5555-4555-8555-555555555555',
+    parent_step_id: null,
     key: 'greet',
     name: 'Greet',
     source_location: null,

@@ -852,6 +852,7 @@ function olderStepPageResponseDto() {
     items: [
       {
         ...stepSummary,
+        parent_step_id: null,
         attempts: {items: [attempt], next_cursor: null, total: 1},
       },
     ],

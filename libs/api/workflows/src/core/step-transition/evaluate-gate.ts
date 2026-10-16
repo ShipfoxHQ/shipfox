@@ -121,9 +121,10 @@ function readGateFeedbackTemplate(value: unknown): ResolvedField | undefined {
 /**
  * Gate evaluation fails closed: a missing exit code on a runner step or a CEL
  * evaluation error is `uncheckable` (a plain command failure), never a gate
- * failure that can restart. Tool steps intentionally have no exit code, so
- * their gates evaluate against the step status and outputs instead. Tool-step
- * failures restart only when the call reads (see `stepCanRestart`).
+ * failure that can restart. Tool steps and composite actions intentionally
+ * have no exit code, so their gates evaluate against the step status and
+ * outputs instead. Tool-step failures restart only when the call reads (see
+ * `stepCanRestart`).
  *
  * Callers hold step-row locks while this runs. Keep the CEL context bounded
  * unless evaluation gets a budget outside the lock. The materializer only
@@ -138,7 +139,8 @@ export function evaluateGate(
   if (!gate?.success) return {kind: 'no-gate'};
   const source = gate.success.source;
 
-  if (options?.stepType !== 'tool' && (result.exitCode === null || result.exitCode === undefined)) {
+  const hasExitCode = options?.stepType !== 'tool' && options?.stepType !== 'composite';
+  if (hasExitCode && (result.exitCode === null || result.exitCode === undefined)) {
     return {kind: 'uncheckable', reason: 'step produced no exit code', source};
   }
 

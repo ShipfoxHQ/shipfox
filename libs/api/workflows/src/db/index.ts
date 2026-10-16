@@ -212,6 +212,7 @@ export {
   updateJobStatus,
   updateWorkflowRunStatus,
   workflowRunAnnotationOriginKey,
+  workflowRunUsesCompositeAction,
 } from './workflow-runs.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');

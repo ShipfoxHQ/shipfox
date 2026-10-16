@@ -139,7 +139,7 @@ describe('action post steps', () => {
         mainStepId: stepNamed(steps, 'Fails').id,
         affectsJob: true,
       });
-      expect(byName('Warns')).toMatchObject({mainStepId: undefined, affectsJob: undefined});
+      expect(byName('Warns')).toMatchObject({mainStepId: undefined, affectsJob: true});
     });
   });
 

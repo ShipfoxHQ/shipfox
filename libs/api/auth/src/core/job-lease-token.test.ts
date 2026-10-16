@@ -1,7 +1,7 @@
 import {JOB_LEASE_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import {jobLeaseTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256} from '@shipfox/node-jwt';
-import {issueJobLeaseToken, verifyJobLeaseToken} from './job-lease-token.js';
+import {issueJobLeaseToken, renewStepLeaseTokens, verifyJobLeaseToken} from './job-lease-token.js';
 
 // Matches test/env.ts; the codec reads this same value from config.
 const SECRET = jobLeaseTokenKey();
@@ -199,5 +199,53 @@ describe('job-lease-token', () => {
     const verified = await verifyJobLeaseToken(token);
 
     expect(verified).toBeNull();
+  });
+});
+
+describe('renewStepLeaseTokens', () => {
+  test('re-issues each step-scoped token of the lease with the same claims', async () => {
+    const lease = {...claims(), workflowRunAttempt: 2};
+    const first = {currentStepId: crypto.randomUUID(), currentStepAttempt: 1};
+    const second = {currentStepId: crypto.randomUUID(), currentStepAttempt: 3};
+    const firstToken = await issueJobLeaseToken({...lease, ...first});
+    const secondToken = await issueJobLeaseToken({...lease, ...second});
+
+    const renewed = await renewStepLeaseTokens({
+      jobExecutionId: lease.jobExecutionId,
+      runnerSessionId: lease.runnerSessionId,
+      tokens: [firstToken, secondToken],
+    });
+
+    expect(renewed.map(({stepId, attempt}) => ({stepId, attempt}))).toEqual([
+      {stepId: first.currentStepId, attempt: 1},
+      {stepId: second.currentStepId, attempt: 3},
+    ]);
+    const verified = await verifyJobLeaseToken(renewed[1]?.token ?? '');
+    expect(verified).toMatchObject({...lease, ...second});
+  });
+
+  test('drops tokens without a step scope or from another lease', async () => {
+    const lease = claims();
+    const jobToken = await issueJobLeaseToken(lease);
+    const otherExecutionToken = await issueJobLeaseToken({
+      ...lease,
+      jobExecutionId: crypto.randomUUID(),
+      currentStepId: crypto.randomUUID(),
+      currentStepAttempt: 1,
+    });
+    const otherSessionToken = await issueJobLeaseToken({
+      ...lease,
+      runnerSessionId: crypto.randomUUID(),
+      currentStepId: crypto.randomUUID(),
+      currentStepAttempt: 1,
+    });
+
+    const renewed = await renewStepLeaseTokens({
+      jobExecutionId: lease.jobExecutionId,
+      runnerSessionId: lease.runnerSessionId,
+      tokens: [jobToken, otherExecutionToken, otherSessionToken, 'not-a-token'],
+    });
+
+    expect(renewed).toEqual([]);
   });
 });

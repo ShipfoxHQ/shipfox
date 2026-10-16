@@ -255,8 +255,8 @@ export const MODEL_PROVIDER_CATALOG_SEED: ModelProviderCatalogSeedDto[] = [
   supportedProvider('opencode', 'OpenCode', 'claude-opus-5'),
   supportedProvider('opencode-go', 'OpenCode Go', 'kimi-k3'),
   supportedProvider('huggingface', 'Hugging Face', 'deepseek-ai/DeepSeek-V4-Pro'),
-  supportedProvider('fireworks', 'Fireworks', 'accounts/fireworks/models/deepseek-v4-pro'),
-  supportedProvider('together', 'Together AI', 'deepseek-ai/DeepSeek-V4-Pro'),
+  supportedProvider('fireworks', 'Fireworks', 'accounts/fireworks/models/kimi-k3'),
+  supportedProvider('together', 'Together AI', 'deepseek-ai/DeepSeek-V4-Pro-0813'),
   supportedProvider('kimi-coding', 'Kimi Coding', 'k3-256k'),
   supportedProvider('qwen-token-plan', 'Qwen Token Plan', 'qwen3.8-max'),
   supportedProvider('qwen-token-plan-cn', 'Qwen Token Plan CN', 'qwen3.8-max'),
@@ -288,6 +288,17 @@ export const MODEL_PROVIDER_CATALOG_SEED: ModelProviderCatalogSeedDto[] = [
     'github-copilot',
     'GitHub Copilot',
     'GitHub Copilot OAuth credentials are not supported by workspace API-key provider configs yet.',
+  ),
+  unsupportedProvider('meta', 'Meta', 'Meta is not supported by workspace provider configs yet.'),
+  unsupportedProvider(
+    'radius',
+    'Radius',
+    'Radius is not supported by workspace provider configs yet.',
+  ),
+  unsupportedProvider(
+    'typesafe',
+    'TypeSafe',
+    'TypeSafe offers classifier models only, which agent steps cannot use.',
   ),
 ];
 
