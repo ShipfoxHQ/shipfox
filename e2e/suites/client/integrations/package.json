@@ -27,6 +27,7 @@
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-driver-claap": "workspace:*",
     "@shipfox/e2e-driver-gitea": "workspace:*",
     "@shipfox/e2e-harness": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",

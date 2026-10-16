@@ -74,6 +74,26 @@ export class IntegrationsCatalogueScreen {
     return this.page.getByLabel('New personal access token');
   }
 
+  claapKeyField(): Locator {
+    return this.page.getByLabel('API key', {exact: true});
+  }
+
+  claapConnectButton(): Locator {
+    return this.page.getByRole('button', {name: 'Connect'});
+  }
+
+  claapAlreadyConnected(): Locator {
+    return this.page.getByText('This Claap workspace is already connected');
+  }
+
+  claapReplaceButton(): Locator {
+    return this.page.getByRole('button', {name: 'Replace API key'});
+  }
+
+  claapReplacementKeyField(): Locator {
+    return this.page.getByLabel('New API key');
+  }
+
   emptyInstalledState(): Locator {
     return this.page.getByText('No integrations installed yet');
   }
@@ -252,6 +272,22 @@ export class ConnectionDetailsScreen {
 
   jamUser(name: string): Locator {
     return this.page.getByText(name, {exact: true});
+  }
+
+  claapReplaceButton(): Locator {
+    return this.page.getByRole('button', {name: 'Replace API key'});
+  }
+
+  claapKeyField(): Locator {
+    return this.page.getByLabel('New API key');
+  }
+
+  claapReplaceDialog(): Locator {
+    return this.page.getByRole('dialog', {name: 'Replace Claap API key'});
+  }
+
+  claapError(): Locator {
+    return this.page.getByRole('alert').filter({hasText: 'Claap could not authenticate'});
   }
 }
 

@@ -2354,6 +2354,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-driver-claap':
+        specifier: workspace:*
+        version: link:../../../drivers/claap
       '@shipfox/e2e-driver-gitea':
         specifier: workspace:*
         version: link:../../../drivers/gitea
