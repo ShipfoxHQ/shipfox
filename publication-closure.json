@@ -94,6 +94,8 @@
     "@shipfox/api-integration-linear",
     "@shipfox/api-integration-linear-dto",
     "@shipfox/api-integration-notion-dto",
+    "@shipfox/api-integration-claap",
+    "@shipfox/api-integration-claap-dto",
     "@shipfox/api-integration-posthog",
     "@shipfox/api-integration-posthog-dto",
     "@shipfox/api-integration-jam",
