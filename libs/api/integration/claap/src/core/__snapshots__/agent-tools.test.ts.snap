@@ -186,6 +186,18 @@ exports[`Claap agent tool catalog > keeps the allow-list and selection catalog d
     "description": "Get one recording (captured meeting or call) of the Claap workspace by recordingId or share URL, with its full metadata and its AI-generated summary. The summary is the cheap way to know what a meeting was about: prefer it over get_recording_transcript, which returns the entire transcript. Discover the recordingId via get_recordings or search_recording_transcripts.",
     "id": "get_recording",
     "inputSchema": {
+      "anyOf": [
+        {
+          "required": [
+            "recordingId",
+          ],
+        },
+        {
+          "required": [
+            "recordingUrl",
+          ],
+        },
+      ],
       "properties": {
         "recordingId": {
           "description": "The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.",
@@ -206,6 +218,18 @@ exports[`Claap agent tool catalog > keeps the allow-list and selection catalog d
     "description": "Fetch the full transcript for a recording (captured meeting or call), by recordingId or share URL.",
     "id": "get_recording_transcript",
     "inputSchema": {
+      "anyOf": [
+        {
+          "required": [
+            "recordingId",
+          ],
+        },
+        {
+          "required": [
+            "recordingUrl",
+          ],
+        },
+      ],
       "properties": {
         "recordingId": {
           "description": "The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.",

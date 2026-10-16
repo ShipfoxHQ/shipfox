@@ -124,6 +124,7 @@ function integrationTool(
   const methods = entry.methods?.map((method) => integrationMethod(entry, method));
   const firstMethod = methods?.[0];
   const output = entry.outputSchema ? schemaFields(entry.outputSchema) : undefined;
+  const alternatives = schemaAlternatives(entry.inputSchema);
   return {
     id: entry.id,
     anchor: slug(entry.id),
@@ -133,7 +134,7 @@ function integrationTool(
       .map((selector) => selector.token)
       .filter((token) => token === entry.id || token.startsWith(`${entry.id}.`)),
     input: fields,
-    ...optional('inputAlternatives', schemaAlternatives(entry.inputSchema)),
+    ...optional('inputAlternatives', alternatives),
     ...optional('methods', methods),
     ...optional('output', output),
     examples: integrationExamples({
@@ -149,6 +150,7 @@ function integrationTool(
             methodRequiredInput: firstMethod.requiredInput,
           }
         : {}),
+      ...optional('alternativeRequiredInput', alternatives?.[0]),
       ...optional('output', output),
     }),
   };

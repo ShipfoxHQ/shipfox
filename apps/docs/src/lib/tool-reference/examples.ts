@@ -20,6 +20,8 @@ export interface IntegrationExampleInput {
   /** Fields required by the method a tool step selects, for method families. */
   methodId?: string;
   methodRequiredInput?: string[];
+  /** Fields of the first `anyOf` alternative, for tools that take one of several inputs. */
+  alternativeRequiredInput?: string[];
   output?: ToolReferenceField[];
 }
 
@@ -59,11 +61,14 @@ export function mcpExamples(input: {
 
 function toolStepYaml(input: IntegrationExampleInput): string {
   const stepTool = input.methodId ? `${input.toolId}.${input.methodId}` : input.toolId;
-  const methodRequired = new Set(input.methodRequiredInput ?? []);
+  const conditionalRequired = new Set([
+    ...(input.methodRequiredInput ?? []),
+    ...(input.alternativeRequiredInput ?? []),
+  ]);
   const fields = input.input.filter(
     (field) =>
       field.name !== 'method' &&
-      (field.requirement === 'required' || methodRequired.has(field.name)),
+      (field.requirement === 'required' || conditionalRequired.has(field.name)),
   );
   const withBlock = Object.fromEntries(fields.map((field) => [field.name, sampleValue(field)]));
   const lines = [

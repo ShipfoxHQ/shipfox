@@ -1511,7 +1511,9 @@ export interface ProviderToolCatalog {
   };
 }
 
-export interface ClaapGetRecordingArguments {
+export type ClaapGetRecordingArguments = {
+  [k: string]: unknown;
+} & {
   /**
    * The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.
    */
@@ -1521,9 +1523,11 @@ export interface ClaapGetRecordingArguments {
    */
   recordingUrl?: string;
   [k: string]: unknown;
-}
+};
 
-export interface ClaapGetRecordingTranscriptArguments {
+export type ClaapGetRecordingTranscriptArguments = {
+  [k: string]: unknown;
+} & {
   /**
    * The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.
    */
@@ -1533,7 +1537,7 @@ export interface ClaapGetRecordingTranscriptArguments {
    */
   recordingUrl?: string;
   [k: string]: unknown;
-}
+};
 
 export interface ClaapGetRecordingsArguments {
   /**

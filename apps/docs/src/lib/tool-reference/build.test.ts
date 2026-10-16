@@ -246,6 +246,36 @@ test('omits the tool step example for a tool that returns images', () => {
   );
 });
 
+test('fills the tool step example from the first input alternative', () => {
+  const document = buildIntegrationToolReference({
+    id: 'integrations/test/tools',
+    catalog: [
+      {
+        ...catalog[0],
+        id: 'get_recording',
+        inputSchema: {
+          type: 'object',
+          properties: {recordingId: {type: 'string'}, recordingUrl: {type: 'string'}},
+          anyOf: [{required: ['recordingId']}, {required: ['recordingUrl']}],
+        },
+      },
+    ],
+    selectors: [{token: 'get_recording'}],
+    connection: 'test_acme',
+  });
+
+  assert.equal(
+    document.groups[0]?.tools[0]?.examples[0]?.code,
+    [
+      '- key: get_recording',
+      '  tool: get_recording',
+      '  connection: test_acme # Replace with the slug of your integration connection.',
+      '  with:',
+      '    recordingId: <recordingId>',
+    ].join('\n'),
+  );
+});
+
 test('keeps a fixed integration connection slug unannotated', () => {
   const document = buildIntegrationToolReference({
     id: 'integrations/test/tools',

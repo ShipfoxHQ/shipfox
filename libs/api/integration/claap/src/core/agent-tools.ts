@@ -110,6 +110,10 @@ const recordingReferenceProperties = {
   },
 };
 
+// `anyOf`, not `oneOf`: the docs generator reads `anyOf` alternatives, and the provider already
+// rejects a call that passes both.
+const recordingReferenceAlternatives = [{required: ['recordingId']}, {required: ['recordingUrl']}];
+
 const claapAgentToolSchemas = {
   list_workspaces: {
     properties: {},
@@ -175,10 +179,12 @@ const claapAgentToolSchemas = {
     type: 'object',
   },
   get_recording: {
+    anyOf: recordingReferenceAlternatives,
     properties: recordingReferenceProperties,
     type: 'object',
   },
   get_recording_transcript: {
+    anyOf: recordingReferenceAlternatives,
     properties: recordingReferenceProperties,
     type: 'object',
   },
