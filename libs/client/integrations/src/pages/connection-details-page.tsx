@@ -12,6 +12,7 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {type ReactNode, useEffect, useState} from 'react';
+import {ClaapConnectionSettings} from '#components/claap/claap-connection-settings.js';
 import {JamConnectionSettings} from '#components/jam/jam-connection-settings.js';
 import {PosthogReplaceApiKeyModal} from '#components/posthog/posthog-replace-api-key-modal.js';
 import type {IntegrationConnection, RepositoryAccess, RepositoryAccessMode} from '#core/models.js';
@@ -80,6 +81,8 @@ function ConnectionSettings({
     );
   if (connection.provider === 'jam')
     return <JamConnectionSettings connection={connection} workspaceId={connection.workspaceId} />;
+  if (connection.provider === 'claap')
+    return <ClaapConnectionSettings connection={connection} workspaceId={connection.workspaceId} />;
   if (connection.capabilities.includes('source_control'))
     return (
       <RepositoryAccessSettings

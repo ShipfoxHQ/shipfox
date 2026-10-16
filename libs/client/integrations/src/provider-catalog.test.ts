@@ -56,6 +56,7 @@ describe('PROVIDER_CATALOG', () => {
     expect(PROVIDER_CATALOG.gitea?.kind).toBe('direct-connect');
     expect(PROVIDER_CATALOG.webhook?.kind).toBe('modal-connect');
     expect(PROVIDER_CATALOG.posthog?.kind).toBe('modal-connect');
+    expect(PROVIDER_CATALOG.claap?.kind).toBe('modal-connect');
   });
 
   test('declares webhook as a modal provider with the remixicon webhook icon', () => {
@@ -84,9 +85,19 @@ describe('PROVIDER_CATALOG', () => {
     });
   });
 
+  test('declares Claap as a modal provider with its custom icon', () => {
+    expect(PROVIDER_CATALOG.claap).toEqual({
+      kind: 'modal-connect',
+      displayName: 'Claap',
+      iconName: 'claap',
+      credentialSettings: true,
+    });
+  });
+
   test('gives a credential settings page only to providers connected with a pasted credential', () => {
     expect(hasCredentialSettings('jam')).toBe(true);
     expect(hasCredentialSettings('posthog')).toBe(true);
+    expect(hasCredentialSettings('claap')).toBe(true);
     expect(hasCredentialSettings('webhook')).toBe(false);
     expect(hasCredentialSettings('github')).toBe(false);
     expect(hasCredentialSettings('gitlab')).toBe(false);

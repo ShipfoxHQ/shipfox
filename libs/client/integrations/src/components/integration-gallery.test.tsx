@@ -72,6 +72,19 @@ const webhookConnection = {
   updated_at: '2026-04-12T00:00:00.000Z',
 };
 
+const claapConnection = {
+  id: '88888888-8888-4888-8888-888888888888',
+  workspace_id: INTEGRATIONS_TEST_WID,
+  provider: 'claap',
+  external_account_id: 'q2IqD9wUHb',
+  slug: 'claap_mercateam',
+  display_name: 'Claap Mercateam',
+  lifecycle_status: 'active',
+  capabilities: ['agent_tools'],
+  created_at: '2026-04-12T00:00:00.000Z',
+  updated_at: '2026-04-12T00:00:00.000Z',
+} satisfies IntegrationConnectionDto;
+
 const webhookConnectionDto = {
   id: webhookConnection.id,
   workspace_id: INTEGRATIONS_TEST_WID,
@@ -693,6 +706,31 @@ describe('IntegrationGallery: available section', () => {
     fireEvent.click(await screen.findByRole('button', {name: 'Add PostHog'}));
 
     expect(await screen.findByLabelText('Personal API key')).toBeVisible();
+  });
+
+  test('opens the Claap connect modal from the Add card', async () => {
+    renderGallery(
+      {},
+      {providers: [{provider: 'claap', display_name: 'Claap', capabilities: ['agent_tools']}]},
+    );
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Claap'}));
+
+    expect(await screen.findByLabelText('API key')).toBeVisible();
+  });
+
+  test('links a Claap connection to its settings page', async () => {
+    renderGallery({}, {connections: [claapConnection]});
+
+    await openActions('Open Claap Mercateam integration actions');
+
+    expect(screen.getByRole('menuitem', {name: 'Connection settings'})).toHaveAttribute(
+      'href',
+      '/w/acme/settings/integrations/claap_mercateam',
+    );
+    expect(
+      screen.queryByRole('menuitem', {name: 'Manage repository access'}),
+    ).not.toBeInTheDocument();
   });
 
   test('opens the token replacement for a Jam connection this page has not loaded yet', async () => {

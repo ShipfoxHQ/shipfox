@@ -103,6 +103,12 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     iconName: PROVIDER_ICONS.jam,
     credentialSettings: true,
   },
+  claap: {
+    kind: 'modal-connect',
+    displayName: 'Claap',
+    iconName: PROVIDER_ICONS.claap,
+    credentialSettings: true,
+  },
 };
 
 export function hasCredentialSettings(provider: string): boolean {

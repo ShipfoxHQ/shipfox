@@ -17,6 +17,8 @@ import {
   useDeleteWebhookConnectionMutation,
   useUpdateWebhookConnectionMutation,
 } from '#hooks/api/webhook-connections.js';
+import {ClaapConnectModal} from './claap/claap-connect-modal.js';
+import {ClaapReplaceApiKeyModal} from './claap/claap-replace-api-key-modal.js';
 import {InstalledIntegrationsSection} from './installed-integrations-section.js';
 import {IntegrationDeleteConfirmModal} from './integration-delete-confirm-modal.js';
 import {usageEventsForConnection} from './integration-usage-events.js';
@@ -210,6 +212,20 @@ export function IntegrationGalleryForWorkspace({
         workspaceId={workspaceId}
         connection={replaceConnectionTarget}
         open={replaceConnectionTarget?.provider === 'jam'}
+        onOpenChange={(open) => {
+          if (!open) setReplaceConnectionId(undefined);
+        }}
+      />
+      <ClaapConnectModal
+        workspaceId={workspaceId}
+        open={createProvider === 'claap'}
+        onOpenChange={(open) => setCreateProvider(open ? 'claap' : undefined)}
+        onOpenReplaceApiKey={openReplaceCredential}
+      />
+      <ClaapReplaceApiKeyModal
+        workspaceId={workspaceId}
+        connection={replaceConnectionTarget}
+        open={replaceConnectionTarget?.provider === 'claap'}
         onOpenChange={(open) => {
           if (!open) setReplaceConnectionId(undefined);
         }}

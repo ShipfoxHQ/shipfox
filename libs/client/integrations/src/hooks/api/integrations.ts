@@ -1,4 +1,9 @@
 import type {
+  ClaapConnectBodyDto,
+  ClaapReplaceApiKeyBodyDto,
+} from '@shipfox/api-integration-claap-dto';
+import {claapConnectResponseSchema} from '@shipfox/api-integration-claap-dto';
+import type {
   ClickUpCallbackQueryDto,
   CreateClickUpInstallBodyDto,
 } from '@shipfox/api-integration-clickup-dto';
@@ -296,6 +301,37 @@ export async function createGiteaConnection(
     },
   );
   return toIntegrationConnection(response);
+}
+
+type ClaapConnectInput = Omit<ClaapConnectBodyDto, 'workspace_id'>;
+
+export async function connectClaap(
+  workspaceId: string,
+  input: ClaapConnectInput,
+): Promise<IntegrationConnection> {
+  const response = await checkedApiRequest(
+    claapConnectResponseSchema,
+    '/integrations/claap/connect',
+    {
+      method: 'POST',
+      body: {...input, workspace_id: workspaceId},
+    },
+  );
+  return toIntegrationConnection(response.connection);
+}
+
+export async function replaceClaapApiKey({
+  connectionId,
+  body,
+}: {
+  connectionId: string;
+  body: ClaapReplaceApiKeyBodyDto;
+}): Promise<void> {
+  await checkedApiRequest(
+    emptyResponseSchema,
+    `/integrations/claap/connections/${encodeURIComponent(connectionId)}/api-key`,
+    {method: 'PUT', body},
+  );
 }
 
 export type PosthogConnectResult =
@@ -867,6 +903,41 @@ export function useCreateGiteaConnectionMutation() {
     onSuccess: async (connection) => {
       await queryClient.invalidateQueries({
         queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
+        refetchType: 'all',
+      });
+    },
+  });
+}
+
+export function useConnectClaapMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({workspaceId, body}: {workspaceId: string; body: ClaapConnectInput}) =>
+      connectClaap(workspaceId, body),
+    onSuccess: async (_connection, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(variables.workspaceId),
+        refetchType: 'all',
+      });
+    },
+  });
+}
+
+export function useReplaceClaapApiKeyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workspaceId: _workspaceId,
+      connectionId,
+      body,
+    }: {
+      workspaceId: string;
+      connectionId: string;
+      body: ClaapReplaceApiKeyBodyDto;
+    }) => replaceClaapApiKey({connectionId, body}),
+    onSuccess: async (_result, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(variables.workspaceId),
         refetchType: 'all',
       });
     },
