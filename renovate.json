@@ -102,6 +102,12 @@
       "rangeStrategy": "bump"
     },
     {
+      "description": "pi-mcp-adapter carries a pnpm patch keyed to its exact version, so an update without a ported patch fails pnpm install with ERR_PNPM_UNUSED_PATCH. Update it by hand together with patches/pi-mcp-adapter@<version>.patch.",
+      "enabled": false,
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["pi-mcp-adapter"]
+    },
+    {
       "description": "Biome ships its formatter and platform binaries as one exact release. Wait for all five members and combine major and non-major releases so the generated-output toolchain stays coherent.",
       "groupName": "biome-distribution",
       "groupSlug": "biome-distribution",
