@@ -341,12 +341,15 @@ Declare the patch in `patchedDependencies` in `pnpm-workspace.yaml`. Keep the
 patch file in `patches/`, named after the exact package version. Pin the
 patched package to that exact version. Document the reason and the removal
 condition in the pull request, and cover the patched behavior with a test.
+Disable Renovate updates for the patched package. A Renovate update cannot port
+the patch, so pnpm rejects the lockfile update with `ERR_PNPM_UNUSED_PATCH`.
 
 `pi-mcp-adapter` is patched so that, when the runner passes `--mcp-config`, the
 adapter reads only that file. Without the patch, it also merges
 `~/.config/mcp/mcp.json`, `<cwd>/.mcp.json`, and `<cwd>/.pi/mcp.json`, so a
-checked-out repository could add or replace MCP servers. Remove the patch when
-the adapter offers an option to read only the given config file.
+checked-out repository could add or replace MCP servers. The built-in MCP
+support of pi 1.x takes the server list from code. Remove the adapter, its
+patch, and its Renovate rule when the runner moves to it.
 
 ## Deterministic pull-request checks
 
