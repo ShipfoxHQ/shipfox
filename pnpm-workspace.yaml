@@ -164,7 +164,7 @@ catalog:
   "nodemailer": "^9.0.0"
   "octokit": "^5.0.3"
   "pg": "^8.15.5"
-  "pi-mcp-adapter": "2.38.0"
+  "pi-mcp-adapter": "2.11.0"
   "pi-web-access": "0.37.0"
   "pino": "^10.3.0"
   "pino-pretty": "^13.1.3"
