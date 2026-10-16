@@ -12,10 +12,13 @@ export interface ToolGrant {
 export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGrant>>>> = {
   clickup: {
     add_comment: {sensitivity: 'write', result: 'json'},
+    add_tag: {sensitivity: 'write', result: 'json'},
     create_task: {sensitivity: 'write', result: 'json'},
     get_task: {sensitivity: 'read', result: 'json'},
     get_task_comments: {sensitivity: 'read', result: 'json'},
+    remove_tag: {sensitivity: 'write', result: 'json'},
     search_tasks: {sensitivity: 'read', result: 'json'},
+    set_custom_field: {sensitivity: 'write', result: 'json'},
     update_task: {sensitivity: 'write', result: 'json'},
   },
   discord: {

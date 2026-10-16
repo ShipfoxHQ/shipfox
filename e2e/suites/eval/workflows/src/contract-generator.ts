@@ -424,9 +424,33 @@ function compileStep({
     });
   }
 
-  for (const [path, item] of Object.entries(expect.includes ?? {})) {
+  for (const check of listChecks({expect, origin})) addCheck(check);
+  for (const check of patternChecks({expect, origin})) addCheck(check);
+
+  return {
+    ...call,
+    ...(checks.length === 0
+      ? {}
+      : // The gate decides the step's result even when the call failed, so it has to see the status.
+        {outputs, gate: {success: ['step.status == "succeeded"', ...checks].join(' && ')}}),
+  };
+}
+
+/** The list checks: `includes` wants an item with the values, and `excludes` wants none. */
+function listChecks({
+  expect,
+  origin,
+}: {
+  expect: ContractRead['expect'];
+  origin: string;
+}): {name: string; mapping: string; check: string}[] {
+  const lists = [
+    ...Object.entries(expect.includes ?? {}).map(([path, item]) => ({path, item, held: true})),
+    ...Object.entries(expect.excludes ?? {}).map(([path, item]) => ({path, item, held: false})),
+  ];
+  return lists.map(({path, item, held}) => {
     const segments = parsePath({path, origin});
-    const name = `includes_${segmentName(segments)}`;
+    const name = `${held ? 'includes' : 'excludes'}_${segmentName(segments)}`;
     // An index in the list's path opens a scope per index, so the item's own scopes start after.
     const scope = segments.filter((segment) => 'index' in segment).length;
     const conditions = Object.entries(item).map(([field, value]) =>
@@ -437,26 +461,13 @@ function compileStep({
         check: (accessor) => valueCheck({accessor, value}),
       }),
     );
-    addCheck({
-      name,
-      mapping: presence({
-        segments,
-        check: (accessor) =>
-          `type(${accessor}) == type([]) && ${accessor}.exists(${ITEM}, ${conditions.join(' && ')})`,
-      }),
-      check: `step.outputs.${name}`,
+    const mapping = presence({
+      segments,
+      check: (accessor) =>
+        `type(${accessor}) == type([]) && ${held ? '' : '!'}${accessor}.exists(${ITEM}, ${conditions.join(' && ')})`,
     });
-  }
-
-  for (const check of patternChecks({expect, origin})) addCheck(check);
-
-  return {
-    ...call,
-    ...(checks.length === 0
-      ? {}
-      : // The gate decides the step's result even when the call failed, so it has to see the status.
-        {outputs, gate: {success: ['step.status == "succeeded"', ...checks].join(' && ')}}),
-  };
+    return {name, mapping, check: `step.outputs.${name}`};
+  });
 }
 
 /** The regular-expression checks: `matches` on a text value at a path, and `text` on the result. */

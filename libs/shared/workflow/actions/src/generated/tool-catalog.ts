@@ -9,6 +9,10 @@ export interface ProviderToolCatalog {
      */
     add_comment: {arguments: ClickupAddCommentArguments; result: 'json'; structured: unknown};
     /**
+     * Add a tag to a ClickUp task. The tag must already exist in the Space of the task. Set custom_task_id to true for a custom task ID.
+     */
+    add_tag: {arguments: ClickupAddTagArguments; result: 'json'; structured: unknown};
+    /**
      * Create a ClickUp task in a List. Priorities are 1 (urgent) to 4 (low), dates use Unix milliseconds, and notifications are disabled.
      */
     create_task: {arguments: ClickupCreateTaskArguments; result: 'json'; structured: unknown};
@@ -25,9 +29,21 @@ export interface ProviderToolCatalog {
       structured: unknown;
     };
     /**
+     * Remove a tag from a ClickUp task. Set custom_task_id to true for a custom task ID.
+     */
+    remove_tag: {arguments: ClickupRemoveTagArguments; result: 'json'; structured: unknown};
+    /**
      * Filter ClickUp tasks by List, status, assignee, tag, or date. This is a filtered list, not full-text search.
      */
     search_tasks: {arguments: ClickupSearchTasksArguments; result: 'json'; structured: unknown};
+    /**
+     * Set the value of a custom field on a ClickUp task. The value depends on the field type: a string for text, a number, an option ID for a dropdown, an array of option IDs for labels, or Unix milliseconds for a date. Set custom_task_id to true for a custom task ID.
+     */
+    set_custom_field: {
+      arguments: ClickupSetCustomFieldArguments;
+      result: 'json';
+      structured: unknown;
+    };
     /**
      * Update a ClickUp task. Set custom_task_id to true for a custom task ID. Priorities are 1 (urgent) to 4 (low), and dates use Unix milliseconds.
      */
@@ -1434,6 +1450,21 @@ export interface ClickupAddCommentArguments {
   body: string;
 }
 
+export interface ClickupAddTagArguments {
+  /**
+   * ClickUp task ID or custom task ID
+   */
+  task_id: string;
+  /**
+   * Address the task with its custom task ID
+   */
+  custom_task_id?: boolean;
+  /**
+   * ClickUp tag name
+   */
+  tag_name: string;
+}
+
 export interface ClickupCreateTaskArguments {
   /**
    * ClickUp List ID
@@ -1517,6 +1548,21 @@ export interface ClickupGetTaskCommentsArguments {
   start_id?: string;
 }
 
+export interface ClickupRemoveTagArguments {
+  /**
+   * ClickUp task ID or custom task ID
+   */
+  task_id: string;
+  /**
+   * Address the task with its custom task ID
+   */
+  custom_task_id?: boolean;
+  /**
+   * ClickUp tag name
+   */
+  tag_name: string;
+}
+
 export interface ClickupSearchTasksArguments {
   /**
    * Items: ClickUp List ID
@@ -1566,6 +1612,38 @@ export interface ClickupSearchTasksArguments {
    * Zero-based result page
    */
   page?: number;
+}
+
+export interface ClickupSetCustomFieldArguments {
+  /**
+   * ClickUp task ID or custom task ID
+   */
+  task_id: string;
+  /**
+   * Address the task with its custom task ID
+   */
+  custom_task_id?: boolean;
+  /**
+   * ClickUp custom field ID
+   */
+  field_id: string;
+  /**
+   * Custom field value, in the shape its field type takes
+   */
+  value:
+    | string
+    | number
+    | boolean
+    | unknown[]
+    | {
+        [k: string]: unknown;
+      };
+  value_options?: {
+    /**
+     * Show the time of a date value
+     */
+    time?: boolean;
+  };
 }
 
 export interface ClickupUpdateTaskArguments {

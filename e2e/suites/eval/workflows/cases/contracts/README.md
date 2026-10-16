@@ -56,6 +56,7 @@ steps:
 
 - **`shape`** names fields and types. Extra fields are allowed. A list result checks its first item.
 - **`values`** pins exact values for known fixtures. A closed catalog `outputSchema` gets value checks only, through `VALUES_ONLY_TOOLS` in the generator.
+- **`includes`** names a list and the values one of its items must hold. **`excludes`** is the opposite: no item of the list may hold them. Use it for a write that removes something, such as a tag, and prove the item was there with an `includes` in an earlier step. Otherwise a removal that does nothing passes.
 - **`matches`** gives a regular expression for a text value. Use it when the layout of the text is not part of the contract, such as the SQL results of PostHog.
 - **`text`** lists regular expressions for a result that is itself text, not a map. PostHog returns most reads as TOON text. Each expression must match somewhere in the result.
 - **`$steps.<key>.<path>`** passes a value from an earlier step of the case. Write `$steps_text` instead when the value is a number and the next tool takes a string, such as the `resource_id` of the GitHub Actions tools. A number in a string input fails the step. Write `$steps_number` when the catalog `outputSchema` of the earlier tool declares the value as a number, such as the `check_run.id` of `check_run_write`. The compiler rejects a plain `$steps` there.

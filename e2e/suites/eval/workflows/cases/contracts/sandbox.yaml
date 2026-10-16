@@ -400,7 +400,8 @@ clickup:
     # The fake pads the list to `task_count`, the size of the sandbox list.
     list: {id: '901222980414', name: Contracts read, task_count: 104}
     # Task 869fca5cw has a long markdown and unicode description, 32 comments, a priority, a due
-    # date, and a tag. The list holds 104 tasks, so `search_tasks` has a second page.
+    # date, the `tag`, and a value in the `text_field`. The list holds 104 tasks, so `search_tasks`
+    # has a second page.
     task:
       id: 869fca5cw
       comment_count: 32
@@ -434,7 +435,29 @@ clickup:
         with: {task_id: $fixture.clickup.closed_task.id}
         expect:
           values: {id: $fixture.clickup.closed_task.id, name: $fixture.clickup.closed_task.name}
+    # A tag of the sandbox Space, which holds both lists. The `task` has it, and the round-trip adds
+    # it to its own task, then removes it.
+    tag:
+      name: contract-fixture
+      read:
+        tool: get_task
+        with: {task_id: $fixture.clickup.task.id}
+        expect:
+          includes:
+            tags: {name: $fixture.clickup.tag.name}
+    # A text custom field of the read list, set to `value` on the `task`.
+    text_field:
+      id: TODO-read-list-text-field-id
+      value: Contract field value
+      read:
+        tool: get_task
+        with: {task_id: $fixture.clickup.task.id}
+        expect:
+          includes:
+            custom_fields: {id: $fixture.clickup.text_field.id, value: $fixture.clickup.text_field.value}
     write_list: {id: '901222980415', name: Contracts write}
+    # A text custom field of the write list. The round-trip sets it on its own task.
+    write_text_field: {id: TODO-write-list-text-field-id}
   targets:
     missing_task: {kind: absent, id: 869zzzzzz}
 notion:

@@ -34,6 +34,14 @@ const tagsSchema = arraySchema(stringSchema('ClickUp task tag'));
 const prioritySchema = integerSchema('Priority from 1 (urgent) to 4 (low)');
 const dateSchema = integerSchema('Unix timestamp in milliseconds');
 const customFieldsSchema = arraySchema(recordSchema('ClickUp custom field value'));
+const tagInputSchema = objectSchema(
+  {
+    task_id: taskIdSchema,
+    custom_task_id: customTaskIdSchema,
+    tag_name: stringSchema('ClickUp tag name'),
+  },
+  ['task_id', 'tag_name'],
+);
 
 export const clickupAgentToolCatalog = [
   tool({
@@ -156,6 +164,54 @@ export const clickupAgentToolCatalog = [
       ['task_id', 'body'],
     ),
   }),
+  tool({
+    id: 'add_tag',
+    description:
+      'Add a tag to a ClickUp task. The tag must already exist in the Space of the task. Set custom_task_id to true for a custom task ID.',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: 'write',
+    inputSchema: tagInputSchema,
+  }),
+  tool({
+    id: 'remove_tag',
+    description:
+      'Remove a tag from a ClickUp task. Set custom_task_id to true for a custom task ID.',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: 'write',
+    inputSchema: tagInputSchema,
+  }),
+  tool({
+    id: 'set_custom_field',
+    description:
+      'Set the value of a custom field on a ClickUp task. The value depends on the field type: a string for text, a number, an option ID for a dropdown, an array of option IDs for labels, or Unix milliseconds for a date. Set custom_task_id to true for a custom task ID.',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: 'write',
+    inputSchema: objectSchema(
+      {
+        task_id: taskIdSchema,
+        custom_task_id: customTaskIdSchema,
+        field_id: stringSchema('ClickUp custom field ID'),
+        // ClickUp takes a different value type per field type.
+        value: {
+          description: 'Custom field value, in the shape its field type takes',
+          anyOf: [
+            {type: 'string'},
+            {type: 'number'},
+            {type: 'boolean'},
+            {type: 'array', items: {}},
+            {type: 'object'},
+          ],
+        },
+        value_options: objectSchema({
+          time: booleanSchema('Show the time of a date value'),
+        }),
+      },
+      ['task_id', 'field_id', 'value'],
+    ),
+  }),
 ] as const satisfies readonly ClickUpAgentToolCatalogEntry[];
 
 export const clickupAgentToolSelectionCatalog =
@@ -251,6 +307,26 @@ export const CLICKUP_TOOL_OPERATIONS: Record<ClickUpAgentToolId, ClickUpToolOper
     query: (args, teamId) => customTaskIdQuery(args, teamId),
     body: (args) => ({comment_text: stringArgument(args, 'body'), notify_all: false}),
   },
+  add_tag: {
+    method: 'POST',
+    path: (args) => tagPath(args),
+    query: (args, teamId) => customTaskIdQuery(args, teamId),
+  },
+  remove_tag: {
+    method: 'DELETE',
+    path: (args) => tagPath(args),
+    query: (args, teamId) => customTaskIdQuery(args, teamId),
+  },
+  set_custom_field: {
+    method: 'POST',
+    path: (args) => taskPath(args, `field/${encodeURIComponent(stringArgument(args, 'field_id'))}`),
+    query: (args, teamId) => customTaskIdQuery(args, teamId),
+    body: (args) =>
+      definedArguments(args, [
+        ['value', 'value'],
+        ['value_options', 'value_options'],
+      ]),
+  },
 };
 
 export function customTaskIdQuery(
@@ -263,6 +339,10 @@ export function customTaskIdQuery(
 function taskPath(args: Record<string, unknown>, suffix = ''): string {
   const taskId = encodeURIComponent(stringArgument(args, 'task_id'));
   return `/task/${taskId}${suffix.length > 0 ? `/${suffix}` : ''}`;
+}
+
+function tagPath(args: Record<string, unknown>): string {
+  return taskPath(args, `tag/${encodeURIComponent(stringArgument(args, 'tag_name'))}`);
 }
 
 function definedArguments(

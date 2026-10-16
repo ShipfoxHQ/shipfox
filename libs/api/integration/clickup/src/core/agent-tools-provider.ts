@@ -164,15 +164,24 @@ function validateClickUpToolArguments(
     }
   }
 
-  const properties = tool.inputSchema.properties;
+  return clickUpPropertiesError('', args, tool.inputSchema);
+}
+
+/** Checks each property of an object argument. `prefix` names a nested object, such as `value_options.`. */
+function clickUpPropertiesError(
+  prefix: string,
+  value: Record<string, unknown>,
+  schema: Record<string, unknown>,
+): string | undefined {
+  const properties = schema.properties;
   if (!isRecord(properties)) return undefined;
-  for (const [name, value] of Object.entries(args)) {
-    const schema = Object.hasOwn(properties, name) ? properties[name] : undefined;
-    if (!isRecord(schema)) {
-      if (tool.inputSchema.additionalProperties === false) return `Unknown parameter: ${name}`;
+  for (const [name, property] of Object.entries(value)) {
+    const propertySchema = Object.hasOwn(properties, name) ? properties[name] : undefined;
+    if (!isRecord(propertySchema)) {
+      if (schema.additionalProperties === false) return `Unknown parameter: ${prefix}${name}`;
       continue;
     }
-    const validationError = validateClickUpArgument(name, value, schema);
+    const validationError = validateClickUpArgument(`${prefix}${name}`, property, propertySchema);
     if (validationError !== undefined) return validationError;
   }
   return undefined;
@@ -183,6 +192,7 @@ function validateClickUpArgument(
   value: unknown,
   schema: Record<string, unknown>,
 ): string | undefined {
+  if (Array.isArray(schema.anyOf)) return clickUpAnyOfArgumentError(name, value, schema.anyOf);
   const typeError = clickUpArgumentTypeError(name, value, schema);
   if (typeError !== undefined) return typeError;
   if ('const' in schema && value !== schema.const) {
@@ -191,26 +201,53 @@ function validateClickUpArgument(
   return undefined;
 }
 
+const CLICKUP_SCALAR_TYPES: Record<string, {label: string; matches: (value: unknown) => boolean}> =
+  {
+    string: {label: 'a string', matches: (value) => typeof value === 'string'},
+    boolean: {label: 'a boolean', matches: (value) => typeof value === 'boolean'},
+    integer: {
+      label: 'an integer',
+      matches: (value) => typeof value === 'number' && Number.isSafeInteger(value),
+    },
+    number: {
+      label: 'a number',
+      matches: (value) => typeof value === 'number' && Number.isFinite(value),
+    },
+  };
+
 function clickUpArgumentTypeError(
   name: string,
   value: unknown,
   schema: Record<string, unknown>,
 ): string | undefined {
-  if (schema.type === 'string') {
-    return typeof value === 'string' ? undefined : `Parameter ${name} must be a string`;
-  }
-  if (schema.type === 'boolean') {
-    return typeof value === 'boolean' ? undefined : `Parameter ${name} must be a boolean`;
-  }
-  if (schema.type === 'integer') {
-    return typeof value === 'number' && Number.isSafeInteger(value)
-      ? undefined
-      : `Parameter ${name} must be an integer`;
+  const scalar =
+    typeof schema.type === 'string' && Object.hasOwn(CLICKUP_SCALAR_TYPES, schema.type)
+      ? CLICKUP_SCALAR_TYPES[schema.type]
+      : undefined;
+  if (scalar !== undefined) {
+    return scalar.matches(value) ? undefined : `Parameter ${name} must be ${scalar.label}`;
   }
   if (schema.type === 'object') {
-    return isRecord(value) ? undefined : `Parameter ${name} must be an object`;
+    return isRecord(value)
+      ? clickUpPropertiesError(`${name}.`, value, schema)
+      : `Parameter ${name} must be an object`;
   }
   return schema.type === 'array' ? clickUpArrayArgumentError(name, value, schema.items) : undefined;
+}
+
+function clickUpAnyOfArgumentError(
+  name: string,
+  value: unknown,
+  branches: readonly unknown[],
+): string | undefined {
+  const matches = branches.some(
+    (branch) => isRecord(branch) && validateClickUpArgument(name, value, branch) === undefined,
+  );
+  if (matches) return undefined;
+  const types = branches.flatMap((branch) =>
+    isRecord(branch) && typeof branch.type === 'string' ? [branch.type] : [],
+  );
+  return `Parameter ${name} must be one of: ${types.join(', ')}`;
 }
 
 function clickUpArrayArgumentError(

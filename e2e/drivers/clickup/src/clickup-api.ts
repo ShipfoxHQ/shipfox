@@ -4,7 +4,7 @@ import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-c
 export const CLICKUP_TASK_RESULT_MARKER = 'clickup-task-result-marker';
 export const CLICKUP_COMMENT_RESULT_MARKER = 'clickup-comment-result-marker';
 
-const CLICKUP_TASK_PATH_RE = /^\/api\/v2\/task\/([^/]+)(?:\/comment)?$/;
+const CLICKUP_TASK_PATH_RE = /^\/api\/v2\/task\/([^/]+)(?:\/(comment)|\/(tag|field)\/([^/]+))?$/;
 const CLICKUP_TEAM_TASKS_PATH_RE = /^\/api\/v2\/team\/[^/]+\/task$/;
 const CLICKUP_LIST_TASKS_PATH_RE = /^\/api\/v2\/list\/([^/]+)\/task$/;
 // ClickUp answers a team task search with 100 tasks per page, and a comment list with 25.
@@ -18,6 +18,12 @@ const CLICKUP_CLOSED_STATUSES = new Set(['complete', 'closed']);
 export interface ClickUpCommentFixture {
   id: string;
   text: string;
+}
+
+/** A custom field value on a task the fake serves. */
+export interface ClickUpCustomFieldFixture {
+  id: string;
+  value: unknown;
 }
 
 /** A task the fake serves, in the shape the tools read. */
@@ -36,6 +42,9 @@ export interface ClickUpTaskFixture {
   parentId?: string | undefined;
   /** Newest first, like the real API. */
   comments?: readonly ClickUpCommentFixture[] | undefined;
+  /** Tag names, in the order they were added. */
+  tags?: readonly string[] | undefined;
+  customFields?: readonly ClickUpCustomFieldFixture[] | undefined;
 }
 
 export interface StartClickUpApiMockOptions {
@@ -93,6 +102,21 @@ export type ClickUpApiMockCall =
       taskId: string;
       query: Record<string, string>;
       body: Record<string, unknown>;
+    }
+  | {
+      kind: 'add_tag' | 'remove_tag';
+      authorization: string | undefined;
+      taskId: string;
+      tagName: string;
+      query: Record<string, string>;
+    }
+  | {
+      kind: 'set_custom_field';
+      authorization: string | undefined;
+      taskId: string;
+      fieldId: string;
+      query: Record<string, string>;
+      body: Record<string, unknown>;
     };
 
 export interface ClickUpApiMock {
@@ -101,8 +125,8 @@ export interface ClickUpApiMock {
   tasks: Map<string, ClickUpTaskFixture>;
   endpoint: URL;
   /**
-   * The tasks created, the task updates, and the comments the fake accepted, in arrival order. Each
-   * change shows in the next read of the task.
+   * The tasks created, the task updates, the comments, the tag changes, and the custom field values
+   * the fake accepted, in arrival order. Each change shows in the next read of the task.
    */
   writes(): RecordedWrite[];
   stop(): Promise<void>;
@@ -173,6 +197,12 @@ function clickUpWrites(calls: readonly ClickUpApiMockCall[]): RecordedWrite[] {
       return [{kind: call.kind, target: call.listId, payload: {...call.body}}];
     if (call.kind === 'add_comment' || call.kind === 'update_task')
       return [{kind: call.kind, target: call.taskId, payload: {...call.body}}];
+    if (call.kind === 'add_tag' || call.kind === 'remove_tag')
+      return [{kind: call.kind, target: call.taskId, payload: {tag_name: call.tagName}}];
+    if (call.kind === 'set_custom_field')
+      return [
+        {kind: call.kind, target: call.taskId, payload: {field_id: call.fieldId, ...call.body}},
+      ];
     return [];
   });
 }
@@ -185,6 +215,8 @@ interface ClickUpTaskRequest {
   request: IncomingMessage;
   response: ServerResponse;
   taskId: string;
+  /** The tag name or the custom field ID after `/tag/` or `/field/`. */
+  itemId: string;
   query: Record<string, string>;
   authorization: string | undefined;
 }
@@ -214,21 +246,26 @@ async function handleClickUpRequest(params: {
     request: params.request,
     response: params.response,
     taskId: decodeURIComponent(match[1] ?? ''),
+    itemId: decodeURIComponent(match[4] ?? ''),
     query: Object.fromEntries(requestUrl.searchParams.entries()),
     authorization: params.request.headers.authorization,
   };
-  const isComment = requestUrl.pathname.endsWith('/comment');
+  const route = `${params.request.method} ${match[2] ?? match[3] ?? 'task'}`;
 
-  if (params.request.method === 'GET' && !isComment) return getTask(task);
-  if (params.request.method === 'GET' && isComment) return getTaskComments(task);
-  if (params.request.method === 'PUT' && !isComment) return await updateTask(task);
-  if (params.request.method === 'POST' && isComment) return await addComment(task);
+  if (route === 'GET task') return getTask(task);
+  if (route === 'PUT task') return await updateTask(task);
+  if (route === 'GET comment') return getTaskComments(task);
+  if (route === 'POST comment') return await addComment(task);
+  if (route === 'POST tag' || route === 'DELETE tag') return changeTag(task);
+  if (route === 'POST field') return await setCustomField(task);
   sendJson(params.response, 405, {err: 'Method not allowed', ECODE: 'E2E_METHOD_NOT_ALLOWED'});
 }
 
 /** Serves the task search of a team and the task creation in a List. False for any other path. */
 async function handleCollectionRequest(
-  params: Omit<ClickUpTaskRequest, 'taskId' | 'query' | 'authorization'> & {requestUrl: URL},
+  params: Omit<ClickUpTaskRequest, 'taskId' | 'itemId' | 'query' | 'authorization'> & {
+    requestUrl: URL;
+  },
 ): Promise<boolean> {
   const {requestUrl, request, response} = params;
   const isSearch = CLICKUP_TEAM_TASKS_PATH_RE.test(requestUrl.pathname);
@@ -294,6 +331,12 @@ function taskBody(task: ClickUpTaskFixture) {
     url: task.url,
     markdown_description: task.markdownDescription,
     status: statusBody(task),
+    tags: (task.tags ?? []).map((name) => ({name, tag_fg: '#e16b16', tag_bg: '#e16b16'})),
+    // ClickUp leaves `value` out of a field that has none.
+    custom_fields: (task.customFields ?? []).map((field) => ({
+      id: field.id,
+      ...(field.value === undefined ? {} : {value: field.value}),
+    })),
     ...(task.list === undefined ? {} : {list: listBody(task.list)}),
   };
 }
@@ -395,7 +438,7 @@ async function createTask({
   listId,
   query,
   authorization,
-}: Omit<ClickUpTaskRequest, 'taskId'> & {listId: string}): Promise<void> {
+}: Omit<ClickUpTaskRequest, 'taskId' | 'itemId'> & {listId: string}): Promise<void> {
   const parsed = await readJsonBody(request);
   const body = isJsonObject(parsed) ? parsed : {};
   calls.push({kind: 'create_task', authorization, listId, query, body});
@@ -483,6 +526,49 @@ async function addComment({
     date: String(Date.now()),
     marker: CLICKUP_COMMENT_RESULT_MARKER,
   });
+}
+
+/** Adds or removes a tag. ClickUp answers both with an empty object. */
+function changeTag({
+  calls,
+  tasks,
+  request,
+  response,
+  taskId,
+  itemId,
+  query,
+  authorization,
+}: ClickUpTaskRequest): void {
+  const kind = request.method === 'DELETE' ? 'remove_tag' : 'add_tag';
+  calls.push({kind, authorization, taskId, tagName: itemId, query});
+  const task = tasks.get(taskId);
+  if (task !== undefined) {
+    const others = (task.tags ?? []).filter((name) => name !== itemId);
+    tasks.set(taskId, {...task, tags: kind === 'add_tag' ? [...others, itemId] : others});
+  }
+  sendJson(response, 200, {});
+}
+
+/** Sets the value of a custom field. ClickUp answers with an empty object. */
+async function setCustomField({
+  calls,
+  tasks,
+  request,
+  response,
+  taskId,
+  itemId,
+  query,
+  authorization,
+}: ClickUpTaskRequest): Promise<void> {
+  const parsed = await readJsonBody(request);
+  const body = isJsonObject(parsed) ? parsed : {};
+  calls.push({kind: 'set_custom_field', authorization, taskId, fieldId: itemId, query, body});
+  const task = tasks.get(taskId);
+  if (task !== undefined) {
+    const others = (task.customFields ?? []).filter((field) => field.id !== itemId);
+    tasks.set(taskId, {...task, customFields: [...others, {id: itemId, value: body.value}]});
+  }
+  sendJson(response, 200, {});
 }
 
 function requiredClickUpApiBaseUrl(): string {

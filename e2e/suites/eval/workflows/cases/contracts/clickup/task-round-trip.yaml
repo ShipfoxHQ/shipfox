@@ -38,6 +38,43 @@ steps:
         values:
           name: Contract task updated
           markdown_description: Updated by a contract.
+  - key: add_tag
+    tool: add_tag
+    with:
+      task_id: $steps.create.id
+      tag_name: $fixture.clickup.tag.name
+    effect:
+      tool: get_task
+      with:
+        task_id: $steps.create.id
+      expect:
+        includes:
+          tags: {name: $fixture.clickup.tag.name}
+  - key: remove_tag
+    tool: remove_tag
+    with:
+      task_id: $steps.create.id
+      tag_name: $fixture.clickup.tag.name
+    effect:
+      tool: get_task
+      with:
+        task_id: $steps.create.id
+      expect:
+        excludes:
+          tags: {name: $fixture.clickup.tag.name}
+  - key: set_field
+    tool: set_custom_field
+    with:
+      task_id: $steps.create.id
+      field_id: $fixture.clickup.write_text_field.id
+      value: Set by a contract.
+    effect:
+      tool: get_task
+      with:
+        task_id: $steps.create.id
+      expect:
+        includes:
+          custom_fields: {id: $fixture.clickup.write_text_field.id, value: Set by a contract.}
   - key: comment
     tool: add_comment
     with:

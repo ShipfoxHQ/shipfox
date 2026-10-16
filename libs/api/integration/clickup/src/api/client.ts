@@ -9,7 +9,7 @@ const TRAILING_SLASHES_RE = /\/+$/;
 
 export const CLICKUP_WEBHOOK_EVENTS = clickupWebhookEventNames;
 
-export type ClickUpAgentToolHttpMethod = 'GET' | 'POST' | 'PUT';
+export type ClickUpAgentToolHttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 export type ClickUpAgentToolQueryValue =
   | string
   | number

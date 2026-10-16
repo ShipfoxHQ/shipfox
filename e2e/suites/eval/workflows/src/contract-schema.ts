@@ -57,6 +57,10 @@ const outputExpectSchema = z
     includes: nonEmpty(
       z.record(pathSchema, nonEmpty(z.record(pathSchema, scalarSchema))),
     ).optional(),
+    // A list that holds no item with these values, for a write that removes one.
+    excludes: nonEmpty(
+      z.record(pathSchema, nonEmpty(z.record(pathSchema, scalarSchema))),
+    ).optional(),
     // A regular expression per path, for a text value whose layout a case shouldn't pin.
     matches: nonEmpty(z.record(pathSchema, z.string().min(1))).optional(),
     // Regular expressions for a result that is itself text, such as the TOON text PostHog returns
@@ -74,6 +78,7 @@ const stepExpectSchema = outputExpectSchema
       (expected.shape === undefined &&
         expected.values === undefined &&
         expected.includes === undefined &&
+        expected.excludes === undefined &&
         expected.matches === undefined &&
         expected.text === undefined),
     {message: 'a step that expects an error has no output to check', path: ['error']},

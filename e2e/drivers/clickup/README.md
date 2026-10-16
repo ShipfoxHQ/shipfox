@@ -5,14 +5,14 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
 ## Public API
 
 - `startClickUpApiMock(options?)`: start the fake and return a `ClickUpApiMock`. It
-  serves task reads, task searches, task creation, task updates, and task comments, and a read
-  shows each change. `options.accessToken` is the token of the
+  serves task reads, task searches, task creation, task updates, task comments, tag changes, and
+  custom field values, and a read shows each change. `options.accessToken` is the token of the
   connection the spec creates: the stack router sends the fake the requests that carry it, so
   specs in other workers share the address. The token is required unless `options.endpoint`
   is set, which listens directly instead.
   `options.tasks` lists the tasks it serves
   by ID, with their name, URL, and Markdown description. A task can also name its List, be closed
-  or a subtask, and hold comments. Any other task gets a placeholder, unless
+  or a subtask, and hold comments, tags, and custom field values. Any other task gets a placeholder, unless
   `options.rejectUnseeded` is set: a read then answers 401, as ClickUp does for a task it cannot
   find. A task search for a negative or fractional `page` answers 500.
 - `ClickUpApiMock.tasks`: the tasks the fake serves, by ID. Add to it to seed the fake after it
@@ -20,9 +20,10 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
   tasks and subtasks unless the search asks for them. A comment list answers the first 25 comments.
 - `ClickUpApiMock.calls`: every request the fake handled, as `ClickUpApiMockCall` entries.
 - `ClickUpApiMock.writes()`: the tasks created (`create_task`, targeted at their List ID), the task
-  updates (`update_task`), and the comments (`add_comment`) the fake accepted, as `RecordedWrite`
-  entries. Updates and comments are targeted at their task ID. A task update changes the name, the Markdown description, and
-  the status. The `complete` and `closed` statuses close the task. A comment goes first in the
+  updates (`update_task`), the comments (`add_comment`), the tag changes (`add_tag`,
+  `remove_tag`), and the custom field values (`set_custom_field`) the fake accepted, as
+  `RecordedWrite` entries. All but task creation are targeted at their task ID. A task update
+  changes the name, the Markdown description, and the status. The `complete` and `closed` statuses close the task. A comment goes first in the
   comment list. A task the fake does not hold still gets a placeholder answer to an update or a
   comment.
 - `signClickUpHeaders`, `buildTaskCommentPostedEnvelope`, and `postClickUpCommentDelivery`: sign

@@ -171,8 +171,8 @@ describe('ClickUp install and tool DTOs', () => {
     expect('error' in errorResult && errorResult.error).toBe('access_denied');
   });
 
-  it('exposes exactly the six ClickUp agent tools and both scopes', () => {
-    expect(clickupAgentToolIds).toHaveLength(6);
+  it('exposes exactly the nine ClickUp agent tools and both scopes', () => {
+    expect(clickupAgentToolIds).toHaveLength(9);
     expect(clickupAgentToolIds).toEqual([
       'get_task',
       'search_tasks',
@@ -180,6 +180,9 @@ describe('ClickUp install and tool DTOs', () => {
       'create_task',
       'update_task',
       'add_comment',
+      'add_tag',
+      'remove_tag',
+      'set_custom_field',
     ]);
     expect(clickupAgentToolIdSchema.parse('get_task')).toBe('get_task');
     expect(clickupAgentToolRequiredScopeSchema.parse('read')).toBe('read');

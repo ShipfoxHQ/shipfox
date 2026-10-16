@@ -138,8 +138,14 @@ describe('contract case schema', () => {
     expect(() => parseContractCase({...getIssue, kind: 'error', steps})).toThrow(noOutputPattern);
   });
 
-  it('rejects empty values and includes assertions', () => {
-    for (const expectation of [{values: {}}, {includes: {}}, {includes: {'messages[0]': {}}}]) {
+  it('rejects empty values, includes, and excludes assertions', () => {
+    for (const expectation of [
+      {values: {}},
+      {includes: {}},
+      {includes: {'messages[0]': {}}},
+      {excludes: {}},
+      {excludes: {tags: {}}},
+    ]) {
       const steps = [{tool: 'get_issue', expect: expectation}];
 
       expect(() => parseContractCase({...getIssue, steps})).toThrow(emptyPattern);

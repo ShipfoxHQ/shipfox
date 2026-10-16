@@ -162,6 +162,7 @@ function writeProblems({
   if (
     Object.keys(effect.expect.values ?? {}).length +
       Object.keys(effect.expect.includes ?? {}).length +
+      Object.keys(effect.expect.excludes ?? {}).length +
       Object.keys(effect.expect.matches ?? {}).length ===
     0
   ) {

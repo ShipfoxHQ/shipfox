@@ -17,6 +17,9 @@ export const clickupAgentToolIds = [
   'create_task',
   'update_task',
   'add_comment',
+  'add_tag',
+  'remove_tag',
+  'set_custom_field',
 ] as const;
 
 export const clickupAgentToolIdSchema = z.enum(clickupAgentToolIds);

@@ -483,6 +483,8 @@ const CLICKUP_TASK_FIXTURES = ['task', 'parent_task', 'subtask', 'closed_task'] 
 const CLICKUP_PARENT_FIXTURE = 'parent_task';
 const CLICKUP_SUBTASK_FIXTURE = 'subtask';
 const CLICKUP_CLOSED_FIXTURE = 'closed_task';
+// The `task` fixture holds the `tag` fixture and a value in the `text_field` fixture.
+const CLICKUP_TAGGED_FIXTURE = 'task';
 
 type ClickUpList = NonNullable<ClickUpTaskFixture['list']>;
 
@@ -520,6 +522,8 @@ function clickupTasks({
 }): ClickUpTaskFixture[] {
   const parent = fixtures[CLICKUP_PARENT_FIXTURE];
   const parentId = parent === undefined ? undefined : String(field({fixture: parent, name: 'id'}));
+  const tag = fixtures.tag === undefined ? undefined : field({fixture: fixtures.tag, name: 'name'});
+  const textField = fixtures.text_field;
   return CLICKUP_TASK_FIXTURES.flatMap((fixtureName) => {
     const fixture = fixtures[fixtureName];
     if (fixture === undefined) return [];
@@ -532,6 +536,19 @@ function clickupTasks({
         closed: fixtureName === CLICKUP_CLOSED_FIXTURE,
         parentId: fixtureName === CLICKUP_SUBTASK_FIXTURE ? parentId : undefined,
         comments: fixtureComments(fixture),
+        ...(fixtureName === CLICKUP_TAGGED_FIXTURE && tag !== undefined
+          ? {tags: [String(tag)]}
+          : {}),
+        ...(fixtureName === CLICKUP_TAGGED_FIXTURE && textField !== undefined
+          ? {
+              customFields: [
+                {
+                  id: String(field({fixture: textField, name: 'id'})),
+                  value: field({fixture: textField, name: 'value'}),
+                },
+              ],
+            }
+          : {}),
       }),
     ];
   });
@@ -540,7 +557,8 @@ function clickupTasks({
 /**
  * ClickUp, with its own fake and a connection to it. It seeds the `list` fixture as a List, the
  * task fixtures as its tasks, and enough more tasks to fill the `task_count` the sandbox list
- * holds, so a task search has a second page. The `task` fixture gets its `comment_count` comments.
+ * holds, so a task search has a second page. The `task` fixture gets its `comment_count` comments,
+ * the `tag` fixture, and the `value` of the `text_field` fixture.
  */
 export const clickupContractFake: ContractFakeAdapter = async ({
   workspaceId,

@@ -9,7 +9,12 @@ steps:
         id: string
         name: string
         list: {id: string}
+        tags: [{name: string}]
+        custom_fields: [{id: string}]
       values:
         id: $fixture.clickup.task.id
         name: $fixture.clickup.task.name
         list.id: $fixture.clickup.list.id
+      includes:
+        tags: {name: $fixture.clickup.tag.name}
+        custom_fields: {id: $fixture.clickup.text_field.id, value: $fixture.clickup.text_field.value}

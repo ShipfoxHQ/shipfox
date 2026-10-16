@@ -4,6 +4,7 @@ export {
   type ClickUpApiMock,
   type ClickUpApiMockCall,
   type ClickUpCommentFixture,
+  type ClickUpCustomFieldFixture,
   type ClickUpTaskFixture,
   type StartClickUpApiMockOptions,
   startClickUpApiMock,

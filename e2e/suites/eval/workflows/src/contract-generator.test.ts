@@ -292,6 +292,17 @@ describe('generateContractFiles', () => {
       );
     });
 
+    it('compiles expect.excludes to a negated exists() over the list', async () => {
+      await writeCase(
+        'linear/excludes.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    expect:\n      excludes:\n        labels: {name: bug}\n`,
+      );
+
+      expect(await generatedLinear()).toContain(
+        `excludes_labels: \${{ has(result.labels) && type(result.labels) == type([]) && !result.labels.exists(item, has(item.name) && type(item.name) == type("") && item.name == "bug") }}`,
+      );
+    });
+
     it('checks every field of an included item, and keeps scopes apart in nested paths', async () => {
       await writeCase(
         'linear/nested.yaml',

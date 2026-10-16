@@ -64,6 +64,8 @@ describe('ClickUp API mock', () => {
         url: 'https://app.clickup.com/t/86abc',
         markdown_description: 'Scripts need JSON.',
         status: {status: 'to do', type: 'open'},
+        tags: [],
+        custom_fields: [],
       });
       expect(update.status).toBe(200);
       expect(mock.writes()).toEqual([
@@ -251,6 +253,37 @@ describe('ClickUp API mock', () => {
           'add_comment',
           'add_comment',
           'update_task',
+        ]);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('adds and removes tags and sets custom fields, which the next read shows', async () => {
+      const {mock, send, read} = await arrange();
+
+      try {
+        const {id} = await send('POST', '/list/list-1/task', {name: 'Contract task'});
+        const added = await send('POST', `/task/${id}/tag/${encodeURIComponent('ai done')}`, {});
+        await send('POST', `/task/${id}/tag/ai-failed`, {});
+        const tagged = await read(`/task/${id}`);
+        await send('DELETE', `/task/${id}/tag/${encodeURIComponent('ai done')}`, {});
+        await send('POST', `/task/${id}/field/field-1`, {value: 'First'});
+        await send('POST', `/task/${id}/field/field-1`, {value: 'Second'});
+        const task = await read(`/task/${id}`);
+
+        expect(added).toEqual({});
+        expect(tagged).toMatchObject({tags: [{name: 'ai done'}, {name: 'ai-failed'}]});
+        expect(task).toMatchObject({
+          tags: [{name: 'ai-failed'}],
+          custom_fields: [{id: 'field-1', value: 'Second'}],
+        });
+        expect(mock.writes().slice(1)).toEqual([
+          {kind: 'add_tag', target: id, payload: {tag_name: 'ai done'}},
+          {kind: 'add_tag', target: id, payload: {tag_name: 'ai-failed'}},
+          {kind: 'remove_tag', target: id, payload: {tag_name: 'ai done'}},
+          {kind: 'set_custom_field', target: id, payload: {field_id: 'field-1', value: 'First'}},
+          {kind: 'set_custom_field', target: id, payload: {field_id: 'field-1', value: 'Second'}},
         ]);
       } finally {
         await mock.stop();

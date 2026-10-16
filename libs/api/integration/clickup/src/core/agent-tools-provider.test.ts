@@ -56,7 +56,7 @@ async function openSession(
 }
 
 describe('ClickUpAgentToolsProvider', () => {
-  it('publishes the six DTO tools and their selection catalog', () => {
+  it('publishes the nine DTO tools and their selection catalog', () => {
     const provider = new ClickUpAgentToolsProvider(providerOptions());
 
     expect(provider.catalog()).toBe(clickupAgentToolCatalog);
@@ -68,6 +68,9 @@ describe('ClickUpAgentToolsProvider', () => {
       ['create_task', 'write', false],
       ['update_task', 'write', false],
       ['add_comment', 'write', false],
+      ['add_tag', 'write', false],
+      ['remove_tag', 'write', false],
+      ['set_custom_field', 'write', false],
     ]);
     expect(clickupAgentToolSelectionCatalog.selectors.map((selector) => selector.token)).toEqual([
       'get_task',
@@ -76,6 +79,9 @@ describe('ClickUpAgentToolsProvider', () => {
       'create_task',
       'update_task',
       'add_comment',
+      'add_tag',
+      'remove_tag',
+      'set_custom_field',
     ]);
   });
 
@@ -276,6 +282,73 @@ describe('ClickUpAgentToolsProvider', () => {
     );
   });
 
+  it('builds tag and custom-field requests', async () => {
+    const options = providerOptions(async () => ({status: 200, body: {}}));
+    const session = await openSession(options, ['add_tag', 'remove_tag', 'set_custom_field']);
+
+    const addTagResult = await session.call({
+      toolId: 'add_tag',
+      arguments: {task_id: 'TASK-1', custom_task_id: true, tag_name: 'ai done 🚀/x'},
+    });
+    await session.call({
+      toolId: 'remove_tag',
+      arguments: {task_id: 'task-1', tag_name: 'ai-processing'},
+    });
+    await session.call({
+      toolId: 'set_custom_field',
+      arguments: {
+        task_id: 'TASK-1',
+        custom_task_id: true,
+        field_id: 'field-1',
+        value: 1800000000000,
+        value_options: {time: true},
+      },
+    });
+    await session.call({
+      toolId: 'set_custom_field',
+      arguments: {task_id: 'task-1', field_id: 'field-2', value: ['label-1', 'label-2']},
+    });
+
+    expect(addTagResult).toEqual({
+      content: [{type: 'text', text: JSON.stringify({})}],
+      structuredContent: {},
+    });
+    expect(options.clickup.request).toHaveBeenNthCalledWith(1, {
+      accessToken: 'access-token',
+      teamId: 'team-1',
+      method: 'POST',
+      path: '/task/TASK-1/tag/ai%20done%20%F0%9F%9A%80%2Fx',
+      query: {custom_task_ids: true, team_id: 'team-1'},
+      operation: 'add_tag',
+    });
+    expect(options.clickup.request).toHaveBeenNthCalledWith(2, {
+      accessToken: 'access-token',
+      teamId: 'team-1',
+      method: 'DELETE',
+      path: '/task/task-1/tag/ai-processing',
+      query: {},
+      operation: 'remove_tag',
+    });
+    expect(options.clickup.request).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        method: 'POST',
+        path: '/task/TASK-1/field/field-1',
+        query: {custom_task_ids: true, team_id: 'team-1'},
+        body: {value: 1800000000000, value_options: {time: true}},
+      }),
+    );
+    expect(options.clickup.request).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        method: 'POST',
+        path: '/task/task-1/field/field-2',
+        query: {},
+        body: {value: ['label-1', 'label-2']},
+      }),
+    );
+  });
+
   it('maps provider, validation, access, rate-limit, server, and timeout errors', async () => {
     const cases = [
       ['access-denied', 'Access denied', undefined],
@@ -376,6 +449,32 @@ describe('ClickUpAgentToolsProvider', () => {
         'create_task',
         {list_id: 'list-1', name: 'Task', notify_all: true},
         'Parameter notify_all must be false',
+      ],
+      ['add_tag', {task_id: 'task-1', tag_name: 7}, 'Parameter tag_name must be a string'],
+      [
+        'set_custom_field',
+        {task_id: 'task-1', field_id: 'field-1'},
+        'Missing required parameter: value',
+      ],
+      [
+        'set_custom_field',
+        {task_id: 'task-1', field_id: 'field-1', value: 'x', value_options: true},
+        'Parameter value_options must be an object',
+      ],
+      [
+        'set_custom_field',
+        {task_id: 'task-1', field_id: 'field-1', value: null},
+        'Parameter value must be one of: string, number, boolean, array, object',
+      ],
+      [
+        'set_custom_field',
+        {task_id: 'task-1', field_id: 'field-1', value: 'x', value_options: {time: 'yes'}},
+        'Parameter value_options.time must be a boolean',
+      ],
+      [
+        'set_custom_field',
+        {task_id: 'task-1', field_id: 'field-1', value: 'x', value_options: {foo: 1}},
+        'Unknown parameter: value_options.foo',
       ],
     ] as const;
 
