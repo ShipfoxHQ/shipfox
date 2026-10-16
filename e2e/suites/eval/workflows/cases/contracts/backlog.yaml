@@ -1,2 +1,12 @@
-ceiling: 0
-entries: []
+ceiling: 10
+entries:
+  - {tool: jam.getConsoleLogs, kind: read, issue: ENG-3099}
+  - {tool: jam.getDetails, kind: read, issue: ENG-3099}
+  - {tool: jam.getFrames, kind: read, issue: ENG-3099}
+  - {tool: jam.getMetadata, kind: read, issue: ENG-3099}
+  - {tool: jam.getNetworkRequests, kind: read, issue: ENG-3099}
+  - {tool: jam.getScreenshots, kind: read, issue: ENG-3099}
+  - {tool: jam.getUserEvents, kind: read, issue: ENG-3099}
+  - {tool: jam.getVideoChapters, kind: read, issue: ENG-3099}
+  - {tool: jam.getVideoTranscript, kind: read, issue: ENG-3099}
+  - {tool: jam.searchJams, kind: read, issue: ENG-3099}

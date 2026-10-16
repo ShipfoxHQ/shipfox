@@ -13,8 +13,9 @@ const NAME_PATTERN = /^[a-z][a-z0-9_]*$/u;
 const FIELD_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 // A path into a tool result, such as `messages[0].reactions`.
 const PATH_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(\[\d+\])*(\.[A-Za-z_][A-Za-z0-9_]*(\[\d+\])*)*$/u;
-// Tool names are the catalog's: `issue_read` for most providers, `execute-sql` for PostHog.
-const TOOL_PATTERN = /^[a-z][a-z0-9_-]*$/u;
+// Tool names are the catalog's: `issue_read` for most providers, `execute-sql` for PostHog,
+// `getDetails` for Jam.
+const TOOL_PATTERN = /^[a-z][A-Za-z0-9_-]*$/u;
 const ERROR_CODE_PATTERN = /^[a-z][a-z0-9-]*$/u;
 const ISSUE_PATTERN = /^[A-Z]+-\d+$/u;
 
@@ -227,7 +228,7 @@ export type SandboxManifest = z.infer<typeof sandboxManifestSchema>;
 const backlogEntrySchema = z
   .object({
     // `<provider>.<tool>`, such as `linear.save_issue`.
-    tool: z.string().regex(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_-]*$/u, 'must read `provider.tool`'),
+    tool: z.string().regex(/^[a-z][a-z0-9_]*\.[a-z][A-Za-z0-9_-]*$/u, 'must read `provider.tool`'),
     method: nameSchema.optional(),
     kind: z.enum(BACKLOG_KINDS),
     // The Linear issue of the unit that adds the case.
