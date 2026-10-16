@@ -1,5 +1,72 @@
 # @shipfox/api-auth
 
+## 34.0.0
+
+### Major Changes
+
+- 7ea02c4: Makes the impersonation window reason optional. A window starts without a reason, and an owner can stop another administrator's window without one. The legacy `POST /:userId/impersonate` route still requires a reason. A reason that a client still sends is stored. The `reason` field is nullable on window responses and administration action events, so consumers must handle `null`. Removes the `impersonation-stop-reason-required` error code, `impersonationStopReasonRequiredErrorSchema`, and `ImpersonationStopReasonRequiredError`. Reasons on role grant, role revoke, and suspension are unchanged. Windows created before this change keep their reason.
+- 8b8b37b: Targets impersonation windows at a workspace and keeps the administrator's own identity. `POST /admin/auth/impersonation/windows` takes `workspace_id` instead of `target_user_id` and `required_workspace_id`. The window token's `sub` is the administrator and its only membership is the window's workspace with role `admin`; start, idempotent replay, and continuation mint it through one helper that re-checks the operator role and the workspace state. A suspended, deleted, or missing workspace returns `409 impersonation-workspace-not-active`, which replaces `impersonation-target-not-workspace-member` and `impersonationTargetNotWorkspaceMemberErrorSchema`. Window start and continue responses carry `workspace_id`. Window summaries carry a nullable `workspace_id`, and `target` is now nullable. The `impersonatorId` token claim may equal `sub`. A window opened before this change has no workspace and returns `impersonation-window-stopped` on continuation. The legacy `POST /:userId/impersonate` route is unchanged. The client shell treats `impersonation-workspace-not-active` as a terminal continuation error.
+
+### Minor Changes
+
+- eadd377: Serves `get_step_log_download` on the admin MCP endpoint `POST /mcp/admin`. The download token minted there carries the administrator's impersonation window in the new optional `impersonationWindowId` claim, which `mintAgentLogDownloadToken` now accepts. Each download with such a token checks for an active grant, the `admin-operator` role, and that window still open on the token's workspace. These checks replace the grant-workspace and membership checks. Stopping the window or reaching its deadline rejects further downloads with `401`.
+- 6e53525: Adds `startImpersonationWindow`, `stopImpersonationWindow`, and `findOpenImpersonationWindow` to the Auth inter-module contract. Each re-checks the actor's `admin-operator` role and returns window metadata only, never a token. Start and stop keep the browser's audit events, idempotency keys, and rate limits.
+- 8a926dc: Adds an email-based user summary lookup to the Auth inter-module contract.
+- f432fd2: The job heartbeat renews step-scoped lease tokens, so a runner can hold one token per running step next to its job token.
+
+  - **Heartbeat:** the request body accepts `step_lease_tokens`, up to `HEARTBEAT_STEP_LEASE_TOKENS_MAX` (64). The response returns `step_lease_tokens`, a renewed token with its `step_id` and `attempt` for each valid token of the lease. A token from another job execution or runner session, or one without a step scope, is left out. The response schema reads a missing `step_lease_tokens` as an empty list.
+  - **Auth contract:** `renewStepLeaseTokens` re-mints step-scoped job lease tokens of one job execution and runner session with the same claims and a fresh expiry.
+
+- 4c8f870: Users can store an optional given name and family name next to their display name.
+
+  - **Signup:** `POST /auth/signup` accepts optional `given_name` and `family_name`.
+  - **Provisioning:** `provisionUser` accepts optional `givenName` and `familyName`, for providers that return them as separate claims.
+  - **Responses:** `UserDto` includes `given_name` and `family_name`, which are `null` when unknown.
+  - **Events:** `auth.user.signed_up` carries `givenName` and `familyName` when they are set.
+
+- 89a6cc7: Exposes the workspace slug to server modules. The workspace summary now returns the slug, and each membership in the user token carries an optional `workspaceSlug` claim. Tokens issued before this release stay valid without the claim.
+
+### Patch Changes
+
+- d764315: Signing in again to an app that already has an agent grant no longer revokes the refresh token other client processes hold. The old token is marked rotated and keeps returning access tokens until its own expiry, so a new sign-in from another project or machine no longer logs the others out. Grant cleanup now counts rotated refresh tokens that have not expired as usable.
+- d865fc1: Stops revoking agent grants when a rotated refresh token is replayed. A rotated token now keeps returning access tokens, without a new refresh token, until its own expiry, so several client processes sharing one sign-in no longer log each other out. Disconnecting the app and the 30-day sign-in cap still end access.
+- cab2d1e: Caps agent sign-ins at 30 days from the last consent. Refresh tokens issued on an agent grant now expire no later than 30 days after the user last approved the connection, and approving again resets the clock. Existing grants get 30 days from the migration.
+- eb81791: The Auth `stopImpersonationWindow` method now ends every open window the actor has on the workspace, each with its own stop audit event. Before, it ended only the newest one, so an older window kept the workspace open to the admin MCP endpoint. The browser stop route still stops by window ID.
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- 7e0041d: Keeps a browser session signed in when a refresh response never reaches the browser, and limits refresh-token reuse revocation to the affected session.
+- Updated dependencies [eadd377]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [8a926dc]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [f432fd2]
+- Updated dependencies [465a5eb]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [c06262b]
+- Updated dependencies [a32c90c]
+- Updated dependencies [4c8f870]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-email@0.4.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/node-tokens@1.2.2
+  - @shipfox/api-email-challenges@1.1.21
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-mailer@0.2.8
+
 ## 29.1.0
 
 ### Minor Changes

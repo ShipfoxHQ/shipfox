@@ -1,5 +1,106 @@
 # @shipfox/api-runners
 
+## 34.0.0
+
+### Minor Changes
+
+- a2fbdd3: Expires pending job executions atomically relative to claims, so an execution is never expired after a runner has claimed it; late or repeated enqueues of an already-handled execution are ignored.
+- f432fd2: The job heartbeat renews step-scoped lease tokens, so a runner can hold one token per running step next to its job token.
+
+  - **Heartbeat:** the request body accepts `step_lease_tokens`, up to `HEARTBEAT_STEP_LEASE_TOKENS_MAX` (64). The response returns `step_lease_tokens`, a renewed token with its `step_id` and `attempt` for each valid token of the lease. A token from another job execution or runner session, or one without a step scope, is left out. The response schema reads a missing `step_lease_tokens` as an empty list.
+  - **Auth contract:** `renewStepLeaseTokens` re-mints step-scoped job lease tokens of one job execution and runner session with the same claims and a fresh expiry.
+
+- b64fff6: Records capacity holds for managed installation runners when the provisioning policy sets `placement`, so each runner counts against its workspace until it stops. Adds the `getWorkspaceCapacityUsage` inter-module read and the `GET /admin/runners/workspaces/:workspaceId/capacity` admin route. Holds do not refuse claims yet.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- 0b661c9: Runners report their operating system and architecture at registration through a required `platform` field, and the Runners module stores it on the runner session. Adds the `getRunnerSessionPlatform` inter-module read.
+- 6ae0088: Removes nine `RUNNER_TERMINATION_REASON_*_ENABLED` settings: registration deadline, activation timeout, runner unresponsive, lease expired, session exhausted, provider health failed, job cancelled, job timeout, and terminal state. The API always authorizes these terminations. `RUNNER_TERMINATION_REASON_STOPPING_TIMEOUT_ENABLED` stays and still defaults to `false`.
+
+  Self-hosted installs that left the five reasons that defaulted to `false` unset now get them enabled: registration deadline, runner unresponsive, lease expired, session exhausted, and provider health failed. Remove the nine settings from your API environment; leaving them set is harmless.
+
+  Before upgrading, note that lease-expired authorization is now always on. Upgrade or drain the heartbeat, lease-expiry maintenance, and runner-reconciliation replicas together, because the old heartbeat lock order is not compatible with the session-first order in a mixed-version rollout.
+
+- 7e4deaa: Accepts `templateOrder: 'smallest'` in the installation placement policy, which sends an unsized job to the template with the fewest units before falling back to the default order.
+
+### Patch Changes
+
+- 1f218c4: Treats every runner as able to renew Git and managed inference credentials. The runner capability manifest no longer has `features`, and `runnerFeaturesSchema` and `RunnerFeaturesDto` are removed. Registration still accepts a `features` key from older runner images and ignores it. `ManagedModelProvider.resolveCredentials` no longer receives `renewableInference`, and `RUNNER_CAPABILITY_REQUIRED_ERROR_CODE` with its `runner-capability-required` error is removed. A composing application must stop using both and always issue renewable credentials. The API no longer writes the "Renewable Git credentials are unavailable on this runner" annotation.
+- 526bb18: Remove the `RUNNER_CORRELATED_STALE_LEASE_MODE` setting and its shadow mode. The correlated stale-lease circuit breaker now always defers lease expiry during a suspected outage, which was the default. The `runners_job_lease_expiry_shadow` metric is gone with it.
+- c06262b: Registration from a runner that predates capability negotiation returns a `runner-upgrade-required` code with an upgrade message. Runner assignment long polls trace only their first read.
+- Updated dependencies [af0e24b]
+- Updated dependencies [eadd377]
+- Updated dependencies [7d20d04]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [1f218c4]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [8a926dc]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [c4f486b]
+- Updated dependencies [9d7c039]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2d009f4]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [205afb5]
+- Updated dependencies [a73e712]
+- Updated dependencies [f432fd2]
+- Updated dependencies [b64fff6]
+- Updated dependencies [f769d90]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [2c36559]
+- Updated dependencies [0b661c9]
+- Updated dependencies [395e11d]
+- Updated dependencies [a429987]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [a32c90c]
+- Updated dependencies [4c8f870]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-tokens@1.2.2
+  - @shipfox/node-drizzle@0.3.7
+
 ## 33.0.0
 
 ### Patch Changes

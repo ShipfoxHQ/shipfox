@@ -1,5 +1,24 @@
 # @shipfox/integration-icons
 
+## 0.6.0
+
+### Minor Changes
+
+- 0461349: Adds Claap connection setup and API key replacement to integrations, with the Claap logo.
+- 2c9838a: Adds the Discord logo as a `discord` icon and maps the `discord` provider to it.
+- 2b3aded: Adds Jam to integrations: connect a Jam workspace with a personal access token, see which Jam user the connection acts as, and replace its token. Integrations connected with a pasted credential now link to their settings page from the integration menu. Replacing the credential of an already connected integration now works when the page has not loaded that connection yet.
+- 7056182: Shows the Shipfox logo on Shipfox tool calls and Set Output rows in run activity.
+
+### Patch Changes
+
+- Updated dependencies [0461349]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2b3aded]
+- Updated dependencies [93b8cac]
+- Updated dependencies [cc70c3b]
+  - @shipfox/react-ui@3.4.0
+
 ## 0.5.2
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @shipfox/api-projects-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 7fddfc5: A checkout-token refusal for an explicit `checkout.project` names the repository when the project has a source owner and name. `resolveCheckoutTarget` returns both as `sourceRepositoryOwner` and `sourceRepositoryName`.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+  - @shipfox/api-common-dto@34.0.0
+
 ## 23.2.0
 
 ### Patch Changes

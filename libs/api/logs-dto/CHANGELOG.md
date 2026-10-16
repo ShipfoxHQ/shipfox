@@ -1,5 +1,11 @@
 # @shipfox/api-logs-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 3aa5d7a: Adds a `tool_row` log record so a runner can append tool call and tool result rows to step logs. They read back as `agent_session` rows, like tool-step calls.
+
 ## 29.0.0
 
 ### Minor Changes

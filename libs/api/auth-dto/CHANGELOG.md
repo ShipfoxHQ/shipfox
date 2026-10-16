@@ -1,5 +1,34 @@
 # @shipfox/api-auth-dto
 
+## 34.0.0
+
+### Major Changes
+
+- 7ea02c4: Makes the impersonation window reason optional. A window starts without a reason, and an owner can stop another administrator's window without one. The legacy `POST /:userId/impersonate` route still requires a reason. A reason that a client still sends is stored. The `reason` field is nullable on window responses and administration action events, so consumers must handle `null`. Removes the `impersonation-stop-reason-required` error code, `impersonationStopReasonRequiredErrorSchema`, and `ImpersonationStopReasonRequiredError`. Reasons on role grant, role revoke, and suspension are unchanged. Windows created before this change keep their reason.
+- 8b8b37b: Targets impersonation windows at a workspace and keeps the administrator's own identity. `POST /admin/auth/impersonation/windows` takes `workspace_id` instead of `target_user_id` and `required_workspace_id`. The window token's `sub` is the administrator and its only membership is the window's workspace with role `admin`; start, idempotent replay, and continuation mint it through one helper that re-checks the operator role and the workspace state. A suspended, deleted, or missing workspace returns `409 impersonation-workspace-not-active`, which replaces `impersonation-target-not-workspace-member` and `impersonationTargetNotWorkspaceMemberErrorSchema`. Window start and continue responses carry `workspace_id`. Window summaries carry a nullable `workspace_id`, and `target` is now nullable. The `impersonatorId` token claim may equal `sub`. A window opened before this change has no workspace and returns `impersonation-window-stopped` on continuation. The legacy `POST /:userId/impersonate` route is unchanged. The client shell treats `impersonation-workspace-not-active` as a terminal continuation error.
+
+### Minor Changes
+
+- eadd377: Serves `get_step_log_download` on the admin MCP endpoint `POST /mcp/admin`. The download token minted there carries the administrator's impersonation window in the new optional `impersonationWindowId` claim, which `mintAgentLogDownloadToken` now accepts. Each download with such a token checks for an active grant, the `admin-operator` role, and that window still open on the token's workspace. These checks replace the grant-workspace and membership checks. Stopping the window or reaching its deadline rejects further downloads with `401`.
+- 6e53525: Adds `startImpersonationWindow`, `stopImpersonationWindow`, and `findOpenImpersonationWindow` to the Auth inter-module contract. Each re-checks the actor's `admin-operator` role and returns window metadata only, never a token. Start and stop keep the browser's audit events, idempotency keys, and rate limits.
+- 8a926dc: Adds an email-based user summary lookup to the Auth inter-module contract.
+- f432fd2: The job heartbeat renews step-scoped lease tokens, so a runner can hold one token per running step next to its job token.
+
+  - **Heartbeat:** the request body accepts `step_lease_tokens`, up to `HEARTBEAT_STEP_LEASE_TOKENS_MAX` (64). The response returns `step_lease_tokens`, a renewed token with its `step_id` and `attempt` for each valid token of the lease. A token from another job execution or runner session, or one without a step scope, is left out. The response schema reads a missing `step_lease_tokens` as an empty list.
+  - **Auth contract:** `renewStepLeaseTokens` re-mints step-scoped job lease tokens of one job execution and runner session with the same claims and a fresh expiry.
+
+- 4c8f870: Users can store an optional given name and family name next to their display name.
+
+  - **Signup:** `POST /auth/signup` accepts optional `given_name` and `family_name`.
+  - **Provisioning:** `provisionUser` accepts optional `givenName` and `familyName`, for providers that return them as separate claims.
+  - **Responses:** `UserDto` includes `given_name` and `family_name`, which are `null` when unknown.
+  - **Events:** `auth.user.signed_up` carries `givenName` and `familyName` when they are set.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+  - @shipfox/api-common-dto@34.0.0
+
 ## 29.1.0
 
 ### Minor Changes

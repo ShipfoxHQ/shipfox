@@ -1,5 +1,88 @@
 # @shipfox/runner-agent
 
+## 0.2.51
+
+### Patch Changes
+
+- c8e0869: Adds a `not-found` integration provider error reason. The tool gateway keeps it as the tool call error code instead of `unknown`, and does not report it as an unexpected failure. Linear tool errors for a missing record, or one the token cannot see, now carry it.
+- Updated dependencies [af0e24b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [7d20d04]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [1f218c4]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [c4f486b]
+- Updated dependencies [c25c566]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [2e5a311]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [3b63397]
+- Updated dependencies [b76c004]
+- Updated dependencies [0b661c9]
+- Updated dependencies [dc8065c]
+- Updated dependencies [39c5466]
+- Updated dependencies [205afb5]
+- Updated dependencies [a73e712]
+- Updated dependencies [f432fd2]
+- Updated dependencies [b64fff6]
+- Updated dependencies [f769d90]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [e40ec8b]
+- Updated dependencies [e560f69]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [2c36559]
+- Updated dependencies [9906470]
+- Updated dependencies [9d7c039]
+- Updated dependencies [0b661c9]
+- Updated dependencies [395e11d]
+- Updated dependencies [42829e8]
+- Updated dependencies [3f1363c]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [96ac908]
+- Updated dependencies [651153a]
+- Updated dependencies [901e5b3]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [0b2af13]
+- Updated dependencies [3c8db4c]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [70e6983]
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/expression@2.12.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/runner-protocol@0.2.57
+  - @shipfox/runner-execution@0.1.64
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/runner-workspace@0.0.59
+  - @shipfox/runner-container@0.0.1
+
 ## 0.2.50
 
 ### Patch Changes

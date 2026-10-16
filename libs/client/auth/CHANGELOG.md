@@ -1,5 +1,58 @@
 # @shipfox/client-auth
 
+## 53.0.0
+
+### Minor Changes
+
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- c2f006c: The client reads the server's login methods, so visitors on a server without password login no longer reach password pages that cannot submit.
+
+  - **`@shipfox/client-shell`:** `/runtime` exports `loginMethodsQueryOptions()` and `prefetchLoginMethods()` for `GET /auth/login-methods`, and `usePasswordLoginAvailability()`, which returns `pending`, `available`, or `unavailable`. It stays `pending` while the lookup retries or waits offline. A lookup that still fails counts as `available`, which keeps the password pages.
+  - **`@shipfox/client-auth`:** without password login, the login page hides the password form and its **Forgot password?** and **Create an account** links, and `/auth/signup` and `/auth/reset` redirect to `/auth/login`, keeping `redirect`.
+  - **`@shipfox/client-invitations`:** without password login, a signed-out invitee sees one **Continue** button to the login page instead of **Create account** and **I already have an account**.
+
+- Updated dependencies [eadd377]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [8a926dc]
+- Updated dependencies [0461349]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [2c89020]
+- Updated dependencies [f432fd2]
+- Updated dependencies [c2f006c]
+- Updated dependencies [2b3aded]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a328042]
+- Updated dependencies [bea7e50]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [4c8f870]
+- Updated dependencies [c3768b2]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-invitations@53.0.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes
