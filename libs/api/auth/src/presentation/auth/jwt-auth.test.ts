@@ -387,6 +387,7 @@ describe('span context', () => {
     spanApp.setSerializerCompiler(serializerCompiler);
     spanApp.decorateRequest('opentelemetry', () => ({
       enabled: true,
+      instrumented: true,
       span,
       tracer: trace.getTracer('test'),
       context: contextWithMetadata({}),

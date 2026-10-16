@@ -293,6 +293,7 @@ take part in numeric equality.
 | TanStack Router | `@tanstack/react-router`, `@tanstack/router-core`, `@tanstack/router-plugin` | No. | No. | Group only. |
 | Argos CI | `@argos-ci/cli`, `@argos-ci/playwright`, `@argos-ci/storybook` | No. | No. | Group only. |
 | Vite | `vite`, `@vitejs/plugin-react` | No. | No. | Group only. |
+| pi | `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `pi-web-access` | No. | No. | Exact. |
 
 A complete-release family uses `minimumGroupSize` equal to the number of listed
 members. A grouped-only family has no minimum. One available member cannot block

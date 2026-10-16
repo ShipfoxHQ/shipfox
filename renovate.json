@@ -102,6 +102,13 @@
       "rangeStrategy": "bump"
     },
     {
+      "description": "The runner agent drives pi through its SDK and extensions, and pi releases change that API. Review pi and its extensions on their own, with the runner agent tests, instead of inside the grouped patch and minor update.",
+      "groupName": "pi",
+      "groupSlug": "pi",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@earendil-works/pi-*", "pi-web-access"]
+    },
+    {
       "description": "pi-mcp-adapter carries a pnpm patch keyed to its exact version, so an update without a ported patch fails pnpm install with ERR_PNPM_UNUSED_PATCH. Update it by hand together with patches/pi-mcp-adapter@<version>.patch.",
       "enabled": false,
       "matchManagers": ["npm"],

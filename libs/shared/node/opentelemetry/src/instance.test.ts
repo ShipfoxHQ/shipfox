@@ -18,7 +18,7 @@ beforeEach(() => {
   sdk = new NodeSDK({
     autoDetectResources: false,
     instrumentations: [instrumentation],
-    logRecordProcessors: [new SimpleLogRecordProcessor(exporter)],
+    logRecordProcessors: [new SimpleLogRecordProcessor({exporter})],
     metricReaders: [],
     resource: resourceFromAttributes({'service.name': 'telemetry-test'}),
     spanProcessors: [],
