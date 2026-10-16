@@ -12,7 +12,7 @@ steps:
         repository:
           pullRequest:
             reviewThreads:
-              nodes: [{id: string, isResolved: boolean, path: string}]
+              nodes: [{id: string, isResolved: boolean, isOutdated: boolean, path: string}]
               pageInfo: {hasNextPage: boolean}
       includes:
         repository.pullRequest.reviewThreads.nodes: {isResolved: true, path: fixtures/notes.md}

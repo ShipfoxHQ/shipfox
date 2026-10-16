@@ -89,6 +89,8 @@ export interface GithubReviewThreadFixture {
   /** `LEFT` or `RIGHT`. Defaults to `RIGHT`. */
   side?: string | undefined;
   isResolved?: boolean | undefined;
+  /** A later push changed the code under the thread. GitHub then reports `line` only as `originalLine`. */
+  isOutdated?: boolean | undefined;
   /** In posting order. The first comment starts the thread. */
   comments: GithubReviewCommentFixture[];
 }
@@ -872,13 +874,19 @@ function reviewThreadPayload(
   id: string,
   thread: GithubReviewThreadFixture,
 ): Record<string, unknown> {
+  const isOutdated = thread.isOutdated ?? false;
+  const originalLine = thread.line ?? null;
+  const line = isOutdated ? null : originalLine;
   return {
     id,
     isResolved: thread.isResolved ?? false,
+    isOutdated,
     path: thread.path,
-    line: thread.line ?? null,
+    line,
+    originalLine,
     diffSide: thread.side ?? 'RIGHT',
     startLine: null,
+    originalStartLine: null,
     startDiffSide: null,
     comments: {
       nodes: thread.comments.map((comment) => ({
@@ -887,7 +895,7 @@ function reviewThreadPayload(
         body: comment.body,
         author: {login: comment.author},
         path: thread.path,
-        line: thread.line ?? null,
+        line,
         startLine: null,
         createdAt: FIXTURE_TIMESTAMP,
         updatedAt: FIXTURE_TIMESTAMP,

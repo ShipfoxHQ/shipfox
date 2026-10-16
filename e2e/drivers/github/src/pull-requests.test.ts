@@ -221,6 +221,53 @@ describe('GitHub API mock pull requests', () => {
     }
   });
 
+  it('reports outdated review threads by their original line', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+
+    try {
+      mock.pullRequests.set(3, {repository: 'acme/app', ref: 'feature', sha: 'c'.repeat(40)});
+      mock.reviewThreads.set('PRRT_current', {
+        pullNumber: 3,
+        path: 'src/report.ts',
+        line: 4,
+        comments: [{id: 11, body: 'Rename the flag.', author: 'reviewer'}],
+      });
+      mock.reviewThreads.set('PRRT_outdated', {
+        pullNumber: 3,
+        path: 'src/report.ts',
+        line: 9,
+        isOutdated: true,
+        comments: [{id: 12, body: 'Drop the cast.', author: 'reviewer'}],
+      });
+
+      const response = await fetch(new URL('/graphql', mock.endpoint), {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify({
+          query: 'query GetPullRequestReviewThreads { reviewThreads { nodes { id } } }',
+          variables: {owner: 'acme', repo: 'app', pullNumber: 3},
+        }),
+      });
+
+      await expect(response.json()).resolves.toMatchObject({
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: [
+                  {id: 'PRRT_current', isOutdated: false, line: 4, originalLine: 4},
+                  {id: 'PRRT_outdated', isOutdated: true, line: null, originalLine: 9},
+                ],
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('records issue comments on a pull request', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
     const comment = (body: Record<string, unknown>) =>

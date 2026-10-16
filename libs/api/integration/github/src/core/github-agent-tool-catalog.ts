@@ -284,7 +284,7 @@ const pullRequestReadMethods = [
   ),
   method(
     'get_review_threads',
-    'Get review threads, their resolution state, and comments for a specific pull request.',
+    'Get review threads, their resolution and outdated state, and comments for a specific pull request.',
     'read',
     false,
     scopes.pullRequestsRead,

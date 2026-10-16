@@ -563,7 +563,7 @@ export interface ProviderToolCatalog {
       structured: GithubPullRequestReadResult;
     };
     /**
-     * Get review threads, their resolution state, and comments for a specific pull request.
+     * Get review threads, their resolution and outdated state, and comments for a specific pull request.
      */
     'pull_request_read.get_review_threads': {
       arguments: GithubPullRequestReadGetReviewThreadsArguments;
