@@ -3,6 +3,7 @@ import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {createApiClient, RecordedWrite} from '@shipfox/e2e-core';
+import {type ClaapMockSeed, seedClaapMock} from '@shipfox/e2e-driver-claap';
 import {type ClickUpTaskFixture, startClickUpApiMock} from '@shipfox/e2e-driver-clickup';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import type {
@@ -24,6 +25,7 @@ import {
   startSlackApiMock,
 } from '@shipfox/e2e-driver-slack';
 import {
+  createClaapConnection,
   createClickUpConnection,
   createDiscordConnection,
   createJamConnection,
@@ -1153,6 +1155,77 @@ export const jamContractFake: ContractFakeAdapter = async ({workspaceId, uniqueI
 };
 
 /**
+ * Claap, whose fake the harness runs for the whole stack and answers by API key. `seed` gives a
+ * key of the adapter's the sandbox workspace and recordings, then connects the workspace with it.
+ * The connection waits for `seed` because it needs the sandbox's Claap workspace: a share URL
+ * names its workspace, and Shipfox refuses one from another. Claap is read-only for Shipfox.
+ */
+export const claapContractFake: ContractFakeAdapter = ({workspaceId, uniqueId}) => {
+  const apiKey = `cla_contracts_${uniqueId}`;
+  let connectionSlug: string | undefined;
+  return Promise.resolve({
+    get connectionSlug() {
+      if (connectionSlug === undefined) throw new Error('The Claap fake connects in `seed`.');
+      return connectionSlug;
+    },
+    seed: async (fixtures) => {
+      const seed = claapSeed(fixtures);
+      await seedClaapMock({apiKey, seed});
+      const connection = await createClaapConnection({
+        workspaceId,
+        apiKey,
+        claapWorkspaceId: seed.workspace.workspaceId,
+        claapWorkspaceName: seed.workspace.name,
+      });
+      connectionSlug = connection.slug;
+    },
+    writes: () => [],
+  });
+};
+
+// The sandbox fixtures that are recordings. Only `summary_recording` has a summary.
+const CLAAP_RECORDING_FIXTURES = ['recording', 'summary_recording'] as const;
+
+/**
+ * The Claap fake's seed from the sandbox fixtures: the `workspace`, and each recording fixture,
+ * whose `speaker` says its `speech`. The summary is one point in Claap's Markdown, linked to the
+ * start of the recording.
+ */
+export function claapSeed(fixtures: SandboxFixtures): ClaapMockSeed {
+  const required = (fixtureName: string, name: string): string => {
+    const fixture = fixtures[fixtureName];
+    if (fixture === undefined)
+      throw new Error(`The claap sandbox has no "${fixtureName}" fixture.`);
+    return String(requiredField({provider: 'claap', fixture, fixtureName, name}));
+  };
+  return {
+    workspace: {workspaceId: required('workspace', 'id'), name: required('workspace', 'name')},
+    recordings: CLAAP_RECORDING_FIXTURES.flatMap((fixtureName) => {
+      const fixture = fixtures[fixtureName];
+      if (fixture === undefined) return [];
+      const title = required(fixtureName, 'title');
+      const speaker = field({fixture, name: 'speaker'});
+      const speech = field({fixture, name: 'speech'});
+      return [
+        {
+          recordingId: required(fixtureName, 'id'),
+          title,
+          url: required(fixtureName, 'url'),
+          createdAt: required(fixtureName, 'created_at'),
+          transcript:
+            speaker === undefined || speech === undefined
+              ? []
+              : [{speaker: String(speaker), text: String(speech)}],
+          ...(fixtureName === 'summary_recording'
+            ? {summary: {markdown: `- ${title} %[00:00]()`, state: 'Ready'}}
+            : {}),
+        },
+      ];
+    }),
+  };
+}
+
+/**
  * Linear, with its own fake and a connection to it. The fake replays the calls recorded from the
  * sandbox workspace, one text block each as the hosted MCP sends them, for the sandbox fixtures
  * the read cases name. The recordings hold the fixtures' ids and fields, so `seed` has nothing
@@ -1198,6 +1271,7 @@ export const CONTRACT_FAKE_ADAPTERS: Readonly<Record<string, ContractFakeAdapter
   notion: notionContractFake,
   posthog: posthogContractFake,
   jam: jamContractFake,
+  claap: claapContractFake,
   slack: slackContractFake,
   jira: jiraContractFake,
   linear: linearContractFake,

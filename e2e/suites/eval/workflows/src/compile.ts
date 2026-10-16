@@ -1,7 +1,9 @@
 import {resolve} from 'node:path';
 import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import {E2eApiError, preflightCheck} from '@shipfox/e2e-core';
+import {seedClaapMock} from '@shipfox/e2e-driver-claap';
 import {
+  createClaapConnection,
   createClickUpConnection,
   createDiscordConnection,
   createJamConnection,
@@ -300,6 +302,20 @@ async function createProviderConnection({
           displayName: `Eval Notion ${uniqueId}`,
         })
       ).slug;
+    case 'claap': {
+      // The fake rejects a key it has no seed for, so the connection's key gets its workspace.
+      const apiKey = `cla_eval_${uniqueId}`;
+      const workspace = {workspaceId: `eval${uniqueId}`, name: `Eval Claap ${uniqueId}`};
+      await seedClaapMock({apiKey, seed: {workspace, recordings: []}});
+      return (
+        await createClaapConnection({
+          workspaceId,
+          apiKey,
+          claapWorkspaceId: workspace.workspaceId,
+          claapWorkspaceName: workspace.name,
+        })
+      ).slug;
+    }
     case 'jam':
       return (
         await createJamConnection({

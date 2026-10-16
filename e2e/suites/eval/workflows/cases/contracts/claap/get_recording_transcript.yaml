@@ -1,0 +1,12 @@
+provider: claap
+modes: [real, fake]
+steps:
+  - tool: get_recording_transcript
+    with:
+      recordingUrl: $fixture.claap.recording.url
+    expect:
+      shape:
+        transcript: string
+      matches:
+        # One `Speaker: text` line per turn, with the accents intact.
+        transcript: '^$fixture.claap.recording.speaker: $fixture.claap.recording.speech'

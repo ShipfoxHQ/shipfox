@@ -1,0 +1,9 @@
+provider: claap
+modes: [real, fake]
+steps:
+  - tool: list_workspaces
+    expect:
+      shape:
+        workspaces: [{workspaceId: string, name: string}]
+      values:
+        workspaces[0].workspaceId: $fixture.claap.workspace.id

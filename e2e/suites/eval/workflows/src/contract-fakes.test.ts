@@ -6,11 +6,17 @@ import type {createApiClient} from '@shipfox/e2e-core';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import {type GithubApiMock, startGithubApiMock} from '@shipfox/e2e-driver-github';
 import {type JiraApiMock, startJiraApiMock} from '@shipfox/e2e-driver-jira';
-import {createJamConnection, createPosthogConnection} from '@shipfox/e2e-setup-integrations';
+import {
+  createClaapConnection,
+  createJamConnection,
+  createPosthogConnection,
+} from '@shipfox/e2e-setup-integrations';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   CONTRACT_FAKE_ADAPTERS,
   type ContractFakeContext,
+  claapContractFake,
+  claapSeed,
   clickupContractFake,
   createJiraContractFake,
   discordContractFake,
@@ -71,8 +77,11 @@ vi.mock('@shipfox/e2e-driver-notion', async (importOriginal) => {
 });
 const {seedPosthogMock} = vi.hoisted(() => ({seedPosthogMock: vi.fn()}));
 vi.mock('@shipfox/e2e-driver-posthog', () => ({seedPosthogMock}));
+const {seedClaapMock} = vi.hoisted(() => ({seedClaapMock: vi.fn()}));
+vi.mock('@shipfox/e2e-driver-claap', () => ({seedClaapMock}));
 vi.mock('@shipfox/e2e-setup-integrations', () => ({
   createJamConnection: vi.fn(() => Promise.resolve({id: 'connection-7', slug: 'jam_fake'})),
+  createClaapConnection: vi.fn(() => Promise.resolve({id: 'connection-8', slug: 'claap_fake'})),
   createPosthogConnection: vi.fn(() => Promise.resolve({id: 'connection-5', slug: 'posthog_fake'})),
   createClickUpConnection: vi.fn(() => Promise.resolve({id: 'connection-2', slug: 'clickup_fake'})),
   createNotionConnection: vi.fn(() => Promise.resolve({id: 'connection-3', slug: 'notion_fake'})),
@@ -701,6 +710,119 @@ describe('jamContractFake', () => {
 
   it('is the adapter of the jam provider', () => {
     expect(CONTRACT_FAKE_ADAPTERS.jam).toBe(jamContractFake);
+  });
+});
+
+describe('claapContractFake', () => {
+  const fixtures: SandboxFixtures = {
+    workspace: {id: 'sandboxWs1', name: 'Sandbox'},
+    recording: {
+      id: 'frenchRec01',
+      title: 'Untitled',
+      url: 'https://app.claap.io/untitled-c-sandboxWs1-frenchRec01',
+      created_at: '2026-10-16',
+      speaker: 'Noé',
+      speech: 'Bonjour, enchanté.',
+    },
+    summary_recording: {
+      id: 'summaryRec1',
+      title: 'Demo',
+      url: 'https://app.claap.io/demo-c-sandboxWs1-summaryRec1',
+      created_at: '2026-10-15',
+    },
+  };
+
+  async function arrange() {
+    vi.clearAllMocks();
+    return await claapContractFake({
+      workspaceId: 'workspace',
+      uniqueId: 'unique',
+      github: {
+        mock: {} as GithubApiMock,
+        connectionId: 'connection-1',
+        connectionSlug: 'github_fake',
+      },
+      client: {} as ApiClient,
+      cleanups: [],
+    });
+  }
+
+  it('seeds a key with the sandbox, then connects the sandbox workspace with it', async () => {
+    const fake = await arrange();
+
+    await fake.seed(fixtures);
+
+    expect(seedClaapMock).toHaveBeenCalledWith({
+      apiKey: 'cla_contracts_unique',
+      seed: claapSeed(fixtures),
+    });
+    expect(createClaapConnection).toHaveBeenCalledWith({
+      workspaceId: 'workspace',
+      apiKey: 'cla_contracts_unique',
+      claapWorkspaceId: 'sandboxWs1',
+      claapWorkspaceName: 'Sandbox',
+    });
+    expect(fake.connectionSlug).toBe('claap_fake');
+    expect(fake.writes()).toEqual([]);
+  });
+
+  it('has no connection before it is seeded', async () => {
+    const fake = await arrange();
+
+    expect(() => fake.connectionSlug).toThrow('The Claap fake connects in `seed`.');
+  });
+
+  it('is the adapter of the claap provider', () => {
+    expect(CONTRACT_FAKE_ADAPTERS.claap).toBe(claapContractFake);
+  });
+});
+
+describe('claapSeed', () => {
+  it('turns the recording fixtures into recordings, and summarizes the summary recording', () => {
+    expect(
+      claapSeed({
+        workspace: {id: 'sandboxWs1', name: 'Sandbox'},
+        recording: {
+          id: 'frenchRec01',
+          title: 'Untitled',
+          url: 'https://app.claap.io/untitled-c-sandboxWs1-frenchRec01',
+          created_at: '2026-10-16',
+          speaker: 'Noé',
+          speech: 'Bonjour, enchanté.',
+        },
+        summary_recording: {
+          id: 'summaryRec1',
+          title: 'Demo',
+          url: 'https://app.claap.io/demo-c-sandboxWs1-summaryRec1',
+          created_at: '2026-10-15',
+        },
+      }),
+    ).toEqual({
+      workspace: {workspaceId: 'sandboxWs1', name: 'Sandbox'},
+      recordings: [
+        {
+          recordingId: 'frenchRec01',
+          title: 'Untitled',
+          url: 'https://app.claap.io/untitled-c-sandboxWs1-frenchRec01',
+          createdAt: '2026-10-16',
+          transcript: [{speaker: 'Noé', text: 'Bonjour, enchanté.'}],
+        },
+        {
+          recordingId: 'summaryRec1',
+          title: 'Demo',
+          url: 'https://app.claap.io/demo-c-sandboxWs1-summaryRec1',
+          createdAt: '2026-10-15',
+          transcript: [],
+          summary: {markdown: '- Demo %[00:00]()', state: 'Ready'},
+        },
+      ],
+    });
+  });
+
+  it('fails on a sandbox without a workspace name', () => {
+    expect(() => claapSeed({workspace: {id: 'sandboxWs1'}})).toThrow(
+      'The claap fixture "workspace" has no "name".',
+    );
   });
 });
 

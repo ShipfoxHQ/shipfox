@@ -4,6 +4,7 @@ const TEMPLATE_PREFIX = 'template:';
 const GENERIC_PROMPT = 'generic';
 // The docs page names providers the way people read them, so the prompt does too.
 const PROVIDER_LABELS: Record<string, string> = {
+  claap: 'Claap',
   clickup: 'ClickUp',
   discord: 'Discord',
   github: 'GitHub',

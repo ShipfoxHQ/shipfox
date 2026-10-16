@@ -1,0 +1,9 @@
+provider: claap
+kind: error
+modes: [real, fake]
+steps:
+  - tool: get_recording
+    with:
+      recordingId: $target.claap.missing_recording.id
+    expect:
+      error: unknown

@@ -1,0 +1,22 @@
+provider: claap
+modes: [real, fake]
+steps:
+  - tool: get_recordings
+    with:
+      filters:
+        recordingId: [$fixture.claap.recording.id]
+    expect:
+      shape:
+        total: number
+        recordings:
+          - recordingId: string
+            title: string
+            createdAt: string
+            url: string
+            people: list
+            speakers: list
+      values:
+        total: 1
+        recordings[0].recordingId: $fixture.claap.recording.id
+        recordings[0].title: $fixture.claap.recording.title
+        recordings[0].url: $fixture.claap.recording.url

@@ -1,0 +1,17 @@
+provider: claap
+modes: [real, fake]
+steps:
+  - tool: get_recording
+    with:
+      recordingId: $fixture.claap.summary_recording.id
+    expect:
+      shape:
+        recording: {recordingId: string, title: string, url: string}
+        summary: {markdown: string, state: string}
+      values:
+        recording.recordingId: $fixture.claap.summary_recording.id
+        recording.title: $fixture.claap.summary_recording.title
+        summary.state: Ready
+      matches:
+        # Claap links each point of a summary to its time in the recording.
+        summary.markdown: '%\[\d\d:\d\d\]\(\)'

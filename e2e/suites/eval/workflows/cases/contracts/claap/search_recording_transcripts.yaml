@@ -1,0 +1,15 @@
+provider: claap
+modes: [real, fake]
+steps:
+  - tool: search_recording_transcripts
+    with:
+      search:
+        query: $fixture.claap.recording.keyword
+        type: keyword
+    expect:
+      shape:
+        recordings: [{recordingId: string, url: string, chunks: [{chunkId: string, text: string}]}]
+      values:
+        recordings[0].recordingId: $fixture.claap.recording.id
+      matches:
+        recordings[0].chunks[0].text: $fixture.claap.recording.keyword

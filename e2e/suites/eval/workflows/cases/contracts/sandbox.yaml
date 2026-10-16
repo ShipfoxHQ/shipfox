@@ -596,6 +596,43 @@ posthog:
             id: $fixture.posthog.error_issue.id
   targets:
     missing_feature_flag: {kind: absent, id: 999999999}
+# The free "Sandbox" Claap workspace, connected with a default API key. Its one recording is a
+# short French call, too short for Claap to summarize. Claap adds two demo recordings to every new
+# workspace, and `summary_recording` is the one with a summary. The fake is seeded from these
+# fixtures: a recording's `speaker` says its `speech`, and a summary recording gets a summary.
+claap:
+  connection: claap_sandbox
+  fixtures:
+    workspace:
+      id: wziEDcImI2
+      name: Sandbox
+      read:
+        tool: list_workspaces
+        expect:
+          values:
+            workspaces[0].workspaceId: $fixture.claap.workspace.id
+    recording:
+      id: AoADYsUkilOe
+      title: Untitled
+      url: https://app.claap.io/untitled-c-wziEDcImI2-AoADYsUkilOe
+      created_at: '2026-10-16'
+      speaker: Noé Charmet
+      speech: Bonjour, je suis Noé, enchanté de vous rencontrer.
+      keyword: enchanté
+      read:
+        tool: get_recording
+        with: {recordingId: $fixture.claap.recording.id}
+        expect:
+          values:
+            recording.recordingId: $fixture.claap.recording.id
+    summary_recording:
+      id: EyTipbF5PWFN
+      title: How to record meetings with Claap
+      url: https://app.claap.io/how-to-record-meetings-with-claap-c-wziEDcImI2-EyTipbF5PWFN
+      created_at: '2026-10-16'
+  targets:
+    # Claap recording IDs are 12 letters and digits.
+    missing_recording: {kind: absent, id: AAAAAAAAAAAA}
 jira:
   connection: jira_shipfox_sandbox
   fixtures:
