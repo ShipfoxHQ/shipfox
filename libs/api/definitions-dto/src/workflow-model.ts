@@ -227,13 +227,37 @@ export interface WorkflowModelAgentRepositoryContext {
  * An `env` value with `${{ }}` interpolation also has a template under `templates`, filled at
  * dispatch or, for secrets, on the runner.
  */
-export interface WorkflowModelAgentMcpServer {
+export interface WorkflowModelAgentStdioMcpServer {
   readonly name: string;
   readonly command: string;
   readonly args: readonly string[];
   readonly env?: Readonly<Record<string, string>>;
   readonly include?: readonly string[];
   readonly templates?: {readonly env?: WorkflowEnvTemplates};
+}
+/**
+ * An MCP server that the user runs and the runner connects to over Streamable HTTP. `url` is
+ * literal; `headers` values are filled like stdio `env` values.
+ */
+export interface WorkflowModelAgentHttpMcpServer {
+  readonly name: string;
+  readonly url: string;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly include?: readonly string[];
+  readonly templates?: {readonly headers?: WorkflowEnvTemplates};
+}
+export type WorkflowModelAgentMcpServer =
+  | WorkflowModelAgentStdioMcpServer
+  | WorkflowModelAgentHttpMcpServer;
+/** The values a custom MCP server reads from the workflow: `env` for stdio, `headers` for http. */
+export function agentMcpServerValues(server: WorkflowModelAgentMcpServer): {
+  readonly kind: 'env' | 'headers';
+  readonly values: Readonly<Record<string, string>> | undefined;
+  readonly templates: WorkflowEnvTemplates | undefined;
+} {
+  return 'url' in server
+    ? {kind: 'headers', values: server.headers, templates: server.templates?.headers}
+    : {kind: 'env', values: server.env, templates: server.templates?.env};
 }
 export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly kind: 'agent';

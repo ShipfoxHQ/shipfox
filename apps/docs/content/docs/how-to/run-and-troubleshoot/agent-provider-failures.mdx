@@ -77,8 +77,8 @@ the exact rules behind each reason.
 ## Check an MCP server failure
 
 If a step with `mcp_servers` fails with `agent_mcp_server_unavailable`, a server
-did not start, did not list a tool from `include`, or listed a tool that the
-agent cannot use. A tool cannot be used when its full name is longer than 64
+did not start or did not answer at its `url`, did not list a tool from
+`include`, or listed a tool that the agent cannot use. A tool cannot be used when its full name is longer than 64
 characters, uses characters other than letters, numbers, underscores, and
 hyphens, or matches another tool on the step. The error message names the
 server. When the server did not start, it also shows the end of the server's

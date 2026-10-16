@@ -17,6 +17,7 @@
     "#deployed-runner.js": "./src/deployed-runner.ts",
     "#discord-events.js": "./src/discord-events.ts",
     "#expect.js": "./src/expect.ts",
+    "#fake-http-mcp-server.js": "./src/fake-http-mcp-server.ts",
     "#github-source.js": "./src/github-source.ts",
     "#jira-events.js": "./src/jira-events.ts",
     "#linear-events.js": "./src/linear-events.ts",

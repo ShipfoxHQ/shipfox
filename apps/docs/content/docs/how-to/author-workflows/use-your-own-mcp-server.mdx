@@ -5,8 +5,9 @@ description: "Give an agent step the tools of your own MCP server."
 ---
 
 **Use `mcp_servers` to give an agent step the tools of an MCP server that
-Shipfox has no integration for.** The runner starts the server when the step
-starts and stops it when the step ends.
+Shipfox has no integration for.** The runner starts a `command` server when the
+step starts and stops it when the step ends. For a server that you run
+yourself, give its `url` instead.
 
 In the example, the agent uses
 [mongodb-mcp-server](https://github.com/mongodb-js/mongodb-mcp-server) to read
@@ -65,20 +66,59 @@ Commit and push the file to the default branch of the project.
 | To... | Change this |
 | --- | --- |
 | Use another stdio MCP server | Copy the `command`, `args`, and `env` of the server from its documentation or from your `.mcp.json` file. |
+| Use a server that you run | Set `url` and `headers` instead of `command`. See [Connect to a server that you run](#connect-to-a-server-that-you-run). |
 | Use two servers in one step | Add a second entry under `mcp_servers`. Each entry needs its own name. |
 | Use a server together with an integration | Add `integrations` to the same step. See [Agent integration fields](/reference/workflow-schema#agent-integration-fields). |
 | Run the server in your own image | Run the job in a container. See [Run a job in a container](/how-to/author-workflows/run-job-in-container). |
 | Find every field | See [MCP server fields](/reference/workflow-schema#agent-mcp-server-fields). |
 
+## Connect to a server that you run
+
+Use `url` for an MCP server that already runs, such as a service in your
+network. The runner connects to it over Streamable HTTP when the step starts.
+It does not start or stop the server.
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Answer from the internal docs
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  answer:
+    steps:
+      - prompt: Find the runbook for a failed deploy and summarize it.
+        mcp_servers:
+          internal_docs:
+            # A literal http or https URL. It cannot read workflow expressions.
+            url: https://docs-mcp.example.com/mcp
+            # Values can read secrets. Shipfox masks them in the step log.
+            headers:
+              Authorization: Bearer ${{ secrets.DOCS_MCP_TOKEN }}
+```
+
+- The runner connects from the runner machine, not from a job container. The
+  server must accept connections from the runner.
+- Shipfox does not support MCP servers that need a browser sign-in. Use a token
+  that the server accepts in a header.
+- The server must support Streamable HTTP. The older HTTP with SSE transport
+  does not work.
+
 ## If the step fails before the agent starts
 
-The step fails with **An MCP server is unavailable** when the server exits,
-does not answer within 120 seconds, does not list a tool from `include`, or
-lists a tool that the agent cannot use. When the server did not start, the
-message shows the end of what the server wrote to its error output.
+The step fails with **An MCP server is unavailable** when the server exits or
+does not answer at its `url`, does not answer within 120 seconds, does not list
+a tool from `include`, or lists a tool that the agent cannot use. When a
+`command` server did not start, the message shows the end of what the server
+wrote to its error output.
 
 - Check that the command exists on the runner, or in the image of the job
   container.
+- Check that the runner can reach the `url`, and that the server accepts the
+  `headers`.
 - Check the names in `include` against the tool names in the documentation of
   the server.
 - If a tool name is too long, shorten the name of the server, or leave the tool

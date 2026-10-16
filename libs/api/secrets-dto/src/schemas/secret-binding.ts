@@ -1,3 +1,4 @@
+import {isHttpFieldName} from '@shipfox/regex';
 import {z} from 'zod';
 import {secretKeySchema} from './identifiers.js';
 
@@ -32,6 +33,13 @@ export const secretBindingMcpServerEnvTargetSchema = z.object({
   name: secretBindingTargetSchema,
 });
 
+// A header that the runner sends to one MCP server that an agent step connects to by URL.
+export const secretBindingMcpServerHeaderTargetSchema = z.object({
+  kind: z.literal('mcp_server_header'),
+  server: z.string().min(1),
+  name: z.string().refine(isHttpFieldName),
+});
+
 export const secretBindingLiteralSegmentSchema = z.object({
   kind: z.literal('literal'),
   value: z.string(),
@@ -54,6 +62,7 @@ export const secretBindingAnyTargetSchema = z.union([
   secretBindingContainerCredentialTargetSchema,
   secretBindingContainerEnvTargetSchema,
   secretBindingMcpServerEnvTargetSchema,
+  secretBindingMcpServerHeaderTargetSchema,
 ]);
 
 export const materializedSecretBindingSchema = z.object({
@@ -71,6 +80,9 @@ export type SecretBindingContainerEnvTargetDto = z.infer<
 >;
 export type SecretBindingMcpServerEnvTargetDto = z.infer<
   typeof secretBindingMcpServerEnvTargetSchema
+>;
+export type SecretBindingMcpServerHeaderTargetDto = z.infer<
+  typeof secretBindingMcpServerHeaderTargetSchema
 >;
 export type SecretBindingTargetDto = z.infer<typeof secretBindingAnyTargetSchema>;
 export type MaterializedSecretBindingDto = z.infer<typeof materializedSecretBindingSchema>;

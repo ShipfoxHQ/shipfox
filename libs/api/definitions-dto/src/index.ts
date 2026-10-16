@@ -59,6 +59,7 @@ export {
 } from './events.js';
 export type * from './workflow-model.js';
 export {
+  agentMcpServerValues,
   createWorkflowModelSnapshot,
   DEFAULT_JOB_CHECKOUT,
   DEFAULT_JOB_SUCCESS,

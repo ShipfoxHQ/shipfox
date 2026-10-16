@@ -23,30 +23,55 @@ export function normalizeAgentMcpServers(params: {
   integrationValidationContext?: IntegrationValidationContext | undefined;
 }): {readonly customMcpServers?: readonly WorkflowModelAgentMcpServer[]} {
   if (params.servers === undefined) return {};
-  const stepPath = ['jobs', params.sourceName, 'steps', params.stepIndex] as const;
-  const servers = Object.entries(params.servers).map(
-    ([name, server]): WorkflowModelAgentMcpServer => {
-      const {env, templates} = normalizeEnv({
-        env: server.env,
-        field: 'agent.mcp_servers.env.value',
-        path: [...stepPath, 'mcp_servers', name, 'env'],
-        issues: params.issues,
-        fillSite: params.fillSite,
-        allowedJobReferences: params.allowedJobReferences,
-        typeOverlay: params.typeOverlay,
-      });
-      return {
-        name,
-        command: unescapeLiteralName(server.command),
-        args: (server.args ?? []).map(unescapeLiteralName),
-        ...(env === undefined ? {} : {env: {...env}}),
-        ...(server.include === undefined ? {} : {include: [...new Set(server.include)]}),
-        ...(templates === undefined ? {} : {templates}),
-      };
-    },
+  const servers = Object.entries(params.servers).map(([name, server]) =>
+    normalizeAgentMcpServer({...params, name, server}),
   );
   validatePrefixCollisions({...params, servers});
   return {customMcpServers: servers};
+}
+
+function normalizeAgentMcpServer(params: {
+  name: string;
+  server: NonNullable<WorkflowDocumentStep['mcp_servers']>[string];
+  sourceName: string;
+  stepIndex: number;
+  issues: WorkflowModelValidationIssue[];
+  fillSite: AvailabilitySite;
+  allowedJobReferences: ReadonlySet<string>;
+  typeOverlay?: ExpressionTypeEnvironment | undefined;
+}): WorkflowModelAgentMcpServer {
+  const {name, server} = params;
+  const include = server.include === undefined ? {} : {include: [...new Set(server.include)]};
+  const normalizeValues = (kind: 'env' | 'headers') =>
+    normalizeEnv({
+      env: server[kind],
+      field: `agent.mcp_servers.${kind}.value`,
+      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'mcp_servers', name, kind],
+      issues: params.issues,
+      fillSite: params.fillSite,
+      allowedJobReferences: params.allowedJobReferences,
+      typeOverlay: params.typeOverlay,
+    });
+  // The document schema allows exactly one of `command` and `url`.
+  if (server.url !== undefined) {
+    const {env: headers, templates} = normalizeValues('headers');
+    return {
+      name,
+      url: unescapeLiteralName(server.url),
+      ...(headers === undefined ? {} : {headers: {...headers}}),
+      ...include,
+      ...(templates === undefined ? {} : {templates: {headers: templates.env}}),
+    };
+  }
+  const {env, templates} = normalizeValues('env');
+  return {
+    name,
+    command: unescapeLiteralName(server.command ?? ''),
+    args: (server.args ?? []).map(unescapeLiteralName),
+    ...(env === undefined ? {} : {env: {...env}}),
+    ...include,
+    ...(templates === undefined ? {} : {templates}),
+  };
 }
 
 // Integration tools reach the agent as `<sanitized slug>__<tool>`, the same shape as custom

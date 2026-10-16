@@ -98,7 +98,9 @@ export async function executeAgentStep(
     prerequisites?: AgentPrerequisiteContract | undefined;
     /** Env values of custom MCP servers that read secrets, by server name. */
     customMcpServerSecretEnv?: Readonly<Record<string, Readonly<Record<string, string>>>>;
-    /** Secret forms masked in what custom MCP servers write to stderr. */
+    /** Header values of custom MCP servers that read secrets, by server name. */
+    customMcpServerSecretHeaders?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+    /** Secret forms masked in custom MCP server errors and stderr. */
     redactions?: readonly string[] | undefined;
   },
 ): Promise<StepResult> {
@@ -259,6 +261,7 @@ async function startStepCustomMcpServers(params: {
     const customServers = await startCustomMcpServers({
       servers,
       secretEnv: options.customMcpServerSecretEnv,
+      secretHeaders: options.customMcpServerSecretHeaders,
       host: options.host ?? localExecutionHost,
       cwd: params.cwd,
       baseEnv: customMcpServerBaseEnv(options),

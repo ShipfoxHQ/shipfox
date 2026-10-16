@@ -8,6 +8,7 @@ import {
   deleteModelProviderConfig,
 } from '@shipfox/e2e-setup-agent';
 import {createSecret} from '@shipfox/e2e-setup-secrets';
+import {startFakeHttpMcpServer} from '#fake-http-mcp-server.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
@@ -20,31 +21,42 @@ const SECRET_ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const SERVER_PATH = '.shipfox/mcp/fake-stdio-mcp-server.sh';
 const FAKE_SERVER = new URL('../fixtures/mcp-server/fake-stdio-mcp-server.sh', import.meta.url);
 
-test('runs a stdio MCP server that reads a secret, and masks the secret in the transcript', async ({
+test('runs stdio and url MCP servers that read secrets, and masks the secrets in the transcript', async ({
   suite,
 }, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const secretKey = `MCP_E2E_TOKEN_${uniqueId.toUpperCase()}`;
   const secretValue = `mcp-e2e-secret-${uniqueId}`;
   const derived = `length=${secretValue.length}`;
+  const headerSecretKey = `MCP_E2E_HEADER_TOKEN_${uniqueId.toUpperCase()}`;
+  const headerSecretValue = `mcp-e2e-header-secret-${uniqueId}`;
+  const headerDerived = `header_length:${headerSecretValue.length}`;
   const token = suite.sessionToken;
   const fakeModelProvider = await startFakeOpenAiModelProvider({runId: `${suite.runId}-${NAME}`});
+  const httpServer = await startFakeHttpMcpServer(headerSecretValue);
   let providerId: string | undefined;
 
   try {
-    await createSecret({
-      workspaceId: suite.workspaceId,
-      actorId: SECRET_ACTOR_ID,
-      key: secretKey,
-      value: secretValue,
-    });
+    for (const [key, value] of [
+      [secretKey, secretValue],
+      [headerSecretKey, headerSecretValue],
+    ] as const) {
+      await createSecret({workspaceId: suite.workspaceId, actorId: SECRET_ACTOR_ID, key, value});
+    }
     const script = await fakeModelProvider.createScript({
       id: `${suite.runId}-${NAME}-${uniqueId}`,
       model: MODEL,
-      responses: [message('provider probe ok'), toolCall('fake__reveal', {}), message('done')],
+      responses: [
+        message('provider probe ok'),
+        toolCall('fake__reveal', {}),
+        toolCall('docs__reveal', {}),
+        message('done'),
+      ],
       assertions: [
         {kind: 'tool_present', name: 'fake__reveal', minRequestIndex: 1},
+        {kind: 'tool_present', name: 'docs__reveal', minRequestIndex: 1},
         {kind: 'message_content_includes', value: derived, minRequestIndex: 2},
+        {kind: 'message_content_includes', value: headerDerived, minRequestIndex: 3},
       ],
     });
     const provider = await createOpenAiCompatibleCustomProvider({
@@ -76,6 +88,8 @@ test('runs a stdio MCP server that reads a secret, and masks the secret in the t
           provider: provider.provider_id,
           model: script.model,
           secretKey,
+          headerSecretKey,
+          httpServerUrl: httpServer.url,
         }),
         configPath: `.shipfox/workflows/${NAME}.yml`,
         extraFiles: [{path: SERVER_PATH, content: await readFile(FAKE_SERVER, 'utf8')}],
@@ -111,7 +125,9 @@ test('runs a stdio MCP server that reads a secret, and masks the secret in the t
       if (step === undefined) throw new Error('The agent step is missing');
       const logs = await fetchStepLogs({stepId: step.id, attempt: step.current_attempt, token});
       expect(logs.ndjson).toContain(derived);
+      expect(logs.ndjson).toContain(headerDerived);
       expect(logs.ndjson).not.toContain(secretValue);
+      expect(logs.ndjson).not.toContain(headerSecretValue);
     } finally {
       await stopLocalRunner(localRunner.runner).catch(() => undefined);
     }
@@ -124,10 +140,17 @@ test('runs a stdio MCP server that reads a secret, and masks the secret in the t
       }).catch(() => undefined);
     }
     await fakeModelProvider.stop().catch(() => undefined);
+    await httpServer.close();
   }
 });
 
-function workflowYaml(params: {provider: string; model: string; secretKey: string}): string {
+function workflowYaml(params: {
+  provider: string;
+  model: string;
+  secretKey: string;
+  headerSecretKey: string;
+  httpServerUrl: string;
+}): string {
   return `
 name: Custom MCP servers
 runner: __RUNNER_LABEL__
@@ -143,7 +166,7 @@ jobs:
         provider: ${params.provider}
         model: ${params.model}
         thinking: off
-        prompt: Call the reveal tool of the fake MCP server.
+        prompt: Call the reveal tool of each fake MCP server.
         mcp_servers:
           fake:
             command: sh
@@ -151,5 +174,9 @@ jobs:
             env:
               FAKE_SECRET: \${{ secrets.${params.secretKey} }}
             include: [reveal]
+          docs:
+            url: ${params.httpServerUrl}
+            headers:
+              Authorization: Bearer \${{ secrets.${params.headerSecretKey} }}
 `;
 }

@@ -553,6 +553,7 @@ export type WorkflowInterpolationField =
   | 'agent.session'
   | 'agent.repository_context'
   | 'agent.mcp_servers.env.value'
+  | 'agent.mcp_servers.headers.value'
   | 'job.runner'
   | 'job.container.image'
   | 'job.container.options'
@@ -640,6 +641,11 @@ export const workflowInterpolationFieldPolicies: Readonly<
   },
   // The runner fills MCP server env when it starts the server for the step.
   'agent.mcp_servers.env.value': {
+    acceptedHosts: anyHost,
+    failurePolicy: 'fail',
+  },
+  // The runner fills MCP server headers when it connects to the server for the step.
+  'agent.mcp_servers.headers.value': {
     acceptedHosts: anyHost,
     failurePolicy: 'fail',
   },

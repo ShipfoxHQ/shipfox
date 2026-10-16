@@ -6010,6 +6010,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -10475,6 +10478,9 @@ importers:
 
   libs/shared/workflow/document:
     dependencies:
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../common/regex
       zod:
         specifier: 'catalog:'
         version: 4.4.3

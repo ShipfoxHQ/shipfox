@@ -4913,7 +4913,7 @@ describe('runJobSteps', () => {
     expect(sessionStream.dispose).toHaveBeenCalled();
   });
 
-  it('pulls MCP server secrets for an agent step and masks them in its session stream', async () => {
+  it('pulls MCP server env and header secrets for an agent step and masks them in its session stream', async () => {
     const setup = buildSetupStep();
     const agent = buildAgentStep({
       config: {
@@ -4923,6 +4923,13 @@ describe('runJobSteps', () => {
             target: {kind: 'mcp_server_env', server: 'mongodb', name: 'MDB_MCP_CONNECTION_STRING'},
             segments: [{kind: 'secret', store: 'local', key: 'MONGO_URI'}],
           },
+          {
+            target: {kind: 'mcp_server_header', server: 'docs', name: 'Authorization'},
+            segments: [
+              {kind: 'literal', value: 'Bearer '},
+              {kind: 'secret', store: 'local', key: 'DOCS_TOKEN'},
+            ],
+          },
         ],
       },
     });
@@ -4931,7 +4938,10 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(agent, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
     requestStepSecretsMock.mockResolvedValueOnce({
-      secrets: [{store: 'local', key: 'MONGO_URI', value: 'mongodb://user:pw@db'}],
+      secrets: [
+        {store: 'local', key: 'MONGO_URI', value: 'mongodb://user:pw@db'},
+        {store: 'local', key: 'DOCS_TOKEN', value: 'docs-token'},
+      ],
     });
     executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const registerSecrets = vi.fn();
@@ -4939,18 +4949,19 @@ describe('runJobSteps', () => {
 
     await runLoop({signal: ac.signal, secrets: ['s3cr3t'], registerSecrets});
 
-    expect(registerSecrets).toHaveBeenCalledWith(['mongodb://user:pw@db']);
+    expect(registerSecrets).toHaveBeenCalledWith(['mongodb://user:pw@db', 'docs-token']);
     expect(createSessionLogStreamMock).toHaveBeenCalledWith(
       expect.objectContaining({
         stepId: agent.id,
-        secrets: ['s3cr3t', 'mongodb://user:pw@db', 'sk-runtime-secret'],
+        secrets: ['s3cr3t', 'mongodb://user:pw@db', 'docs-token', 'sk-runtime-secret'],
       }),
     );
     expect(executeAgentStepMock).toHaveBeenCalledWith(
       agent,
       expect.objectContaining({
         customMcpServerSecretEnv: {mongodb: {MDB_MCP_CONNECTION_STRING: 'mongodb://user:pw@db'}},
-        redactions: expect.arrayContaining(['s3cr3t', 'mongodb://user:pw@db']),
+        customMcpServerSecretHeaders: {docs: {Authorization: 'Bearer docs-token'}},
+        redactions: expect.arrayContaining(['s3cr3t', 'mongodb://user:pw@db', 'docs-token']),
       }),
     );
   });

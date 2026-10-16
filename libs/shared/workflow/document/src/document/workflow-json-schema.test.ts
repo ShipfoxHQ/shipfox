@@ -306,6 +306,20 @@ describe('buildWorkflowJsonSchema', () => {
     expect(connectionCondition?.then).toEqual({required: ['repository']});
   });
 
+  it('requires exactly one of command or url on an MCP server', () => {
+    const schema = buildWorkflowJsonSchema();
+    const servers = object(object(stepSchemaFor(schema).properties).mcp_servers);
+    const server = object(servers.additionalProperties);
+
+    expect(server.oneOf).toEqual([
+      {required: ['command'], not: {anyOf: [{required: ['url']}, {required: ['headers']}]}},
+      {
+        required: ['url'],
+        not: {anyOf: [{required: ['command']}, {required: ['args']}, {required: ['env']}]},
+      },
+    ]);
+  });
+
   it('describes every JSON Schema property', () => {
     const missingDescriptions = descriptionsMissingFrom(buildWorkflowJsonSchema());
 

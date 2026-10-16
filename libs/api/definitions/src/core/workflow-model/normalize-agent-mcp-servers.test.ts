@@ -71,6 +71,38 @@ describe('normalizeAgentMcpServers', () => {
     ]);
   });
 
+  it('keeps the literal url and a template for each interpolated header value', () => {
+    const authorization = `Bearer ${interpolation('secrets.DOCS_MCP_TOKEN')}`;
+
+    const {step, diagnostics} = normalizeAgentStep({
+      mcp_servers: {
+        internal_docs: {
+          url: 'http://127.0.0.1:3000/mcp',
+          headers: {Authorization: authorization, 'X-Api-Version': 2},
+          include: ['search'],
+        },
+      },
+    });
+
+    expect(diagnostics).toEqual([]);
+    expect(step.customMcpServers).toEqual([
+      {
+        name: 'internal_docs',
+        url: 'http://127.0.0.1:3000/mcp',
+        headers: {Authorization: authorization, 'X-Api-Version': '2'},
+        include: ['search'],
+        templates: {
+          headers: {
+            Authorization: [
+              {kind: 'literal', value: 'Bearer '},
+              expect.objectContaining({kind: 'deferred', roots: ['secrets']}),
+            ],
+          },
+        },
+      },
+    ]);
+  });
+
   it('rejects a server with the tool prefix of an integration connection', () => {
     const issues = agentStepIssues({
       integrations: [{connection: 'my-db', include: ['issue_read']}],
@@ -92,6 +124,18 @@ describe('normalizeAgentMcpServers', () => {
 
     expect(issues.map((issue) => issue.path)).toEqual([
       ['jobs', 'investigate', 'steps', 0, 'mcp_servers', 'db', 'env', 'BROKEN'],
+    ]);
+  });
+
+  it('reports malformed interpolation in a header value', () => {
+    const issues = agentStepIssues({
+      mcp_servers: {
+        docs: {url: 'http://127.0.0.1:3000/mcp', headers: {'X-Token': '$'.concat('{{ vars.X')}},
+      },
+    });
+
+    expect(issues.map((issue) => issue.path)).toEqual([
+      ['jobs', 'investigate', 'steps', 0, 'mcp_servers', 'docs', 'headers', 'X-Token'],
     ]);
   });
 });

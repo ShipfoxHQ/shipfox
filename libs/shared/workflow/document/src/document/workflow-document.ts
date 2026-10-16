@@ -1,3 +1,4 @@
+import {isHttpFieldName} from '@shipfox/regex';
 import {z} from 'zod';
 import {
   actionPathRelativePart,
@@ -135,25 +136,30 @@ export const WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH = 16;
 
 const utf8Encoder = new TextEncoder();
 
-export const workflowDocumentEnvSchema = z
-  .record(envNameSchema, z.union([envStringValueSchema, z.number(), z.boolean()]))
-  .superRefine((env, ctx) => {
-    const entries = Object.keys(env).length;
+// Env maps and MCP server header maps share one size budget.
+function boundedRecordChecks(label: 'Env' | 'Headers') {
+  return (record: Readonly<Record<string, unknown>>, ctx: z.RefinementCtx) => {
+    const entries = Object.keys(record).length;
     if (entries > WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES) {
       ctx.addIssue({
         code: 'custom',
-        message: `Env cannot define more than ${WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES} entries.`,
+        message: `${label} cannot define more than ${WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES} entries.`,
       });
     }
 
-    const serializedBytes = utf8Encoder.encode(JSON.stringify(env)).byteLength;
+    const serializedBytes = utf8Encoder.encode(JSON.stringify(record)).byteLength;
     if (serializedBytes > WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES) {
       ctx.addIssue({
         code: 'custom',
-        message: `Env cannot serialize to more than ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} bytes.`,
+        message: `${label} cannot serialize to more than ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} bytes.`,
       });
     }
-  })
+  };
+}
+
+export const workflowDocumentEnvSchema = z
+  .record(envNameSchema, z.union([envStringValueSchema, z.number(), z.boolean()]))
+  .superRefine(boundedRecordChecks('Env'))
   .meta({
     description: `Environment variables as string, number, or boolean values. Each map allows up to ${WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES} entries and ${WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES} serialized bytes.`,
   });
@@ -891,33 +897,139 @@ export const WORKFLOW_AGENT_MCP_SERVER_NAME_MAX_LENGTH = 20;
 const agentMcpServerLiteralSchema = (message: string) =>
   z.string().regex(WORKFLOW_LITERAL_NAME_PATTERN, {message});
 
-// `command` and `args` stay literal so secrets never reach argv; dynamic values go through `env`.
-export const workflowDocumentAgentMcpServerSchema = z.strictObject({
-  command: agentMcpServerLiteralSchema('MCP server command must be literal. Use "env" for values.')
-    .min(1)
-    .meta({
-      description: 'Names the program that starts the server. It runs without a shell.',
-    }),
-  args: z
-    .array(agentMcpServerLiteralSchema('MCP server args must be literal. Use "env" for values.'))
-    .optional()
-    .meta({
-      description:
-        'Passes these arguments to `command`. Workflow expressions are not allowed; use `env` for values.',
-    }),
-  env: workflowDocumentEnvSchema.optional().meta({
-    description:
-      'Sets environment variables for the server. Values support workflow expressions, including `secrets`.',
-  }),
-  include: z
-    .array(agentMcpServerLiteralSchema('MCP server tool names must be literal.').min(1))
-    .min(1)
-    .optional()
-    .meta({
-      description:
-        'Lists the tools to give the agent, named as the server lists them. Defaults to every tool.',
-    }),
+// HTTP field names (RFC 9110 tokens).
+const agentMcpServerHeaderNameSchema = z.string().refine(isHttpFieldName, {
+  message: 'MCP server header names must be HTTP field names.',
 });
+
+const HEADER_VALUE_DISALLOWED_CHARACTER_RE = /[\r\n\0]/;
+
+const agentMcpServerHeaderValueSchema = z.union([
+  z.string().refine((value) => !HEADER_VALUE_DISALLOWED_CHARACTER_RE.test(value), {
+    message: 'MCP server header values cannot contain line breaks or null bytes.',
+  }),
+  z.number(),
+  z.boolean(),
+]);
+
+// The runner's MCP client sets these for the transport, so a user value would break it.
+const AGENT_MCP_SERVER_RESERVED_HEADERS = new Set([
+  'accept',
+  'content-length',
+  'content-type',
+  'host',
+  'last-event-id',
+  'mcp-protocol-version',
+  'mcp-session-id',
+]);
+
+const agentMcpServerHeadersSchema = z
+  .record(agentMcpServerHeaderNameSchema, agentMcpServerHeaderValueSchema)
+  .superRefine(boundedRecordChecks('Headers'))
+  .superRefine((headers, ctx) => {
+    const seen = new Set<string>();
+    for (const name of Object.keys(headers)) {
+      const key = name.toLowerCase();
+      if (AGENT_MCP_SERVER_RESERVED_HEADERS.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [name],
+          message: `MCP server header "${name}" is set by the runner.`,
+        });
+      } else if (seen.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [name],
+          message: `MCP server header "${name}" repeats another header name in a different case.`,
+        });
+      }
+      seen.add(key);
+    }
+  });
+
+const agentMcpServerUrlSchema = agentMcpServerLiteralSchema(
+  'MCP server url must be literal.',
+).refine(
+  (value) => {
+    try {
+      const {protocol} = new URL(value);
+      return protocol === 'http:' || protocol === 'https:';
+    } catch {
+      return false;
+    }
+  },
+  {message: 'MCP server url must be an http or https URL.'},
+);
+
+const AGENT_MCP_SERVER_STDIO_FIELDS = ['args', 'env'] as const;
+
+// `command`, `args`, and `url` stay literal so secrets never reach argv or the server address;
+// dynamic values go through `env` or `headers`. One object with a refinement, not a union, keeps
+// each error on its own field.
+export const workflowDocumentAgentMcpServerSchema = z
+  .strictObject({
+    command: agentMcpServerLiteralSchema(
+      'MCP server command must be literal. Use "env" for values.',
+    )
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          'Names the program that starts the server. It runs without a shell. Set `command` or `url`, not both.',
+      }),
+    args: z
+      .array(agentMcpServerLiteralSchema('MCP server args must be literal. Use "env" for values.'))
+      .optional()
+      .meta({
+        description:
+          'Passes these arguments to `command`. Workflow expressions are not allowed; use `env` for values.',
+      }),
+    env: workflowDocumentEnvSchema.optional().meta({
+      description:
+        'Sets environment variables for the `command` server. Values support workflow expressions, including `secrets`.',
+    }),
+    url: agentMcpServerUrlSchema.optional().meta({
+      description:
+        'Connects to a server that you run, over Streamable HTTP. An `http` or `https` URL that the runner can reach. Set `command` or `url`, not both.',
+    }),
+    headers: agentMcpServerHeadersSchema.optional().meta({
+      description:
+        'Sends these HTTP headers to the `url` server with every request. Values support workflow expressions, including `secrets`.',
+    }),
+    include: z
+      .array(agentMcpServerLiteralSchema('MCP server tool names must be literal.').min(1))
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          'Lists the tools to give the agent, named as the server lists them. Defaults to every tool.',
+      }),
+  })
+  .superRefine((server, ctx) => {
+    if ((server.command === undefined) === (server.url === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'An MCP server sets exactly one of "command" or "url".',
+      });
+      return;
+    }
+    if (server.url !== undefined) {
+      for (const field of AGENT_MCP_SERVER_STDIO_FIELDS) {
+        if (server[field] === undefined) continue;
+        ctx.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `"${field}" applies to "command" servers. Use "headers" for a "url" server.`,
+        });
+      }
+    } else if (server.headers !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['headers'],
+        message: '"headers" applies to "url" servers. Use "env" for a "command" server.',
+      });
+    }
+  });
 
 export const workflowDocumentAgentMcpServersSchema = z
   .record(
@@ -937,7 +1049,7 @@ export const workflowDocumentAgentMcpServersSchema = z
   })
   .meta({
     description:
-      'Starts MCP servers for this agent step and gives the agent their tools as `<name>__<tool>`. Each key is a server name: a lowercase letter, then lowercase letters, numbers, and single underscores, with at most 20 characters. See [Use your own MCP server](/how-to/author-workflows/use-your-own-mcp-server).',
+      'Gives the agent the tools of these MCP servers as `<name>__<tool>`. The runner starts each `command` server for the step and connects to each `url` server. Each key is a server name: a lowercase letter, then lowercase letters, numbers, and single underscores, with at most 20 characters. See [Use your own MCP server](/how-to/author-workflows/use-your-own-mcp-server).',
   });
 
 // A session names an agent conversation that continues across steps of one run.

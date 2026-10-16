@@ -153,6 +153,8 @@ export interface StepConfigDispatchPlan {
     customMcpServers?: readonly MaterializedAgentMcpServerConfigDto[];
     // Env values of custom MCP servers that dispatch fills, by server name then env name.
     customMcpServerEnv?: Readonly<Record<string, Readonly<Record<string, ResolvedField>>>>;
+    // Header values of custom MCP servers that dispatch fills, by server name then header name.
+    customMcpServerHeaders?: Readonly<Record<string, Readonly<Record<string, ResolvedField>>>>;
   };
   trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }

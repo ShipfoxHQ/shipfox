@@ -167,11 +167,13 @@ host is Linux.
 
 ## Custom MCP servers
 
-`tests/custom-mcp-servers.e2e.ts` runs a pi agent step with an `mcp_servers` entry. The spec
-commits `fixtures/mcp-server/fake-stdio-mcp-server.sh`, a stdio MCP server in POSIX sh, and
-passes it a secret through `env`. A scripted model calls its tool. The spec checks that the
-model received the value derived from the secret, and that the step transcript masks the
-secret itself.
+`tests/custom-mcp-servers.e2e.ts` runs a pi agent step with two `mcp_servers` entries. The
+spec commits `fixtures/mcp-server/fake-stdio-mcp-server.sh`, a stdio MCP server in POSIX sh,
+and passes it a secret through `env`. It also starts a Streamable HTTP MCP server on a
+loopback port, which the local runner reaches through `url`, and passes it a second secret
+through `headers`. A scripted model calls the tool of each server. The spec checks that the
+model received the values derived from the secrets, and that the step transcript masks the
+secrets themselves.
 
 ## Composite actions
 

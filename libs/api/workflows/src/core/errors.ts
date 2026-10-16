@@ -198,6 +198,7 @@ export type InterpolationUnresolvableField =
   | 'agent.session'
   | 'agent.repository_context'
   | 'agent.mcp_servers.env.value'
+  | 'agent.mcp_servers.headers.value'
   | 'job.if'
   | 'job.success'
   | 'job.listening.filter'

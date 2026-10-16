@@ -44,6 +44,7 @@ export function buildWorkflowJsonSchema({
     delete stepProperties.connections;
   }
   projectWorkflowValidation(schema, stepSchema, actions);
+  projectAgentMcpServerValidation(stepProperties.mcp_servers);
   const thinkingConditionals = (['pi', 'claude'] as const).map((harness) => {
     const conditional: JsonSchema = {
       if: {
@@ -205,6 +206,19 @@ function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema, a
     ...objects(stepSchema.allOf),
     toolOutputsCondition,
     declarationOutputsCondition,
+  ];
+}
+
+// The document schema enforces this in a refinement, which JSON Schema cannot see.
+function projectAgentMcpServerValidation(schema: JsonSchema | undefined) {
+  const server = object(object(schema).additionalProperties);
+  if (Object.keys(server).length === 0) return;
+  server.oneOf = [
+    {required: ['command'], not: {anyOf: [{required: ['url']}, {required: ['headers']}]}},
+    {
+      required: ['url'],
+      not: {anyOf: [{required: ['command']}, {required: ['args']}, {required: ['env']}]},
+    },
   ];
 }
 

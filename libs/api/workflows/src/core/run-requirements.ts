@@ -1,4 +1,5 @@
 import {
+  agentMcpServerValues,
   flattenJobSteps,
   WORKFLOW_MODEL_CHECKOUT_TARGET_FIELDS,
   type WorkflowJsonTemplateTree,
@@ -179,8 +180,12 @@ function collectStepReferences(step: WorkflowModelStep, scope: Scope): void {
         field: 'agent.repository_context',
       });
       for (const server of step.customMcpServers ?? []) {
-        for (const [envKey, template] of Object.entries(server.templates?.env ?? {})) {
-          collectFieldReferences(template, scope, {field: 'agent.mcp_servers.env.value', envKey});
+        const {kind, templates} = agentMcpServerValues(server);
+        for (const [envKey, template] of Object.entries(templates ?? {})) {
+          collectFieldReferences(template, scope, {
+            field: `agent.mcp_servers.${kind}.value`,
+            envKey,
+          });
         }
       }
       return;

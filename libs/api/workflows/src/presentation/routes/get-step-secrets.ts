@@ -143,7 +143,7 @@ export function createGetStepSecretsRoute(
 }
 
 // A setup step carries secrets only for a job container, so a plain setup step has none to pull.
-// An agent step carries them for the env of its MCP servers.
+// An agent step carries them for the env and headers of its MCP servers.
 function stepHasSecretBindings(step: {type: string; config: Record<string, unknown>}): boolean {
   if (
     step.type === 'run' ||

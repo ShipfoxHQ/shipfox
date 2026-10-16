@@ -135,12 +135,15 @@ parseWorkflowDocument({
 });
 ```
 
-An `mcp_servers` block starts stdio MCP servers for an agent step. Each entry is
+An `mcp_servers` block gives an agent step the tools of MCP servers. Each entry is
 keyed by a server name that starts with a lowercase letter and uses only
 lowercase letters, numbers, and single underscores, with at most 20 characters.
-`command`, `args`, and `include` are literal. `env` values may use workflow
-expressions, including `secrets`, which later layers resolve. `include` is
-optional; without it, the agent gets every tool of the server.
+An entry sets exactly one of `command`, for a stdio server that the runner
+starts, or `url`, for an `http` or `https` server that the user runs.
+`command`, `args`, `url`, and `include` are literal. `env` values of a `command`
+server and `headers` values of a `url` server may use workflow expressions,
+including `secrets`, which later layers resolve. `include` is optional; without
+it, the agent gets every tool of the server.
 
 ```ts
 parseWorkflowDocument({
@@ -156,6 +159,10 @@ parseWorkflowDocument({
               args: ['-y', 'mongodb-mcp-server@1.2.0'],
               env: {MDB_MCP_READ_ONLY: 'true'},
               include: ['find', 'aggregate'],
+            },
+            internal_docs: {
+              url: 'http://127.0.0.1:3000/mcp',
+              headers: {Authorization: 'Bearer ${{ secrets.DOCS_MCP_TOKEN }}'},
             },
           },
         },

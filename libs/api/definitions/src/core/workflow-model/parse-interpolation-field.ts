@@ -46,6 +46,7 @@ export type StoredInterpolationField =
   | 'agent.session'
   | 'agent.repository_context'
   | 'agent.mcp_servers.env.value'
+  | 'agent.mcp_servers.headers.value'
   | 'job.outputs'
   | 'workflow.run_name'
   | 'workflow.outputs'

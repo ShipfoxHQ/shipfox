@@ -2,6 +2,8 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export const LOWERCASE_ALPHA_SLUG_RE = /^[a-z][a-z0-9_-]*$/;
 export const ALNUM_SLUG_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 export const LOWERCASE_SHA256_HEX_RE = /^[0-9a-f]{64}$/;
+/** An HTTP field (header) name: an RFC 9110 token. */
+export const HTTP_FIELD_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 /**
  * Display names appear in UI, logs, and emails, so hidden control and
  * bidi/zero-width format characters must be rejected before they can spoof or
@@ -28,6 +30,10 @@ export function isAlnumSlug(value: string): boolean {
 
 export function isLowercaseSha256Hex(value: string): boolean {
   return LOWERCASE_SHA256_HEX_RE.test(value);
+}
+
+export function isHttpFieldName(value: string): boolean {
+  return HTTP_FIELD_NAME_RE.test(value);
 }
 
 export function hasDisplayNameDisallowedCharacter(value: string): boolean {

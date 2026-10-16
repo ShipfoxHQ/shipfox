@@ -53,12 +53,18 @@ interface TestAgentStep extends TestWorkflowStepBase {
   readonly repositoryContext?: Extract<ModelStep, {kind: 'agent'}>['repositoryContext'] | undefined;
 }
 
-export interface TestAgentMcpServer {
-  readonly command: string;
-  readonly args?: readonly string[] | undefined;
-  readonly env?: Readonly<Record<string, string>> | undefined;
-  readonly include?: readonly string[] | undefined;
-}
+export type TestAgentMcpServer =
+  | {
+      readonly command: string;
+      readonly args?: readonly string[] | undefined;
+      readonly env?: Readonly<Record<string, string>> | undefined;
+      readonly include?: readonly string[] | undefined;
+    }
+  | {
+      readonly url: string;
+      readonly headers?: Readonly<Record<string, string>> | undefined;
+      readonly include?: readonly string[] | undefined;
+    };
 
 interface TestCheckoutStep extends TestWorkflowStepBase {
   readonly checkout: Checkout;
@@ -357,12 +363,18 @@ function normalizeAgentStep(step: TestAgentStep, base: ReturnType<typeof stepBas
 function normalizeMcpServer([name, server]: [string, TestAgentMcpServer]): NonNullable<
   Extract<ModelStep, {kind: 'agent'}>['customMcpServers']
 >[number] {
-  const envTemplates = Object.fromEntries(
-    Object.entries(server.env ?? {}).flatMap(([key, value]) => {
-      const template = fieldTemplate('agent.mcp_servers.env.value', value);
-      return template === undefined ? [] : [[key, template]];
-    }),
-  );
+  const include = server.include === undefined ? {} : {include: server.include};
+  if ('url' in server) {
+    const headerTemplates = valueTemplates('agent.mcp_servers.headers.value', server.headers);
+    return {
+      name,
+      url: server.url,
+      ...(server.headers === undefined ? {} : {headers: server.headers}),
+      ...include,
+      ...(headerTemplates === undefined ? {} : {templates: {headers: headerTemplates}}),
+    };
+  }
+  const envTemplates = valueTemplates('agent.mcp_servers.env.value', server.env) ?? {};
   return {
     name,
     command: server.command,
@@ -670,6 +682,19 @@ function envTemplates(env: WorkflowModel['env'] | undefined): WorkflowEnvTemplat
     }),
   );
 
+  return Object.keys(templates).length === 0 ? undefined : templates;
+}
+
+function valueTemplates(
+  field: WorkflowInterpolationField,
+  values: Readonly<Record<string, string>> | undefined,
+): Record<string, readonly ResolvedFieldSegment[]> | undefined {
+  const templates = Object.fromEntries(
+    Object.entries(values ?? {}).flatMap(([key, value]) => {
+      const template = fieldTemplate(field, value);
+      return template === undefined ? [] : [[key, template]];
+    }),
+  );
   return Object.keys(templates).length === 0 ? undefined : templates;
 }
 

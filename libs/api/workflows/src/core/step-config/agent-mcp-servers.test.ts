@@ -198,6 +198,64 @@ describe('agent step MCP servers', () => {
     ]);
   });
 
+  it('turns a secret header value into an mcp_server_header binding at dispatch', async () => {
+    const step = await agentStep({
+      mcpServers: {
+        internal_docs: {
+          url: 'http://127.0.0.1:3000/mcp',
+          headers: {
+            Authorization: `Bearer ${template('secrets.DOCS_MCP_TOKEN')}`,
+            'X-Log-Level': template('vars.LEVEL'),
+          },
+          include: ['search'],
+        },
+      },
+    });
+
+    const {config} = await dispatch(step);
+
+    expect(step.configPlan?.agent?.customMcpServerHeaders?.internal_docs).toHaveProperty(
+      'Authorization',
+    );
+    expect(config.customMcpServers).toEqual([
+      {
+        name: 'internal_docs',
+        url: 'http://127.0.0.1:3000/mcp',
+        headers: {'X-Log-Level': 'debug'},
+        include: ['search'],
+      },
+    ]);
+    expect(config.secret_bindings).toEqual([
+      {
+        target: {kind: 'mcp_server_header', server: 'internal_docs', name: 'Authorization'},
+        segments: [
+          {kind: 'literal', value: 'Bearer '},
+          {kind: 'secret', store: 'local', key: 'DOCS_MCP_TOKEN'},
+        ],
+      },
+    ]);
+    expect(JSON.stringify(config)).not.toContain('secrets.DOCS_MCP_TOKEN');
+  });
+
+  it('keeps stdio and url servers side by side', async () => {
+    const step = await agentStep({
+      mcpServers: {
+        mongodb: {command: 'npx', env: {URI: template('secrets.MONGO_URI')}},
+        docs: {url: 'https://docs.example.com/mcp', headers: {'X-Index': 'main'}},
+      },
+    });
+
+    const {config} = await dispatch(step);
+
+    expect(config.customMcpServers).toEqual([
+      {name: 'mongodb', command: 'npx', args: [], env: {}},
+      {name: 'docs', url: 'https://docs.example.com/mcp', headers: {'X-Index': 'main'}},
+    ]);
+    expect(config.secret_bindings).toEqual([
+      expect.objectContaining({target: {kind: 'mcp_server_env', server: 'mongodb', name: 'URI'}}),
+    ]);
+  });
+
   it('rejects a server with the tool prefix of the default connection', async () => {
     const materialized = agentStep({
       integrations: [{include: ['issue_read']}],

@@ -230,11 +230,10 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     component: 'AgentMcpServerFields',
     path: 'jobs.<job_id>.steps[*].mcp_servers.<name>',
     example: 'agent-mcp-servers.yml',
-    fields: ['command', 'args', 'env', 'include'],
+    fields: ['command', 'args', 'env', 'url', 'headers', 'include'],
     select: (schema) => properties(object(stepProperties(schema).mcp_servers).additionalProperties),
-    required: ['command'],
     nested: {env: '#environment-variables'},
-    types: {env: 'Environment'},
+    types: {env: 'Environment', headers: 'Record<string, string>'},
   },
   {
     id: 'agent-session-fields',

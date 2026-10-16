@@ -1537,6 +1537,15 @@ describe('workflowDocumentSchema', () => {
             include: ['find', 'aggregate'],
           },
           docs_v2: {command: 'docs-mcp'},
+          internal_docs: {
+            url: 'http://127.0.0.1:3000/mcp',
+            headers: {
+              Authorization: `Bearer ${interpolation('secrets.DOCS_MCP_TOKEN')}`,
+              'X-Api-Version': 2,
+            },
+            include: ['search'],
+          },
+          remote: {url: 'https://mcp.example.com/mcp'},
         },
       },
     ],
@@ -1623,8 +1632,62 @@ describe('workflowDocumentSchema', () => {
       {prompt: 'Fix.', mcp_servers: {db: {command: 'x', args: [interpolation('secrets.TOKEN')]}}},
     ],
     [
-      'MCP server unknown field',
+      'MCP server with command and url',
       {prompt: 'Fix.', mcp_servers: {db: {command: 'x', url: 'http://x'}}},
+    ],
+    ['MCP server unknown field', {prompt: 'Fix.', mcp_servers: {db: {command: 'x', cwd: '/'}}}],
+    [
+      'MCP server url with interpolation',
+      {prompt: 'Fix.', mcp_servers: {db: {url: interpolation('vars.MCP_URL')}}},
+    ],
+    ['MCP server url that is not a URL', {prompt: 'Fix.', mcp_servers: {db: {url: 'localhost'}}}],
+    [
+      'MCP server url with another protocol',
+      {prompt: 'Fix.', mcp_servers: {db: {url: 'ws://127.0.0.1:3000/mcp'}}},
+    ],
+    [
+      'MCP server url with env',
+      {prompt: 'Fix.', mcp_servers: {db: {url: 'http://x', env: {TOKEN: 'x'}}}},
+    ],
+    [
+      'MCP server url with args',
+      {prompt: 'Fix.', mcp_servers: {db: {url: 'http://x', args: ['x']}}},
+    ],
+    [
+      'MCP server command with headers',
+      {prompt: 'Fix.', mcp_servers: {db: {command: 'x', headers: {Authorization: 'x'}}}},
+    ],
+    [
+      'MCP server header value with a line break',
+      {
+        prompt: 'Fix.',
+        mcp_servers: {db: {url: 'http://x', headers: {'X-Token': 'a\r\nX-Evil: b'}}},
+      },
+    ],
+    [
+      'MCP server header names that differ only by case',
+      {
+        prompt: 'Fix.',
+        mcp_servers: {db: {url: 'http://x', headers: {Authorization: 'a', authorization: 'b'}}},
+      },
+    ],
+    [
+      'MCP server header that the runner sets',
+      {
+        prompt: 'Fix.',
+        mcp_servers: {db: {url: 'http://x', headers: {'mcp-protocol-version': 'x'}}},
+      },
+    ],
+    [
+      'MCP server headers over the size limit',
+      {
+        prompt: 'Fix.',
+        mcp_servers: {db: {url: 'http://x', headers: {'X-Big': 'x'.repeat(33 * 1024)}}},
+      },
+    ],
+    [
+      'MCP server header name with a space',
+      {prompt: 'Fix.', mcp_servers: {db: {url: 'http://x', headers: {'X Token': 'x'}}}},
     ],
     ['MCP server empty include', {prompt: 'Fix.', mcp_servers: {db: {command: 'x', include: []}}}],
     [
@@ -1677,6 +1740,33 @@ describe('workflowDocumentSchema', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it.each([
+    [
+      {'X-Token': 'a\u0000b'},
+      'MCP server header values cannot contain line breaks or null bytes.',
+      'X-Token',
+    ],
+    [
+      {Authorization: 'a', authorization: 'b'},
+      'MCP server header "authorization" repeats another header name in a different case.',
+      'authorization',
+    ],
+    [{Accept: 'text/html'}, 'MCP server header "Accept" is set by the runner.', 'Accept'],
+  ])('reports the MCP server header issue for %j', (headers, message, header) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'agent build',
+      jobs: {fix: {steps: [{prompt: 'Fix.', mcp_servers: {db: {url: 'http://x', headers}}}]}},
+    });
+
+    const issues = result.success ? [] : result.error.issues;
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        message,
+        path: ['jobs', 'fix', 'steps', 0, 'mcp_servers', 'db', 'headers', header],
+      }),
+    );
   });
 
   it('reports a clear message for the reserved agent keyword', () => {

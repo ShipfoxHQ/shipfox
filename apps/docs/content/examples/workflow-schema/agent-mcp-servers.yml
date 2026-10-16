@@ -11,3 +11,7 @@ jobs:
               MDB_MCP_CONNECTION_STRING: ${{ secrets.MONGO_URI }}
               MDB_MCP_READ_ONLY: "true"
             include: [find, aggregate, list-collections, explain]
+          internal_docs:
+            url: http://127.0.0.1:3000/mcp
+            headers:
+              Authorization: Bearer ${{ secrets.DOCS_MCP_TOKEN }}

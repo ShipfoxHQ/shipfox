@@ -11,7 +11,10 @@ import {
 
 export function normalizeEnv(params: {
   env: Readonly<Record<string, string | number | boolean>> | undefined;
-  field?: Extract<StoredInterpolationField, 'env.value' | 'agent.mcp_servers.env.value'>;
+  field?: Extract<
+    StoredInterpolationField,
+    'env.value' | 'agent.mcp_servers.env.value' | 'agent.mcp_servers.headers.value'
+  >;
   path: readonly WorkflowModelValidationIssuePathSegment[];
   issues: WorkflowModelValidationIssue[];
   fillSite?: AvailabilitySite;

@@ -1461,10 +1461,15 @@ async function executeAgentStepBranch(params: {
 function customMcpServerOptions(
   secretMaterial: StepBindingMaterial | undefined,
   secrets: string[],
-): {customMcpServerSecretEnv?: StepBindingMaterial['mcpServerEnv']; redactions?: string[]} {
+): {
+  customMcpServerSecretEnv?: StepBindingMaterial['mcpServerEnv'];
+  customMcpServerSecretHeaders?: StepBindingMaterial['mcpServerHeaders'];
+  redactions?: string[];
+} {
   if (secretMaterial === undefined) return {};
   return {
     customMcpServerSecretEnv: secretMaterial.mcpServerEnv,
+    customMcpServerSecretHeaders: secretMaterial.mcpServerHeaders,
     redactions: buildSecretVariants(secrets),
   };
 }
@@ -2113,6 +2118,8 @@ interface StepBindingMaterial {
   secretInputs: Record<string, string>;
   /** Env of an agent step's MCP servers, by server name. Empty for other steps. */
   mcpServerEnv: Record<string, Record<string, string>>;
+  /** Headers of an agent step's MCP servers, by server name. Empty for other steps. */
+  mcpServerHeaders: Record<string, Record<string, string>>;
   secretValues: string[];
   /** The `hashFiles()` values joined into the bindings. Not secrets, never masked. */
   hashValues: StepHashValues;
@@ -2157,6 +2164,7 @@ async function loadStepBindingMaterial(params: {
   const secretEnv: Record<string, string> = {};
   const secretInputs: Record<string, string> = {};
   const mcpServerEnv: Record<string, Record<string, string>> = {};
+  const mcpServerHeaders: Record<string, Record<string, string>> = {};
 
   for (const binding of bindings) {
     const value = assembleStepBinding(binding, values, hashValues);
@@ -2165,6 +2173,8 @@ async function loadStepBindingMaterial(params: {
     else if (target.kind === 'input') secretInputs[target.name] = value;
     else if (target.kind === 'mcp_server_env') {
       mcpServerEnv[target.server] = {...mcpServerEnv[target.server], [target.name]: value};
+    } else if (target.kind === 'mcp_server_header') {
+      mcpServerHeaders[target.server] = {...mcpServerHeaders[target.server], [target.name]: value};
     }
   }
 
@@ -2172,6 +2182,7 @@ async function loadStepBindingMaterial(params: {
     secretEnv,
     secretInputs,
     mcpServerEnv,
+    mcpServerHeaders,
     secretValues: pulled.secrets.map((secret) => secret.value),
     hashValues,
   };
@@ -2247,7 +2258,7 @@ function maskSetupFailure(result: StepResult, secrets: string[]): StepResult {
 }
 
 // Environment variables are the target of run, action, and post steps; input targets belong to
-// action and post steps, and MCP server env targets to agent steps. Container targets belong to
+// action and post steps, and MCP server env and header targets to agent steps. Container targets belong to
 // the setup step, which this loader does not pull for yet.
 function parseStepSecretBindings(step: StepDto): StepBindingDto[] {
   const parsed = stepBindingsSchema.safeParse(step.config.secret_bindings ?? []);
@@ -2261,7 +2272,12 @@ function parseStepSecretBindings(step: StepDto): StepBindingDto[] {
 }
 
 function bindingTargetAllowed(target: SecretBindingTargetDto, stepType: StepDto['type']): boolean {
-  if (stepType === 'agent') return typeof target !== 'string' && target.kind === 'mcp_server_env';
+  if (stepType === 'agent') {
+    return (
+      typeof target !== 'string' &&
+      (target.kind === 'mcp_server_env' || target.kind === 'mcp_server_header')
+    );
+  }
   if (typeof target === 'string') return true;
   return (stepType === 'action' || stepType === 'post') && target.kind === 'input';
 }

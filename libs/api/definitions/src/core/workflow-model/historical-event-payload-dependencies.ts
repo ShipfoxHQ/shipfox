@@ -1,4 +1,4 @@
-import {gateFailureRules} from '@shipfox/api-definitions-dto';
+import {agentMcpServerValues, gateFailureRules} from '@shipfox/api-definitions-dto';
 import {
   analyzeHistoricalEventPayloadAccess,
   type HistoricalEventPayloadAccess,
@@ -211,6 +211,17 @@ function scanFailureRule(
   scanTemplate(rule.feedbackTemplate, [...path, 'feedback'], dependencies);
 }
 
+function scanCustomMcpServers(
+  step: Extract<WorkflowModelStep, {kind: 'agent'}>,
+  path: readonly (string | number)[],
+  dependencies: HistoricalEventPayloadDependency[],
+): void {
+  for (const server of step.customMcpServers ?? []) {
+    const {kind, templates} = agentMcpServerValues(server);
+    scanTemplateRecord(templates, [...path, 'mcp_servers', server.name, kind], dependencies);
+  }
+}
+
 function scanWorkflowStep(
   step: WorkflowModelStep,
   path: readonly (string | number)[],
@@ -234,15 +245,7 @@ function scanWorkflowStep(
   if (step.kind === 'agent' && step.session !== undefined) {
     scanTemplate(step.session.key, [...path, 'session'], dependencies);
   }
-  if (step.kind === 'agent') {
-    for (const server of step.customMcpServers ?? []) {
-      scanTemplateRecord(
-        server.templates?.env,
-        [...path, 'mcp_servers', server.name, 'env'],
-        dependencies,
-      );
-    }
-  }
+  if (step.kind === 'agent') scanCustomMcpServers(step, path, dependencies);
 
   if (step.kind === 'checkout') {
     for (const [key, template] of Object.entries(step.checkout.templates ?? {})) {

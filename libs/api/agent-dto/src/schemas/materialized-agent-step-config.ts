@@ -79,13 +79,29 @@ export const agentIntegrationMcpServerSchema = z.strictObject({
  * A stdio MCP server that the runner starts for the step. `env` holds the values known at
  * dispatch; values that read secrets arrive as `mcp_server_env` secret bindings instead.
  */
-export const materializedAgentMcpServerSchema = z.strictObject({
+export const materializedAgentStdioMcpServerSchema = z.strictObject({
   name: z.string().min(1),
   command: z.string().min(1),
   args: z.array(z.string()),
   env: z.record(z.string(), z.string()),
   include: z.array(z.string().min(1)).min(1).optional(),
 });
+
+/**
+ * An MCP server that the runner connects to over Streamable HTTP. `headers` holds the values known
+ * at dispatch; values that read secrets arrive as `mcp_server_header` secret bindings instead.
+ */
+export const materializedAgentHttpMcpServerSchema = z.strictObject({
+  name: z.string().min(1),
+  url: z.url({protocol: /^https?$/}),
+  headers: z.record(z.string(), z.string()),
+  include: z.array(z.string().min(1)).min(1).optional(),
+});
+
+export const materializedAgentMcpServerSchema = z.union([
+  materializedAgentStdioMcpServerSchema,
+  materializedAgentHttpMcpServerSchema,
+]);
 
 export const materializedAgentStepConfigSchema = z
   .object({
@@ -112,4 +128,10 @@ export type MaterializedAgentIntegrationToolConfigDto = z.infer<
   typeof materializedAgentIntegrationToolSchema
 >;
 export type MaterializedAgentMcpServerConfigDto = z.infer<typeof materializedAgentMcpServerSchema>;
+export type MaterializedAgentStdioMcpServerConfigDto = z.infer<
+  typeof materializedAgentStdioMcpServerSchema
+>;
+export type MaterializedAgentHttpMcpServerConfigDto = z.infer<
+  typeof materializedAgentHttpMcpServerSchema
+>;
 export type AgentIntegrationMcpServerConfigDto = z.infer<typeof agentIntegrationMcpServerSchema>;

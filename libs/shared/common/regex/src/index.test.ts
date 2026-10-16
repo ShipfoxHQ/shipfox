@@ -4,6 +4,7 @@ import {
   DISPLAY_NAME_DISALLOWED_CHARACTER_RE,
   hasDisplayNameDisallowedCharacter,
   isAlnumSlug,
+  isHttpFieldName,
   isLowercaseAlphaSlug,
   isLowercaseSha256Hex,
   isSafeRefInput,
@@ -176,5 +177,24 @@ describe('exported regexes', () => {
 
     expect(first).toBe(true);
     expect(second).toBe(true);
+  });
+});
+
+describe('isHttpFieldName', () => {
+  it.each([
+    'Authorization',
+    'x-api-key',
+    'X_Custom.Header',
+    "a!#$%&'*+.^_`|~-",
+  ])('accepts header name %s', (value) => {
+    const result = isHttpFieldName(value);
+
+    expect(result).toBe(true);
+  });
+
+  it.each(['', 'X Token', 'X:Token', 'X\nToken', 'Tökén'])('rejects header name %j', (value) => {
+    const result = isHttpFieldName(value);
+
+    expect(result).toBe(false);
   });
 });

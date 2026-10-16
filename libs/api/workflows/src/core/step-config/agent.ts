@@ -11,7 +11,7 @@ import {
   sanitizeAgentIntegrationConnectionSlug,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import {agentMcpServerValues, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   type AgentStepSessionIntentDto,
   agentStepSessionDescriptorSchema,
@@ -67,13 +67,31 @@ interface RepositoryContextResolution {
 type RepositoryContextDispatchPlan = NonNullable<
   NonNullable<StepConfigDispatchPlan['agent']>['repositoryContext']
 >;
-type CustomMcpServerEnvPlan = NonNullable<
+type CustomMcpServerValuesPlan = NonNullable<
   NonNullable<StepConfigDispatchPlan['agent']>['customMcpServerEnv']
 >;
+type CustomMcpServerValuesKind = ReturnType<typeof agentMcpServerValues>['kind'];
+
+// A stdio server gets `env` values and an http server gets `headers` values. Both resolve the
+// same way; only the field, the binding target, and the plan key differ.
+const customMcpServerValues = {
+  env: {
+    field: 'agent.mcp_servers.env.value',
+    target: 'mcp_server_env',
+    plan: 'customMcpServerEnv',
+  },
+  headers: {
+    field: 'agent.mcp_servers.headers.value',
+    target: 'mcp_server_header',
+    plan: 'customMcpServerHeaders',
+  },
+} as const satisfies Record<CustomMcpServerValuesKind, unknown>;
 
 interface CustomMcpServerResolution {
   readonly servers: readonly MaterializedAgentMcpServerConfigDto[];
-  readonly envPlan: CustomMcpServerEnvPlan | undefined;
+  readonly plans: Readonly<
+    Record<CustomMcpServerValuesKind, CustomMcpServerValuesPlan | undefined>
+  >;
 }
 
 interface AgentFieldResolutions {
@@ -205,7 +223,10 @@ export async function completeAgentConfig(params: {
   return sessionIntent;
 }
 
-/** Fills the env values that dispatch can know; values that read secrets become bindings. */
+/**
+ * Fills the env and header values that dispatch can know; values that read secrets become
+ * bindings.
+ */
 function completeCustomMcpServers(params: {
   readonly config: Record<string, unknown>;
   readonly agent: NonNullable<StepConfigDispatchPlan['agent']>;
@@ -216,27 +237,33 @@ function completeCustomMcpServers(params: {
   if (params.agent.customMcpServers !== undefined) {
     params.config.customMcpServers = params.agent.customMcpServers.map(copyCustomMcpServer);
   }
-  const envPlan = params.agent.customMcpServerEnv;
-  if (envPlan === undefined) return;
+  if (
+    params.agent.customMcpServerEnv === undefined &&
+    params.agent.customMcpServerHeaders === undefined
+  ) {
+    return;
+  }
   const servers = materializedAgentMcpServerSchema
     .array()
     .parse(params.config.customMcpServers)
     .map(copyCustomMcpServer);
   const bindings: StepBindingDto[] = [];
   for (const server of servers) {
-    for (const [name, template] of Object.entries(envPlan[server.name] ?? {})) {
+    const {kind, values} = materializedCustomMcpServerValues(server);
+    const {field, target, plan} = customMcpServerValues[kind];
+    for (const [name, template] of Object.entries(params.agent[plan]?.[server.name] ?? {})) {
       const completed = completeDispatchField({
-        field: 'agent.mcp_servers.env.value',
-        traceField: 'agent.mcp_servers.env.value',
-        errorField: 'agent.mcp_servers.env.value',
+        field,
+        traceField: field,
+        errorField: field,
         template,
         context: params.context,
         definitionId: params.definitionId,
-        target: {kind: 'mcp_server_env', server: server.name, name},
+        target: {kind: target, server: server.name, name},
         trace: params.trace,
       });
       if (completed.kind === 'binding') bindings.push(completed.binding);
-      else server.env[name] = completed.value;
+      else values[name] = completed.value;
     }
   }
   params.config.customMcpServers = servers;
@@ -250,12 +277,18 @@ function completeCustomMcpServers(params: {
 function copyCustomMcpServer(
   server: MaterializedAgentMcpServerConfigDto,
 ): MaterializedAgentMcpServerConfigDto {
-  return {
-    ...server,
-    args: [...server.args],
-    env: {...server.env},
-    ...(server.include === undefined ? {} : {include: [...server.include]}),
-  };
+  const include = server.include === undefined ? {} : {include: [...server.include]};
+  if ('url' in server) return {...server, headers: {...server.headers}, ...include};
+  return {...server, args: [...server.args], env: {...server.env}, ...include};
+}
+
+function materializedCustomMcpServerValues(server: MaterializedAgentMcpServerConfigDto): {
+  readonly kind: CustomMcpServerValuesKind;
+  readonly values: Record<string, string>;
+} {
+  return 'url' in server
+    ? {kind: 'headers', values: server.headers}
+    : {kind: 'env', values: server.env};
 }
 
 async function applyAgentDefaultsForDispatch(params: {
@@ -481,7 +514,9 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
     params.step.templates?.repositoryContextInstructions !== undefined ||
     params.step.templates?.repositoryContextSkills !== undefined ||
     params.step.session !== undefined ||
-    (params.step.customMcpServers ?? []).some((server) => server.templates?.env !== undefined);
+    (params.step.customMcpServers ?? []).some(
+      (server) => agentMcpServerValues(server).templates !== undefined,
+    );
 
   return {
     diagnostics,
@@ -506,52 +541,56 @@ function resolveCustomMcpServers(
   const authoredServers = params.step.customMcpServers;
   if (authoredServers === undefined) return undefined;
 
-  const envPlan: Record<string, Record<string, ResolvedField>> = {};
+  const plans: Record<CustomMcpServerValuesKind, Record<string, Record<string, ResolvedField>>> = {
+    env: {},
+    headers: {},
+  };
   const servers = authoredServers.map((server): MaterializedAgentMcpServerConfigDto => {
-    const env: Record<string, string> = {};
-    for (const [name, value] of Object.entries(server.env ?? {})) {
-      const template = server.templates?.env?.[name];
+    const authored = agentMcpServerValues(server);
+    const {field} = customMcpServerValues[authored.kind];
+    const plan = plans[authored.kind];
+    const values: Record<string, string> = {};
+    for (const [name, value] of Object.entries(authored.values ?? {})) {
+      const template = authored.templates?.[name];
       if (template === undefined || params.mode === 'authored') {
-        env[name] = value;
+        values[name] = value;
         continue;
       }
       const resolved = resolveStepField({
-        field: 'agent.mcp_servers.env.value',
+        field,
         template: {segments: template},
         context: params.context,
         definitionId: params.definitionId,
-        errorField: 'agent.mcp_servers.env.value',
+        errorField: field,
         envKey: name,
       });
       params.diagnostics.push(
-        ...resolved.diagnostics.map((diagnostic) => ({
-          ...diagnostic,
-          field: 'agent.mcp_servers.env.value' as const,
-          envKey: name,
-        })),
+        ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field, envKey: name})),
       );
-      params.trace.push(
-        ...resolved.trace.map((entry) => ({
-          ...entry,
-          field: 'agent.mcp_servers.env.value' as const,
-          envKey: name,
-        })),
-      );
+      params.trace.push(...resolved.trace.map((entry) => ({...entry, field, envKey: name})));
       if (resolved.kind === 'residual') {
-        envPlan[server.name] = {...envPlan[server.name], [name]: resolved.field};
+        plan[server.name] = {...plan[server.name], [name]: resolved.field};
       } else {
-        env[name] = resolved.value;
+        values[name] = resolved.value;
       }
     }
+    const include = server.include === undefined ? {} : {include: [...server.include]};
+    if ('url' in server) return {name: server.name, url: server.url, headers: values, ...include};
     return {
       name: server.name,
       command: server.command,
       args: [...server.args],
-      env,
-      ...(server.include === undefined ? {} : {include: [...server.include]}),
+      env: values,
+      ...include,
     };
   });
-  return {servers, envPlan: Object.keys(envPlan).length === 0 ? undefined : envPlan};
+  return {
+    servers,
+    plans: {
+      env: Object.keys(plans.env).length === 0 ? undefined : plans.env,
+      headers: Object.keys(plans.headers).length === 0 ? undefined : plans.headers,
+    },
+  };
 }
 
 function authoredAgentStepConfig(
@@ -608,7 +647,7 @@ function deferredAgentStepConfig(
         ...agentToolSurfaceConfig(step),
         ...materializedAgentIntegrationsConfig(params, fields),
         ...customMcpServersConfig(fields),
-        ...customMcpServerEnvPlan(fields),
+        ...customMcpServerValuesPlan(fields),
       },
     },
     diagnostics: fields.diagnostics,
@@ -661,7 +700,7 @@ async function agentStepConfigWithDefaults(
           ...agentToolSurfaceConfig(step),
           ...materializedAgentIntegrationsConfig(params, fields),
           ...customMcpServersConfig(fields),
-          ...customMcpServerEnvPlan(fields),
+          ...customMcpServerValuesPlan(fields),
         },
       },
       diagnostics: fields.diagnostics,
@@ -680,7 +719,7 @@ async function agentStepConfigWithDefaults(
             mode: fields.session.mode,
           },
         }),
-    ...customMcpServerEnvPlan(fields),
+    ...customMcpServerValuesPlan(fields),
   };
   return {
     config: {
@@ -774,11 +813,15 @@ function customMcpServersConfig(
     : {customMcpServers: fields.customMcpServers.servers};
 }
 
-function customMcpServerEnvPlan(
-  fields: AgentFieldResolutions,
-): {readonly customMcpServerEnv: CustomMcpServerEnvPlan} | Record<string, never> {
-  const envPlan = fields.customMcpServers?.envPlan;
-  return envPlan === undefined ? {} : {customMcpServerEnv: envPlan};
+function customMcpServerValuesPlan(fields: AgentFieldResolutions): {
+  readonly customMcpServerEnv?: CustomMcpServerValuesPlan;
+  readonly customMcpServerHeaders?: CustomMcpServerValuesPlan;
+} {
+  const plans = fields.customMcpServers?.plans;
+  return {
+    ...(plans?.env === undefined ? {} : {customMcpServerEnv: plans.env}),
+    ...(plans?.headers === undefined ? {} : {customMcpServerHeaders: plans.headers}),
+  };
 }
 
 function agentIntegrationMcpServers(
