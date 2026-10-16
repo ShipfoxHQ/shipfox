@@ -73,13 +73,7 @@ export class ClaapAgentToolsProvider
       client = await this.createClient({endpoint: this.endpoint, apiKey});
     } catch (error) {
       const mapped = mapClaapMcpError(error);
-      if (mapped instanceof ClaapIntegrationProviderError && mapped.status === 401) {
-        // The version guard keeps a late failure from an old key from undoing a replacement.
-        await this.options.markConnectionError({
-          connectionId: input.connection.id,
-          credentialVersion: installation.credentialVersion,
-        });
-      }
+      await this.markIfCredentialRejected(mapped, input.connection.id, installation);
       throw mapped;
     }
 
@@ -89,11 +83,29 @@ export class ClaapAgentToolsProvider
         try {
           return await client.callTool(upstreamCall, this.callTimeoutMs);
         } catch (error) {
-          throw mapClaapMcpError(error);
+          // Claap answers a revoked key with HTTP 401 on any request, not only at initialize.
+          const mapped = mapClaapMcpError(error);
+          await this.markIfCredentialRejected(mapped, input.connection.id, installation);
+          throw mapped;
         }
       },
       close: () => client.close(),
     };
+  }
+
+  // Only an HTTP 401 says the key is bad. An isError result never does: Claap reports a wrong
+  // workspace ID the same way. The version guard keeps a late failure from an old key from
+  // undoing a replacement.
+  private async markIfCredentialRejected(
+    error: unknown,
+    connectionId: string,
+    installation: Pick<ClaapInstallation, 'credentialVersion'>,
+  ): Promise<void> {
+    if (!(error instanceof ClaapIntegrationProviderError) || error.status !== 401) return;
+    // The caller must still see the actionable error when marking the connection fails.
+    await this.options
+      .markConnectionError({connectionId, credentialVersion: installation.credentialVersion})
+      .catch(() => undefined);
   }
 }
 

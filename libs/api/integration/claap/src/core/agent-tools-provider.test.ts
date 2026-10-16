@@ -152,6 +152,48 @@ describe('ClaapAgentToolsProvider', () => {
     });
   });
 
+  it('marks the connection when a call returns HTTP 401, as Claap does for a revoked key', async () => {
+    const callTool = vi.fn().mockRejectedValue(new StreamableHTTPError(401, 'revoked'));
+    const options = providerOptions({
+      createClient: vi.fn().mockResolvedValue({callTool, close: vi.fn()}),
+    });
+    const session = await openSession(options);
+
+    await expect(session.call({toolId: 'get_recordings', arguments: {}})).rejects.toMatchObject({
+      reason: 'credentials-unavailable',
+    });
+    expect(options.markConnectionError).toHaveBeenCalledWith({
+      connectionId: claapConnection().id,
+      credentialVersion: 3,
+    });
+  });
+
+  it('does not mark the connection for an Unauthorized isError result on a wrong workspace', async () => {
+    const result = {
+      isError: true,
+      content: [{type: 'text', text: 'Unauthorized: no access to this workspaceId'}],
+    } satisfies CallToolResult;
+    const options = providerOptions({
+      createClient: vi.fn().mockResolvedValue({
+        callTool: vi.fn().mockResolvedValue(result),
+        close: vi.fn(),
+      }),
+    });
+    const session = await openSession(options);
+
+    await expect(session.call({toolId: 'get_recordings', arguments: {}})).resolves.toEqual(result);
+    expect(options.markConnectionError).not.toHaveBeenCalled();
+  });
+
+  it('still reports credentials-unavailable when marking the connection fails', async () => {
+    const options = providerOptions({
+      createClient: vi.fn().mockRejectedValue(new StreamableHTTPError(401, 'revoked')),
+      markConnectionError: vi.fn().mockRejectedValue(new Error('database down')),
+    });
+
+    await expect(openSession(options)).rejects.toMatchObject({reason: 'credentials-unavailable'});
+  });
+
   it('maps a 403 at initialization without marking the connection', async () => {
     const options = providerOptions({
       createClient: vi.fn().mockRejectedValue(new StreamableHTTPError(403, 'forbidden')),

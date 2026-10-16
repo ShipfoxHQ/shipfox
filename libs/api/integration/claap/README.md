@@ -56,7 +56,7 @@ The package owns the `integrations_claap_installations` migration unit. The API 
 - **Share URLs.** `get_recording` and `get_recording_transcript` accept `recordingId` or `recordingUrl`, and exactly one. The URL must be an `https://app.claap.io` share URL of the connected Claap workspace.
 - **Sensitive tools.** `get_recordings`, `get_recording`, `get_recording_transcript`, and `search_recording_transcripts` are marked sensitive, so tool-step logs redact their arguments and results. Even the metadata list names participants, companies, and deals.
 - **Errors.** HTTP 401 becomes `credentials-unavailable`. Other 4xx and invalid parameters become `provider-rejected`. 429 becomes `rate-limited`, a timeout or 408 becomes `timeout`, and 5xx or network failures become `provider-unavailable`. An `isError` result passes through unchanged.
-- **Connection state.** Only an HTTP 401 while opening a session marks the connection `error`. The credential version guard keeps a late failure from an old key from undoing a key replacement.
+- **Connection state.** Only an HTTP 401 marks the connection `error`, while opening a session or on a call. Claap answers a revoked key with 401 on any request. An `isError` result never does, because Claap reports a wrong workspace ID the same way. The credential version guard keeps a late failure from an old key from undoing a key replacement.
 - **Rate limits.** Claap limits each workspace to 3,000 calls per day, shared by every key.
 
 ## Development
