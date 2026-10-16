@@ -7,7 +7,7 @@ trigger: |
     event: taskTagUpdated
     filter: >-
       event.history_items.exists(item, item.field == "tag" &&
-        item.parent_id == "replace-with-list-id" && item.after != null &&
+        item.parent_id == "replace-with-list-id" && has(item.after) && item.after != null &&
         item.after.exists(tag, tag.name == "replace-with-tag-name"))
   # option:clickup_trigger=tag end
   # option:clickup_trigger=status begin
@@ -16,7 +16,7 @@ trigger: |
     event: taskStatusUpdated
     filter: >-
       event.history_items.exists(item, item.field == "status" &&
-        item.parent_id == "replace-with-list-id" && item.after != null &&
+        item.parent_id == "replace-with-list-id" && has(item.after) && item.after != null &&
         item.after.status == "replace-with-trigger-status")
   # option:clickup_trigger=status end
 load_ticket: |

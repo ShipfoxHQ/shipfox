@@ -34,7 +34,8 @@ function buildTaskChangeEnvelope({
 }: TaskChangeParams & {
   event: 'taskTagUpdated' | 'taskStatusUpdated';
   field: string;
-  before: unknown;
+  /** Left out when undefined, as ClickUp leaves it out of a tag change. */
+  before?: unknown;
   after: unknown;
 }) {
   return {
@@ -51,7 +52,7 @@ function buildTaskChangeEnvelope({
         data: {},
         source: null,
         user: buildActor(params.actorId),
-        before,
+        ...(before === undefined ? {} : {before}),
         after,
       },
     ],
@@ -61,19 +62,16 @@ function buildTaskChangeEnvelope({
 const tagOf = (name: string) => ({name, tag_fg: '#ffffff', tag_bg: '#000000'});
 
 /**
- * A `taskTagUpdated` delivery. Each change record lists the tags the task has, so `tags` holds
- * every tag after the change and `previousTags` every tag before it.
+ * A `taskTagUpdated` delivery for added tags. Like ClickUp, its change record has no `before`.
  */
 export function buildTaskTagUpdatedEnvelope({
   tags,
-  previousTags = [],
   ...params
-}: TaskChangeParams & {tags: readonly string[]; previousTags?: readonly string[]}) {
+}: TaskChangeParams & {tags: readonly string[]}) {
   return buildTaskChangeEnvelope({
     ...params,
     event: 'taskTagUpdated',
     field: 'tag',
-    before: previousTags.map(tagOf),
     after: tags.map(tagOf),
   });
 }

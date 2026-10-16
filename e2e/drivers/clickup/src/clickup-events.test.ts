@@ -9,12 +9,8 @@ const params = {
 };
 
 describe('buildTaskTagUpdatedEnvelope', () => {
-  it('lists the tags before and after the change on the List that holds the task', () => {
-    const envelope = buildTaskTagUpdatedEnvelope({
-      ...params,
-      tags: ['bug', 'shipfox'],
-      previousTags: ['bug'],
-    });
+  it('lists the added tags without a before, like ClickUp, on the List that holds the task', () => {
+    const envelope = buildTaskTagUpdatedEnvelope({...params, tags: ['shipfox']});
 
     expect(envelope).toMatchObject({
       event: 'taskTagUpdated',
@@ -25,11 +21,11 @@ describe('buildTaskTagUpdatedEnvelope', () => {
           id: 'history-1',
           field: 'tag',
           parent_id: 'list-1',
-          before: [{name: 'bug'}],
-          after: [{name: 'bug'}, {name: 'shipfox'}],
+          after: [{name: 'shipfox'}],
         },
       ],
     });
+    expect(envelope.history_items[0]).not.toHaveProperty('before');
   });
 });
 

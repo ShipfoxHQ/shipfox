@@ -134,6 +134,27 @@ describe('ClickUp webhook envelopes', () => {
     expect('history_items' in result).toBe(false);
   });
 
+  it('parses a history item without data, source, or before, as ClickUp sends a tag change', () => {
+    const {data: _data, source: _source, before: _before, ...tagItem} = historyItem;
+    const sample = {
+      ...taskCreatedSample,
+      event: 'taskTagUpdated',
+      history_items: [{...tagItem, field: 'tag', after: [{name: 'shipfox'}]}],
+    };
+
+    expect(clickupWebhookEnvelopeSchema.safeParse(sample).success).toBe(true);
+  });
+
+  it('parses a history item without after, and a user whose profile fields are null', () => {
+    const {after: _after, ...item} = historyItem;
+    const sample = {
+      ...taskStatusUpdatedSample,
+      history_items: [{...item, user: {id: 61234567, username: null, email: null, initials: null}}],
+    };
+
+    expect(clickupWebhookEnvelopeSchema.safeParse(sample).success).toBe(true);
+  });
+
   it('rejects actor-bearing events without history items', () => {
     const taskResult = clickupTaskWebhookEnvelopeSchema.safeParse({
       ...taskStatusUpdatedSample,

@@ -28,9 +28,10 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
   comment.
 - `signClickUpHeaders`, `buildTaskCommentPostedEnvelope`, and `postClickUpCommentDelivery`: sign
   and send a comment event. The suite waits for the run it starts.
-- `buildTaskTagUpdatedEnvelope` and `buildTaskStatusUpdatedEnvelope`: the payloads of a tag
-  change and a status change, in the shape of ClickUp's webhooks. Each carries the List ID as the
-  change record's `parent_id`, which the triggers filter on.
+- `buildTaskTagUpdatedEnvelope` and `buildTaskStatusUpdatedEnvelope`: the payloads of added tags
+  and a status change, in the shape of ClickUp's webhooks. The tag change has no `before`, as
+  ClickUp sends it. Each carries the List ID as the change record's `parent_id`, which the
+  triggers filter on.
 - `postClickUpDelivery`: sign and send any envelope, and return the delivery ID the API records.
 
 ## Local Checks

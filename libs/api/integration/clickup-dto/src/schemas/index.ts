@@ -39,9 +39,9 @@ export type ClickUpEventName = ClickUpWebhookEventName;
 export const clickupWebhookUserSchema = z
   .object({
     id: z.union([z.string().min(1), z.number().int()]),
-    username: z.string().min(1).optional(),
-    email: z.string().min(1).optional(),
-    initials: z.string().min(1).optional(),
+    username: z.string().min(1).nullish(),
+    email: z.string().min(1).nullish(),
+    initials: z.string().min(1).nullish(),
   })
   .passthrough();
 export type ClickUpWebhookUserDto = z.infer<typeof clickupWebhookUserSchema>;
@@ -72,11 +72,13 @@ export const clickupWebhookHistoryItemSchema = z
     date: z.string().min(1).describe('Change time in epoch milliseconds.'),
     field: z.string().min(1).describe('Changed field, such as status.'),
     parent_id: z.string().min(1).describe('ID of the List that contains the task.'),
-    data: z.unknown(),
-    source: z.unknown(),
+    // ClickUp leaves these out of some records, such as `before` when a tag is added. A filter
+    // checks `has(item.after)` before it reads `after`.
+    data: z.unknown().optional(),
+    source: z.unknown().optional(),
     user: clickupWebhookUserSchema.describe('User who made the change.'),
-    before: z.unknown().describe('State of the task field before the change.'),
-    after: z.unknown().describe('State of the task field after the change.'),
+    before: z.unknown().optional().describe('State of the task field before the change.'),
+    after: z.unknown().optional().describe('State of the task field after the change.'),
   })
   .passthrough();
 export type ClickUpWebhookHistoryItemDto = z.infer<typeof clickupWebhookHistoryItemSchema>;
