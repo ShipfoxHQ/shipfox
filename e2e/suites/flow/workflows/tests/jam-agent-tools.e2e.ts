@@ -7,7 +7,6 @@ import {
   waitForJamMockCall,
 } from '@shipfox/e2e-driver-jam';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
-import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import {
@@ -16,13 +15,10 @@ import {
   deleteModelProviderConfig,
 } from '@shipfox/e2e-setup-agent';
 import {createJamConnection} from '@shipfox/e2e-setup-integrations';
-import {attachLocalRunnerLog} from '#attachments.js';
-import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import {fireManualAndAwaitRun} from '#triggers.js';
+import {connectionStatus, startIntegrationToolsScenario} from '#integration-tools.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
-const TERMINAL_TIMEOUT_MS = 60_000;
 const PI_MODEL = 'deterministic-pi-jam-agent';
 
 // The two Jams the fake holds, the ones of the contracts sandbox.
@@ -66,7 +62,7 @@ test('an agent reads the console logs of a Jam from its link', async ({suite}, t
       ],
       setAsDefault: true,
     });
-    const scenario = await startScenario({
+    const scenario = await startIntegrationToolsScenario({
       suite,
       testInfo,
       uniqueId,
@@ -124,7 +120,7 @@ test('a Claude agent receives the image block of getScreenshots', async ({suite}
       ],
       setAsDefault: true,
     });
-    const scenario = await startScenario({
+    const scenario = await startIntegrationToolsScenario({
       suite,
       testInfo,
       uniqueId,
@@ -181,7 +177,7 @@ test('a Claude agent receives the image blocks of getFrames', async ({suite}, te
       ],
       setAsDefault: true,
     });
-    const scenario = await startScenario({
+    const scenario = await startIntegrationToolsScenario({
       suite,
       testInfo,
       uniqueId,
@@ -251,7 +247,7 @@ test('a Pi agent receives the image block of getScreenshots', async ({suite}, te
       modelMetadata: {input_image: true},
     });
     providerId = provider.provider_id;
-    const scenario = await startScenario({
+    const scenario = await startIntegrationToolsScenario({
       suite,
       testInfo,
       uniqueId,
@@ -290,7 +286,7 @@ test('a tool step maps a field from getDetails', async ({suite}, testInfo) => {
   const uniqueId = newUniqueId();
   const token = `jam_pat_details_${uniqueId}`;
   const connection = await seedJamConnection({suite, token, uniqueId});
-  const scenario = await startScenario({
+  const scenario = await startIntegrationToolsScenario({
     suite,
     testInfo,
     uniqueId,
@@ -385,7 +381,7 @@ test('a revoked token marks the connection and fails the next call fast', async 
   const uniqueId = newUniqueId();
   const token = `jam_pat_revoked_${uniqueId}`;
   const connection = await seedJamConnection({suite, token, uniqueId});
-  const scenario = await startScenario({
+  const scenario = await startIntegrationToolsScenario({
     suite,
     testInfo,
     uniqueId,
@@ -423,7 +419,7 @@ test('a replaced token stays active when a call with the old token fails late', 
     uniqueId,
     identity: {teamId: FAKE_TEAM_ID, userId: FAKE_USER_ID},
   });
-  const scenario = await startScenario({
+  const scenario = await startIntegrationToolsScenario({
     suite,
     testInfo,
     uniqueId,
@@ -481,85 +477,6 @@ async function seedJamConnection(params: {
     userName: `Jam flow ${params.uniqueId}`,
     userEmail: `jam-flow-${params.uniqueId}@example.com`,
   });
-}
-
-async function connectionStatus(suite: SuiteContext, connectionId: string): Promise<string | null> {
-  const response = await createApiClient({token: suite.sessionToken}).requestJson<{
-    connections: Array<{id: string; lifecycle_status: string}>;
-  }>('get', `/integration-connections?workspace_id=${encodeURIComponent(suite.workspaceId)}`);
-  return response.connections.find((item) => item.id === connectionId)?.lifecycle_status ?? null;
-}
-
-/**
- * A local runner and a workflow definition. `run` fires the workflow and waits for it to end. A
- * second call fires it again.
- */
-async function startScenario(params: {
-  suite: SuiteContext;
-  testInfo: TestInfo;
-  uniqueId: string;
-  name: string;
-  workflowYaml: string;
-  extraEnv?: Record<string, string> | undefined;
-}) {
-  const {suite} = params;
-  const runnerLabel = `e2e-${params.name}-${params.uniqueId}`;
-  const localRunner = await startSuiteLocalRunner({
-    workspaceId: suite.workspaceId,
-    userToken: suite.sessionToken,
-    name: `E2E ${params.name} ${params.uniqueId}`,
-    runnerLabel,
-    extraEnv: {
-      ...params.extraEnv,
-      SHIPFOX_POLL_MAX_DURATION_MS: String(TERMINAL_TIMEOUT_MS),
-    },
-  });
-  const client = createApiClient({token: suite.sessionToken});
-  let runCount = 0;
-
-  try {
-    const {definition} = await seedProjectWithApiDefinition({
-      suite,
-      token: suite.sessionToken,
-      name: params.name,
-      repo: `${params.name}-${params.uniqueId}`,
-      runnerLabel,
-      workflowYaml: params.workflowYaml,
-      configPath: `.shipfox/workflows/${params.name}.yml`,
-    });
-    const run = async (): Promise<WorkflowRunObservation> => {
-      runCount += 1;
-      const runId = await fireManualAndAwaitRun({
-        client,
-        definitionId: definition.id,
-        inputs: {},
-        scenario: `${params.name}-${runCount}`,
-      });
-      return await waitForRunTerminalOrFailedRunner({
-        runId,
-        token: suite.sessionToken,
-        timeoutMs: TERMINAL_TIMEOUT_MS,
-        runner: localRunner.runner,
-      });
-    };
-    return {
-      run,
-      stop: async () => {
-        await attachLocalRunnerLog(
-          (attachment) =>
-            params.testInfo.attach(attachment.name, {
-              body: attachment.body,
-              contentType: attachment.contentType,
-            }),
-          localRunner.logFile,
-        ).catch(() => undefined);
-        await stopLocalRunner(localRunner.runner).catch(() => undefined);
-      },
-    };
-  } catch (error) {
-    await stopLocalRunner(localRunner.runner).catch(() => undefined);
-    throw error;
-  }
 }
 
 async function attachModelRequests(params: {

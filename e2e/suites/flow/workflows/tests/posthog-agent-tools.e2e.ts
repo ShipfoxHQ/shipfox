@@ -12,6 +12,7 @@ import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
 import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
 import {attachLocalRunnerLog} from '#attachments.js';
+import {connectionStatus} from '#integration-tools.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
@@ -192,8 +193,7 @@ test('marks a revoked PostHog key and fails the next call fast', async ({suite},
       runner: localRunner.runner,
     });
     expect(firstTerminal.status).toBe('succeeded');
-    const afterFirst = await listWorkspaceConnections(suite.workspaceId, suite.sessionToken);
-    expect(afterFirst.find((item) => item.id === connection.id)?.lifecycle_status).toBe('error');
+    expect(await connectionStatus(suite, connection.id)).toBe('error');
 
     const mcpRequestsBeforeSecondRun = await posthogMockMcpRequestCount(apiKey);
     expect(mcpRequestsBeforeSecondRun).toBeGreaterThan(0);
@@ -279,8 +279,7 @@ test('keeps a replaced key active when an old PostHog call fails late', async ({
       runner: localRunner.runner,
     });
     expect(terminal.status).toBe('failed');
-    const connections = await listWorkspaceConnections(suite.workspaceId, suite.sessionToken);
-    expect(connections.find((item) => item.id === connection.id)?.lifecycle_status).toBe('active');
+    expect(await connectionStatus(suite, connection.id)).toBe('active');
   } finally {
     await attachLocalRunnerLog(
       (attachment) =>
@@ -306,14 +305,6 @@ async function waitForPosthogCalls(apiKey: string, expected: number) {
       return calls.length >= expected ? calls : null;
     },
   );
-}
-
-async function listWorkspaceConnections(workspaceId: string, token: string) {
-  const client = createApiClient({token});
-  const response = await client.requestJson<{
-    connections: Array<{id: string; lifecycle_status: string}>;
-  }>('get', `/integration-connections?workspace_id=${encodeURIComponent(workspaceId)}`);
-  return response.connections;
 }
 
 function posthogAgentAndToolWorkflow(connectionSlug: string): string {
