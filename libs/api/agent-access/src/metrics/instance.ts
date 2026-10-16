@@ -7,7 +7,8 @@ export type AgentAccessToolCallOutcome =
   | 'tool-error'
   | 'invalid-request'
   | 'rate-limited'
-  | 'exception';
+  | 'exception'
+  | 'client-disconnected';
 
 export type AgentAccessAuthFailureReason =
   | 'missing'

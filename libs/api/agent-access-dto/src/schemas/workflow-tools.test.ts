@@ -80,6 +80,7 @@ describe('workflow agent-access schemas', () => {
       minimum: 0,
       maximum: AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX,
       default: 0,
+      description: expect.any(String),
     });
   });
 

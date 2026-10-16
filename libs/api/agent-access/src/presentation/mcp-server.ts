@@ -177,10 +177,11 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
     });
   }
 
-  server.setRequestHandler(CallToolRequestSchema, (request) =>
+  server.setRequestHandler(CallToolRequestSchema, (request, extra) =>
     handleAgentAccessToolCall({
       name: request.params.name,
       arguments: request.params.arguments,
+      signal: extra.signal,
       context: params.context,
       tools,
       rateLimiter,
@@ -257,6 +258,7 @@ function docsSlugFromUri(uri: string): string {
 interface HandleAgentAccessToolCallParams {
   name: string;
   arguments?: Record<string, unknown> | undefined;
+  signal?: AbortSignal | undefined;
   context: AgentAccessContext;
   tools: AgentAccessToolMap;
   rateLimiter: AgentAccessRateLimiter;
@@ -315,6 +317,7 @@ async function handleAgentAccessToolCall(
     tool,
     input,
     context,
+    signal: params.signal,
     actionRateLimiter: params.actionRateLimiter,
     auth: params.auth,
     recordCall: params.recordCall,
@@ -415,6 +418,7 @@ async function executeAgentAccessTool(params: {
   tool: AgentAccessTool;
   input: Record<string, unknown>;
   context: AgentAccessContext;
+  signal?: AbortSignal | undefined;
   actionRateLimiter: AgentAccessRateLimiter;
   auth: AuthInterModuleClient | undefined;
   recordCall: AgentAccessToolCallRecorder;
@@ -456,7 +460,11 @@ async function executeAgentAccessTool(params: {
       }
     }
 
-    const response = await params.tool.execute({context: params.context, arguments: params.input});
+    const response = await params.tool.execute({
+      context: params.context,
+      arguments: params.input,
+      signal: params.signal,
+    });
     const envelope = validateAgentAccessToolResponse(params.tool, response);
     if (envelope === undefined) {
       recordToolCall(params.recordCall, {
@@ -472,12 +480,12 @@ async function executeAgentAccessTool(params: {
 
     const boundedEnvelope = fitAgentAccessResponseToCeiling(envelope);
     if (action !== undefined) action = completeActionAudit(action, boundedEnvelope);
-    const outcome: AgentAccessToolCallOutcome = boundedEnvelope.ok ? 'success' : 'tool-error';
+    const outcome = toolCallOutcome(boundedEnvelope, params.signal);
     const result = toolResult(boundedEnvelope, !boundedEnvelope.ok);
     recordToolCall(params.recordCall, {
       tool: params.tool.name,
       outcome,
-      errorCode: boundedEnvelope.ok ? 'none' : (boundedEnvelope.error?.code ?? 'unknown'),
+      errorCode: toolCallErrorCode(boundedEnvelope, outcome),
       context: withResultWindow(params.context, boundedEnvelope),
       ...(target === undefined ? {} : {target}),
       ...(action === undefined ? {} : {action}),
@@ -496,6 +504,23 @@ async function executeAgentAccessTool(params: {
     reportError(error, {boundary: 'agent-access.mcp', operation: 'tool-call'});
     return toolResult(agentAccessError('tool-failed'), true);
   }
+}
+
+// A client that disconnected never receives the result, whatever the tool returned.
+function toolCallOutcome(
+  envelope: AgentAccessEnvelopeDto,
+  signal: AbortSignal | undefined,
+): AgentAccessToolCallOutcome {
+  if (signal?.aborted) return 'client-disconnected';
+  return envelope.ok ? 'success' : 'tool-error';
+}
+
+function toolCallErrorCode(
+  envelope: AgentAccessEnvelopeDto,
+  outcome: AgentAccessToolCallOutcome,
+): string {
+  if (outcome === 'client-disconnected') return 'client-disconnected';
+  return envelope.ok ? 'none' : (envelope.error?.code ?? 'unknown');
 }
 
 /** Tags an admin audit record with the window a successful result names. */

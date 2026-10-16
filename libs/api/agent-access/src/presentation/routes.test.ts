@@ -23,8 +23,9 @@ import {
 } from '@shipfox/node-fastify';
 import {AGENT_ACCESS_MCP_BODY_LIMIT_BYTES} from '#constants.js';
 import {createDocsCache} from '#core/docs.js';
+import {agentAccessSuccess} from '#core/envelope.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
-import {createAgentAccessFixtureTool} from '#core/tools.js';
+import {type AgentAccessTool, createAgentAccessFixtureTool} from '#core/tools.js';
 import {type CreateAgentAccessRoutesOptions, createAgentAccessRoutes} from './routes.js';
 
 const context: AgentAccessContext = {
@@ -86,6 +87,52 @@ describe('agent-access MCP routes', () => {
     expect(() => createTestRoutes({additionalTools: [duplicate]})).toThrow(
       'Duplicate agent-access tool: agent_access_fixture',
     );
+  });
+
+  test('aborts the tool and audits a client disconnect when the connection closes', async () => {
+    let onStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      onStarted = resolve;
+    });
+    const waitingTool: AgentAccessTool = {
+      ...createAgentAccessFixtureTool(),
+      name: 'waiting_fixture',
+      execute: ({signal}) =>
+        new Promise((resolve) => {
+          signal?.addEventListener('abort', () => resolve(agentAccessSuccess({})));
+          onStarted?.();
+        }),
+    };
+    const recordCall = vi.fn();
+    const app = await createTestApp(createAgentAccessRateLimiter(), {
+      additionalTools: [waitingTool],
+      recordCall,
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(new URL('/mcp', address), {
+      requestInit: {headers: {authorization: 'Bearer valid-token'}},
+    });
+
+    try {
+      await client.connect(transport as unknown as Transport);
+      const call = client.callTool({name: waitingTool.name, arguments: {}}, CallToolResultSchema);
+      await started;
+      await transport.close();
+
+      await expect(call).rejects.toThrow();
+      await vi.waitFor(() =>
+        expect(recordCall).toHaveBeenCalledWith(
+          expect.objectContaining({
+            tool: waitingTool.name,
+            outcome: 'client-disconnected',
+            errorCode: 'client-disconnected',
+          }),
+        ),
+      );
+    } finally {
+      await client.close();
+    }
   });
 
   test('lists and executes additional tools through the shared rate limiter and audit recorder', async () => {

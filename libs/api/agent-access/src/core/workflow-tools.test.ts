@@ -227,6 +227,25 @@ describe('bounded workflow agent-access tools', () => {
     expect(mocks.workflowHandlers.getWorkflowRunOverview).toHaveBeenCalledTimes(2);
   });
 
+  test('stops waiting when the client disconnects', async () => {
+    vi.useFakeTimers();
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(runningOverview());
+    const controller = new AbortController();
+
+    const responsePromise = tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId, wait_seconds: 30},
+      signal: controller.signal,
+    });
+    await vi.advanceTimersByTimeAsync(2_000);
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await responsePromise;
+
+    expect(mocks.workflowHandlers.getWorkflowRunOverview).toHaveBeenCalledTimes(3);
+  });
+
   test('passes an explicit run attempt through to the bounded overview', async () => {
     const mocks = clients();
     mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(overview(1));

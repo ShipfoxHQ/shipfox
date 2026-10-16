@@ -4,7 +4,9 @@ import {AGENT_ACCESS_PAGE_LIMIT_MAX, AGENT_ACCESS_TEXT_MAX_BYTES} from './paged-
 import {dateTimeSchema, idSchema, utf8CappedString} from './primitives.js';
 
 export const AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX = 2_147_483_647;
-export const AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX = 120;
+// A call that sends nothing for 60 seconds is cut off by common load-balancer
+// idle timeouts and by the MCP TypeScript SDK's default request timeout.
+export const AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX = 45;
 export const AGENT_ACCESS_WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT = 25;
 export const AGENT_ACCESS_WORKFLOW_JOB_PAGE_LIMIT = 100;
 export const AGENT_ACCESS_WORKFLOW_EXECUTION_PAGE_LIMIT = 25;
@@ -389,6 +391,8 @@ export const getWorkflowRunInputJsonSchema = {
       minimum: 0,
       maximum: AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX,
       default: 0,
+      description:
+        'Seconds to wait for the run to finish or a job to start listening before returning the current state.',
     },
   },
   required: ['run_id'],

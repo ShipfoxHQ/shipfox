@@ -11,6 +11,8 @@ import {agentAccessError, agentAccessSuccess} from './envelope.js';
 export interface AgentAccessToolCall {
   context: AgentAccessContext;
   arguments: Record<string, unknown>;
+  /** Aborts when the client's connection closes. */
+  signal?: AbortSignal | undefined;
 }
 
 export interface AgentAccessTool {
