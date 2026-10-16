@@ -349,17 +349,35 @@ describe('mapGithubError', () => {
     });
   });
 
-  it('rethrows an unknown GraphQL response error', async () => {
+  it.each([
+    {
+      errors: [{type: 'FORBIDDEN', message: 'Resource not accessible by integration'}],
+      expected: {reason: 'access-denied', detail: 'permission-denied'},
+    },
+    {
+      errors: [{type: 'RATE_LIMITED', message: 'API rate limit exceeded'}],
+      expected: {reason: 'rate-limited'},
+    },
+    {
+      errors: [{type: 'NOT_FOUND', message: 'Could not resolve to a PullRequest'}],
+      expected: {reason: 'provider-rejected'},
+    },
+    {
+      errors: [{message: 'Auto merge is not allowed'}, {message: 'Pull request is a draft'}],
+      expected: {reason: 'provider-rejected'},
+    },
+  ])('classifies GraphQL response errors: $expected.reason', async ({errors, expected}) => {
     const error = Object.assign(new Error('GitHub GraphQL failed'), {
       name: 'GraphqlResponseError',
-      errors: [{type: 'FORBIDDEN', message: 'The operation is not permitted'}],
+      errors,
     });
 
-    const result = mapGithubError(() => Promise.reject(error), 'provider-rejected', {
-      graphqlNotFound: 'review-thread',
-    });
+    const result = mapGithubError(() => Promise.reject(error));
 
-    await expect(result).rejects.toBe(error);
+    await expect(result).rejects.toMatchObject({
+      ...expected,
+      message: errors.map((entry) => entry.message).join('; '),
+    });
   });
 
   it('maps a request timeout cause to timeout', async () => {

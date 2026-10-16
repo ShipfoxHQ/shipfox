@@ -49,6 +49,10 @@ import {
   githubAgentToolSelectionCatalog,
 } from './github-agent-tool-catalog.js';
 import {
+  disablePullRequestAutoMerge,
+  enablePullRequestAutoMerge,
+} from './pull-request-auto-merge.js';
+import {
   applyPullRequestExtras,
   splitPullRequestExtras,
   validatePullRequestExtras,
@@ -568,6 +572,9 @@ export function githubOperationRoute(
       return `PUT ${repoPath}/pulls/${pull}/merge`;
     case 'update_pull_request_branch.':
       return `PUT ${repoPath}/pulls/${pull}/update-branch`;
+    case 'pull_request_auto_merge.enable':
+    case 'pull_request_auto_merge.disable':
+      return GITHUB_GRAPHQL_ROUTE;
     case 'pull_request_review_write.create':
       return `POST ${repoPath}/pulls/${pull}/reviews`;
     case 'pull_request_review_write.submit_pending':
@@ -678,6 +685,10 @@ async function executeGithubGraphqlOperation(
       });
     case 'add_comment_to_pending_review.':
       return await addCommentToPendingReview(client, parameters);
+    case 'pull_request_auto_merge.enable':
+      return await enablePullRequestAutoMerge(client.graphql, parameters);
+    case 'pull_request_auto_merge.disable':
+      return await disablePullRequestAutoMerge(client.graphql, parameters);
     default:
       throw new GithubIntegrationProviderError(
         'malformed-provider-response',

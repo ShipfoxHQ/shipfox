@@ -63,6 +63,8 @@ const graphqlRequirements: Record<string, GithubAppEndpointPermission> = {
   'pull_request_read.get_review_threads': {permission: 'pull_requests', access: 'read'},
   'pull_request_review_thread_write.resolve': {permission: 'pull_requests', access: 'write'},
   add_comment_to_pending_review: {permission: 'pull_requests', access: 'write'},
+  'pull_request_auto_merge.enable': {permission: 'contents', access: 'write'},
+  'pull_request_auto_merge.disable': {permission: 'pull_requests', access: 'write'},
   update_pull_request: {permission: 'pull_requests', access: 'write'},
 };
 

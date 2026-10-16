@@ -105,6 +105,11 @@ export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGra
     list_issues: {sensitivity: 'read', result: 'json'},
     list_pull_requests: {sensitivity: 'read', result: 'json'},
     merge_pull_request: {sensitivity: 'write', result: 'json'},
+    pull_request_auto_merge: {
+      sensitivity: 'write',
+      result: 'json',
+      methods: {disable: 'write', enable: 'write'},
+    },
     pull_request_read: {
       sensitivity: 'read',
       result: 'json',

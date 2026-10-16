@@ -690,26 +690,60 @@ export async function mapGithubError<T>(
       throw new GithubIntegrationProviderError('timeout', 'GitHub request timed out');
     }
     if (error instanceof RequestError) throw mapGithubRequestError(error, notFoundReason);
-    if (options.graphqlNotFound === 'review-thread' && isGithubGraphqlNodeNotFoundError(error)) {
-      throw new GithubIntegrationProviderError(
-        'provider-rejected',
-        GITHUB_REVIEW_THREAD_NOT_FOUND_MESSAGE,
-      );
+    const graphqlErrors = githubGraphqlErrors(error);
+    if (graphqlErrors !== undefined) {
+      throw mapGithubGraphqlErrors(graphqlErrors, notFoundReason, options);
     }
     throw error;
   }
 }
 
-function isGithubGraphqlNodeNotFoundError(error: unknown): boolean {
+/** The errors GitHub listed in a GraphQL response, or undefined for any other failure. */
+export function githubGraphqlErrors(error: unknown): Record<string, unknown>[] | undefined {
   if (!isRecord(error) || error.name !== 'GraphqlResponseError' || !Array.isArray(error.errors)) {
-    return false;
+    return undefined;
   }
-  return error.errors.some(
-    (entry) =>
-      isRecord(entry) &&
-      (entry.type === 'NOT_FOUND' ||
-        (typeof entry.message === 'string' &&
-          GITHUB_GRAPHQL_NODE_NOT_FOUND_PATTERN.test(entry.message))),
+  return error.errors.filter(isRecord);
+}
+
+// GitHub answers a refused GraphQL request with HTTP 200 and typed errors, so the reasons REST
+// takes from the status come from the error types here.
+function mapGithubGraphqlErrors(
+  errors: Record<string, unknown>[],
+  notFoundReason: Parameters<typeof mapGithubRequestError>[1],
+  options: GithubErrorMappingOptions,
+): GithubIntegrationProviderError {
+  const types = new Set(errors.map((entry) => entry.type));
+  const messages = errors.flatMap((entry) =>
+    typeof entry.message === 'string' ? [entry.message] : [],
+  );
+  const notFound =
+    types.has('NOT_FOUND') ||
+    messages.some((message) => GITHUB_GRAPHQL_NODE_NOT_FOUND_PATTERN.test(message));
+  if (notFound && options.graphqlNotFound === 'review-thread') {
+    return new GithubIntegrationProviderError(
+      'provider-rejected',
+      GITHUB_REVIEW_THREAD_NOT_FOUND_MESSAGE,
+    );
+  }
+
+  let reason: ConstructorParameters<typeof GithubIntegrationProviderError>[0];
+  if (types.has('RATE_LIMITED')) {
+    reason = 'rate-limited';
+  } else if (types.has('FORBIDDEN')) {
+    reason = 'access-denied';
+  } else if (notFound) {
+    reason = notFoundReason === 'ref-not-found' ? 'repository-not-found' : notFoundReason;
+  } else {
+    reason = 'provider-rejected';
+  }
+  const message = messages.length > 0 ? messages.join('; ') : 'GitHub GraphQL request failed';
+  return new GithubIntegrationProviderError(
+    reason,
+    message,
+    undefined,
+    undefined,
+    githubErrorDetail({reason, status: 200, message}),
   );
 }
 

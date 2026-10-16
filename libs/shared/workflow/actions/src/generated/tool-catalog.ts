@@ -499,6 +499,30 @@ export interface ProviderToolCatalog {
       structured: GithubMergePullRequestResult;
     };
     /**
+     * Enable or disable auto-merge on a pull request. enable makes GitHub merge the pull request once its required reviews and checks pass. When nothing blocks the merge, GitHub does not accept auto-merge, so enable merges the pull request right away: pull_request.merged is then true and auto_merge is null. enable also succeeds on a pull request that is already merged, so it is safe to retry. The repository must allow auto-merge. disable cancels a pending auto-merge and succeeds when none is enabled.
+     */
+    pull_request_auto_merge: {
+      arguments: GithubPullRequestAutoMergeArguments;
+      result: 'json';
+      structured: GithubPullRequestAutoMergeResult;
+    };
+    /**
+     * Cancel auto-merge on a pull request.
+     */
+    'pull_request_auto_merge.disable': {
+      arguments: GithubPullRequestAutoMergeDisableArguments;
+      result: 'json';
+      structured: GithubPullRequestAutoMergeResult;
+    };
+    /**
+     * Merge a pull request once its requirements are met, or right away when nothing blocks it.
+     */
+    'pull_request_auto_merge.enable': {
+      arguments: GithubPullRequestAutoMergeEnableArguments;
+      result: 'json';
+      structured: GithubPullRequestAutoMergeResult;
+    };
+    /**
      * Get information on a specific pull request in a GitHub repository.
      */
     pull_request_read: {
@@ -3908,6 +3932,129 @@ export interface GithubMergePullRequestArguments {
    * Merge method
    */
   merge_method?: 'merge' | 'squash' | 'rebase';
+}
+
+export interface GithubPullRequestAutoMergeResult {
+  pull_request: {
+    /**
+     * Pull request number
+     */
+    number: number;
+    /**
+     * Pull request URL
+     */
+    url: string;
+    /**
+     * Pull request state
+     */
+    state: 'open' | 'closed' | 'merged';
+    /**
+     * Whether the pull request is merged
+     */
+    merged: boolean;
+    /**
+     * The oid of the merge commit, or null when not merged
+     */
+    merge_commit_oid: string | null;
+  };
+  /**
+   * The pending auto-merge, or null when none is enabled
+   */
+  auto_merge: {
+    /**
+     * Merge method GitHub will use
+     */
+    merge_method: 'merge' | 'squash' | 'rebase';
+    /**
+     * When auto-merge was enabled
+     */
+    enabled_at: string | null;
+  } | null;
+}
+
+export interface GithubPullRequestAutoMergeArguments {
+  /**
+   * Repository owner
+   */
+  owner: string;
+  /**
+   * Repository name
+   */
+  repo: string;
+  /**
+   * The auto-merge operation to perform
+   */
+  method: 'enable' | 'disable';
+  /**
+   * Pull request number
+   */
+  pull_number: number;
+  /**
+   * Merge method (default merge). Only used by enable
+   */
+  merge_method?: 'merge' | 'squash' | 'rebase';
+  /**
+   * Title for the merge commit. Only used by enable
+   */
+  commit_title?: string;
+  /**
+   * Extra detail for the merge commit. Only used by enable
+   */
+  commit_message?: string;
+}
+
+export interface GithubPullRequestAutoMergeDisableArguments {
+  /**
+   * Repository owner
+   */
+  owner: string;
+  /**
+   * Repository name
+   */
+  repo: string;
+  /**
+   * Pull request number
+   */
+  pull_number: number;
+  /**
+   * Merge method (default merge). Only used by enable
+   */
+  merge_method?: 'merge' | 'squash' | 'rebase';
+  /**
+   * Title for the merge commit. Only used by enable
+   */
+  commit_title?: string;
+  /**
+   * Extra detail for the merge commit. Only used by enable
+   */
+  commit_message?: string;
+}
+
+export interface GithubPullRequestAutoMergeEnableArguments {
+  /**
+   * Repository owner
+   */
+  owner: string;
+  /**
+   * Repository name
+   */
+  repo: string;
+  /**
+   * Pull request number
+   */
+  pull_number: number;
+  /**
+   * Merge method (default merge). Only used by enable
+   */
+  merge_method?: 'merge' | 'squash' | 'rebase';
+  /**
+   * Title for the merge commit. Only used by enable
+   */
+  commit_title?: string;
+  /**
+   * Extra detail for the merge commit. Only used by enable
+   */
+  commit_message?: string;
 }
 
 export interface GithubPullRequestReadResult {

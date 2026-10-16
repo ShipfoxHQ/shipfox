@@ -482,6 +482,23 @@ const pullRequestReviewThreadWriteMethods = [
   ),
 ] as const satisfies readonly GithubAgentToolCatalogMethod[];
 
+const pullRequestAutoMergeMethods = [
+  method(
+    'enable',
+    'Merge a pull request once its requirements are met, or right away when nothing blocks it.',
+    'write',
+    true,
+    scopes.mergePullRequest,
+  ),
+  method(
+    'disable',
+    'Cancel auto-merge on a pull request.',
+    'write',
+    false,
+    scopes.pullRequestsWrite,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
 const actionsListMethods = [
   method('list_workflows', 'List workflows in a repository.', 'read', false, scopes.actionsRead),
   method(
@@ -1059,6 +1076,57 @@ export const githubAgentToolCatalog = [
     outputSchema: openObjectSchema('Pull request branch update result'),
     indirectTargetNote:
       'GitHub can also update the pull request head branch, which may belong to another repository.',
+  }),
+  tool({
+    id: 'pull_request_auto_merge',
+    category: 'pull_requests',
+    description:
+      'Enable or disable auto-merge on a pull request. enable makes GitHub merge the pull request once its required reviews and checks pass. When nothing blocks the merge, GitHub does not accept auto-merge, so enable merges the pull request right away: pull_request.merged is then true and auto_merge is null. enable also succeeds on a pull request that is already merged, so it is safe to retry. The repository must allow auto-merge. disable cancels a pending auto-merge and succeeds when none is enabled.',
+    methods: pullRequestAutoMergeMethods,
+    inputSchema: repositoryInputSchema(
+      {
+        method: methodSchema(pullRequestAutoMergeMethods, 'The auto-merge operation to perform'),
+        pull_number: integerSchema('Pull request number'),
+        merge_method: enumSchema(
+          ['merge', 'squash', 'rebase'],
+          'Merge method (default merge). Only used by enable',
+        ),
+        commit_title: stringSchema('Title for the merge commit. Only used by enable'),
+        commit_message: stringSchema('Extra detail for the merge commit. Only used by enable'),
+      },
+      ['method', 'pull_number'],
+    ),
+    outputSchema: objectSchema(
+      {
+        pull_request: objectSchema(
+          {
+            number: integerSchema('Pull request number'),
+            url: stringSchema('Pull request URL'),
+            state: enumSchema(['open', 'closed', 'merged'], 'Pull request state'),
+            merged: booleanSchema('Whether the pull request is merged'),
+            merge_commit_oid: nullableStringSchema(
+              'The oid of the merge commit, or null when not merged',
+            ),
+          },
+          ['number', 'url', 'state', 'merged', 'merge_commit_oid'],
+        ),
+        auto_merge: {
+          ...objectSchema(
+            {
+              merge_method: enumSchema(
+                ['merge', 'squash', 'rebase'],
+                'Merge method GitHub will use',
+              ),
+              enabled_at: nullableStringSchema('When auto-merge was enabled'),
+            },
+            ['merge_method', 'enabled_at'],
+          ),
+          type: ['object', 'null'],
+          description: 'The pending auto-merge, or null when none is enabled',
+        },
+      },
+      ['pull_request', 'auto_merge'],
+    ),
   }),
   tool({
     id: 'pull_request_review_write',

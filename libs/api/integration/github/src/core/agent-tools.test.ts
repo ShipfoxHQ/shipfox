@@ -178,6 +178,17 @@ const expectedCatalogRows = [
     ],
   },
   {
+    id: 'pull_request_auto_merge',
+    category: 'pull_requests',
+    sensitivity: 'write',
+    sensitive: true,
+    requiredScope: [
+      {permission: 'pull_requests', access: 'write'},
+      {permission: 'contents', access: 'write'},
+    ],
+    methods: ['enable', 'disable'],
+  },
+  {
     id: 'pull_request_review_write',
     category: 'pull_requests',
     sensitivity: 'write',
@@ -578,6 +589,18 @@ const githubOperationRouteCases = [
     toolId: 'update_pull_request_branch',
     args: {pull_number: 1},
     expectedRoute: 'PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch',
+  },
+  {
+    toolId: 'pull_request_auto_merge',
+    method: 'enable',
+    args: {pull_number: 1},
+    expectedRoute: 'POST /graphql',
+  },
+  {
+    toolId: 'pull_request_auto_merge',
+    method: 'disable',
+    args: {pull_number: 1},
+    expectedRoute: 'POST /graphql',
   },
   {
     toolId: 'pull_request_review_write',
