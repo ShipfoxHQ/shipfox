@@ -220,6 +220,10 @@ export const stepDtoSchema = z.object({
   position: z.number(),
   // Execution-attempt identity of the current projection (>1 after a restart).
   current_attempt: z.number().int(),
+  /** The job moves on without waiting for this step. Omitted by older servers. */
+  background: z.boolean().optional(),
+  /** Groups the members of a `parallel` block and the wait that joins them. */
+  parallel_group: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });

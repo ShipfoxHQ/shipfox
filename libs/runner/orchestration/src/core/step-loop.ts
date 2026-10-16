@@ -43,6 +43,7 @@ import {
   type StepResult,
 } from '@shipfox/runner-execution';
 import {type CarriedEnv, mergeCarriedEnv} from '@shipfox/runner-execution/carried-env';
+import {STEP_CANCEL_ABORT_REASON} from '@shipfox/runner-execution/step-cancel';
 import {
   buildSecretVariants,
   createSessionLogStream,
@@ -94,6 +95,8 @@ import {
   type StepHashValues,
 } from '#core/step-hash-files.js';
 import type {StepLease, StepLeases} from '#core/step-lease-tokens.js';
+import {StepOverlap} from '#core/step-overlap.js';
+import {recordJobStepsInFlight} from '#metrics/index.js';
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -123,15 +126,29 @@ export function createRunnerAgentStepLoader(
 
 const loadRunnerAgentStep = createRunnerAgentStepLoader();
 
-// Reporting a step before pulling the next one is the safety invariant: a lost report is
-// retried in place (next/report are idempotent), so a step is never re-pulled or
-// re-executed. The per-attempt log stream is settled before that report so the server can
-// close the durable stream immediately from the reported log outcome. A completed session
-// commit is the boundary after which an abort still reports the attempt.
+// The server schedules and the runner executes: each `next` call hands over at most one step,
+// and the runner pulls again right after starting it. The server answers `wait` while it wants
+// a running step to finish first, and `cancel_step_ids` names the running steps it wants stopped.
 //
-// Each step gets a per-attempt log stream: capture -> spool -> upload. The prior
-// attempt's stream is drained and disposed before the report, and the `finally`
-// drains an aborted last one (bounded) before runJob deletes the runner-owned spool directory.
+// `inFlight` is what keeps a step from running twice. It holds every attempt this runner started
+// until the report of that attempt has returned, and it is sent with each `next` call. A step the
+// server hands over while it is still held, because a response was lost or retried, is not
+// started again.
+//
+// A step is reported before its entry leaves `inFlight`, so the pull that follows a step's end
+// sees it as finished: a lost report is retried in place (next/report are idempotent). The
+// per-attempt log stream is settled before that report so the server can close the durable stream
+// immediately from the reported log outcome. A completed session commit is the boundary after
+// which an abort still reports the attempt.
+//
+// Each step gets a per-attempt log stream: capture -> spool -> upload. A step settles (drains
+// and disposes, bounded; an abort cuts the wait short) its own stream before runJob deletes the
+// runner-owned spool directory.
+//
+// Two kinds of abort exist. A job-wide abort (the runner is stopping, the lease is gone, or a
+// report said the job finished without full success) kills every step and reports nothing. A
+// cancel aborts one step with `STEP_CANCEL_ABORT_REASON`: its process is terminated, its files
+// are read as usual, and its report, `cancelled`, tells the server the step has stopped.
 export async function runJobSteps(params: {
   jobId: string;
   /** Sends the job token: next and report. */
@@ -163,7 +180,11 @@ export async function runJobSteps(params: {
   onJobContainerRequested?: () => void;
   jobContext: SetupJobContext;
 }): Promise<void> {
-  const {signal} = params;
+  // Follows the caller's signal and also aborts when the server ends the job early. Every step's
+  // own signal follows this one.
+  const job = new AbortController();
+  const detachJobAbort = chainAbort({from: params.signal, to: job});
+  const jobParams = {...params, signal: job.signal};
 
   // The setup step prepares the workspace; every run step assumes it ran. A run
   // step pulled before a successful setup is failed cleanly rather than spawned
@@ -181,21 +202,28 @@ export async function runJobSteps(params: {
     carriedEnv: new Map(),
     actionState: new Map(),
     stepHashes: new Map(),
-    activeStream: undefined,
     checkout: undefined,
     sessionCheckoutGenerations: new Map(),
+    job,
+    inFlight: new Map(),
+    overlap: new StepOverlap(),
+    wake: undefined,
+    progressed: false,
+    failure: undefined,
   };
 
   try {
-    while (!signal.aborted) {
-      const outcome = await runJobStepIteration(params, state);
-      if (outcome === 'stop') return;
-    }
+    await pullSteps(jobParams, state);
+  } catch (error) {
+    job.abort();
+    throw error;
   } finally {
-    // Drain the last stream (bounded) before runJob deletes the log spool; an abort
-    // cuts the wait short. Whatever did not drain is timeout-closed server-side.
-    await settleStream({stream: state.activeStream, signal});
+    // Leaves nothing running when the loop ends: a `done` lets the steps finish, anything else
+    // has aborted them already. Runs before runJob deletes the log spool.
+    await Promise.all([...state.inFlight.values()].map((entry) => entry.done));
+    detachJobAbort();
   }
+  if (state.failure !== undefined) throw state.failure.error;
 }
 
 interface JobStepLoopState {
@@ -215,11 +243,31 @@ interface JobStepLoopState {
   actionState: Map<string, string>;
   /** The `hashFiles()` values of each step attempt, for the post of the same step. */
   stepHashes: Map<string, StepHashValues>;
-  activeStream: LogStreamLifecycle | undefined;
   /** The latest checkout of this job. */
   checkout: JobCheckout | undefined;
   /** The checkout generation each agent session last committed a turn against, by session key. */
   sessionCheckoutGenerations: Map<string, number>;
+  /** Aborts every step of the job and the loop with it. */
+  job: AbortController;
+  /** The step attempts started here and not yet reported, by step id. */
+  inFlight: Map<string, InFlightStep>;
+  overlap: StepOverlap;
+  /** Cuts the loop's current sleep short. Set only while the loop sleeps. */
+  wake: (() => void) | undefined;
+  /** Whether a step ended since the loop last asked the server, so its answer may be stale. */
+  progressed: boolean;
+  /** The first error that escaped a step. The job stops and the loop rethrows it. */
+  failure: {error: unknown} | undefined;
+}
+
+interface InFlightStep {
+  attempt: number;
+  /** Aborts this step alone, chained to the job so a job-wide abort reaches it too. */
+  controller: AbortController;
+  /** Set when the server asked to stop this step, so its report confirms the stop. */
+  cancelled: boolean;
+  /** Settles once the step is reported and out of `inFlight`. Never rejects. */
+  done: Promise<void>;
 }
 
 /** A successful checkout. The generation counts checkouts, since one can repeat the same ref. */
@@ -228,29 +276,148 @@ interface JobCheckout {
   generation: number;
 }
 
-async function runJobStepIteration(
+// Pulls until the job is over: a `done`, a 404, an abort, or a step that failed to report.
+async function pullSteps(
   params: Parameters<typeof runJobSteps>[0],
   state: JobStepLoopState,
-): Promise<'continue' | 'stop'> {
-  await settleStream({stream: state.activeStream, signal: params.signal});
-  state.activeStream = undefined;
-  const pulled = await pullNextStep({
-    leaseClient: params.leaseClient,
-    jobId: params.jobId,
-    signal: params.signal,
-  });
-  if (!pulled || params.signal.aborted) return 'stop';
+): Promise<void> {
+  const {signal} = params;
+  while (!signal.aborted && state.failure === undefined) {
+    state.progressed = false;
+    const next = await requestNextStepWithRetry({
+      leaseClient: params.leaseClient,
+      jobId: params.jobId,
+      signal,
+      inFlight: [...state.inFlight].map(([stepId, entry]) => ({stepId, attempt: entry.attempt})),
+    });
+    if (next === undefined) {
+      // A 404 means no job holds this lease anymore, so no report can land either.
+      state.job.abort();
+      return;
+    }
+    if (signal.aborted) return;
+    cancelSteps({state, jobId: params.jobId, stepIds: next.cancel_step_ids});
+
+    if (next.kind === 'done') {
+      logger().info(
+        {jobId: params.jobId, status: next.status},
+        'No more steps; stopping step loop',
+      );
+      return;
+    }
+    if (next.kind === 'wait') {
+      await waitForProgress({state, delayMs: next.retry_after_ms, signal});
+      continue;
+    }
+    const started = startPulledStep(params, state, {
+      step: next.step,
+      attempt: next.attempt,
+      leaseToken: next.lease_token,
+      ...(next.env_sources === undefined ? {} : {envSources: next.env_sources}),
+    });
+    // The server keeps handing back a step it does not know the runner holds, so poll gently.
+    if (!started) {
+      await waitForProgress({state, delayMs: config.SHIPFOX_POLL_INTERVAL_MS, signal});
+    }
+  }
+}
+
+// Sleeps for the server's delay, or until a step of this job ends, since the server may have
+// something new to say then.
+async function waitForProgress(params: {
+  state: JobStepLoopState;
+  delayMs: number;
+  signal: AbortSignal;
+}): Promise<void> {
+  const {state} = params;
+  if (state.progressed) return;
+  const wake = new AbortController();
+  const wakeUp = () => wake.abort();
+  state.wake = wakeUp;
+  params.signal.addEventListener('abort', wakeUp, {once: true});
+  try {
+    await interruptibleSleep(params.delayMs, wake.signal);
+  } finally {
+    params.signal.removeEventListener('abort', wakeUp);
+    state.wake = undefined;
+  }
+}
+
+function notifyProgress(state: JobStepLoopState): void {
+  state.progressed = true;
+  state.wake?.();
+}
+
+// Cancelling is idempotent: the server derives the ids on every call, so the same id comes back
+// until the step is reported. An id the runner does not hold, such as a step that ended already,
+// is ignored.
+function cancelSteps(params: {
+  state: JobStepLoopState;
+  jobId: string;
+  stepIds: readonly string[];
+}): void {
+  for (const stepId of params.stepIds) {
+    const entry = params.state.inFlight.get(stepId);
+    if (entry === undefined || entry.cancelled || entry.controller.signal.aborted) continue;
+    entry.cancelled = true;
+    logger().info(
+      {jobId: params.jobId, stepId, attempt: entry.attempt},
+      'Cancelling step on the server request',
+    );
+    entry.controller.abort(STEP_CANCEL_ABORT_REASON);
+  }
+}
+
+function chainAbort(params: {from: AbortSignal; to: AbortController}): () => void {
+  const {from, to} = params;
+  if (from.aborted) {
+    to.abort(from.reason);
+    return () => undefined;
+  }
+  const onAbort = () => to.abort(from.reason);
+  from.addEventListener('abort', onAbort, {once: true});
+  return () => from.removeEventListener('abort', onAbort);
+}
+
+// Starts the step without waiting for it. Returns false when this runner already holds the step.
+function startPulledStep(
+  params: Parameters<typeof runJobSteps>[0],
+  state: JobStepLoopState,
+  pulled: PulledStep,
+): boolean {
   const {step, attempt} = pulled;
+  const held = state.inFlight.get(step.id);
+  if (held !== undefined) {
+    logger().warn(
+      {jobId: params.jobId, stepId: step.id, attempt, heldAttempt: held.attempt},
+      'The server handed over a step this runner is already running; not starting it again',
+    );
+    return false;
+  }
+  const controller = new AbortController();
+  const detachStepAbort = chainAbort({from: params.signal, to: controller});
   const stepLease = params.stepLeases.hold({
     stepId: step.id,
     attempt,
     leaseToken: pulled.leaseToken,
   });
-  try {
-    return await runPulledStep(params, state, pulled, stepLease);
-  } finally {
-    stepLease.release();
-  }
+  const entry: InFlightStep = {attempt, controller, cancelled: false, done: Promise.resolve()};
+  state.inFlight.set(step.id, entry);
+  recordJobStepsInFlight(state.inFlight.size);
+  entry.done = runPulledStep(params, state, pulled, stepLease, entry)
+    .catch((error: unknown) => {
+      // Stops the job rather than letting the loop pull on without this step's report.
+      state.failure ??= {error};
+      state.job.abort();
+    })
+    .finally(() => {
+      stepLease.release();
+      detachStepAbort();
+      state.inFlight.delete(step.id);
+      recordJobStepsInFlight(state.inFlight.size);
+      notifyProgress(state);
+    });
+  return true;
 }
 
 async function runPulledStep(
@@ -258,7 +425,8 @@ async function runPulledStep(
   state: JobStepLoopState,
   pulled: PulledStep,
   stepLease: StepLease,
-): Promise<'continue' | 'stop'> {
+  entry: InFlightStep,
+): Promise<void> {
   const {step, attempt} = pulled;
   const carriedEnv = carriedEnvForStep(state.carriedEnv, pulled.envSources);
   const stateSeed = postStateSeed(state.actionState, step);
@@ -282,6 +450,7 @@ async function runPulledStep(
     `Running ${stepLabel}`,
   );
   const preparation = stepPreparation(params, state, step);
+  const overlap = state.overlap.begin();
   const executeStepParams: Parameters<typeof executeStep>[0] = {
     step,
     attempt,
@@ -295,7 +464,8 @@ async function runPulledStep(
     ...(params.replaceInferenceSecrets
       ? {replaceInferenceSecrets: params.replaceInferenceSecrets}
       : {}),
-    signal: params.signal,
+    signal: entry.controller.signal,
+    overlappingSteps: overlap.count,
     workspacePrepared: state.workspacePrepared,
     checkoutDestinations: state.checkoutDestinations,
     ambientGitConfigPath: state.ambientGitConfigPath,
@@ -320,13 +490,14 @@ async function runPulledStep(
     ...(params.credentialHelper ? {credentialHelper: params.credentialHelper} : {}),
     ...preparation,
   };
-  const capturedExecution =
-    credentialFailureCursor === undefined || params.credentialFailureEvents === undefined
-      ? {value: await executeStep(executeStepParams), events: undefined}
-      : await params.credentialFailureEvents.captureFailureEvents((credentialCaptureId) =>
-          executeStep({...executeStepParams, credentialCaptureId}),
-        );
+  let capturedExecution: Awaited<ReturnType<typeof captureStepExecution>>;
+  try {
+    capturedExecution = await captureStepExecution(params, executeStepParams);
+  } finally {
+    overlap.end();
+  }
   const execution = capturedExecution.value;
+  // A cancelled step is applied like any other: later steps read the env and state it wrote.
   applyStepExecutionState(
     params,
     state,
@@ -335,18 +506,38 @@ async function runPulledStep(
     checkoutDestinationsBeforeExecution,
     execution,
   );
-  if (params.signal.aborted) return 'stop';
-  return finishStepExecution({
+  // Only the job's signal stops here. The step's own cancel still reports.
+  if (params.signal.aborted) {
+    await settleStream({stream: execution.stream, signal: params.signal});
+    return;
+  }
+  await finishStepExecution({
     params,
     state,
     step,
     attempt,
     stepLabel,
     execution,
+    entry,
     stepLeaseClient: stepLease.client,
     credentialFailureCursor,
     capturedCredentialFailureEvents: capturedExecution.events,
   });
+}
+
+function captureStepExecution(
+  params: Parameters<typeof runJobSteps>[0],
+  executeStepParams: Parameters<typeof executeStep>[0],
+): Promise<{value: StepExecution; events: readonly CredentialFailureEvent[] | undefined}> {
+  if (
+    !isCredentialFailureAttributionStep(executeStepParams.step) ||
+    params.credentialFailureEvents === undefined
+  ) {
+    return executeStep(executeStepParams).then((value) => ({value, events: undefined}));
+  }
+  return params.credentialFailureEvents.captureFailureEvents((credentialCaptureId) =>
+    executeStep({...executeStepParams, credentialCaptureId}),
+  );
 }
 
 function stepPreparation(
@@ -390,7 +581,6 @@ function applyStepExecutionState(
   checkoutDestinationsBeforeExecution: ReadonlyMap<string, CheckoutDestinationWithSubject>,
   execution: StepExecution,
 ): void {
-  state.activeStream = execution.stream;
   if (execution.result.carriedEnv) {
     state.carriedEnv.set(carriedEnvKey(step.position, attempt), execution.result.carriedEnv);
   }
@@ -450,6 +640,7 @@ async function finishStepExecution({
   attempt,
   stepLabel,
   execution,
+  entry,
   stepLeaseClient,
   credentialFailureCursor,
   capturedCredentialFailureEvents,
@@ -460,16 +651,16 @@ async function finishStepExecution({
   attempt: number;
   stepLabel: string;
   execution: StepExecution;
+  entry: InFlightStep;
   stepLeaseClient: KyInstance;
   credentialFailureCursor: number | undefined;
   capturedCredentialFailureEvents: readonly CredentialFailureEvent[] | undefined;
-}): Promise<'continue' | 'stop'> {
+}): Promise<void> {
   const logOutcome =
-    (await settleStream({stream: state.activeStream, signal: params.signal})) ??
+    (await settleStream({stream: execution.stream, signal: params.signal})) ??
     execution.logOutcome ??
     'drained';
-  state.activeStream = undefined;
-  if (params.signal.aborted) return 'stop';
+  if (params.signal.aborted) return;
   const settlement = await settleAgentSessionCommit({
     execution,
     leaseClient: stepLeaseClient,
@@ -483,7 +674,7 @@ async function finishStepExecution({
   }
   // Once the transcript commit has completed, reporting is the durable boundary:
   // an abort must not leave a committed attempt invisible to the API.
-  if (params.signal.aborted && !settlement.committed) return 'stop';
+  if (params.signal.aborted && !settlement.committed) return;
   const reportSignal = settlement.committed ? new AbortController().signal : params.signal;
   const result = attributeCredentialFailure({
     step,
@@ -506,6 +697,8 @@ async function finishStepExecution({
     step,
     attempt,
     result,
+    // Read late: a cancel can arrive while the step wraps up and still expects its confirmation.
+    cancelled: entry.cancelled,
     logOutcome,
     ...(logPath === undefined ? {} : {logPath}),
     ...(step.type === 'setup' ? {actionsDir: actionsDirectory(params.tempDir)} : {}),
@@ -514,12 +707,13 @@ async function finishStepExecution({
     stepLabel,
     signal: reportSignal,
   });
-  if (!cancel) return 'continue';
+  if (!cancel) return;
   logger().info(
     {jobId: params.jobId, stepId: step.id},
     'Job finished without full success; stopping step loop',
   );
-  return 'stop';
+  // The other steps stop without a report, as they do on any job-wide abort.
+  state.job.abort();
 }
 
 // The stream is closed by now. A failed finalization must never fail the step: the result is
@@ -714,53 +908,21 @@ function carriedEnvForStep(
   return applicable.length === 0 ? undefined : mergeCarriedEnv(applicable);
 }
 
-// Pulls the next step, translating the loop's two quiet stop conditions into `undefined`:
-// a 404 (the lease no longer maps to a job) and a `done` response. Transient request errors
-// are retried with bounded backoff so a control-plane blip cannot abandon a waiting job;
-// permanent HTTP and response-validation errors still surface to the runner.
-export async function pullNextStep(params: {
-  leaseClient: KyInstance;
-  jobId: string;
-  signal: AbortSignal;
-}): Promise<PulledStep | undefined> {
-  const {leaseClient, jobId, signal} = params;
-
-  while (!signal.aborted) {
-    const next = await requestNextStepWithRetry({leaseClient, jobId, signal});
-    if (next === undefined) return undefined;
-
-    if (next.kind === 'done') {
-      logger().info({jobId, status: next.status}, 'No more steps; stopping step loop');
-      return undefined;
-    }
-
-    if (next.kind === 'wait') {
-      await interruptibleSleep(next.retry_after_ms, signal);
-      continue;
-    }
-
-    return {
-      step: next.step,
-      attempt: next.attempt,
-      leaseToken: next.lease_token,
-      ...(next.env_sources === undefined ? {} : {envSources: next.env_sources}),
-    };
-  }
-
-  return undefined;
-}
-
+// Transient request errors are retried with bounded backoff so a control-plane blip cannot
+// abandon a waiting job; permanent HTTP and response-validation errors still surface to the
+// runner. Returns undefined on a 404 (the lease no longer maps to a job) or an abort.
 async function requestNextStepWithRetry(params: {
   leaseClient: KyInstance;
   jobId: string;
   signal: AbortSignal;
+  inFlight: readonly {stepId: string; attempt: number}[];
 }): Promise<NextStepResponseDto | undefined> {
-  const {leaseClient, jobId, signal} = params;
+  const {leaseClient, jobId, signal, inFlight} = params;
   let errorBackoffMs = config.SHIPFOX_POLL_INTERVAL_MS;
 
   while (!signal.aborted) {
     try {
-      return await requestNextStep(leaseClient, {signal});
+      return await requestNextStep(leaseClient, {inFlight, signal});
     } catch (error) {
       if (signal.aborted) return undefined;
       if (error instanceof HTTPError && error.response.status === 404) {
@@ -855,6 +1017,8 @@ export async function executeStep(params: {
   registerSecrets?: (secrets: string[]) => void;
   replaceInferenceSecrets?: (secrets: string[]) => void;
   signal: AbortSignal;
+  /** How many steps ran while this one did, itself included. Read once its process exited. */
+  overlappingSteps?: (() => number) | undefined;
   workspacePrepared: boolean;
   checkoutDestinations?: CheckoutDestinations | undefined;
   ambientGitConfigPath?: string | undefined;
@@ -1919,12 +2083,14 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
 async function outOfMemoryReportOptions(input: {
   step: StepDto;
   signal: AbortSignal;
+  overlappingSteps?: (() => number) | undefined;
 }): Promise<Omit<Parameters<typeof reportOutOfMemoryKills>[0], 'run'>> {
   return {
     memoryEventsPath: await resolveCgroupMemoryEventsPath(),
     // One annotation per step, so a later step does not replace an earlier report.
     annotationContext: `out-of-memory-${input.step.id}`,
     signal: input.signal,
+    ...(input.overlappingSteps ? {overlappingSteps: input.overlappingSteps} : {}),
   };
 }
 
@@ -2034,6 +2200,7 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
     ...(input.subscribeSecrets ? {subscribeSecrets: input.subscribeSecrets} : {}),
     ...(memoryEventsPath === undefined ? {} : {memoryEventsPath}),
+    ...(input.overlappingSteps ? {overlappingSteps: input.overlappingSteps} : {}),
     onLogLine: (line) => stepStream?.writeOutputLine(line),
     onSecret: (secret) => {
       stepStream?.addSecrets([secret]);
@@ -2603,6 +2770,11 @@ export async function reportStepResult(params: {
   step: StepDto;
   attempt: number;
   result: StepResult;
+  /**
+   * Set when the server asked to stop the step. The report then confirms the stop and carries
+   * none of the result, which the server does not use.
+   */
+  cancelled?: boolean;
   logOutcome: LogOutcomeDto;
   /** Finalized text log on the runner. Omitted when there is none. */
   logPath?: string;
@@ -2618,6 +2790,7 @@ export async function reportStepResult(params: {
     step,
     attempt,
     result,
+    cancelled = false,
     logOutcome,
     logPath,
     actionsDir,
@@ -2626,6 +2799,8 @@ export async function reportStepResult(params: {
     stepLabel,
     signal,
   } = params;
+
+  if (cancelled) return reportCancelledStep(params);
 
   if (result.success) {
     logger().info(
@@ -2666,6 +2841,28 @@ export async function reportStepResult(params: {
     signal,
   });
 
+  return {cancel: report.cancel};
+}
+
+// The server asked to stop the step, so its report only confirms that the process has exited.
+// The server has no use for the result of a step it stopped.
+async function reportCancelledStep(
+  params: Parameters<typeof reportStepResult>[0],
+): Promise<{cancel: boolean}> {
+  const {step, attempt, result, logOutcome, logPath, jobId, jobExecutionId, stepLabel} = params;
+  logger().info(
+    {jobId, jobExecutionId, stepId: step.id, stepName: step.name, attempt},
+    `Step ${stepLabel} cancelled`,
+  );
+  const report = await reportStep(params.leaseClient, {
+    stepId: step.id,
+    attempt,
+    status: 'cancelled',
+    exitCode: result.exit_code,
+    ...(logPath === undefined ? {} : {logPath}),
+    logOutcome,
+    signal: params.signal,
+  });
   return {cancel: report.cancel};
 }
 

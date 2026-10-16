@@ -48,6 +48,7 @@ const run = await runWorkflow(definitions, {
 | `WORKFLOWS_TOOL_STEP_CALL_TIMEOUT_MS` | `30000` | Maximum duration of one provider call, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
 | `WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS` | `1000` | Delay between bounded workflow concurrency repair scans, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
 | `WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE` | `100` | Maximum number of concurrency drift candidates processed in one scan. The value must be a safe whole number greater than `0`. |
+| `WORKFLOWS_MAX_CONCURRENT_STEPS` | `20` | Most steps of one job that run at the same time. Background and foreground steps count, and a step beyond the limit waits for a free slot. The value must be a whole number from `1` through `64`, the most step tokens one runner heartbeat renews. |
 | `WORKFLOWS_JOB_QUEUE_TIMEOUT` | `1h` | Longest time a queued job waits for a runner before it fails. Set a duration from `1m` through `24h`. |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL of the client app. Builds the run link that workflows read as `run.url`. |
 
@@ -124,6 +125,7 @@ remain in logs and traces.
 | `workflows_job_duration_limit` | Instance | `outcome`, `scope` | Duration decisions by `within`, `capped`, or `would_cap`, and runner scope. |
 | `workflows_next_step_response_size` | Instance | `kind` | Serialized `/steps/next` response size in bytes (`unit: By`) by `step`, `wait`, or `done`; explicit buckets are 1,024, 10,240, 100,000, 256,000, 500,000, 868,928, and 1,000,000 bytes. |
 | `workflows_next_step_response_overflow` | Instance | `kind` | Count of serialized `/steps/next` responses over the 1,000,000-byte budget; overflow is reported while the response remains served. |
+| `workflows_step_cancelled` | Instance | `reason` | Steps cancelled before they finished, by `cancel_step` for a `cancel` step of the job or `job` for a cancellation of the whole job. |
 | `workflows_tool_invocations_queued` | Service | none | Current count of queued tool invocations across the shared database. |
 | `workflows_tool_invocations_in_flight` | Service | none | Current count of tool invocations claimed by an executor. |
 | `workflows_listener_event_rows` | Service | none | Number of retained canonical listener-event rows across the shared database. The value is cached for up to 60 seconds. |

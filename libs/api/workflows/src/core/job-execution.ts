@@ -15,8 +15,12 @@ import {
   type StepOutputCoercionError,
 } from '@shipfox/expression';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {config} from '#config.js';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
+  applyStepResult,
+  cancelPendingStep,
+  cancelRunningStep,
   countStepAttempts,
   dispatchStepWithCompletedConfig,
   enqueueToolInvocation,
@@ -30,14 +34,16 @@ import {
   getStepsByJobExecutionIdForUpdate,
   getWorkflowContextForJob,
   insertRunningStepAttempt,
+  listStoppingStepAttempts,
   markStepRunning,
   markStepSkipped,
   recordJobExecutionActionsDir,
   settleJobFailed,
-  writeJobStepsSettledOutbox,
+  settleJobStepsIfDone,
 } from '#db/workflow-runs.js';
 import {
   recordWorkflowJobExecutionStepsSettled,
+  recordWorkflowStepCancelled,
   recordWorkflowStepRestartEnqueued,
   recordWorkflowStepRestartExhausted,
 } from '#metrics/instance.js';
@@ -80,6 +86,7 @@ import {
   StepAttemptAheadError,
   StepNotFoundError,
   StepNotRunningError,
+  StepNotStoppingError,
   ToolConfigInvalidError,
   WorkflowExecutionPayloadTooLargeError,
   WorkflowStepResultTooLargeError,
@@ -99,6 +106,21 @@ import {completeStepField, completeStepFieldWithType} from './step-config/fields
 import {buildPostDispatchConfig, selectPostMainAttempt} from './step-config/post-step.js';
 import {readStepRestart} from './step-config/restart-failure-block.js';
 import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
+import {
+  controlStepTargets,
+  dispatchBlockers,
+  failedWaitTargets,
+  holdsAttempt,
+  type InFlightStep,
+  isHeldByRunner,
+  isRunnerStep,
+  nextScanAction,
+  retryAfterMs,
+  type StepScheduling,
+  stoppingAttempts,
+  TOOL_STEP_RETRY_AFTER_MS,
+  withInnerSteps,
+} from './step-scheduling.js';
 import {
   applyStepTransition,
   type StepProgressionMetrics,
@@ -123,8 +145,6 @@ import {readStepOutputs} from './step-transition/read-step-outputs.js';
 import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
-
-export const TOOL_STEP_RETRY_AFTER_MS = 1000;
 
 type ReportedStepResult = {
   readonly status: 'succeeded' | 'failed';
@@ -155,6 +175,7 @@ interface PendingSessionClaim {
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
   readonly agent?: AgentInterModuleClient | undefined;
   readonly runnerPlatform?: RunnerPlatformLoader | undefined;
+  readonly scheduling: StepScheduling;
 }
 
 type NextStepResolution = NextStep | PendingSessionClaim;
@@ -178,6 +199,7 @@ interface PendingStepDispatchParams {
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
   readonly runnerPlatform?: RunnerPlatformLoader | undefined;
+  readonly scheduling: StepScheduling;
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
   readonly steps: readonly Step[];
   readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
@@ -185,18 +207,14 @@ interface PendingStepDispatchParams {
   readonly compositeConfig?: Record<string, unknown> | undefined;
 }
 
-interface ResolvePendingStepParams {
+interface ResolvePendingStepParams extends ScanContext {
   readonly jobExecutionId: string;
   readonly steps: Step[];
-  readonly jobExecution: JobExecution;
   readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
-  readonly jobs: Awaited<ReturnType<typeof getDirectDependencyJobContexts>>;
-  readonly runContext: Awaited<ReturnType<typeof getStepDispatchRunContext>>;
-  readonly vars: Record<string, string> | undefined;
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
   readonly runnerPlatform?: RunnerPlatformLoader | undefined;
-  readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
+  readonly scheduling: StepScheduling;
 }
 
 type StepConditionOutcome =
@@ -217,6 +235,7 @@ async function nextStepForJobExecutionInTransaction(
   tx: Tx,
   agent?: AgentInterModuleClient | undefined,
   runnerPlatform?: RunnerPlatformLoader | undefined,
+  scheduling: StepScheduling = defaultScheduling(),
 ): Promise<NextStepResolution> {
   const steps = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
   const hasNoSteps = steps.length === 0;
@@ -225,44 +244,83 @@ async function nextStepForJobExecutionInTransaction(
   // a bad id from deriving a vacuous 'succeeded' completion below.
   if (hasNoSteps) throw new JobNotFoundError(jobExecutionId);
 
-  // Re-deliver the in-flight step rather than advancing, so a retried pull
-  // cannot skip a step. A running composite is open on the server, not in flight.
-  const running = steps.find((step) => step.status === 'running' && step.type !== 'composite');
-  const hasRunningStep = running !== undefined;
-  if (hasRunningStep) {
-    return resolveRunningStep(jobExecutionId, running, tx, agent, runnerPlatform);
+  // A runner that does not hold a stopping attempt can never confirm it, so nothing may wait for
+  // it. Finishing the last one can be what settles the job.
+  let attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
+  const unheld = stoppingAttempts(attempts).filter(
+    (attempt) => !holdsAttempt(scheduling.inFlight, attempt),
+  );
+  for (const attempt of unheld) {
+    await finishStepAttempt(
+      {
+        stepId: attempt.stepId,
+        attempt: attempt.attempt,
+        status: 'cancelled',
+        logOutcome: 'abandoned',
+      },
+      tx,
+    );
+  }
+  if (unheld.length > 0) attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
+
+  // Re-deliver a running step the runner does not hold rather than advancing, so a retried pull
+  // cannot skip a step or lose one whose response was lost. A running composite is open on the
+  // server, not in flight.
+  const undelivered = steps.find(
+    (step) =>
+      step.status === 'running' && isRunnerStep(step) && !isHeldByRunner(scheduling.inFlight, step),
+  );
+  if (undelivered !== undefined) {
+    return resolveRunningStep(jobExecutionId, undelivered, tx, agent, runnerPlatform, scheduling);
   }
 
-  const firstPending = steps.find((step) => step.status === 'pending');
-  const hasPendingStep = firstPending !== undefined;
-  const hasOpenComposite = steps.some(
-    (step) => step.type === 'composite' && step.status === 'running',
-  );
-  if (!hasPendingStep && !hasOpenComposite) return {kind: 'done', status: deriveCompletion(steps)};
-
-  const jobExecution = await getJobExecutionById(jobExecutionId, tx);
-  if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
-
-  const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
-  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx, {
-    includeTriggerEventPayloads: false,
-  });
-  const workflowContext = await getWorkflowContextForJob(jobExecution.jobId, tx);
-  const runContext = await getStepDispatchRunContext(jobExecution.jobId, tx);
-
-  return resolveNextPendingStep({
+  return scanJobSteps({
     jobExecutionId,
     steps,
-    jobExecution,
     attempts,
-    jobs,
-    runContext,
-    vars: workflowContext.vars ?? undefined,
-    workflowContext,
+    settled: unheld.length > 0,
+    context: lazyScanContext(jobExecutionId, tx),
     tx,
     agent,
     runnerPlatform,
+    scheduling,
   });
+}
+
+function defaultScheduling(): StepScheduling {
+  return {inFlight: [], maxConcurrentSteps: config.WORKFLOWS_MAX_CONCURRENT_STEPS};
+}
+
+interface ScanContext {
+  readonly jobExecution: JobExecution;
+  readonly jobs: Awaited<ReturnType<typeof getDirectDependencyJobContexts>>;
+  readonly runContext: Awaited<ReturnType<typeof getStepDispatchRunContext>>;
+  readonly vars: Record<string, string> | undefined;
+  readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
+}
+
+// A job that only waits on running steps polls often, so the context loads when a step needs it.
+function lazyScanContext(jobExecutionId: string, tx: Tx): () => Promise<ScanContext> {
+  let loaded: Promise<ScanContext> | undefined;
+  return () => {
+    loaded ??= (async () => {
+      const jobExecution = await getJobExecutionById(jobExecutionId, tx);
+      if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
+      const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx, {
+        includeTriggerEventPayloads: false,
+      });
+      const workflowContext = await getWorkflowContextForJob(jobExecution.jobId, tx);
+      const runContext = await getStepDispatchRunContext(jobExecution.jobId, tx);
+      return {
+        jobExecution,
+        jobs,
+        runContext,
+        vars: workflowContext.vars ?? undefined,
+        workflowContext,
+      };
+    })();
+    return loaded;
+  };
 }
 
 async function resolveRunningStep(
@@ -271,9 +329,8 @@ async function resolveRunningStep(
   tx: Tx,
   agent?: AgentInterModuleClient | undefined,
   runnerPlatform?: RunnerPlatformLoader | undefined,
+  scheduling: StepScheduling = defaultScheduling(),
 ): Promise<NextStepResolution> {
-  if (running.type === 'tool') return {kind: 'wait', retryAfterMs: TOOL_STEP_RETRY_AFTER_MS};
-
   const session = running.type === 'agent' ? readAgentStepSessionIntent(running.config) : undefined;
   if (session === undefined) return {kind: 'step', step: running, dispatched: false};
 
@@ -315,14 +372,15 @@ async function resolveRunningStep(
     workflowContext,
     agent,
     runnerPlatform,
+    scheduling,
   };
 }
 
-async function resolveNextPendingStep(
-  params: ResolvePendingStepParams,
-): Promise<NextStepResolution> {
-  const {jobExecutionId, jobExecution, tx} = params;
-  let skippedAny = false;
+// Walks the steps by position and does the first thing the job needs: dispatch a step, resolve a
+// wait or cancel row, skip a step, or tell the runner to wait.
+async function scanJobSteps(params: ScanJobStepsParams): Promise<NextStepResolution> {
+  const {jobExecutionId, tx} = params;
+  let settledAny = params.settled;
   let currentSteps = params.steps;
   let currentAttempts = params.attempts;
   let executions: readonly JobExecution[] | undefined;
@@ -330,6 +388,7 @@ async function resolveNextPendingStep(
   while (true) {
     const closing = closableComposite(currentSteps);
     if (closing !== undefined) {
+      const {jobExecution} = await params.context();
       return closeComposite({
         jobExecutionId,
         composite: closing,
@@ -339,36 +398,224 @@ async function resolveNextPendingStep(
         tx,
         agent: params.agent,
         runnerPlatform: params.runnerPlatform,
+        scheduling: params.scheduling,
       });
     }
 
-    const pending = currentSteps.find((step) => step.status === 'pending');
-    if (pending === undefined) {
-      const status = deriveCompletion(currentSteps);
-      if (skippedAny) {
-        await writeJobStepsSettledOutbox(tx, {
-          jobId: jobExecution.jobId,
+    const action = nextScanAction(currentSteps);
+    switch (action.kind) {
+      case 'blocked':
+        return {kind: 'wait', retryAfterMs: retryAfterMs(action.blockers)};
+      case 'idle':
+        return settleIdleJob(
+          {jobExecutionId, steps: currentSteps, attempts: currentAttempts, tx},
+          settledAny,
+        );
+      case 'wait': {
+        const joined = await advanceWaitStep({
+          step: action.step,
+          steps: currentSteps,
+          tx,
           jobExecutionId,
-          status,
         });
-        recordWorkflowJobExecutionStepsSettled(status);
+        if (joined.kind === 'waiting') {
+          return {kind: 'wait', retryAfterMs: retryAfterMs(joined.blockers)};
+        }
+        settledAny = true;
+        break;
       }
+      case 'cancel': {
+        await advanceCancelStep({
+          step: action.step,
+          steps: currentSteps,
+          scheduling: params.scheduling,
+          tx,
+          jobExecutionId,
+        });
+        settledAny = true;
+        break;
+      }
+      case 'pending': {
+        const context = await params.context();
+        executions = await executionsForStep({
+          pending: action.step,
+          jobExecution: context.jobExecution,
+          executions,
+          tx,
+        });
+        const progress = await progressPendingStep({
+          ...params,
+          ...context,
+          pending: action.step,
+          steps: currentSteps,
+          attempts: currentAttempts,
+          executions,
+        });
+        if (progress.kind === 'resolved') return progress.resolution;
+        currentSteps = progress.steps;
+        currentAttempts = progress.attempts;
+        settledAny ||= progress.skipped;
+        continue;
+      }
+    }
+    currentSteps = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
+    currentAttempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
+  }
+}
+
+interface ScanJobStepsParams {
+  readonly jobExecutionId: string;
+  /** Whether this call already moved a step to a terminal state. */
+  readonly settled: boolean;
+  readonly steps: Step[];
+  readonly attempts: StepAttempt[];
+  readonly context: () => Promise<ScanContext>;
+  readonly tx: Tx;
+  readonly agent?: AgentInterModuleClient | undefined;
+  readonly runnerPlatform?: RunnerPlatformLoader | undefined;
+  readonly scheduling: StepScheduling;
+}
+
+// Nothing is left to start and no step runs. The job is done once no cancelled process is still
+// stopping. The steps-settled event is written once, by the call that made the last step end.
+async function settleIdleJob(
+  params: {
+    readonly jobExecutionId: string;
+    readonly steps: readonly Step[];
+    readonly attempts: readonly StepAttempt[];
+    readonly tx: Tx;
+  },
+  settledAny: boolean,
+): Promise<NextStepResolution> {
+  const stopping = stoppingAttempts(params.attempts);
+  if (stopping.length > 0) {
+    const stoppingIds = new Set(stopping.map((attempt) => attempt.stepId));
+    return {
+      kind: 'wait',
+      retryAfterMs: retryAfterMs(params.steps.filter((step) => stoppingIds.has(step.id))),
+    };
+  }
+  if (settledAny) {
+    const {jobId} = await requireJobExecution(params.jobExecutionId, params.tx);
+    const status = await settleJobStepsIfDone(
+      {jobId, jobExecutionId: params.jobExecutionId},
+      params.tx,
+    );
+    if (status !== null) {
+      recordWorkflowJobExecutionStepsSettled(status);
       return {kind: 'done', status};
     }
-
-    executions = await executionsForStep({pending, jobExecution, executions, tx});
-    const progress = await progressPendingStep({
-      ...params,
-      pending,
-      steps: currentSteps,
-      attempts: currentAttempts,
-      executions,
-    });
-    if (progress.kind === 'resolved') return progress.resolution;
-    currentSteps = progress.steps;
-    currentAttempts = progress.attempts;
-    skippedAny ||= progress.skipped;
   }
+  return {kind: 'done', status: deriveCompletion([...params.steps])};
+}
+
+async function requireJobExecution(jobExecutionId: string, tx: Tx): Promise<JobExecution> {
+  const jobExecution = await getJobExecutionById(jobExecutionId, tx);
+  if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
+  return jobExecution;
+}
+
+// A wait row blocks the steps after it until every step it names is terminal. It is re-checked on
+// every call. It opens when first reached, so the run page shows how long it blocked.
+async function advanceWaitStep(params: {
+  readonly step: Step;
+  readonly steps: readonly Step[];
+  readonly jobExecutionId: string;
+  readonly tx: Tx;
+}): Promise<{kind: 'joined'} | {kind: 'waiting'; blockers: readonly Step[]}> {
+  const {step, jobExecutionId, tx} = params;
+  if (step.status === 'pending') await markStepRunning({jobExecutionId, stepId: step.id}, tx);
+
+  const targets = controlStepTargets(step, params.steps);
+  const open = targets.filter((target) => !isTerminal(target.status));
+  if (open.length > 0) return {kind: 'waiting', blockers: open};
+
+  const failed = failedWaitTargets(targets);
+  await finishControlStep(
+    {
+      jobExecutionId,
+      step,
+      status: failed.length === 0 ? 'succeeded' : 'failed',
+      error: failed.length === 0 ? null : failedWaitError(failed),
+    },
+    tx,
+  );
+  return {kind: 'joined'};
+}
+
+function failedWaitError(failed: readonly Step[]): Record<string, unknown> {
+  const labels = failed.map((step) => `\`${boundedStepName(step.key ?? step.name)}\``).join(', ');
+  return {
+    message:
+      failed.length === 1
+        ? `The background step ${labels} failed.`
+        : `The background steps ${labels} failed.`,
+    source: 'workflows',
+  };
+}
+
+// A cancel row stops the steps it names and finishes at once, without waiting for them. A target
+// that has not started never starts. A running target turns cancelled and, when a runner holds
+// it, stays open until the runner confirms its process exited.
+async function advanceCancelStep(params: {
+  readonly step: Step;
+  readonly steps: readonly Step[];
+  readonly scheduling: StepScheduling;
+  readonly jobExecutionId: string;
+  readonly tx: Tx;
+}): Promise<void> {
+  const {step, jobExecutionId, tx} = params;
+  if (step.status === 'pending') await markStepRunning({jobExecutionId, stepId: step.id}, tx);
+
+  let cancelled = 0;
+  for (const target of withInnerSteps(controlStepTargets(step, params.steps), params.steps)) {
+    if (target.status === 'pending') {
+      if (await cancelPendingStep({jobExecutionId, stepId: target.id}, tx)) cancelled += 1;
+    } else if (target.status === 'running') {
+      const stopped = await cancelRunningStep(
+        {
+          jobExecutionId,
+          stepId: target.id,
+          heldByRunner: isRunnerStep(target) && isHeldByRunner(params.scheduling.inFlight, target),
+        },
+        tx,
+      );
+      if (stopped !== null) cancelled += 1;
+    }
+  }
+  if (cancelled > 0) recordWorkflowStepCancelled({reason: 'cancel_step', count: cancelled});
+  await finishControlStep({jobExecutionId, step, status: 'succeeded', error: null}, tx);
+}
+
+// Wait and cancel rows run on the server, so their attempt finishes with the row.
+async function finishControlStep(
+  params: {
+    readonly jobExecutionId: string;
+    readonly step: Step;
+    readonly status: 'succeeded' | 'failed';
+    readonly error: Record<string, unknown> | null;
+  },
+  tx: Tx,
+): Promise<void> {
+  await finishStepAttempt(
+    {
+      stepId: params.step.id,
+      attempt: params.step.currentAttempt,
+      status: params.status,
+      error: params.error,
+      logOutcome: 'drained',
+    },
+    tx,
+  );
+  await applyStepResult(
+    {
+      jobExecutionId: params.jobExecutionId,
+      stepId: params.step.id,
+      status: params.status,
+      error: params.error,
+    },
+    tx,
+  );
 }
 
 type PendingStepProgress =
@@ -434,6 +681,9 @@ async function progressPendingStep(
   const condition = pendingStepCondition({pending, steps, attempts, context});
 
   if (condition.kind === 'run') {
+    const blocked = blockedDispatch({pending, steps, attempts, scheduling: params.scheduling});
+    if (blocked !== undefined) return {kind: 'resolved', resolution: blocked};
+
     const dispatchParams: PendingStepDispatchParams = {
       jobExecutionId,
       pending,
@@ -443,6 +693,7 @@ async function progressPendingStep(
       tx,
       agent: params.agent,
       runnerPlatform: params.runnerPlatform,
+      scheduling: params.scheduling,
       steps,
       attempts,
       compositeConfig:
@@ -473,6 +724,7 @@ async function progressPendingStep(
       tx,
       agent: params.agent,
       runnerPlatform: params.runnerPlatform,
+      scheduling: params.scheduling,
       error: conditionErroredStepError({
         step: pending,
         jobKey: workflowContext.jobKey,
@@ -492,6 +744,24 @@ async function progressPendingStep(
     tx,
   });
   return {kind: 'continue', steps: skipped, attempts, skipped: true};
+}
+
+// A composite is a server-run row and takes no slot. Any other step waits for the stop barrier and
+// for a free slot before it starts.
+function blockedDispatch(params: {
+  readonly pending: Step;
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+  readonly scheduling: StepScheduling;
+}): NextStepResolution | undefined {
+  if (params.pending.type === 'composite') return undefined;
+  const blockers = dispatchBlockers({
+    pending: params.pending,
+    steps: params.steps,
+    attempts: params.attempts,
+    maxConcurrentSteps: params.scheduling.maxConcurrentSteps,
+  });
+  return blockers.length === 0 ? undefined : {kind: 'wait', retryAfterMs: retryAfterMs(blockers)};
 }
 
 async function skipPendingStep(params: {
@@ -569,6 +839,7 @@ async function openComposite(
       tx,
       agent: params.agent,
       runnerPlatform: params.runnerPlatform,
+      scheduling: params.scheduling,
       error: dispatchConfigError(
         configError instanceof InterpolationUnresolvableError
           ? configError.at({
@@ -595,6 +866,7 @@ async function closeComposite(params: {
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
   readonly runnerPlatform?: RunnerPlatformLoader | undefined;
+  readonly scheduling: StepScheduling;
 }): Promise<NextStepResolution> {
   const {jobExecutionId, tx} = params;
   const progression = await recordCompositeResult(params);
@@ -605,6 +877,7 @@ async function closeComposite(params: {
     tx,
     params.agent,
     params.runnerPlatform,
+    params.scheduling,
   );
 }
 
@@ -817,6 +1090,7 @@ async function dispatchPendingStepWithConfigPlan({
   tx,
   agent,
   runnerPlatform,
+  scheduling,
   attempts,
   compositeConfig,
 }: PendingStepDispatchParams): Promise<NextStepResolution> {
@@ -879,6 +1153,7 @@ async function dispatchPendingStepWithConfigPlan({
         workflowContext,
         agent,
         runnerPlatform,
+        scheduling,
       };
     }
     if (pending.type === 'tool') {
@@ -917,6 +1192,7 @@ async function dispatchPendingStepWithConfigPlan({
       tx,
       agent,
       runnerPlatform,
+      scheduling,
       error: failureError,
     });
   }
@@ -929,10 +1205,11 @@ async function failPendingStep(params: {
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
   readonly runnerPlatform?: RunnerPlatformLoader | undefined;
+  readonly scheduling: StepScheduling;
   readonly error: Record<string, unknown>;
   readonly evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | undefined;
 }): Promise<NextStepResolution> {
-  const {jobExecutionId, pending, jobExecution, tx, agent, runnerPlatform} = params;
+  const {jobExecutionId, pending, jobExecution, tx, agent, runnerPlatform, scheduling} = params;
   await insertRunningStepAttempt(
     {
       jobExecutionId,
@@ -960,7 +1237,7 @@ async function failPendingStep(params: {
   });
   if (status) recordWorkflowJobExecutionStepsSettled(status);
   return status === null
-    ? nextStepForJobExecutionInTransaction(jobExecutionId, tx, agent, runnerPlatform)
+    ? nextStepForJobExecutionInTransaction(jobExecutionId, tx, agent, runnerPlatform, scheduling)
     : {kind: 'done', status};
 }
 
@@ -1200,6 +1477,7 @@ async function completePendingSessionClaim(
           tx,
           pending.agent,
           pending.runnerPlatform,
+          pending.scheduling,
         ),
       };
     });
@@ -1267,6 +1545,7 @@ async function settlePreparedSessionClaimFailure(
         tx,
         pending.agent,
         pending.runnerPlatform,
+        pending.scheduling,
       )
     : {kind: 'done', status};
 }
@@ -1305,6 +1584,7 @@ async function continueAfterStalePendingSessionClaim(
     tx,
     pending.agent,
     pending.runnerPlatform,
+    pending.scheduling,
   );
 }
 
@@ -1559,17 +1839,55 @@ export interface NextStepForLeasedJobExecutionParams {
   jobExecutionId: string;
   agent?: AgentInterModuleClient | undefined;
   runnerPlatform?: RunnerPlatformLoader | undefined;
+  /** The step attempts the runner is executing. A runner that sends none holds none. */
+  inFlight?: readonly InFlightStep[] | undefined;
+  /** Overrides `WORKFLOWS_MAX_CONCURRENT_STEPS`. */
+  maxConcurrentSteps?: number | undefined;
 }
 
-export function nextStepForLeasedJobExecution(
+export type LeasedNextStep = NextStep & {
+  /** Steps the runner holds that a cancel step stopped. Derived on every call. */
+  cancelStepIds: string[];
+};
+
+export async function nextStepForLeasedJobExecution(
   params: NextStepForLeasedJobExecutionParams,
-): Promise<NextStep> {
+): Promise<LeasedNextStep> {
   const runnerPlatform = params.runnerPlatform && memoize(params.runnerPlatform);
-  return resolveNextStepWithSessionClaims(() =>
-    withTransaction((tx) =>
-      nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent, runnerPlatform),
-    ),
+  const scheduling: StepScheduling = {
+    inFlight: params.inFlight ?? [],
+    maxConcurrentSteps: params.maxConcurrentSteps ?? config.WORKFLOWS_MAX_CONCURRENT_STEPS,
+  };
+  let cancelStepIds: string[] = [];
+  const next = await resolveNextStepWithSessionClaims(() =>
+    withTransaction(async (tx) => {
+      const resolution = await nextStepForJobExecutionInTransaction(
+        params.jobExecutionId,
+        tx,
+        params.agent,
+        runnerPlatform,
+        scheduling,
+      );
+      cancelStepIds = await stoppingStepIds(params.jobExecutionId, scheduling, tx);
+      return resolution;
+    }),
   );
+  return {...next, cancelStepIds};
+}
+
+// Read in the scan's transaction, so a cancel row that ran in this call is included. A lost
+// response loses nothing, because the next call derives the same ids from the stopping attempts.
+async function stoppingStepIds(
+  jobExecutionId: string,
+  scheduling: StepScheduling,
+  tx: Tx,
+): Promise<string[]> {
+  if (scheduling.inFlight.length === 0) return [];
+  const stopping = await listStoppingStepAttempts(jobExecutionId, tx);
+  const ids = stopping
+    .filter((entry) => holdsAttempt(scheduling.inFlight, entry))
+    .map((entry) => entry.stepId);
+  return [...new Set(ids)];
 }
 
 // A session's platform never changes, so one read serves every step resolved in this request.
@@ -1631,10 +1949,111 @@ interface RecordStepResultTransactionResult {
   metrics: StepProgressionMetrics;
 }
 
-function outcomeFromSteps(steps: Step[]): RecordStepResultOutcome {
-  return steps.every((step) => isTerminal(step.status))
+function outcomeFromSteps(steps: Step[], hasStopping = false): RecordStepResultOutcome {
+  return steps.every((step) => isTerminal(step.status)) && !hasStopping
     ? {jobFinished: true, status: deriveCompletion(steps)}
     : {jobFinished: false};
+}
+
+export interface ConfirmStepStoppedParams {
+  jobExecutionId: string;
+  stepId: string;
+  attempt: number;
+  output?: Record<string, unknown> | null | undefined;
+  response?: string | null | undefined;
+  exitCode?: number | null | undefined;
+  logPath?: string | null | undefined;
+  logOutcome?: LogOutcomeDto | undefined;
+}
+
+/**
+ * The runner's confirmation that a cancelled step's process exited. The step turned `cancelled`
+ * when its cancel row ran, so this finishes the attempt and lets whatever waited for the stop go
+ * on. A repeated confirmation finds the attempt finished and changes nothing.
+ */
+export async function confirmStepStopped(
+  params: ConfirmStepStoppedParams,
+): Promise<RecordStepResultOutcome> {
+  const settlement = await withTransaction(async (tx) => {
+    const steps = await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
+    if (!steps.some((step) => step.id === params.stepId)) {
+      throw new StepNotFoundError(params.stepId, params.jobExecutionId);
+    }
+
+    const attempts = await getStepAttemptsByJobExecutionId(params.jobExecutionId, tx);
+    const attempt = attempts.find(
+      (candidate) => candidate.stepId === params.stepId && candidate.attempt === params.attempt,
+    );
+    if (attempt === undefined) throw new StepNotStoppingError(params.stepId, params.attempt);
+    if (attempt.status !== 'running') {
+      return {outcome: outcomeFromSteps(steps, stoppingAttempts(attempts).length > 0)};
+    }
+    if (attempt.cancelRequestedAt === null) {
+      throw new StepNotStoppingError(params.stepId, params.attempt);
+    }
+
+    const jobExecution = await requireJobExecution(params.jobExecutionId, tx);
+    return finishStoppedAttempt({...params, jobId: jobExecution.jobId}, tx);
+  });
+  recordStepProgressionMetrics(settlement.metrics ?? {});
+  return settlement.outcome;
+}
+
+// Finishes the attempt of a step that a cancel step stopped. Closing the last open piece settles
+// the job.
+async function finishStoppedAttempt(
+  params: ConfirmStepStoppedParams & {jobId: string},
+  tx: Tx,
+): Promise<{outcome: RecordStepResultOutcome; metrics?: StepProgressionMetrics}> {
+  await finishStepAttempt(
+    {
+      stepId: params.stepId,
+      attempt: params.attempt,
+      status: 'cancelled',
+      output: params.output ?? null,
+      response: params.response ?? null,
+      exitCode: params.exitCode ?? null,
+      logPath: params.logPath ?? null,
+      logOutcome: params.logOutcome ?? 'drained',
+    },
+    tx,
+  );
+  const status = await settleJobStepsIfDone(
+    {jobId: params.jobId, jobExecutionId: params.jobExecutionId},
+    tx,
+  );
+  if (status === null) return {outcome: {jobFinished: false}};
+  return {
+    outcome: {jobFinished: true, status},
+    metrics: {jobStepsSettledStatus: status},
+  };
+}
+
+// A report for a step that already ended changes nothing, except that a runner whose process
+// exited on its own while a cancel step was stopping it still has to close that attempt.
+async function recordLateReport(
+  params: {
+    readonly jobId: string;
+    readonly jobExecutionId: string;
+    readonly stepId: string;
+    readonly attempt: number;
+    readonly steps: readonly Step[];
+    readonly logOutcome: LogOutcomeDto | undefined;
+    readonly logPath: string | null | undefined;
+    readonly exitCode: number | null | undefined;
+  },
+  tx: Tx,
+): Promise<RecordStepResultTransactionResult> {
+  const attempts = await getStepAttemptsByJobExecutionId(params.jobExecutionId, tx);
+  const stopping = stoppingAttempts(attempts);
+  const closing = stopping.find(
+    (attempt) => attempt.stepId === params.stepId && attempt.attempt === params.attempt,
+  );
+  if (closing === undefined) {
+    return {outcome: outcomeFromSteps([...params.steps], stopping.length > 0), metrics: {}};
+  }
+  const settlement = await finishStoppedAttempt(params, tx);
+  return {outcome: settlement.outcome, metrics: settlement.metrics ?? {}};
 }
 
 export async function recordStepResult(
@@ -1671,7 +2090,21 @@ export async function recordStepResultInTransaction(
   const reported = params.attempt ?? current;
   const reportClassification = classifyReportedStep(target, reported, jobExecution.jobId);
   if (reportClassification instanceof Error) throw reportClassification;
-  if (reportClassification === 'noop') return {outcome: outcomeFromSteps(steps), metrics: {}};
+  if (reportClassification === 'noop') {
+    return recordLateReport(
+      {
+        jobId: jobExecution.jobId,
+        jobExecutionId,
+        stepId: params.stepId,
+        attempt: reported,
+        steps,
+        logOutcome: params.logOutcome,
+        logPath: params.logPath,
+        exitCode: params.exitCode,
+      },
+      tx,
+    );
+  }
 
   if (target.type === 'setup' && params.actionsDir !== undefined) {
     await recordJobExecutionActionsDir({jobExecutionId, actionsDir: params.actionsDir}, tx);

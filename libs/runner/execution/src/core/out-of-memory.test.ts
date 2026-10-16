@@ -28,11 +28,17 @@ describe('reportOutOfMemoryKills', () => {
     await rm(dir, {recursive: true, force: true});
   });
 
-  const report = (result: StepResult, killsAfter: number, signal?: AbortSignal) =>
+  const report = (
+    result: StepResult,
+    killsAfter: number,
+    signal?: AbortSignal,
+    overlappingSteps?: () => number,
+  ) =>
     reportOutOfMemoryKills({
       memoryEventsPath,
       annotationContext: 'out-of-memory-step',
       ...(signal === undefined ? {} : {signal}),
+      ...(overlappingSteps === undefined ? {} : {overlappingSteps}),
       run: async () => {
         await writeFile(memoryEventsPath, memoryEvents(killsAfter));
         return result;
@@ -52,6 +58,26 @@ describe('reportOutOfMemoryKills', () => {
       'The runner ran out of memory during this step and the system killed 2 processes. Reduce the memory the step uses or run it on a runner with more memory. Process exited with code 137.',
     );
     expect(result.annotations).toBeUndefined();
+  });
+
+  it('keeps the single-step message when only one step ran', async () => {
+    const result = await report(FAILURE, 3, undefined, () => 1);
+
+    expect(result.error?.message).toContain('ran out of memory during this step');
+  });
+
+  it('says how many steps ran when several overlapped', async () => {
+    const result = await report(FAILURE, 3, undefined, () => 3);
+
+    expect(result.error?.message).toBe(
+      'The runner ran out of memory while 3 steps ran and the system killed 1 process. Reduce the memory the step uses or run it on a runner with more memory. Process exited with code 137.',
+    );
+  });
+
+  it('says how many steps ran in the warning of a step that still succeeded', async () => {
+    const result = await report(SUCCESS, 3, undefined, () => 2);
+
+    expect(result.annotations?.[0]?.body).toContain('ran out of memory while 2 steps ran');
   });
 
   it('keeps a message that already reports out of memory', async () => {

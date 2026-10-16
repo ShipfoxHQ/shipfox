@@ -239,6 +239,18 @@ describe('gate restart metrics', () => {
   });
 });
 
+describe('step cancellation metric', () => {
+  test('counts cancelled steps by reason', () => {
+    metrics.recordWorkflowStepCancelled({reason: 'cancel_step'});
+    metrics.recordWorkflowStepCancelled({reason: 'job', count: 3});
+
+    expect(counterAdd('workflows_step_cancelled')).toHaveBeenNthCalledWith(1, 1, {
+      reason: 'cancel_step',
+    });
+    expect(counterAdd('workflows_step_cancelled')).toHaveBeenNthCalledWith(2, 3, {reason: 'job'});
+  });
+});
+
 describe('listener batch metrics', () => {
   test('records bounded partition reasons', () => {
     metrics.recordListenerBatchPartition('byte_limit');

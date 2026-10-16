@@ -362,14 +362,23 @@ export function createLeaseClient(leaseToken: LeaseTokenSource): KyInstance {
   });
 }
 
+/**
+ * Asks the server what to do next. `inFlight` lists every step attempt the runner holds, until
+ * the report of that attempt returns, so the server neither hands one back nor loses a cancel.
+ */
 export async function requestNextStep(
   leaseClient: KyInstance,
-  options: {signal?: AbortSignal} = {},
+  options: {inFlight?: readonly {stepId: string; attempt: number}[]; signal?: AbortSignal} = {},
 ): Promise<NextStepResponseDto> {
-  const response = await leaseClient.post(
-    'runs/jobs/current/steps/next',
-    options.signal ? {signal: options.signal} : undefined,
-  );
+  const response = await leaseClient.post('runs/jobs/current/steps/next', {
+    json: {
+      in_flight: (options.inFlight ?? []).map(({stepId, attempt}) => ({
+        step_id: stepId,
+        attempt,
+      })),
+    },
+    ...(options.signal ? {signal: options.signal} : {}),
+  });
   return nextStepResponseSchema.parse(await response.json());
 }
 
@@ -378,7 +387,7 @@ export async function reportStep(
   params: {
     stepId: string;
     attempt: number;
-    status: 'succeeded' | 'failed';
+    status: 'succeeded' | 'failed' | 'cancelled';
     error?: StepErrorDto;
     exitCode: number | null;
     logOutcome: LogOutcomeDto;

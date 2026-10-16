@@ -324,9 +324,48 @@ describe('api-client auth contexts', () => {
 
     const next = await requestNextStep(leaseClient);
 
-    expect(next).toEqual({kind: 'done', status: 'succeeded'});
+    expect(next).toEqual({kind: 'done', status: 'succeeded', cancel_step_ids: []});
     expect(calls[0]?.url).toContain('runs/jobs/current/steps/next');
     expect(calls[0]?.authorization).toBe('Bearer lease-abc');
+  });
+
+  it('requestNextStep sends the step attempts the runner holds', async () => {
+    stubFetch(() => jsonResponse({kind: 'wait', retry_after_ms: 500}));
+    const leaseClient = createLeaseClient('lease-abc');
+    const otherStepId = crypto.randomUUID();
+
+    await requestNextStep(leaseClient, {
+      inFlight: [
+        {stepId: STEP_ID, attempt: 2},
+        {stepId: otherStepId, attempt: 1},
+      ],
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      in_flight: [
+        {step_id: STEP_ID, attempt: 2},
+        {step_id: otherStepId, attempt: 1},
+      ],
+    });
+  });
+
+  it('requestNextStep sends an empty list when the runner holds no step', async () => {
+    stubFetch(() => jsonResponse({kind: 'wait', retry_after_ms: 500}));
+    const leaseClient = createLeaseClient('lease-abc');
+
+    await requestNextStep(leaseClient);
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({in_flight: []});
+    expect(calls[0]?.headers['content-type']).toContain('application/json');
+  });
+
+  it('requestNextStep parses the steps the server stops', async () => {
+    stubFetch(() => jsonResponse({kind: 'wait', retry_after_ms: 500, cancel_step_ids: [STEP_ID]}));
+    const leaseClient = createLeaseClient('lease-abc');
+
+    const next = await requestNextStep(leaseClient);
+
+    expect(next).toEqual({kind: 'wait', retry_after_ms: 500, cancel_step_ids: [STEP_ID]});
   });
 
   it('requestNextStep parses the step-scoped lease token on step responses', async () => {
@@ -355,7 +394,14 @@ describe('api-client auth contexts', () => {
 
     const next = await requestNextStep(leaseClient);
 
-    expect(next).toEqual({kind: 'step', step, attempt: 2, lease_token: 'lease-step-scoped'});
+    expect(next).toEqual({
+      kind: 'step',
+      step,
+      attempt: 2,
+      lease_token: 'lease-step-scoped',
+      background: false,
+      cancel_step_ids: [],
+    });
   });
 
   it('lease clients read rotated lease tokens before each request', async () => {
@@ -807,6 +853,43 @@ describe('api-client auth contexts', () => {
     expect(result).toEqual({ok: true, cancel: false});
     expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/report`);
     expect(calls[0]?.authorization).toBe('Bearer lease-def');
+  });
+
+  it('reportStep confirms a stopped step as cancelled, without an error', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-cancelled');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 3,
+      status: 'cancelled',
+      exitCode: null,
+      logOutcome: 'drained',
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      status: 'cancelled',
+      attempt: 3,
+      exit_code: null,
+      log_outcome: 'drained',
+    });
+  });
+
+  it('reportStep rejects a cancelled report that carries an error', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-cancelled-error');
+
+    const report = reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 3,
+      status: 'cancelled',
+      error: {message: 'Killed by signal SIGTERM'},
+      exitCode: null,
+      logOutcome: 'drained',
+    });
+
+    await expect(report).rejects.toThrow('only failed steps include an error');
+    expect(calls).toHaveLength(0);
   });
 
   it('reportStep includes log_path when a finalized log exists', async () => {

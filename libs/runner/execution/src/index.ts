@@ -34,6 +34,7 @@ export type {
   StartedSetupContainer,
 } from '#core/setup-container.js';
 export {executeSetupStep, type SetupJobContext, type SetupStepExecution} from '#core/setup-step.js';
+export {isStepCancelAbort, STEP_CANCEL_ABORT_REASON} from '#core/step-cancel.js';
 export {
   MAX_OUTPUT_TOTAL_BYTES,
   MAX_OUTPUT_VALUE_BYTES,

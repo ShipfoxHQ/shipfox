@@ -120,6 +120,21 @@ describe('session claim reconciliation', () => {
     expect(ctx.agent.releaseSession).not.toHaveBeenCalled();
   });
 
+  test('waits for a holder that a cancel step is stopping instead of rejecting the claim', async () => {
+    const ctx = await arrange();
+    await db()
+      .update(stepAttempts)
+      .set({cancelRequestedAt: new Date()})
+      .where(eq(stepAttempts.id, ctx.holder.id));
+
+    const status = await getSessionClaimHolderStatus({...ctx.input, stepAttemptId: ctx.holder.id});
+    const result = await claimSessionWithReconciliation(ctx.input);
+
+    expect(status).toBe('stopping');
+    expect(result).toBeNull();
+    expect(ctx.agent.releaseSession).not.toHaveBeenCalled();
+  });
+
   test.each([
     'workspaceId',
     'projectId',

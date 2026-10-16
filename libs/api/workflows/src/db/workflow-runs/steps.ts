@@ -18,6 +18,8 @@ import {
   getTableColumns,
   gte,
   inArray,
+  isNotNull,
+  isNull,
   lt,
   ne,
   notInArray,
@@ -44,6 +46,7 @@ import type {
   StepType,
 } from '#core/entities/step.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
+import {recordWorkflowStepCancelled} from '#metrics/instance.js';
 import {
   discardPendingCheckoutRenewalSubject,
   promoteCheckoutRenewalSubject,
@@ -59,14 +62,15 @@ import {workflowRuns} from '../schema/workflow-runs.js';
 import {writeJobStepsSettledOutbox, writeStepAttemptTerminatedOutbox} from './outbox.js';
 import {NON_TERMINAL_STEP_STATUS_FILTER} from './shared.js';
 
+/** A running holder that a cancel step is stopping is `stopping`: its process has not exited yet. */
 export async function getSessionClaimHolderStatus(params: {
   stepAttemptId: string;
   workspaceId: string;
   projectId: string;
   workflowRunAttemptId: string;
-}): Promise<StepAttemptStatus | null> {
+}): Promise<StepAttemptStatus | 'stopping' | null> {
   const [row] = await db()
-    .select({status: stepAttempts.status})
+    .select({status: stepAttempts.status, cancelRequestedAt: stepAttempts.cancelRequestedAt})
     .from(stepAttempts)
     .innerJoin(jobExecutions, eq(stepAttempts.jobExecutionId, jobExecutions.id))
     .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
@@ -81,7 +85,9 @@ export async function getSessionClaimHolderStatus(params: {
       ),
     )
     .limit(1);
-  return (row?.status as StepAttemptStatus | undefined) ?? null;
+  if (row === undefined) return null;
+  if (row.status === 'running' && row.cancelRequestedAt !== null) return 'stopping';
+  return row.status as StepAttemptStatus;
 }
 
 export async function getStepByIdForJobExecution(params: {
@@ -424,7 +430,7 @@ export async function bulkUpdateStepStatuses(
 
   const terminalStatusReason: StepStatusReason | undefined = params.terminalCause;
 
-  await tx
+  const updatedSteps = await tx
     .update(steps)
     .set({
       status: params.status,
@@ -434,7 +440,11 @@ export async function bulkUpdateStepStatuses(
           : sql`case when ${steps.status} = 'running' then ${terminalStatusReason}::workflows_step_status_reason else null end`,
       updatedAt: new Date(),
     })
-    .where(and(eq(steps.jobExecutionId, params.jobExecutionId), NON_TERMINAL_STEP_STATUS_FILTER));
+    .where(and(eq(steps.jobExecutionId, params.jobExecutionId), NON_TERMINAL_STEP_STATUS_FILTER))
+    .returning({id: steps.id});
+  if (params.status === 'cancelled' && updatedSteps.length > 0) {
+    recordWorkflowStepCancelled({reason: 'job', count: updatedSteps.length});
+  }
 
   await runBestEffortCheckoutRenewalSubjectMaintenance(
     tx,
@@ -710,16 +720,133 @@ export async function settleJobFailed(
     tx,
   );
 
-  const after = await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
-  if (!after.every((step) => isTerminal(step.status))) return null;
+  return settleJobStepsIfDone({jobId: params.jobId, jobExecutionId: params.jobExecutionId}, tx);
+}
 
-  const status = deriveCompletion(after);
+/**
+ * Settles the job's steps once every step is terminal and no cancelled step's process is still
+ * stopping, and returns the job result. Returns null when something is still open, so the
+ * report that closes the last open piece is the one that settles. Every path that can be the last
+ * to finish goes through here.
+ */
+export async function settleJobStepsIfDone(
+  params: {jobId: string; jobExecutionId: string},
+  tx: Tx,
+): Promise<'succeeded' | 'failed' | null> {
+  const steps = await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
+  if (!steps.every((step) => isTerminal(step.status))) return null;
+  if (await hasStoppingStepAttempt(params.jobExecutionId, tx)) return null;
+
+  const status = deriveCompletion(steps);
   await writeJobStepsSettledOutbox(tx, {
     jobId: params.jobId,
     jobExecutionId: params.jobExecutionId,
     status,
   });
   return status;
+}
+
+function stoppingAttemptFilter(jobExecutionId: string) {
+  return and(
+    eq(stepAttempts.jobExecutionId, jobExecutionId),
+    eq(stepAttempts.status, 'running'),
+    isNotNull(stepAttempts.cancelRequestedAt),
+  );
+}
+
+/** Whether a cancel step asked a process of this execution to stop and the runner has not confirmed. */
+export async function hasStoppingStepAttempt(jobExecutionId: string, tx: Tx): Promise<boolean> {
+  const [row] = await tx
+    .select({id: stepAttempts.id})
+    .from(stepAttempts)
+    .where(stoppingAttemptFilter(jobExecutionId))
+    .limit(1);
+  return row !== undefined;
+}
+
+/** The attempts that a cancel step is stopping. */
+export async function listStoppingStepAttempts(
+  jobExecutionId: string,
+  tx: Tx,
+): Promise<{stepId: string; attempt: number}[]> {
+  return await tx
+    .select({stepId: stepAttempts.stepId, attempt: stepAttempts.attempt})
+    .from(stepAttempts)
+    .where(stoppingAttemptFilter(jobExecutionId));
+}
+
+/** A cancel step stops a target that has not started: it turns `cancelled` and never starts. */
+export async function cancelPendingStep(
+  params: {jobExecutionId: string; stepId: string},
+  tx: Tx,
+): Promise<boolean> {
+  const rows = await tx
+    .update(steps)
+    .set({status: 'cancelled', statusReason: null, error: null, updatedAt: new Date()})
+    .where(
+      and(
+        eq(steps.id, params.stepId),
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        eq(steps.status, 'pending'),
+      ),
+    )
+    .returning({id: steps.id});
+  return rows.length > 0;
+}
+
+export interface CancelRunningStepParams {
+  jobExecutionId: string;
+  stepId: string;
+  /** Whether the runner holds the attempt, so it can confirm that the process stopped. */
+  heldByRunner: boolean;
+}
+
+/**
+ * A cancel step stops a running target. The step turns `cancelled` at once. A runner-held attempt
+ * stays open and is marked as stopping until the runner confirms the process exited; an attempt no
+ * runner holds, such as a server-run tool call, finishes now.
+ */
+export async function cancelRunningStep(
+  params: CancelRunningStepParams,
+  tx: Tx,
+): Promise<Step | null> {
+  const rows = await tx
+    .update(steps)
+    .set({status: 'cancelled', statusReason: null, updatedAt: new Date()})
+    .where(
+      and(
+        eq(steps.id, params.stepId),
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        eq(steps.status, 'running'),
+      ),
+    )
+    .returning();
+  const row = rows[0];
+  if (!row) return null;
+  const step = toStep(row);
+  if (params.heldByRunner) {
+    await tx
+      .update(stepAttempts)
+      .set({cancelRequestedAt: new Date()})
+      .where(
+        and(
+          eq(stepAttempts.stepId, step.id),
+          eq(stepAttempts.attempt, step.currentAttempt),
+          eq(stepAttempts.status, 'running'),
+        ),
+      );
+  } else {
+    await finishStepAttempt(
+      {
+        stepId: step.id,
+        attempt: step.currentAttempt,
+        status: 'cancelled',
+        logOutcome: 'abandoned',
+      },
+      tx,
+    );
+  }
+  return step;
 }
 
 export interface InsertRunningStepAttemptParams {
@@ -920,6 +1047,30 @@ export async function rewindStepsToPending(
   params: RewindStepsToPendingParams,
   tx: Tx,
 ): Promise<void> {
+  // A background step can still run when the rewind reaches it. Its old process must stop before
+  // the new attempt starts, so the attempt is stopping, as when a cancel step stops it.
+  await tx
+    .update(stepAttempts)
+    .set({cancelRequestedAt: new Date()})
+    .where(
+      and(
+        eq(stepAttempts.status, 'running'),
+        isNull(stepAttempts.cancelRequestedAt),
+        inArray(
+          stepAttempts.stepId,
+          tx
+            .select({id: steps.id})
+            .from(steps)
+            .where(
+              and(
+                eq(steps.jobExecutionId, params.jobExecutionId),
+                gte(steps.position, params.fromPosition),
+                ne(steps.type, 'post'),
+              ),
+            ),
+        ),
+      ),
+    );
   await tx
     .update(steps)
     .set({

@@ -61,6 +61,8 @@ async function classifyHolder(
 ): Promise<'terminal' | 'unknown' | 'wait'> {
   if (holderAttemptId === input.stepAttemptId) return 'wait';
   const status = await getSessionClaimHolderStatus({...input, stepAttemptId: holderAttemptId});
+  // A holder that a cancel step is stopping frees the session once its process exits.
+  if (status === 'stopping') return 'wait';
   if (status === 'running') {
     throw new AgentStepSessionClaimError(
       'agent_session_held',

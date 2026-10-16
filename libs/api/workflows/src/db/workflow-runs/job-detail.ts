@@ -130,6 +130,8 @@ export interface WorkflowStepSummaryRead {
   mainStepId: string | undefined;
   /** False when a failure of this step leaves the job result unchanged. */
   affectsJob: boolean;
+  background: boolean;
+  parallelGroup: string | null;
   error: Record<string, unknown> | null;
   attempts: {
     items: WorkflowStepAttemptSummaryRead[];
@@ -1044,6 +1046,8 @@ interface StepRow {
   statusReason: StepStatusReason | null;
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
+  background: boolean;
+  parallelGroup: string | null;
   config: Record<string, unknown>;
   mainStepId: string | null;
   error: Record<string, unknown> | null;
@@ -1259,6 +1263,8 @@ async function loadStepPage(
       statusReason: steps.statusReason,
       sourceLocation: steps.sourceLocation,
       currentAttempt: steps.currentAttempt,
+      background: steps.background,
+      parallelGroup: steps.parallelGroup,
       config: sql<Record<string, unknown>>`jsonb_build_object(
         'gate', ${steps.config} -> 'gate',
         'post', ${steps.config} -> 'post',
@@ -1440,6 +1446,8 @@ function toStepSummary(
         : (gateOnFailure.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP),
     mainStepId: row.type === 'post' ? (row.mainStepId ?? undefined) : undefined,
     affectsJob: stepAffectsConclusion(row),
+    background: row.background,
+    parallelGroup: row.parallelGroup,
     error: (row.error as Record<string, unknown> | null) ?? null,
     attempts,
   };

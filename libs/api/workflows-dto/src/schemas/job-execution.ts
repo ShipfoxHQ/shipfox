@@ -44,6 +44,44 @@ export const stepEnvSourceSchema = z.object({
 
 export type StepEnvSourceDto = z.infer<typeof stepEnvSourceSchema>;
 
+/** The most step attempts a runner can hold at once, with room beyond the deployment limit. */
+export const NEXT_STEP_IN_FLIGHT_MAX = 256;
+
+export const inFlightStepSchema = z.object({
+  step_id: z.string().uuid().describe('A step the runner is executing.'),
+  attempt: z
+    .number()
+    .int()
+    .positive()
+    .describe('The attempt of that step the runner is executing.'),
+});
+
+export type InFlightStepDto = z.infer<typeof inFlightStepSchema>;
+
+/**
+ * The attempts the runner holds right now. The server hands a running step back to the runner
+ * that does not list it, since the runner lost the response that delivered it, and it names the
+ * listed attempts it wants stopped in `cancel_step_ids`. A runner that sends no body holds none.
+ */
+export const nextStepBodySchema = z
+  .object({
+    in_flight: z
+      .array(inFlightStepSchema)
+      .max(NEXT_STEP_IN_FLIGHT_MAX)
+      .default([])
+      .describe('The step attempts the runner is executing at this moment.'),
+  })
+  .nullish();
+
+export type NextStepBodyDto = z.infer<typeof nextStepBodySchema>;
+
+const cancelStepIdsSchema = z
+  .array(z.string().uuid())
+  .default([])
+  .describe(
+    'Steps the runner holds that a cancel step stopped. The runner terminates each one, finishes reading its files, and reports it as cancelled. Derived on every call, so a lost response loses nothing.',
+  );
+
 /**
  * The job to progress is identified by the caller's lease-token claims, never by
  * the request. An unknown job is a 404, not a `done`.
@@ -52,6 +90,13 @@ export const nextStepResponseSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('step'),
     step: stepDtoSchema,
+    background: z
+      .boolean()
+      .default(false)
+      .describe(
+        'True when the job moves on without waiting for this step. The runner pulls again right after starting any step.',
+      ),
+    cancel_step_ids: cancelStepIdsSchema,
     attempt: z
       .number()
       .int()
@@ -78,13 +123,17 @@ export const nextStepResponseSchema = z.discriminatedUnion('kind', [
       .number()
       .int()
       .positive()
-      .describe('Minimum delay before the runner polls for progress again.'),
+      .describe(
+        'Minimum delay before the runner polls for progress again. The runner polls sooner when one of its own steps ends.',
+      ),
+    cancel_step_ids: cancelStepIdsSchema,
   }),
   z.object({
     kind: z.literal('done'),
     status: z
       .enum(['succeeded', 'failed'])
       .describe('Terminal status of the job when no step remains to run.'),
+    cancel_step_ids: cancelStepIdsSchema,
   }),
 ]);
 
@@ -102,7 +151,11 @@ export type CheckoutResultDto = z.infer<typeof checkoutResultSchema>;
 
 export const reportStepBodySchema = z
   .object({
-    status: z.enum(['succeeded', 'failed']).describe('Final status reported for the step attempt.'),
+    status: z
+      .enum(['succeeded', 'failed', 'cancelled'])
+      .describe(
+        'Final status reported for the step attempt. `cancelled` is valid only for an attempt that a cancel step is stopping, and confirms that its process has exited.',
+      ),
     error: stepErrorDtoSchema
       .optional()
       .describe('Failure details. Required when status is failed.'),
@@ -151,8 +204,12 @@ export const reportStepBodySchema = z
       'Whether the runner drained all locally spooled logs before reporting, or abandoned the log stream for backend closure.',
     ),
   })
-  .refine((body) => (body.status === 'succeeded' ? body.error == null : body.error != null), {
-    message: 'succeeded steps must not include an error and failed steps must include one',
+  .refine((body) => (body.status === 'failed' ? body.error != null : body.error == null), {
+    message: 'only failed steps include an error, and they must include one',
+  })
+  .refine((body) => body.status !== 'cancelled' || body.attempt !== undefined, {
+    message: 'a cancelled report names the attempt it confirms',
+    path: ['attempt'],
   });
 
 export type ReportStepBodyDto = z.infer<typeof reportStepBodySchema>;

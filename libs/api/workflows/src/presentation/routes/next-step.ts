@@ -5,6 +5,7 @@ import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {
   type NextStepResponseDto,
+  nextStepBodySchema,
   nextStepResponseSchema,
   RUNNER_NEXT_STEP_RESPONSE_BUDGET_BYTES,
   type StepEnvSourceDto,
@@ -112,19 +113,25 @@ async function buildNextStepResponse(params: {
       kind: 'step',
       step: await stepDtoForRunner(params.next.step, params.leasedJob.workflowRunId),
       attempt: params.next.step.currentAttempt,
+      background: params.next.step.background,
       lease_token: leaseToken,
+      cancel_step_ids: params.next.cancelStepIds,
       ...(envSources === undefined ? {} : {env_sources: envSources}),
     };
   }
 
   if (params.next.kind === 'wait') {
-    return {kind: 'wait', retry_after_ms: params.next.retryAfterMs};
+    return {
+      kind: 'wait',
+      retry_after_ms: params.next.retryAfterMs,
+      cancel_step_ids: params.next.cancelStepIds,
+    };
   }
 
   if (params.next.status !== 'succeeded' && params.next.status !== 'failed') {
     throw new Error('Workflow next-step produced unsupported completion status');
   }
-  return {kind: 'done', status: params.next.status};
+  return {kind: 'done', status: params.next.status, cancel_step_ids: params.next.cancelStepIds};
 }
 
 function recordNextStepResponseTelemetry(params: {
@@ -165,8 +172,9 @@ export function createNextStepRoute(params: {
     method: 'POST',
     path: '/steps/next',
     description:
-      'Returns the next step for the runner to run on its job. The job is identified by the access token, so no job ID is needed. Calling this again before reporting the current step returns that same step, so retries are safe. Server-executed tool steps return a wait response until their queued invocation settles. When no runnable steps remain, the response reports that there are no more steps to run, along with the job status; the runner then stops. Finalization is driven server-side from recorded step results and dispatch-time skips, not by the runner calling a job-completion endpoint.',
+      'Returns the next step for the runner to run on its job. The job is identified by the access token, so no job ID is needed. Calling this again without listing a running step in `in_flight` returns that same step, so retries are safe. Several steps of the job can run at the same time: the response names the steps the runner holds that a cancel step stopped in `cancel_step_ids`. Server-executed tool steps return a wait response until their queued invocation settles. When no runnable steps remain, the response reports that there are no more steps to run, along with the job status; the runner then stops. Finalization is driven server-side from recorded step results and dispatch-time skips, not by the runner calling a job-completion endpoint.',
     schema: {
+      body: nextStepBodySchema,
       response: {
         200: nextStepResponseSchema,
       },
@@ -191,6 +199,10 @@ export function createNextStepRoute(params: {
       const next = await nextStepForLeasedJobExecution({
         jobExecutionId: leasedJob.jobExecutionId,
         agent: params.agent,
+        inFlight: (request.body?.in_flight ?? []).map((entry) => ({
+          stepId: entry.step_id,
+          attempt: entry.attempt,
+        })),
         runnerPlatform: () =>
           params.runners.getRunnerSessionPlatform({runnerSessionId: leasedJob.runnerSessionId}),
       });

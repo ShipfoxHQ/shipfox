@@ -3,18 +3,12 @@ import type {Tx} from '#db/db.js';
 import {
   applyStepResult,
   finishStepAttempt,
-  getStepsByJobExecutionIdForUpdate,
   rewindStepsToPending,
   settleJobFailed,
-  writeJobStepsSettledOutbox,
+  settleJobStepsIfDone,
   writeStepRestartEnqueuedOutbox,
 } from '#db/workflow-runs.js';
-import {
-  deriveCompletion,
-  isTerminal,
-  type StepReport,
-  type StepTransitionDecision,
-} from './decide-step-transition.js';
+import type {StepReport, StepTransitionDecision} from './decide-step-transition.js';
 
 export type StepProgressionOutcome =
   | {jobFinished: false}
@@ -198,16 +192,14 @@ async function settleCompletedStepTransition(
   ctx: ApplyStepTransitionContext,
   tx: Tx,
 ): Promise<StepProgressionResult> {
-  // Re-derive completion from the post-apply projection and emit the
-  // steps-settled signal exactly once, here on the applied path.
-  const after = await getStepsByJobExecutionIdForUpdate(ctx.jobExecutionId, tx);
-  if (after.every((step) => isTerminal(step.status))) {
-    const status = deriveCompletion(after);
-    await writeJobStepsSettledOutbox(tx, {
-      jobId: ctx.jobId,
-      jobExecutionId: ctx.jobExecutionId,
-      status,
-    });
+  // Re-derive completion from the post-apply projection and emit the steps-settled signal
+  // exactly once, here on the applied path. A cancelled step's process may still be stopping, and
+  // its confirmation settles the job then.
+  const status = await settleJobStepsIfDone(
+    {jobId: ctx.jobId, jobExecutionId: ctx.jobExecutionId},
+    tx,
+  );
+  if (status !== null) {
     return {
       outcome: {jobFinished: true, status},
       metrics: {jobStepsSettledStatus: status},

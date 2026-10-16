@@ -270,6 +270,43 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(running).toHaveLength(1);
   });
 
+  test('does not re-deliver a running step that the runner lists as in flight', async () => {
+    const {jobId} = await arrangeJobWithSteps(3);
+    const token = await mintActiveLeaseToken({jobId});
+    const first = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+    });
+    const held = {step_id: first.json().step.id, attempt: first.json().attempt};
+
+    const second = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+      payload: {in_flight: [held]},
+    });
+
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual({kind: 'wait', retry_after_ms: 30_000, cancel_step_ids: []});
+    expect(first.json().background).toBe(false);
+    expect(first.json().cancel_step_ids).toEqual([]);
+  });
+
+  test('rejects an in-flight entry that is not a step id', async () => {
+    const {jobId} = await arrangeJobWithSteps(1);
+    const token = await mintActiveLeaseToken({jobId});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+      payload: {in_flight: [{step_id: 'nope', attempt: 1}]},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   test('returns the tool wait protocol and keeps one queued invocation', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const step = steps[0];
@@ -298,9 +335,9 @@ describe('POST /runs/jobs/current/steps/next', () => {
     const second = await app.inject({method: 'POST', url: URL, headers});
 
     expect(first.statusCode).toBe(200);
-    expect(first.json()).toEqual({kind: 'wait', retry_after_ms: 1000});
+    expect(first.json()).toEqual({kind: 'wait', retry_after_ms: 1000, cancel_step_ids: []});
     expect(second.statusCode).toBe(200);
-    expect(second.json()).toEqual({kind: 'wait', retry_after_ms: 1000});
+    expect(second.json()).toEqual({kind: 'wait', retry_after_ms: 1000, cancel_step_ids: []});
     expect(nextStepMetricMocks.recordWorkflowNextStepResponseSize).toHaveBeenNthCalledWith(
       1,
       'wait',
@@ -478,7 +515,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({kind: 'done', status: 'succeeded'});
+    expect(res.json()).toEqual({kind: 'done', status: 'succeeded', cancel_step_ids: []});
     expect(nextStepMetricMocks.recordWorkflowNextStepResponseSize).toHaveBeenCalledWith(
       'done',
       serializedResponseByteLength(res.rawPayload),
@@ -500,7 +537,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({kind: 'done', status: 'failed'});
+    expect(res.json()).toEqual({kind: 'done', status: 'failed', cancel_step_ids: []});
     expect(nextStepMetricMocks.recordWorkflowNextStepResponseSize).toHaveBeenCalledWith(
       'done',
       serializedResponseByteLength(res.rawPayload),

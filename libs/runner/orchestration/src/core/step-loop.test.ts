@@ -56,8 +56,36 @@ const {AgentRuntimeConfigRequestError, StepSecretsRequestError, resolveWorkingDi
     ),
   }));
 
-const {interruptibleSleepMock} = vi.hoisted(() => ({
-  interruptibleSleepMock: vi.fn(async (_ms: number, _signal: AbortSignal) => undefined),
+// Sleeps one tick unless the signal aborts first, so a loop that polls does not starve the
+// timers the steps under test wait on.
+function sleepOneTick(_ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const timer = setTimeout(resolve, 1);
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      {once: true},
+    );
+  });
+}
+
+const {interruptibleSleepMock, nextStepServer} = vi.hoisted(() => ({
+  interruptibleSleepMock: vi.fn(
+    async (_ms: number, _signal: AbortSignal): Promise<void> => undefined,
+  ),
+  nextStepServer: {
+    // Set by a test to play the server itself, answering from what the runner says it holds.
+    fake: undefined as
+      | undefined
+      | ((options: {
+          inFlight: readonly {stepId: string; attempt: number}[];
+          signal?: AbortSignal;
+        }) => Promise<unknown>),
+  },
 }));
 
 vi.mock('#config.js', () => ({
@@ -98,8 +126,32 @@ const {agentStepModuleEvaluated} = vi.hoisted(() => ({
   agentStepModuleEvaluated: {value: false},
 }));
 
+// Stands in for the server of a job whose steps run one at a time: while the runner holds a step
+// the server answers `wait`, so `requestNextStepMock` is asked only once the step was reported.
+// Responses get the defaults the response schema fills in.
+function requestNextStepAsSerialServer(
+  client: unknown,
+  options: {inFlight?: readonly {stepId: string; attempt: number}[]; signal?: AbortSignal},
+): Promise<unknown> {
+  if (nextStepServer.fake) {
+    return nextStepServer.fake({inFlight: options.inFlight ?? [], ...options});
+  }
+  if ((options.inFlight?.length ?? 0) > 0) {
+    return Promise.resolve({kind: 'wait', retry_after_ms: 1, cancel_step_ids: []});
+  }
+  return Promise.resolve(requestNextStepMock(client, options)).then((response) =>
+    response === undefined || response === null
+      ? response
+      : {
+          cancel_step_ids: [],
+          ...(response.kind === 'step' ? {background: false} : {}),
+          ...response,
+        },
+  );
+}
+
 vi.mock('@shipfox/runner-protocol', () => ({
-  requestNextStep: (...args: unknown[]) => requestNextStepMock(...args),
+  requestNextStep: requestNextStepAsSerialServer,
   requestAgentRuntimeConfig: (...args: unknown[]) => requestAgentRuntimeConfigMock(...args),
   requestAgentRuntimeConfigWithTiming: (...args: unknown[]) =>
     Promise.resolve(requestAgentRuntimeConfigMock(...args)).then((config) => ({
@@ -194,7 +246,6 @@ vi.mock('@shipfox/runner-workspace', () => ({
 const {
   createRunnerAgentStepLoader,
   executeStep,
-  pullNextStep,
   publishStepAnnotations,
   reportStepResult,
   runJobSteps,
@@ -384,7 +435,8 @@ describe('runJobSteps', () => {
     stepLeaseEvents.length = 0;
     requestNextStepMock.mockReset();
     interruptibleSleepMock.mockReset();
-    interruptibleSleepMock.mockResolvedValue(undefined);
+    interruptibleSleepMock.mockImplementation(sleepOneTick);
+    nextStepServer.fake = undefined;
     requestAgentRuntimeConfigMock.mockReset();
     requestStepSecretsMock.mockReset();
     requestSessionTranscriptMock.mockReset();
@@ -512,14 +564,14 @@ describe('runJobSteps', () => {
       cwd: '/work',
       gitConfigPath: GIT_CONFIG_PATH,
       leaseClient,
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
       step: setup,
       attempt: 1,
       log: expect.any(Object),
       jobContext: JOB_CONTEXT,
     });
     expect(executeRunStepMock).toHaveBeenCalledWith(run, {
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
       tempDir: JOB_TEMP_DIR,
       cwd: '/work',
       workspace: '/work',
@@ -533,7 +585,7 @@ describe('runJobSteps', () => {
       error: null,
       exitCode: 0,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(3);
   });
@@ -588,7 +640,7 @@ describe('runJobSteps', () => {
       expect(requestStepSecretsMock).toHaveBeenCalledWith(leaseClient, {
         stepId: setup.id,
         attempt: 1,
-        signal: ac.signal,
+        signal: expect.any(AbortSignal),
       });
       expect(executeSetupStepMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1037,7 +1089,7 @@ describe('runJobSteps', () => {
       exitCode: 0,
       outputs: {image_sha: 'sha-123'},
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -1094,13 +1146,7 @@ describe('runJobSteps', () => {
       attempt: number,
       envSources: Array<{position: number; attempt: number}>,
     ): NextStepResponseDto {
-      return {
-        kind: 'step',
-        step,
-        attempt,
-        lease_token: `lease-${step.id}-${attempt}`,
-        env_sources: envSources,
-      };
+      return {...stepResponse(step, attempt), env_sources: envSources};
     }
 
     function carriedEnvOf(mock: ReturnType<typeof vi.fn>, call: number) {
@@ -1880,7 +1926,7 @@ describe('runJobSteps', () => {
       exitCode: 0,
       response: '',
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -1914,7 +1960,7 @@ describe('runJobSteps', () => {
       exitCode: 0,
       checkout,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -1958,48 +2004,46 @@ describe('runJobSteps', () => {
     );
   });
 
-  it('pullNextStep returns the step-scoped lease token', async () => {
+  it('hands the step-scoped lease token of the pulled step to its calls', async () => {
     const setup = buildSetupStep();
-    requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 4, 'lease-pulled'));
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 4, 'lease-pulled'))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
     const ac = new AbortController();
 
-    const pulled = await pullNextStep({leaseClient, jobId: JOB_ID, signal: ac.signal});
+    await runLoop({signal: ac.signal});
 
-    expect(pulled).toEqual({step: setup, attempt: 4, leaseToken: 'lease-pulled'});
+    expect(stepLeaseEvents).toEqual([`hold:${setup.id}:4:lease-pulled`, `release:${setup.id}:4`]);
   });
 
   it('polls again after a wait response', async () => {
     const setup = buildSetupStep();
     requestNextStepMock
       .mockResolvedValueOnce({kind: 'wait', retry_after_ms: 1})
-      .mockResolvedValueOnce(stepResponse(setup, 4, 'lease-pulled'));
+      .mockResolvedValueOnce(stepResponse(setup, 4, 'lease-pulled'))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
     const ac = new AbortController();
 
-    await expect(pullNextStep({leaseClient, jobId: JOB_ID, signal: ac.signal})).resolves.toEqual({
-      step: setup,
-      attempt: 4,
-      leaseToken: 'lease-pulled',
-    });
+    await runLoop({signal: ac.signal});
 
-    expect(requestNextStepMock).toHaveBeenCalledTimes(2);
+    expect(requestNextStepMock).toHaveBeenCalledTimes(3);
+    expect(executeSetupStepMock).toHaveBeenCalledTimes(1);
   });
 
-  it('passes the wait delay and signal, then stops when aborted during the wait', async () => {
+  it('passes the wait delay, then stops when aborted during the wait', async () => {
     const ac = new AbortController();
     requestNextStepMock.mockResolvedValueOnce({kind: 'wait', retry_after_ms: 5000});
     interruptibleSleepMock.mockImplementationOnce((ms: number, signal: AbortSignal) => {
       expect(ms).toBe(5000);
-      expect(signal).toBe(ac.signal);
       ac.abort();
+      expect(signal.aborted).toBe(true);
       return Promise.resolve(undefined);
     });
 
-    await expect(pullNextStep({leaseClient, jobId: JOB_ID, signal: ac.signal})).resolves.toBe(
-      undefined,
-    );
+    await expect(runLoop({signal: ac.signal})).resolves.toBeUndefined();
 
     expect(requestNextStepMock).toHaveBeenCalledTimes(1);
-    expect(interruptibleSleepMock).toHaveBeenCalledWith(5000, ac.signal);
+    expect(interruptibleSleepMock).toHaveBeenCalledWith(5000, expect.any(AbortSignal));
   });
 
   it('holds the pulled step lease token before opening the step log stream', async () => {
@@ -2135,7 +2179,7 @@ describe('runJobSteps', () => {
     expect(requestActionBundleMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
       digest: COMPOSITE_DIGEST,
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(events.indexOf('bundle-extracted')).toBeLessThan(events.indexOf('run-started'));
     expect(reportStepMock).toHaveBeenCalledWith(
@@ -2170,7 +2214,7 @@ describe('runJobSteps', () => {
       error,
       exitCode: null,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -2264,7 +2308,7 @@ describe('runJobSteps', () => {
     expect(requestActionBundleMock).toHaveBeenCalledWith(leaseClient, {
       stepId: actionStep.id,
       digest: 'sha256:abc',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(streamFor(actionStep.id).writeOutputLine).toHaveBeenCalledWith(
       'Shipfox action Slack thread sha256:abc',
@@ -2363,7 +2407,7 @@ describe('runJobSteps', () => {
     expect(requestStepSecretsMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
       attempt: 2,
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(registerSecrets).toHaveBeenCalledWith(['runtime-secret']);
     expect(events.indexOf('request-secrets')).toBeLessThan(events.indexOf(`create:${run.id}`));
@@ -2733,7 +2777,7 @@ describe('runJobSteps', () => {
       stepId: run.id,
       attempt: 1,
       annotations: [{context: 'default', style: 'default', op: 'replace', body: 'summary'}],
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(events.indexOf(`drain:${run.id}`)).toBeLessThan(events.indexOf(`annotations:${run.id}`));
     expect(events.indexOf(`annotations:${run.id}`)).toBeLessThan(
@@ -2913,7 +2957,7 @@ describe('runJobSteps', () => {
       exitCode: null,
       actionsDir: ACTIONS_DIR,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(executeRunStepMock).not.toHaveBeenCalled();
     expect(createStepLogStreamMock).toHaveBeenCalledWith({
@@ -2948,7 +2992,7 @@ describe('runJobSteps', () => {
       exitCode: null,
       actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(executeSetupStepMock).not.toHaveBeenCalled();
   });
@@ -2973,7 +3017,7 @@ describe('runJobSteps', () => {
       exitCode: null,
       actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(executeSetupStepMock).not.toHaveBeenCalled();
   });
@@ -2997,7 +3041,7 @@ describe('runJobSteps', () => {
       exitCode: null,
       actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(executeSetupStepMock).not.toHaveBeenCalled();
   });
@@ -3063,7 +3107,7 @@ describe('runJobSteps', () => {
       error: {message: 'Run step dispatched before setup prepared the workspace'},
       exitCode: null,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -3100,7 +3144,7 @@ describe('runJobSteps', () => {
     const [retryAfterMs, signal] = interruptibleSleepMock.mock.calls[0] as [number, AbortSignal];
     expect(retryAfterMs).toBeGreaterThanOrEqual(0);
     expect(retryAfterMs).toBeLessThanOrEqual(1500);
-    expect(signal).toBe(ac.signal);
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 
   it('rethrows permanent next-step HTTP errors without retrying forever', async () => {
@@ -3147,7 +3191,7 @@ describe('runJobSteps', () => {
       error,
       exitCode: 1,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(2);
     const stream = streamFor(run.id);
@@ -3187,7 +3231,7 @@ describe('runJobSteps', () => {
       error,
       exitCode: 1,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -3807,7 +3851,7 @@ describe('runJobSteps', () => {
       error: {message: 'ENOSPC: *** could not be written'},
       exitCode: null,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     const stream = streamFor(run.id);
     expect(stream.writeOutputLine).toHaveBeenCalledWith(
@@ -3853,7 +3897,7 @@ describe('runJobSteps', () => {
     await runLoop({signal: ac.signal});
 
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
       cwd: '/work',
       agentStateDir: AGENT_STATE_DIR,
       runtime: {
@@ -3872,7 +3916,7 @@ describe('runJobSteps', () => {
     expect(requestAgentRuntimeConfigMock).toHaveBeenCalledWith(leaseClient, {
       stepId: agent.id,
       attempt: 1,
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(executeRunStepMock).not.toHaveBeenCalled();
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
@@ -3882,7 +3926,7 @@ describe('runJobSteps', () => {
       error: null,
       exitCode: 0,
       logOutcome: 'drained',
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -5010,7 +5054,7 @@ describe('runJobSteps', () => {
     await runLoop({signal: ac.signal});
 
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {
-      signal: ac.signal,
+      signal: expect.any(AbortSignal),
       cwd: '/work',
       agentStateDir: AGENT_STATE_DIR,
       runtime: {
@@ -5694,8 +5738,15 @@ function stepResponse(
   step: StepDto,
   attempt: number,
   leaseToken = `lease-${step.id}-${attempt}`,
-): NextStepResponseDto {
-  return {kind: 'step', step, attempt, lease_token: leaseToken};
+): Extract<NextStepResponseDto, {kind: 'step'}> {
+  return {
+    kind: 'step',
+    step,
+    attempt,
+    lease_token: leaseToken,
+    background: false,
+    cancel_step_ids: [],
+  };
 }
 
 function buildHTTPError(status: number): HTTPError {

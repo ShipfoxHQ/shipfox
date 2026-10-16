@@ -135,6 +135,11 @@ const stepRestartEnqueuedCount = meter.createCounter<Record<string, never>>(
   {description: 'Durable step restart events enqueued after a restartable gate failure'},
 );
 
+const stepCancelledCount = meter.createCounter<{reason: WorkflowStepCancelReason}>(
+  'workflows_step_cancelled',
+  {description: 'Steps cancelled before they finished, by bounded reason'},
+);
+
 const stepRestartExhaustedCount = meter.createCounter<Record<string, never>>(
   'workflows_step_restart_exhausted',
   {description: 'Gate failures that reached the effective step restart attempt limit'},
@@ -379,6 +384,16 @@ export function recordWorkflowJobDurationLimit(
 
 export function recordWorkflowJobQueueTimeout(outcome: 'expired' | 'absent' | 'claimed'): void {
   jobQueueTimeoutCount.add(1, {outcome});
+}
+
+/** `cancel_step` is a `cancel` step of the job. `job` is a cancellation of the whole job. */
+export type WorkflowStepCancelReason = 'cancel_step' | 'job';
+
+export function recordWorkflowStepCancelled(params: {
+  reason: WorkflowStepCancelReason;
+  count?: number;
+}): void {
+  stepCancelledCount.add(params.count ?? 1, {reason: params.reason});
 }
 
 export function recordWorkflowStepRestartEnqueued(): void {

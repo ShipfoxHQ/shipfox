@@ -12,13 +12,15 @@ export function isTerminal(status: StepStatus): boolean {
 }
 
 /**
- * False for a failure that `continue_on_error` covered and for a post whose action declared
- * `post_failure: warn`. The step still fails, but `run_after` and the job result ignore it.
+ * False for a failure that `continue_on_error` covered, for a post whose action declared
+ * `post_failure: warn`, and for a background step. The step still fails, but `run_after` and the
+ * job result ignore it. A background step reaches the job through the wait that joins it, which
+ * fails on its own rule (see `waitResult`).
  */
 export function stepAffectsConclusion(
-  step: Pick<Step, 'type' | 'config' | 'statusReason'>,
+  step: Pick<Step, 'type' | 'config' | 'statusReason' | 'background'>,
 ): boolean {
-  if (step.statusReason === 'failure_ignored') return false;
+  if (step.statusReason === 'failure_ignored' || step.background) return false;
   if (step.type !== 'post') return true;
   const post = step.config.post;
   if (post === null || typeof post !== 'object') return true;

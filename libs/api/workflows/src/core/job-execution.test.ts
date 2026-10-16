@@ -46,8 +46,8 @@ import {
   nextStepForJob,
   nextStepForLeasedJobExecution,
   recordStepResult as recordJobExecutionStepResult,
-  TOOL_STEP_RETRY_AFTER_MS,
 } from './job-execution.js';
+import {TOOL_STEP_RETRY_AFTER_MS} from './step-scheduling.js';
 
 async function recordStepResult(
   params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'jobExecutionId'> & {
@@ -708,6 +708,7 @@ describe('nextStepForJob', () => {
       kind: 'step',
       step: expect.objectContaining({id: always.id}),
       dispatched: true,
+      cancelStepIds: [],
     });
     expect(runnerPlatform).toHaveBeenCalledTimes(1);
   });

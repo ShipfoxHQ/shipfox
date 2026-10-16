@@ -46,6 +46,16 @@
         "default": "./dist/git-credential-helper.js"
       }
     },
+    "./step-cancel": {
+      "workspace-source": {
+        "types": "./src/core/step-cancel.ts",
+        "default": "./src/core/step-cancel.ts"
+      },
+      "default": {
+        "types": "./dist/core/step-cancel.d.ts",
+        "default": "./dist/core/step-cancel.js"
+      }
+    },
     "./step-output": {
       "workspace-source": {
         "types": "./src/core/step-output.ts",

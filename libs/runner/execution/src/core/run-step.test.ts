@@ -10,6 +10,7 @@ import {
   executeStepProcess,
   type OutputSink,
 } from '#core/run-step.js';
+import {STEP_CANCEL_ABORT_REASON} from '#core/step-cancel.js';
 import {MAX_OUTPUT_TOTAL_BYTES, MAX_OUTPUT_VALUE_BYTES} from '#core/step-output.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
@@ -1180,6 +1181,99 @@ describe('the execution host and the job temp directory', () => {
     const result = await pending;
 
     expect(killTree).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({success: false, error: {signal: 'SIGKILL'}});
+  });
+});
+
+describe('executeRunStep when one step is cancelled', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'shipfox-cancel-test-'));
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await rm(tempDir, {recursive: true, force: true});
+  });
+
+  function hostRecordingKills() {
+    const host = new LocalExecutionHost();
+    const kills: Array<string | undefined> = [];
+    vi.spyOn(host, 'spawn').mockImplementationOnce((request) => {
+      const child = new LocalExecutionHost().spawn(request);
+      return {
+        ...child,
+        killTree: (mode) => {
+          kills.push(mode);
+          return child.killTree(mode);
+        },
+      };
+    });
+    return {host, kills};
+  }
+
+  it('terminates the process tree and lets the step clean up and write its outputs', async () => {
+    const {host, kills} = hostRecordingKills();
+    const output = collectOutput();
+    const controller = new AbortController();
+    const run = [
+      'trap \'echo CLEANED; echo cleaned=yes >> "$SHIPFOX_OUTPUT"; exit 0\' TERM',
+      'echo READY',
+      // A loop of builtins, so the signal cannot kill a child the shell waits on first.
+      'while :; do :; done',
+    ].join('\n');
+
+    const pending = executeRunStep(buildStep({config: {run}}), {
+      host,
+      tempDir,
+      signal: controller.signal,
+      onOutput: output.sink,
+    });
+    await waitForOutputMatch(output, READY_REGEX);
+    controller.abort(STEP_CANCEL_ABORT_REASON);
+    const result = await pending;
+
+    expect(kills).toEqual(['terminate']);
+    expect(output.text()).toContain('CLEANED');
+    expect(result).toMatchObject({success: true, outputs: {cleaned: 'yes'}});
+  });
+
+  it('reports the signal of a step that did not handle the termination', async () => {
+    const {host, kills} = hostRecordingKills();
+    const output = collectOutput();
+    const controller = new AbortController();
+
+    const pending = executeRunStep(buildStep({config: {run: 'echo READY; sleep 30'}}), {
+      host,
+      tempDir,
+      signal: controller.signal,
+      onOutput: output.sink,
+    });
+    await waitForOutputMatch(output, READY_REGEX);
+    controller.abort(STEP_CANCEL_ABORT_REASON);
+    const result = await pending;
+
+    expect(kills).toEqual(['terminate']);
+    expect(result).toMatchObject({success: false, error: {signal: 'SIGTERM'}});
+  });
+
+  it('still kills at once when the whole job aborts', async () => {
+    const {host, kills} = hostRecordingKills();
+    const output = collectOutput();
+    const controller = new AbortController();
+
+    const pending = executeRunStep(buildStep({config: {run: 'echo READY; sleep 30'}}), {
+      host,
+      tempDir,
+      signal: controller.signal,
+      onOutput: output.sink,
+    });
+    await waitForOutputMatch(output, READY_REGEX);
+    controller.abort(new Error('runner shutting down'));
+    const result = await pending;
+
+    expect(kills).toEqual([undefined]);
     expect(result).toMatchObject({success: false, error: {signal: 'SIGKILL'}});
   });
 });

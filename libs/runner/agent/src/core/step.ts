@@ -535,8 +535,9 @@ async function selectHarnessAdapter(harness: Harness): Promise<HarnessAdapter> {
 
 // pi has no built-in timeout and may not reject session.prompt() the instant we
 // abort. Racing the adapter run call against the abort signal guarantees the step
-// loop reaches its abort-before-report guard in seconds instead of hanging until
-// lease expiry; the pi adapter still calls session.abort() to stop the agent's own work.
+// loop moves on in seconds instead of hanging until lease expiry (a job-wide abort skips
+// the report, a cancel reports the step as cancelled); the pi adapter still calls
+// session.abort() to stop the agent's own work.
 function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
     // `work` (the adapter run call) is already in flight; attach a no-op catch so its
@@ -568,8 +569,8 @@ function abortError(): Error {
 
 // Agent-step failures split into a user-fixable config error (`agent_config_invalid`)
 // and a genuine provider/API failure (`agent_invocation_failed`, the default); the
-// server derives the `user` category from the step type for both. An aborted step never
-// reaches the API: the step loop returns before reporting once the signal fires.
+// server derives the `user` category from the step type for both. A step aborted with the job
+// never reaches the API, and a cancelled one reports `cancelled` without this failure.
 function agentFailure(
   message: string,
   reason: StepErrorReasonDto = 'agent_invocation_failed',

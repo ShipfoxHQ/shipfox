@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs';
+import {HEARTBEAT_STEP_LEASE_TOKENS_MAX} from '@shipfox/api-runners-dto';
 import {bool, createConfig, num, str} from '@shipfox/config';
 import {MAX_RUNNER_LABELS, parseRunnerCatalog, type RunnerCatalog} from '@shipfox/runner-labels';
 import yaml from 'js-yaml';
@@ -37,6 +38,10 @@ export const config = createConfig({
   WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE: num({
     desc: 'Maximum number of workflow concurrency drift candidates repaired in one scan.',
     default: 100,
+  }),
+  WORKFLOWS_MAX_CONCURRENT_STEPS: num({
+    desc: 'Most steps of one job that run at the same time, background and foreground together. A step beyond the limit waits, in order, for a free slot. Set a whole number from 1 through 64.',
+    default: 20,
   }),
   WORKFLOWS_JOB_QUEUE_TIMEOUT: str({
     desc: 'How long a queued job waits for a runner before it fails. Accepts a duration from 1m through 24h. Defaults to 1h.',
@@ -90,6 +95,15 @@ validateWorkflowConcurrencyRepairConfig({
   pollIntervalMs: config.WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS,
   batchSize: config.WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE,
 });
+
+export function validateMaxConcurrentSteps(value: number): void {
+  if (Number.isSafeInteger(value) && value >= 1 && value <= HEARTBEAT_STEP_LEASE_TOKENS_MAX) return;
+  throw new Error(
+    `WORKFLOWS_MAX_CONCURRENT_STEPS (${value}) must be a whole number from 1 through ${HEARTBEAT_STEP_LEASE_TOKENS_MAX}, the most step tokens one heartbeat renews.`,
+  );
+}
+
+validateMaxConcurrentSteps(config.WORKFLOWS_MAX_CONCURRENT_STEPS);
 
 export function parseJobQueueTimeout(value: string): number {
   const match = JOB_QUEUE_TIMEOUT_PATTERN.exec(value.trim());

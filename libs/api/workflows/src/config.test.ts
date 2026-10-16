@@ -6,6 +6,7 @@ import {
   loadRunnerCatalog,
   MAX_NODE_TIMER_DELAY_MS,
   parseJobQueueTimeout,
+  validateMaxConcurrentSteps,
   validateToolStepExecutorConfig,
   validateWorkflowConcurrencyRepairConfig,
 } from './config.js';
@@ -160,5 +161,15 @@ describe('validateWorkflowConcurrencyRepairConfig', () => {
     ['batchSize', Number.MAX_SAFE_INTEGER + 1],
   ] as const)('rejects an invalid %s value (%s)', (key, value) => {
     expect(() => validateWorkflowConcurrencyRepairConfig({...valid, [key]: value})).toThrow();
+  });
+});
+
+describe('validateMaxConcurrentSteps', () => {
+  it.each([1, 20, 64])('accepts %s', (value) => {
+    expect(() => validateMaxConcurrentSteps(value)).not.toThrow();
+  });
+
+  it.each([0, -1, 1.5, 65, 1000, Number.NaN])('rejects %s', (value) => {
+    expect(() => validateMaxConcurrentSteps(value)).toThrow('WORKFLOWS_MAX_CONCURRENT_STEPS');
   });
 });

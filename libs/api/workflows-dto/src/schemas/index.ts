@@ -36,7 +36,12 @@ export {
 export {
   type CheckoutResultDto,
   checkoutResultSchema,
+  type InFlightStepDto,
+  inFlightStepSchema,
+  NEXT_STEP_IN_FLIGHT_MAX,
+  type NextStepBodyDto,
   type NextStepResponseDto,
+  nextStepBodySchema,
   nextStepResponseSchema,
   type ReportStepBodyDto,
   type ReportStepResponseDto,

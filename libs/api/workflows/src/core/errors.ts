@@ -653,6 +653,14 @@ export class StepNotRunningError extends Error {
   }
 }
 
+// A runner confirmed the stop of an attempt that no cancel step is stopping: a protocol error.
+export class StepNotStoppingError extends Error {
+  constructor(stepId: string, attempt: number) {
+    super(`Attempt ${attempt} of step ${stepId} is not being stopped by a cancel step`);
+    this.name = 'StepNotStoppingError';
+  }
+}
+
 // A report whose attempt is ahead of the step's current attempt. The host
 // allocates attempt numbers, so a runner can never report one it was not
 // dispatched: this is a protocol error, not an idempotent no-op.

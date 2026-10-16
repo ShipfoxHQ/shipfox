@@ -95,6 +95,10 @@ export const stepSummaryDtoSchema = z.object({
   main_step_id: z.string().uuid().optional(),
   /** False when a failure of this step leaves `run_after` and the job result unchanged. */
   affects_job: z.boolean().optional(),
+  /** True when the job moves on without waiting for this step. Omitted otherwise. */
+  background: z.boolean().optional(),
+  /** Groups the members of a `parallel` block and the wait that joins them. */
+  parallel_group: z.string().nullable().optional(),
   error: stepErrorDtoSchema,
   attempts: cursorPageSchema(stepAttemptSummaryDtoSchema),
 });

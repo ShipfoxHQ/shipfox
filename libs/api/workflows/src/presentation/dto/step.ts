@@ -410,6 +410,8 @@ export function toStepDto(step: Step): StepDto {
     session,
     position: step.position,
     current_attempt: step.currentAttempt,
+    background: step.background,
+    parallel_group: step.parallelGroup,
     created_at: step.createdAt.toISOString(),
     updated_at: step.updatedAt.toISOString(),
   };

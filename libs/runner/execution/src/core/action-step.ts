@@ -113,6 +113,7 @@ export interface ActionStepOptions
     | 'subscribeSecrets'
     | 'carriedEnv'
     | 'memoryEventsPath'
+    | 'overlappingSteps'
     | 'onOutput'
   > {
   /** The step working directory, used as the action process `cwd`. */
@@ -247,7 +248,7 @@ export async function executeActionStep(
         ...(options.gitConfigGlobal ? {gitConfigGlobal: options.gitConfigGlobal} : {}),
         ...(options.subscribeSecrets ? {subscribeSecrets: options.subscribeSecrets} : {}),
         ...(options.carriedEnv ? {carriedEnv: options.carriedEnv} : {}),
-        ...(options.memoryEventsPath ? {memoryEventsPath: options.memoryEventsPath} : {}),
+        ...outOfMemoryOptions(options),
         ...(options.onOutput ? {onOutput: options.onOutput} : {}),
       },
     );
@@ -258,6 +259,15 @@ export async function executeActionStep(
     await endpoint.close();
     await rm(stepTemp, {recursive: true, force: true});
   }
+}
+
+function outOfMemoryOptions(
+  options: Pick<ActionStepOptions, 'memoryEventsPath' | 'overlappingSteps'>,
+): Pick<StepProcessOptions, 'memoryEventsPath' | 'overlappingSteps'> {
+  return {
+    ...(options.memoryEventsPath ? {memoryEventsPath: options.memoryEventsPath} : {}),
+    ...(options.overlappingSteps ? {overlappingSteps: options.overlappingSteps} : {}),
+  };
 }
 
 async function writeStepFiles(params: {

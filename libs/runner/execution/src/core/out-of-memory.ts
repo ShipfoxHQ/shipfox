@@ -38,11 +38,14 @@ const OUT_OF_MEMORY_MESSAGE = /out of memory/iu;
  * Runs a step and reports the processes the system killed for memory while it ran. The kill
  * often hits a descendant, so the step can fail with an ordinary exit code or still succeed.
  * The counter belongs to the whole runner, so it also counts kills in a step running alongside.
+ * `overlappingSteps`, read after the run, says how many steps ran during it, itself included, and
+ * the report then says the kill may belong to any of them.
  */
 export async function reportOutOfMemoryKills(params: {
   memoryEventsPath: string | undefined;
   annotationContext: string;
   signal?: AbortSignal;
+  overlappingSteps?: () => number;
   run: () => Promise<StepResult>;
 }): Promise<StepResult> {
   const {memoryEventsPath} = params;
@@ -56,7 +59,9 @@ export async function reportOutOfMemoryKills(params: {
   const killed = after - before;
   const processes = killed === 1 ? '1 process' : `${killed} processes`;
   const advice = 'Reduce the memory the step uses or run it on a runner with more memory.';
-  const report = `The runner ran out of memory during this step and the system killed ${processes}.`;
+  const overlap = params.overlappingSteps?.() ?? 1;
+  const during = overlap > 1 ? `while ${overlap} steps ran` : 'during this step';
+  const report = `The runner ran out of memory ${during} and the system killed ${processes}.`;
   if (result.success || result.error === null || result.error === undefined) {
     return {
       ...result,

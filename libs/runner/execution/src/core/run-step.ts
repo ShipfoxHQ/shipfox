@@ -31,6 +31,7 @@ import {
   readOutputSourceValues,
   StdoutCapture,
 } from '#core/output-sources.js';
+import {isStepCancelAbort} from '#core/step-cancel.js';
 import {
   ENV_FILE,
   formatOutputSizeViolation,
@@ -122,6 +123,11 @@ export interface StepProcessOptions {
    * coincides with a rise of its `oom_kill` counter is reported as out of memory.
    */
   memoryEventsPath?: string;
+  /**
+   * How many steps ran while this one did, itself included, read once the process exited. The
+   * counter belongs to the whole runner, so with several steps the kill may not be this one's.
+   */
+  overlappingSteps?: () => number;
   onOutput?: OutputSink;
   /** Outputs read from a file or from stdout, as declared by the step. */
   outputSources?: OutputSources;
@@ -315,12 +321,13 @@ async function reportOutOfMemory(
   if (result.error?.signal !== 'SIGKILL' || options.signal?.aborted) return result;
   const oomKillsAfter = await readOomKillCount(options.memoryEventsPath);
   if (oomKillsAfter === undefined || oomKillsAfter <= oomKillsBefore) return result;
+  const overlap = options.overlappingSteps?.() ?? 1;
+  const when = overlap > 1 ? ` while ${overlap} steps ran` : '';
   return {
     ...result,
     error: {
       ...result.error,
-      message:
-        'Killed by signal SIGKILL because the runner ran out of memory. Reduce the memory the step uses or run it on a runner with more memory.',
+      message: `Killed by signal SIGKILL because the runner ran out of memory${when}. Reduce the memory the step uses or run it on a runner with more memory.`,
     },
   };
 }
@@ -502,7 +509,8 @@ function runStepCloseResult(
   abortKillSignal: NodeJS.Signals | undefined,
 ): StepResult {
   if (abortKillSignal && isSignalKillResult(code, abortKillSignal)) {
-    const resultSignal = signal ?? abortKillSignal;
+    const resultSignal =
+      signal ?? (code === signalExitCode('SIGKILL') ? 'SIGKILL' : abortKillSignal);
     return {
       success: false,
       error: {
@@ -532,6 +540,12 @@ function observeProcessAbort(
 ): {cleanup(): void; killSignal(): NodeJS.Signals | undefined} {
   let abortKillSignal: NodeJS.Signals | undefined;
   const killTree = () => {
+    // Cancelling one step lets its processes clean up. A job-wide abort cannot wait for them.
+    if (isStepCancelAbort(signal)) {
+      abortKillSignal = 'SIGTERM';
+      child.killTree('terminate').catch(() => undefined);
+      return;
+    }
     abortKillSignal = 'SIGKILL';
     child.killTree().catch(() => undefined);
   };
@@ -871,12 +885,17 @@ function addSecretForms(variants: Set<string>, secret: string): void {
   for (const form of secretWireForms(secret)) variants.add(form);
 }
 
+// A terminated process group that outlives its grace period is SIGKILLed, so a SIGTERM also
+// ends as a SIGKILL.
 function isSignalKillResult(code: number | null, signal: NodeJS.Signals): boolean {
-  return code === null || code === signalExitCode(signal);
+  if (code === null) return true;
+  if (code === signalExitCode(signal)) return true;
+  return signal === 'SIGTERM' && code === signalExitCode('SIGKILL');
 }
 
 function signalExitCode(signal: NodeJS.Signals): number | undefined {
   if (signal === 'SIGKILL') return 137;
+  if (signal === 'SIGTERM') return 143;
   return undefined;
 }
 

@@ -1,5 +1,9 @@
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
+import {eq} from 'drizzle-orm';
 import {nextStepForJob} from '#core/job-execution.js';
+import {db} from '#db/db.js';
+import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
+import {steps as stepsTable} from '#db/schema/steps.js';
 import {
   getFirstJobExecutionByJobId,
   getJobById,
@@ -120,6 +124,77 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ok: true, cancel: false});
     expect((await getStepsByJobId(jobId))[0]?.status).toBe('succeeded');
+  });
+
+  describe('a cancelled report', () => {
+    async function arrangeStoppingStep() {
+      const {jobId, steps} = await arrangeJobWithSteps(1);
+      const token = await mintActiveLeaseToken({jobId});
+      await nextStepForJob(jobId);
+      const step = steps[0] as {id: string};
+      return {jobId, token, stepId: step.id};
+    }
+
+    test('confirms the stop of an attempt a cancel step is stopping', async () => {
+      const {jobId, token, stepId} = await arrangeStoppingStep();
+      await db().update(stepsTable).set({status: 'cancelled'}).where(eq(stepsTable.id, stepId));
+      await db()
+        .update(stepAttemptsTable)
+        .set({cancelRequestedAt: new Date()})
+        .where(eq(stepAttemptsTable.stepId, stepId));
+
+      const res = await app.inject({
+        method: 'POST',
+        url: reportUrl(stepId),
+        headers: {authorization: `Bearer ${token}`},
+        payload: reportPayload({status: 'cancelled', attempt: 1}),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ok: true, cancel: false});
+      const [attempt] = await getStepAttempts(jobId);
+      expect(attempt).toMatchObject({status: 'cancelled'});
+    });
+
+    test('rejects it for an attempt that is not being stopped', async () => {
+      const {token, stepId} = await arrangeStoppingStep();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: reportUrl(stepId),
+        headers: {authorization: `Bearer ${token}`},
+        payload: reportPayload({status: 'cancelled', attempt: 1}),
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('step-not-stopping');
+    });
+
+    test('rejects a cancelled report that does not name its attempt', async () => {
+      const {token, stepId} = await arrangeStoppingStep();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: reportUrl(stepId),
+        headers: {authorization: `Bearer ${token}`},
+        payload: reportPayload({status: 'cancelled'}),
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    test('rejects an error on a cancelled report', async () => {
+      const {token, stepId} = await arrangeStoppingStep();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: reportUrl(stepId),
+        headers: {authorization: `Bearer ${token}`},
+        payload: reportPayload({status: 'cancelled', attempt: 1, error: {message: 'x'}}),
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
   });
 
   test('finishing the job fully succeeded → {ok, cancel:false}', async () => {
