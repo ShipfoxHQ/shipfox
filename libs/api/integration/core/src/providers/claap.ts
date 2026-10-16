@@ -10,9 +10,8 @@ import {
 } from '#db/connections.js';
 import {db} from '#db/db.js';
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
+import {scopeProviderSecrets, withSeededSecret} from '#providers/provider-secrets.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
-
-const CLAAP_SECRET_PREFIX = 'system/integrations/claap/';
 
 async function loadClaapModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
@@ -33,24 +32,8 @@ async function loadClaapModuleParts(
   } = await import('@shipfox/api-integration-claap');
 
   const endpoint = new URL(config.CLAAP_MCP_ENDPOINT);
-  const rawSecrets = options.secrets?.claap;
-  const secrets = rawSecrets
-    ? {
-        getSecret: (params: {workspaceId: string; namespace: string; key: string}) =>
-          rawSecrets.getSecret({...params, namespace: scopedClaapNamespace(params.namespace)}),
-        setSecrets: (params: {
-          workspaceId: string;
-          namespace: string;
-          values: Record<string, string>;
-          editedBy?: string | null | undefined;
-        }) => rawSecrets.setSecrets({...params, namespace: scopedClaapNamespace(params.namespace)}),
-        deleteSecrets: (params: {
-          workspaceId: string;
-          namespace: string;
-          keys?: string[] | undefined;
-        }) =>
-          rawSecrets.deleteSecrets({...params, namespace: scopedClaapNamespace(params.namespace)}),
-      }
+  const secrets = options.secrets?.claap
+    ? scopeProviderSecrets({secrets: options.secrets.claap, provider: 'claap'})
     : undefined;
   const credentialStore = secrets
     ? createClaapCredentialStore({
@@ -119,19 +102,17 @@ async function loadClaapModuleParts(
   }): Promise<CoreIntegrationConnection<'claap'>> {
     if (!credentialStore) throw new Error('Claap credential storage is not configured');
     const connectionId = randomUUID();
-    try {
-      await credentialStore.setApiKey({
-        connectionId,
-        apiKey: input.apiKey,
-        workspaceId: input.workspaceId,
-      });
-      return await createClaapConnection({...input, id: connectionId});
-    } catch (error) {
-      await credentialStore
-        .deleteApiKey({connectionId, workspaceId: input.workspaceId})
-        .catch(() => undefined);
-      throw error;
-    }
+    return await withSeededSecret({
+      setSecret: () =>
+        credentialStore.setApiKey({
+          connectionId,
+          apiKey: input.apiKey,
+          workspaceId: input.workspaceId,
+        }),
+      deleteSecret: () =>
+        credentialStore.deleteApiKey({connectionId, workspaceId: input.workspaceId}),
+      createConnection: () => createClaapConnection({...input, id: connectionId}),
+    });
   }
 
   const agentTools = credentialStore
@@ -208,13 +189,6 @@ async function loadClaapModuleParts(
       databaseNamespace: 'integrations_claap',
     },
   };
-}
-
-function scopedClaapNamespace(namespace: string): string {
-  if (!namespace.startsWith(CLAAP_SECRET_PREFIX)) {
-    throw new Error('Claap provider attempted to access an unscoped secret namespace');
-  }
-  return namespace.slice(CLAAP_SECRET_PREFIX.length);
 }
 
 export const claapProviderModule: IntegrationProviderModule = {

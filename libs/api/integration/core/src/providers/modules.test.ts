@@ -35,7 +35,12 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['jam', 'claap', 'shipfox', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
+      'claap',
+      'shipfox',
+      'webhook',
+    ]);
   });
 
   it('loads the built-in Shipfox provider with inter-module clients', async () => {
@@ -103,11 +108,12 @@ describe('loadEnabledProviderModules', () => {
       'cron',
       'webhook',
     ]);
-    expect(parts[1]?.provider).toMatchObject({
+    const slack = parts.find((part) => part.provider.provider === 'slack');
+    expect(slack?.provider).toMatchObject({
       provider: 'slack',
       displayName: 'Slack',
     });
-    expect(parts[1]?.provider.adapters?.agent_tools).toBeDefined();
+    expect(slack?.provider.adapters?.agent_tools).toBeDefined();
   });
 
   it('loads Jira when the provider is enabled', async () => {
@@ -125,7 +131,8 @@ describe('loadEnabledProviderModules', () => {
       'cron',
       'webhook',
     ]);
-    expect(parts[1]?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
+    const jira = parts.find((part) => part.provider.provider === 'jira');
+    expect(jira?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
   });
 
   it('loads Jam without a flag, with its own database and no events', async () => {
