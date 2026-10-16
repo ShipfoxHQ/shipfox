@@ -445,9 +445,10 @@ clickup:
         expect:
           includes:
             tags: {name: $fixture.clickup.tag.name}
-    # A text custom field of the read list, set to `value` on the `task`.
+    # A text custom field. ClickUp shares one field between the read and the write list, and keeps
+    # a value per task. The `task` holds `value`, and the round-trip sets it on its own task.
     text_field:
-      id: TODO-read-list-text-field-id
+      id: 1a192c0a-db27-47d4-88aa-04398203aae3
       value: Contract field value
       read:
         tool: get_task
@@ -456,8 +457,6 @@ clickup:
           includes:
             custom_fields: {id: $fixture.clickup.text_field.id, value: $fixture.clickup.text_field.value}
     write_list: {id: '901222980415', name: Contracts write}
-    # A text custom field of the write list. The round-trip sets it on its own task.
-    write_text_field: {id: TODO-write-list-text-field-id}
   targets:
     missing_task: {kind: absent, id: 869zzzzzz}
 notion:

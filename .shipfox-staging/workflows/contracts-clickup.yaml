@@ -64,7 +64,7 @@ jobs:
         with:
           task_id: 869fca5cw
         outputs:
-          includes_custom_fields: ${{ has(result.custom_fields) && type(result.custom_fields) == type([]) && result.custom_fields.exists(item, has(item.id) && type(item.id) == type("") && item.id == "TODO-read-list-text-field-id" && has(item.value) && type(item.value) == type("") && item.value == "Contract field value") }}
+          includes_custom_fields: ${{ has(result.custom_fields) && type(result.custom_fields) == type([]) && result.custom_fields.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1a192c0a-db27-47d4-88aa-04398203aae3" && has(item.value) && type(item.value) == type("") && item.value == "Contract field value") }}
         gate:
           success: step.status == "succeeded" && step.outputs.includes_custom_fields
   get_task:
@@ -85,7 +85,7 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
           value_list_id: '${{ has(result.list) && has(result.list.id) && type(result.list.id) == type("") ? string(result.list.id) : "" }}'
           includes_tags: ${{ has(result.tags) && type(result.tags) == type([]) && result.tags.exists(item, has(item.name) && type(item.name) == type("") && item.name == "contract-fixture") }}
-          includes_custom_fields: ${{ has(result.custom_fields) && type(result.custom_fields) == type([]) && result.custom_fields.exists(item, has(item.id) && type(item.id) == type("") && item.id == "TODO-read-list-text-field-id" && has(item.value) && type(item.value) == type("") && item.value == "Contract field value") }}
+          includes_custom_fields: ${{ has(result.custom_fields) && type(result.custom_fields) == type([]) && result.custom_fields.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1a192c0a-db27-47d4-88aa-04398203aae3" && has(item.value) && type(item.value) == type("") && item.value == "Contract field value") }}
         gate:
           success: 'step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_list_id && step.outputs.shape_tags_0_name && step.outputs.shape_custom_fields_0_id && type(step.outputs.value_id) == type("") && step.outputs.value_id == "869fca5cw" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture task: markdown, unicode, long description" && type(step.outputs.value_list_id) == type("") && step.outputs.value_list_id == "901222980414" && step.outputs.includes_tags && step.outputs.includes_custom_fields'
   get_task_comments:
@@ -221,7 +221,7 @@ jobs:
         connection: clickup_shipfox
         with:
           task_id: ${{ steps.create.outputs.ref_id }}
-          field_id: TODO-write-list-text-field-id
+          field_id: 1a192c0a-db27-47d4-88aa-04398203aae3
           value: Set by a contract.
       - key: set_field_effect
         tool: get_task
@@ -229,7 +229,7 @@ jobs:
         with:
           task_id: ${{ steps.create.outputs.ref_id }}
         outputs:
-          includes_custom_fields: ${{ has(result.custom_fields) && type(result.custom_fields) == type([]) && result.custom_fields.exists(item, has(item.id) && type(item.id) == type("") && item.id == "TODO-write-list-text-field-id" && has(item.value) && type(item.value) == type("") && item.value == "Set by a contract.") }}
+          includes_custom_fields: ${{ has(result.custom_fields) && type(result.custom_fields) == type([]) && result.custom_fields.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1a192c0a-db27-47d4-88aa-04398203aae3" && has(item.value) && type(item.value) == type("") && item.value == "Set by a contract.") }}
         gate:
           success: step.status == "succeeded" && step.outputs.includes_custom_fields
       - key: comment

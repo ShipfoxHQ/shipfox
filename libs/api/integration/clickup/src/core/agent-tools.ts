@@ -167,7 +167,7 @@ export const clickupAgentToolCatalog = [
   tool({
     id: 'add_tag',
     description:
-      'Add a tag to a ClickUp task. The tag must already exist in the Space of the task. Set custom_task_id to true for a custom task ID.',
+      'Add a tag to a ClickUp task. ClickUp stores tag names in lowercase, and creates the tag in the Space of the task when it does not exist. Set custom_task_id to true for a custom task ID.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: 'write',

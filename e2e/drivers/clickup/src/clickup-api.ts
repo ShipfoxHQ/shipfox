@@ -528,7 +528,10 @@ async function addComment({
   });
 }
 
-/** Adds or removes a tag. ClickUp answers both with an empty object. */
+/**
+ * Adds or removes a tag. ClickUp stores tag names in lowercase, creates a tag the Space lacks, and
+ * answers both with an empty object.
+ */
 function changeTag({
   calls,
   tasks,
@@ -541,10 +544,11 @@ function changeTag({
 }: ClickUpTaskRequest): void {
   const kind = request.method === 'DELETE' ? 'remove_tag' : 'add_tag';
   calls.push({kind, authorization, taskId, tagName: itemId, query});
+  const tagName = itemId.toLowerCase();
   const task = tasks.get(taskId);
   if (task !== undefined) {
-    const others = (task.tags ?? []).filter((name) => name !== itemId);
-    tasks.set(taskId, {...task, tags: kind === 'add_tag' ? [...others, itemId] : others});
+    const others = (task.tags ?? []).filter((name) => name !== tagName);
+    tasks.set(taskId, {...task, tags: kind === 'add_tag' ? [...others, tagName] : others});
   }
   sendJson(response, 200, {});
 }

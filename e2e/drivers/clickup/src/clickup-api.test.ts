@@ -265,7 +265,7 @@ describe('ClickUp API mock', () => {
       try {
         const {id} = await send('POST', '/list/list-1/task', {name: 'Contract task'});
         const added = await send('POST', `/task/${id}/tag/${encodeURIComponent('ai done')}`, {});
-        await send('POST', `/task/${id}/tag/ai-failed`, {});
+        await send('POST', `/task/${id}/tag/AI-Failed`, {});
         const tagged = await read(`/task/${id}`);
         await send('DELETE', `/task/${id}/tag/${encodeURIComponent('ai done')}`, {});
         await send('POST', `/task/${id}/field/field-1`, {value: 'First'});
@@ -280,7 +280,7 @@ describe('ClickUp API mock', () => {
         });
         expect(mock.writes().slice(1)).toEqual([
           {kind: 'add_tag', target: id, payload: {tag_name: 'ai done'}},
-          {kind: 'add_tag', target: id, payload: {tag_name: 'ai-failed'}},
+          {kind: 'add_tag', target: id, payload: {tag_name: 'AI-Failed'}},
           {kind: 'remove_tag', target: id, payload: {tag_name: 'ai done'}},
           {kind: 'set_custom_field', target: id, payload: {field_id: 'field-1', value: 'First'}},
           {kind: 'set_custom_field', target: id, payload: {field_id: 'field-1', value: 'Second'}},

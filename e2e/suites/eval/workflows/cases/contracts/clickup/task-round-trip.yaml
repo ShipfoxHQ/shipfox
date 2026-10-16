@@ -66,7 +66,7 @@ steps:
     tool: set_custom_field
     with:
       task_id: $steps.create.id
-      field_id: $fixture.clickup.write_text_field.id
+      field_id: $fixture.clickup.text_field.id
       value: Set by a contract.
     effect:
       tool: get_task
@@ -74,7 +74,7 @@ steps:
         task_id: $steps.create.id
       expect:
         includes:
-          custom_fields: {id: $fixture.clickup.write_text_field.id, value: Set by a contract.}
+          custom_fields: {id: $fixture.clickup.text_field.id, value: Set by a contract.}
   - key: comment
     tool: add_comment
     with:

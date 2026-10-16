@@ -22,8 +22,9 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
 - `ClickUpApiMock.writes()`: the tasks created (`create_task`, targeted at their List ID), the task
   updates (`update_task`), the comments (`add_comment`), the tag changes (`add_tag`,
   `remove_tag`), and the custom field values (`set_custom_field`) the fake accepted, as
-  `RecordedWrite` entries. All but task creation are targeted at their task ID. A task update
-  changes the name, the Markdown description, and the status. The `complete` and `closed` statuses close the task. A comment goes first in the
+  `RecordedWrite` entries. All but task creation are targeted at their task ID. Tag names are
+  stored in lowercase, as ClickUp does. A task update changes the name, the Markdown description,
+  and the status. The `complete` and `closed` statuses close the task. A comment goes first in the
   comment list. A task the fake does not hold still gets a placeholder answer to an update or a
   comment.
 - `signClickUpHeaders`, `buildTaskCommentPostedEnvelope`, and `postClickUpCommentDelivery`: sign
