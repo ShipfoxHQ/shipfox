@@ -1,6 +1,11 @@
 import {loginMethodsResponseSchema} from '@shipfox/api-auth-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
-import {type FetchQueryOptions, queryOptions, useQuery} from '@tanstack/react-query';
+import {
+  type FetchQueryOptions,
+  type QueryClient,
+  queryOptions,
+  useQuery,
+} from '@tanstack/react-query';
 
 const loginMethodsQueryKey = ['auth', 'login-methods'] as const;
 
@@ -28,6 +33,11 @@ export function loginMethodsQueryOptions(): LoginMethodsQueryOptions {
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
   });
+}
+
+/** Starts the lookup early, for example in a route's `beforeLoad`. */
+export function prefetchLoginMethods(queryClient: QueryClient | undefined): void {
+  void queryClient?.prefetchQuery(loginMethodsQueryOptions());
 }
 
 /**

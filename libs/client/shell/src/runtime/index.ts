@@ -19,6 +19,7 @@ export type {
 export {
   loginMethodsQueryOptions,
   type PasswordLoginAvailability,
+  prefetchLoginMethods,
   usePasswordLoginAvailability,
 } from '#hooks/api/login-methods.js';
 export {
