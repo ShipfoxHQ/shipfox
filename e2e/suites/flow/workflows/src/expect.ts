@@ -1,5 +1,9 @@
 import type {LogRecord} from '@shipfox/api-logs-dto';
-import type {JobStatusReasonDto, StepErrorReasonDto} from '@shipfox/api-workflows-dto';
+import type {
+  JobStatusReasonDto,
+  StepErrorReasonDto,
+  StepSummaryDto,
+} from '@shipfox/api-workflows-dto';
 import type {
   WorkflowJobObservation,
   WorkflowRunObservation,
@@ -50,7 +54,18 @@ const stepStatusSchema = z.enum([
   'skipped',
   'cancelled',
 ]);
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']);
+const stepTypeSchema = z.enum([
+  'setup',
+  'run',
+  'agent',
+  'checkout',
+  'tool',
+  'action',
+  'composite',
+  'wait',
+  'cancel',
+  'post',
+]);
 const stepErrorReasonSchema = z.enum([
   'checkout_failed',
   'checkout_auth_failed',
@@ -97,6 +112,10 @@ type AssertExact<Actual, Expected> = [Actual] extends [Expected]
 const _expectJobStatusReasonSchemaMatchesDto: AssertExact<
   z.infer<typeof jobStatusReasonSchema>,
   JobStatusReasonDto
+> = true;
+const _expectStepTypeSchemaMatchesDto: AssertExact<
+  z.infer<typeof stepTypeSchema>,
+  StepSummaryDto['type']
 > = true;
 const _expectStepErrorReasonSchemaMatchesDto: AssertExact<
   z.infer<typeof stepErrorReasonSchema>,

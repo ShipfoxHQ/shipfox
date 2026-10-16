@@ -1,0 +1,40 @@
+name: Background service cancel
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  integration:
+    steps:
+      # postgres:18.4 is the image of the dev and CI compose stack, so the runner host already has it.
+      - key: db
+        background: true
+        run: |
+          name="shipfox-e2e-db-$$-$RANDOM"
+          echo "$name" > .db-container
+          exec docker run --rm --name "$name" -e POSTGRES_PASSWORD=e2e postgres:18.4
+      - key: query
+        run: |
+          for _ in $(seq 1 60); do
+            if [ -s .db-container ] &&
+              docker exec "$(cat .db-container)" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          name="$(cat .db-container)"
+          docker exec "$name" psql -h 127.0.0.1 -U postgres -tAc "select 'service answered ' || 40 + 2"
+      - cancel: db
+      - key: stopped
+        run: |
+          name="$(cat .db-container)"
+          for _ in $(seq 1 30); do
+            if ! docker container inspect "$name" >/dev/null 2>&1; then
+              echo "service container is gone"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker rm -f "$name" >/dev/null 2>&1
+          echo "service container outlived the cancel"
+          exit 1

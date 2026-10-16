@@ -8,6 +8,7 @@ import type {
   ModelProviderRef,
 } from '@shipfox/api-agent-dto';
 import {createApiClient, requestJson} from '@shipfox/e2e-core';
+import {z} from 'zod';
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_OLLAMA_MODEL = 'smollm2:135m-instruct-q2_K';
@@ -148,14 +149,31 @@ export interface DeleteModelProviderConfigParams {
   providerId: ModelProviderRef;
 }
 
-export type ScriptedManagedProviderReply =
-  | {text: string}
-  | {tool: string; args?: Record<string, unknown> | undefined};
+const scriptedManagedProviderReplySchema = z.union([
+  z.object({text: z.string()}).strict(),
+  z.object({tool: z.string().min(1), args: z.record(z.string(), z.unknown()).optional()}).strict(),
+]);
 
-export interface ScriptedManagedProviderEntry {
-  match: {prompt_contains: string};
-  replies: ScriptedManagedProviderReply[];
-}
+/**
+ * The replies of the scripted managed provider, the shape of a `scripted.yaml`. Each entry serves
+ * one step attempt: its first request picks the first entry whose `prompt_contains` it contains,
+ * and later requests of that attempt read the entry's next reply.
+ */
+export const scriptedManagedProviderEntriesSchema = z
+  .array(
+    z
+      .object({
+        match: z.object({prompt_contains: z.string().min(1)}).strict(),
+        replies: z.array(scriptedManagedProviderReplySchema).min(1),
+      })
+      .strict(),
+  )
+  .min(1);
+
+export type ScriptedManagedProviderReply = z.infer<typeof scriptedManagedProviderReplySchema>;
+export type ScriptedManagedProviderEntry = z.infer<
+  typeof scriptedManagedProviderEntriesSchema
+>[number];
 
 export interface RegisterScriptedManagedProviderParams {
   projectId: string;

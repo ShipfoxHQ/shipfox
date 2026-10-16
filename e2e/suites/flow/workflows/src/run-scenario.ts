@@ -10,6 +10,7 @@ import {
   type WorkflowRunObservationSelection,
   waitForRunTerminal,
 } from '@shipfox/e2e-observe-workflows';
+import {registerScriptedManagedProvider} from '@shipfox/e2e-setup-agent';
 import {createSecret, createVariable} from '@shipfox/e2e-setup-secrets';
 import type {Attachment} from './attachments.js';
 import {
@@ -601,6 +602,12 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
         webhookSlug,
       });
     await seedScenarioValues({projectId: project.id, scenario, workspaceId: suite.workspaceId});
+    if (scenario.scriptedProvider !== undefined) {
+      await registerScriptedManagedProvider({
+        projectId: project.id,
+        entries: scenario.scriptedProvider,
+      });
+    }
 
     if (scenario.kind === 'reject') {
       return await evaluateRejectedScenario({

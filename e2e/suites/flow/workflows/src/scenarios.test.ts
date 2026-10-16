@@ -3,6 +3,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {discoverScenarios} from './scenarios.js';
 
+const INVALID_SCRIPTED_FILE_PATTERN = /scripted\/scripted\.yaml: /;
+
 function createTempScenariosRoot(): string {
   return mkdtempSync(join(tmpdir(), 'shipfox-e2e-scenarios-'));
 }
@@ -118,6 +120,56 @@ describe('discoverScenarios', () => {
       expect(scenarios[0]).toMatchObject({
         fakeModelProviderScriptKey: 'agent-output-tool',
       });
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
+  test('loads optional scripted managed provider replies', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(root, 'scripted', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(root, 'scripted', 'workflow.yml', 'jobs:\n  build:\n    steps: []\n');
+      writeScenarioFile(
+        root,
+        'scripted',
+        'scripted.yaml',
+        '- match: {prompt_contains: Review}\n  replies:\n    - tool: set_output\n      args: {key: findings, value: none}\n    - text: Done.\n',
+      );
+
+      const scenarios = discoverScenarios(root);
+
+      expect(scenarios[0]).toMatchObject({
+        scriptedProvider: [
+          {
+            match: {prompt_contains: 'Review'},
+            replies: [
+              {tool: 'set_output', args: {key: 'findings', value: 'none'}},
+              {text: 'Done.'},
+            ],
+          },
+        ],
+      });
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
+  test('names the file of a scripted reply with neither text nor tool', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(root, 'scripted', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(root, 'scripted', 'workflow.yml', 'jobs:\n  build:\n    steps: []\n');
+      writeScenarioFile(
+        root,
+        'scripted',
+        'scripted.yaml',
+        '- match: {prompt_contains: Review}\n  replies:\n    - txt: Done.\n',
+      );
+
+      const act = () => discoverScenarios(root);
+
+      expect(act).toThrow(INVALID_SCRIPTED_FILE_PATTERN);
     } finally {
       rmSync(root, {recursive: true, force: true});
     }

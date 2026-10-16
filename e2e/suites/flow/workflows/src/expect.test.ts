@@ -332,6 +332,42 @@ describe('evaluateExpectations', () => {
     expect(result.mismatches).toEqual([]);
   });
 
+  test('matches unkeyed wait and cancel rows by name', () => {
+    const detail = makeDetail({
+      jobs: [
+        makeJob({
+          executions: [
+            makeJobExecution({
+              steps: [
+                makeStep({key: 'db', name: 'Start db', status: 'cancelled'}),
+                makeStep({key: null, name: 'Cancel db', type: 'cancel'}),
+                makeStep({key: null, name: 'Wait for background steps', type: 'wait'}),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = evaluateExpectations(
+      detail,
+      parseExpectation({
+        run: {status: 'succeeded'},
+        jobs: {
+          build: {
+            steps: {
+              db: {status: 'cancelled'},
+              'Cancel db': {type: 'cancel', status: 'succeeded'},
+              'Wait for background steps': {type: 'wait', status: 'succeeded'},
+            },
+          },
+        },
+      }),
+    );
+
+    expect(result.mismatches).toEqual([]);
+  });
+
   test('flags an unexpected step type', () => {
     const detail = makeDetail({
       jobs: [

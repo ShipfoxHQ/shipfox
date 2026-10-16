@@ -1,0 +1,28 @@
+trigger: manual
+timeout_seconds: 240
+run:
+  status: succeeded
+jobs:
+  review:
+    status: succeeded
+    steps:
+      security:
+        type: agent
+        status: succeeded
+      perf:
+        type: agent
+        status: succeeded
+      style:
+        type: agent
+        status: failed
+      Wait for parallel steps:
+        type: wait
+        status: succeeded
+      comment:
+        type: run
+        status: succeeded
+        logs:
+          include:
+            - "security status=succeeded findings=[security: the token is logged in debug output]"
+            - "perf status=succeeded findings=[perf: the loop queries the database once per row]"
+            - "style status=failed findings=[]"

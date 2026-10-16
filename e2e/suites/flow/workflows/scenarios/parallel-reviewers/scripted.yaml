@@ -1,0 +1,12 @@
+# The style reviewer has no entry, so its first model request fails and the step fails before it
+# sets an output.
+- match: {prompt_contains: Review the diff for security issues}
+  replies:
+    - tool: set_output
+      args: {key: findings, value: 'security: the token is logged in debug output'}
+    - text: Done.
+- match: {prompt_contains: Review the diff for performance issues}
+  replies:
+    - tool: set_output
+      args: {key: findings, value: 'perf: the loop queries the database once per row'}
+    - text: Done.

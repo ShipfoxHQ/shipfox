@@ -1,0 +1,20 @@
+trigger: manual
+run:
+  status: succeeded
+jobs:
+  watch:
+    status: succeeded
+    steps:
+      Watch:
+        type: action
+        status: cancelled
+      ready:
+        status: succeeded
+      Cancel watch:
+        type: cancel
+        status: succeeded
+      Post Watch:
+        type: post
+        status: succeeded
+        logs:
+          include: ["post watched=saved-before-cancel"]

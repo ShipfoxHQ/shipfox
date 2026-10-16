@@ -1,0 +1,15 @@
+name: Background failure end of job
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  build:
+    steps:
+      - key: lint
+        background: true
+        run: |
+          echo "lint found a problem"
+          exit 3
+      - key: compile
+        run: echo "compile done"

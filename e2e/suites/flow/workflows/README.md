@@ -22,6 +22,7 @@ scenarios/hello-world/
   expect.yaml     declarative expectations (run/job/step status and type, errors, gates, exit code, logs)
   reject.yaml     alternative to expect.yaml for authoring-time rejection scenarios
   model-provider.yaml optional fake model-provider script metadata
+  scripted.yaml   optional replies of the managed `shipfox` model provider
   secrets.yaml    optional E2E setup secrets to seed before the run
   files/          optional extra repo files, committed alongside the workflow
 ```
@@ -67,8 +68,8 @@ jobs:                    # optional, keyed by job key
     status_reason: step_failed   # optional: why the job ended (step_failed, condition_false, ...)
     steps:               # optional, keyed by step key or name
       greet:
-        type: run         # optional: setup | run | agent | checkout | tool | action
-        status: succeeded
+        type: run         # optional: setup | run | agent | checkout | tool | action | composite | wait | cancel | post
+        status: succeeded # pending | running | succeeded | failed | skipped | cancelled
         exit_code: 0     # optional
         gate_result:     # optional: assert the latest attempt's gate evaluation
           kind: evaluation_error
@@ -88,6 +89,10 @@ gitea:                    # optional external fixture and post-run assertion
     body: Read this issue from the workflow.
   comment: Tool step comment
 ```
+
+A step without a key, such as a `wait` or `cancel` row or a post, is matched by its
+name: `Wait for parallel steps`, `Wait for background steps` for the wait added at the end of
+a job, `Wait for <key>`, `Cancel <key>`, or `Post <step name>`.
 
 Assertions that are only observable inside the runner (checkout contents, env
 propagation, or output propagation) are written as self-asserting `run` steps in the
@@ -114,6 +119,24 @@ The script is registered as a normal `openai-completions` custom provider throug
 product HTTP route; the API has no `/__e2e` fake-provider control surface. Required
 script assertions are the deterministic model name and `set_output` tool presence.
 
+### scripted.yaml
+
+Use `scripted.yaml` for agent steps on `provider: shipfox` with a catalog model, such as
+`gpt-6-luna`. The harness registers the replies for the scenario's project before it
+triggers the run. The format is the eval suite's `scripted.yaml`:
+
+```yaml
+- match: {prompt_contains: Review the diff for security issues}
+  replies:
+    - tool: set_output
+      args: {key: findings, value: none}
+    - text: Done.
+```
+
+Each step attempt takes the first entry whose `prompt_contains` is in its prompt, then
+reads the entry's replies in order. A prompt that matches no entry fails its step, which
+is how a scenario makes an agent step fail.
+
 ### reject.yaml
 
 Use `reject.yaml` instead of `expect.yaml` when the workflow must be rejected during
@@ -128,6 +151,13 @@ message_includes:                # optional substrings in sync.last_error_messag
 The harness seeds the workflow, waits for the definition sync to settle, asserts the
 sync failed with the expected error code and message substrings, then polls briefly to
 confirm the project has no workflow runs.
+
+## Docker on the runner host
+
+`scenarios/background-service-cancel` starts a Postgres service with `docker run` from a
+background step, so the local runner's host needs Docker. It uses `postgres:18.4`, the
+image of the compose stack that local runs and CI already start, so it pulls nothing.
+Update the tag when `compose.yml` changes it.
 
 ## Reference actions
 

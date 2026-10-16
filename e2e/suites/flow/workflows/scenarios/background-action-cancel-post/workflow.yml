@@ -1,0 +1,24 @@
+name: Background action cancel post
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  watch:
+    steps:
+      - key: watch
+        name: Watch
+        background: true
+        uses: ./.shipfox/actions/watch
+      - key: ready
+        run: |
+          for _ in $(seq 1 60); do
+            if [ -f .watch-ready ]; then
+              echo "watch saved its state"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "watch never saved its state"
+          exit 1
+      - cancel: watch

@@ -1,0 +1,18 @@
+trigger: manual
+run:
+  status: failed
+jobs:
+  build:
+    status: failed
+    steps:
+      lint:
+        type: run
+        status: failed
+        exit_code: 3
+        logs:
+          include: ["lint found a problem"]
+      compile:
+        status: succeeded
+      Wait for background steps:
+        type: wait
+        status: failed

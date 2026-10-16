@@ -1,6 +1,10 @@
 import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {
+  type ScriptedManagedProviderEntry,
+  scriptedManagedProviderEntriesSchema,
+} from '@shipfox/e2e-setup-agent';
 import yaml from 'js-yaml';
 import {z} from 'zod';
 import {type Expectation, parseExpectation} from './expect.js';
@@ -56,6 +60,8 @@ interface BaseScenario {
   seededSecrets: SeededSecret[];
   seededVariables: SeededVariable[];
   fakeModelProviderScriptKey?: string | undefined;
+  /** Replies of the managed `shipfox` provider for this scenario's project, from scripted.yaml. */
+  scriptedProvider?: ScriptedManagedProviderEntry[] | undefined;
 }
 
 export interface ExpectScenario extends BaseScenario {
@@ -100,22 +106,38 @@ function requireScenarioFile(dir: string, scenario: string, file: string): strin
   return path;
 }
 
+// Names the file in the error, since one invalid file stops discovery for the whole suite.
+function loadOptionalScenarioYaml<T>(path: string, schema: z.ZodType<T>): T | undefined {
+  if (!existsSync(path)) return undefined;
+  let document: unknown;
+  try {
+    document = yaml.load(readFileSync(path, 'utf8'));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${path}: could not parse YAML: ${message}`, {cause: error});
+  }
+  const result = schema.safeParse(document);
+  if (!result.success) throw new Error(`${path}: ${z.prettifyError(result.error)}`);
+  return result.data;
+}
+
 function loadSeededSecrets(dir: string): SeededSecret[] {
-  const path = join(dir, 'secrets.yaml');
-  if (!existsSync(path)) return [];
-  return seededSecretsSchema.parse(yaml.load(readFileSync(path, 'utf8'))).secrets;
+  return loadOptionalScenarioYaml(join(dir, 'secrets.yaml'), seededSecretsSchema)?.secrets ?? [];
 }
 
 function loadSeededVariables(dir: string): SeededVariable[] {
-  const path = join(dir, 'variables.yaml');
-  if (!existsSync(path)) return [];
-  return seededVariablesSchema.parse(yaml.load(readFileSync(path, 'utf8'))).variables;
+  return (
+    loadOptionalScenarioYaml(join(dir, 'variables.yaml'), seededVariablesSchema)?.variables ?? []
+  );
 }
 
 function loadModelProviderScriptKey(dir: string): string | undefined {
-  const path = join(dir, 'model-provider.yaml');
-  if (!existsSync(path)) return undefined;
-  return modelProviderSchema.parse(yaml.load(readFileSync(path, 'utf8'))).script_key;
+  return loadOptionalScenarioYaml(join(dir, 'model-provider.yaml'), modelProviderSchema)
+    ?.script_key;
+}
+
+function loadScriptedProvider(dir: string): ScriptedManagedProviderEntry[] | undefined {
+  return loadOptionalScenarioYaml(join(dir, 'scripted.yaml'), scriptedManagedProviderEntriesSchema);
 }
 
 function loadScenario(root: string, name: string): Scenario {
@@ -148,6 +170,7 @@ function loadScenario(root: string, name: string): Scenario {
     seededSecrets: loadSeededSecrets(dir),
     seededVariables: loadSeededVariables(dir),
     fakeModelProviderScriptKey: loadModelProviderScriptKey(dir),
+    scriptedProvider: loadScriptedProvider(dir),
   };
 
   if (hasExpect) {

@@ -1,0 +1,22 @@
+trigger: manual
+timeout_seconds: 240
+run:
+  status: succeeded
+jobs:
+  integration:
+    status: succeeded
+    steps:
+      db:
+        type: run
+        status: cancelled
+      query:
+        status: succeeded
+        logs:
+          include: ["service answered 42"]
+      Cancel db:
+        type: cancel
+        status: succeeded
+      stopped:
+        status: succeeded
+        logs:
+          include: ["service container is gone"]

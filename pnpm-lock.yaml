@@ -1892,6 +1892,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

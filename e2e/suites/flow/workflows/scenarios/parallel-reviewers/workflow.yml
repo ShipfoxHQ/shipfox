@@ -1,0 +1,48 @@
+name: Parallel reviewers
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  review:
+    steps:
+      - parallel:
+          - key: security
+            continue_on_error: true
+            harness: pi
+            provider: shipfox
+            model: gpt-6-luna
+            thinking: off
+            prompt: Review the diff for security issues. Do not modify files.
+            outputs:
+              findings: {type: string, default: ""}
+          - key: perf
+            continue_on_error: true
+            harness: pi
+            provider: shipfox
+            model: gpt-6-luna
+            thinking: off
+            prompt: Review the diff for performance issues. Do not modify files.
+            outputs:
+              findings: {type: string, default: ""}
+          - key: style
+            continue_on_error: true
+            harness: pi
+            provider: shipfox
+            model: gpt-6-luna
+            thinking: off
+            prompt: Review the diff for style issues. Do not modify files.
+            outputs:
+              findings: {type: string, default: ""}
+      - key: comment
+        env:
+          SECURITY_STATUS: ${{ steps.security.status }}
+          SECURITY_FINDINGS: ${{ steps.security.outputs.findings }}
+          PERF_STATUS: ${{ steps.perf.status }}
+          PERF_FINDINGS: ${{ steps.perf.outputs.findings }}
+          STYLE_STATUS: ${{ steps.style.status }}
+          STYLE_FINDINGS: ${{ steps.style.outputs.findings }}
+        run: |
+          echo "security status=$SECURITY_STATUS findings=[$SECURITY_FINDINGS]"
+          echo "perf status=$PERF_STATUS findings=[$PERF_FINDINGS]"
+          echo "style status=$STYLE_STATUS findings=[$STYLE_FINDINGS]"

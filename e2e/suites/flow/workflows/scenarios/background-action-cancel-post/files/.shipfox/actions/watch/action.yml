@@ -1,0 +1,4 @@
+name: Watch
+description: Saves state, then runs until it is stopped, so a cancel stops it before its post.
+main: index.ts
+post: post.ts
