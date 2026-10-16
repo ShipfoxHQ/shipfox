@@ -1,7 +1,7 @@
-import {type StepAttemptDto, workflowRunStatusSchema} from '@shipfox/api-workflows-dto';
+import {workflowRunStatusSchema} from '@shipfox/api-workflows-dto';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import type {Job} from '#core/workflow-run.js';
-import type {WorkflowStepFixtureDto} from '#test/fixtures/workflow-run.js';
+import type {WorkflowStepAttemptDto, WorkflowStepFixtureDto} from '#test/fixtures/workflow-run.js';
 import {
   type JobDtoOverrides,
   workflowJob,
@@ -289,6 +289,59 @@ describe('buildStepListModel', () => {
       step: {mainStepLabel: 'Set up Node'},
     });
     expect(result.entries[2]?.statusVisual).toMatchObject({dot: 'error', badge: 'error'});
+  });
+
+  test('marks the failed attempts that continue_on_error covered as ignored', () => {
+    const gated = makeStep({
+      name: 'Review perf',
+      status: 'failed',
+      current_attempt: 2,
+      affects_job: false,
+      attempts: [
+        makeAttempt({attempt: 1, execution_order: 1, status: 'failed', exit_code: 1}),
+        makeAttempt({
+          attempt: 2,
+          execution_order: 2,
+          status: 'failed',
+          exit_code: 1,
+          failure_ignored: true,
+        }),
+      ],
+    });
+    const rerun = makeStep({
+      name: 'Lint',
+      position: 2,
+      status: 'succeeded',
+      current_attempt: 2,
+      attempts: [
+        makeAttempt({
+          attempt: 1,
+          execution_order: 3,
+          status: 'failed',
+          exit_code: 1,
+          failure_ignored: true,
+        }),
+        makeAttempt({attempt: 2, execution_order: 4, status: 'succeeded'}),
+      ],
+    });
+    const timedOut = makeStep({
+      name: 'Run tests',
+      position: 3,
+      status: 'failed',
+      affects_job: true,
+      attempts: [makeAttempt({execution_order: 5, status: 'failed'})],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [gated, rerun, timedOut]})});
+
+    expect(result.entries.map((entry) => entry.failureIgnored)).toEqual([
+      false,
+      true,
+      true,
+      false,
+      false,
+    ]);
+    expect(result.entries[1]?.statusVisual).toMatchObject({dot: 'warning', badge: 'warning'});
   });
 
   test('keeps the warning for a carried-over post that left the job result unchanged', () => {
@@ -720,6 +773,6 @@ function makeStep(overrides: Partial<WorkflowStepFixtureDto> = {}): WorkflowStep
   return workflowStepDto(overrides);
 }
 
-function makeAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
+function makeAttempt(overrides: Partial<WorkflowStepAttemptDto> = {}): WorkflowStepAttemptDto {
   return workflowStepAttemptDto(overrides);
 }

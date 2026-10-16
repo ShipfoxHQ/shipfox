@@ -70,6 +70,8 @@ export const stepAttemptSummaryDtoSchema = z.object({
   finished_at: z.string().datetime().nullable(),
   error: stepErrorDtoSchema,
   gate_result: stepGateResultSummarySchema,
+  /** True when `continue_on_error` covered this failed attempt. Omitted otherwise. */
+  failure_ignored: z.boolean().optional(),
 });
 
 export type StepAttemptSummaryDto = z.infer<typeof stepAttemptSummaryDtoSchema>;
@@ -89,7 +91,7 @@ export const stepSummaryDtoSchema = z.object({
   gate_max_attempts: z.number().int().positive().optional(),
   /** The step whose action declared this post. Set on post rows only. */
   main_step_id: z.string().uuid().optional(),
-  /** False when a failed post leaves the job result unchanged. Set on post rows only. */
+  /** False when a failure of this step leaves `run_after` and the job result unchanged. */
   affects_job: z.boolean().optional(),
   error: stepErrorDtoSchema,
   attempts: cursorPageSchema(stepAttemptSummaryDtoSchema),

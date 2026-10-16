@@ -775,6 +775,26 @@ describe('normalizeWorkflowDocument', () => {
     expect(selected).not.toHaveProperty('repositoryContext.instructions');
   });
 
+  it('carries continue_on_error onto the step only when it is true', () => {
+    const model = normalizeWorkflowDocument({
+      name: 'reviews',
+      jobs: {
+        review: {
+          steps: [
+            {key: 'perf', run: 'npm run perf', continue_on_error: true},
+            {key: 'lint', run: 'npm run lint', continue_on_error: false},
+            {key: 'test', run: 'npm test'},
+          ],
+        },
+      },
+    });
+
+    const [perf, lint, test] = model.jobs[0]?.steps ?? [];
+    expect(perf?.continueOnError).toBe(true);
+    expect(lint).not.toHaveProperty('continueOnError');
+    expect(test).not.toHaveProperty('continueOnError');
+  });
+
   it('writes run_after on jobs and steps, defaulting to success', () => {
     const model = normalizeWorkflowDocument({
       name: 'handlers',

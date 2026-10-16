@@ -368,6 +368,7 @@ describe('materializeJobExecutionSteps', () => {
         },
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 1,
     });
@@ -629,6 +630,7 @@ describe('materializeJobExecutionSteps', () => {
           },
         },
         runAfter: 'success',
+        continueOnError: false,
         authoredConfig: null,
         position: 0,
       },
@@ -647,6 +649,7 @@ describe('materializeJobExecutionSteps', () => {
           },
         },
         runAfter: 'success',
+        continueOnError: false,
         authoredConfig: {
           run: `echo "${template('executions[0].name')}"`,
           env: {BODY: template('execution.events[0].data.body')},

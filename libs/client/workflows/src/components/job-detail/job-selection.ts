@@ -57,7 +57,10 @@ export function resolveWorkflowJobSelection({
   };
 }
 
-/** Picks the running step, then the first failed step, for the first useful page state. */
+/**
+ * Picks the running step, then the first failed step that counts for the job result, for the
+ * first useful page state.
+ */
 export function workflowJobLandingSelection(
   jobExecution: JobExecution | undefined,
 ): WorkflowJobLandingSelection | undefined {
@@ -75,16 +78,21 @@ export function workflowJobLandingSelection(
 
 /** A failed composite points at the inner step that failed it, when one did. */
 function innermostFailedStep(sortedSteps: readonly Step[]): Step | undefined {
-  let failed = sortedSteps.find((step) => step.status === 'failed');
+  let failed = sortedSteps.find(countedFailure);
   while (failed?.type === 'composite') {
     const parentId: string = failed.id;
     const failedChild = sortedSteps.find(
-      (step) => step.parentStepId === parentId && step.status === 'failed',
+      (step) => step.parentStepId === parentId && countedFailure(step),
     );
     if (!failedChild) break;
     failed = failedChild;
   }
   return failed;
+}
+
+// A failure that leaves the job result unchanged is not where the page should open.
+function countedFailure(step: Step): boolean {
+  return step.status === 'failed' && step.affectsJob !== false;
 }
 
 function findStep(job: Job, stepId: string): Step | undefined {

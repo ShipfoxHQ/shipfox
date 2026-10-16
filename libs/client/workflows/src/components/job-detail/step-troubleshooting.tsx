@@ -48,7 +48,7 @@ import {workflowJobSearchParams, workflowRunSearchParams} from '#routes/inputs.j
 import {EvaluationTraceList} from '../evaluation-trace-list.js';
 import {
   humanizeStatus,
-  IGNORED_POST_FAILURE_TEXT,
+  IGNORED_FAILURE_TEXT,
   type StepListEntryModel,
 } from '../step-list/step-list-model.js';
 import {ActionInputsSection, ActionStepDetails} from './action-step-details.js';
@@ -251,7 +251,7 @@ function StepFailureCallout({
           <div className="flex min-w-0 flex-wrap items-center gap-x-inline gap-y-tight">
             <div className="flex min-w-0 flex-col gap-tight">
               <span>{description}</span>
-              {failureIgnored && <span>{IGNORED_POST_FAILURE_TEXT}</span>}
+              {failureIgnored && <span>{IGNORED_FAILURE_TEXT}</span>}
               <FailureMessage error={error} />
               <ProviderMessage error={error} />
               <RestartDecisionLine decision={attempt.gateResult?.restart} />

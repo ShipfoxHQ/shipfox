@@ -76,6 +76,7 @@ function agentStep(params: Partial<Step> = {}): Step {
     },
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,

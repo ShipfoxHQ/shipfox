@@ -335,6 +335,28 @@ describe('normalizeWorkflowDocument composite steps', () => {
     ]);
   });
 
+  test('rejects continue_on_error on the step that uses a composite', () => {
+    const setup = composite(SETUP, {steps: [{run: 'npm ci', continue_on_error: true}]});
+
+    const issues = issuesFor(document({uses: SETUP, continue_on_error: true}), [setup]);
+
+    expect(summarize(issues)).toEqual([
+      {
+        code: 'composite-continue-on-error-unsupported',
+        path: 'jobs.build.steps.0.continue_on_error',
+        at: undefined,
+      },
+    ]);
+  });
+
+  test('carries continue_on_error on a step inside a composite', () => {
+    const setup = composite(SETUP, {steps: [{run: 'npm ci', continue_on_error: true}]});
+
+    const step = compositeStep(normalize(document({uses: SETUP}), [setup]));
+
+    expect(step.steps[0]?.continueOnError).toBe(true);
+  });
+
   test('rejects the action root outside a composite', () => {
     const issues = issuesFor(document({run: `${expr('action.path')}/x.sh`}), []);
 

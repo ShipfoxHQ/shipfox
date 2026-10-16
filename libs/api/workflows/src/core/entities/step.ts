@@ -41,6 +41,7 @@ export const STEP_STATUS_REASONS = [
   'timed_out',
   'run_cancelled',
   'runner_lost',
+  'failure_ignored',
 ] as const;
 
 export type StepStatusReason = (typeof STEP_STATUS_REASONS)[number];
@@ -174,6 +175,8 @@ export interface Step {
   config: Record<string, unknown>;
   condition: WorkflowExpression | null;
   runAfter: StepRunAfter;
+  // A failure of this step does not count for `run_after` or the job result.
+  continueOnError: boolean;
   configPlan: StepConfigDispatchPlan | null;
   authoredConfig: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
@@ -205,6 +208,8 @@ export interface StepAttempt {
   logPath: string | null;
   gateResult: Record<string, unknown> | null;
   restartFeedback: string | null;
+  // A failure of this attempt left `run_after` and the job result unchanged (`continue_on_error`).
+  failureIgnored: boolean;
   logOutcome: StepAttemptLogOutcome | null;
   invocations: readonly StepAttemptInvocation[];
   startedAt: Date;

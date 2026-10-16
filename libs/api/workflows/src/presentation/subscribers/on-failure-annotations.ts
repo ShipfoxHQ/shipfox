@@ -343,6 +343,7 @@ export function onStepAttemptTerminatedFailureAnnotation(
         },
         context: failureContext('step', detail.step.id),
         failed: currentStepAttemptFailed(detail),
+        ignored: detail.attempt.failureIgnored,
         body: stepFailureBody(detail.step, detail.attempt),
       });
     } catch (error) {
@@ -447,6 +448,8 @@ async function writeFailureAnnotation(params: {
   target: FailureAnnotationTarget;
   context: string;
   failed: boolean;
+  // The failure left the job result unchanged, so the card warns instead.
+  ignored?: boolean;
   body: string;
 }): Promise<void> {
   try {
@@ -454,7 +457,7 @@ async function writeFailureAnnotation(params: {
       ...params.target,
       context: params.context,
       annotation: params.failed
-        ? {op: 'replace', style: 'error', body: params.body}
+        ? {op: 'replace', style: params.ignored ? 'warning' : 'error', body: params.body}
         : {op: 'remove'},
     });
   } catch (error) {
@@ -468,6 +471,9 @@ async function writeFailureAnnotation(params: {
   }
 }
 
+const IGNORED_FAILURE_NOTE =
+  'The step sets `continue_on_error`, so the job went on and this failure does not change its result.';
+
 function failureContext(kind: 'job' | 'step', id: string): string {
   return `failure:${kind}:${id}`;
 }
@@ -480,6 +486,7 @@ function stepFailureBody(step: StepAttemptDetailStep, attempt: StepAttempt): str
     '',
     copy.description,
     ...(details === undefined ? [] : ['', details]),
+    ...(attempt.failureIgnored ? ['', IGNORED_FAILURE_NOTE] : []),
   ].join('\n');
 }
 

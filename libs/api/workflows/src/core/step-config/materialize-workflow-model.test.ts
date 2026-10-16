@@ -186,6 +186,7 @@ describe('materializeWorkflowModel', () => {
         },
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 0,
     };
@@ -209,6 +210,7 @@ describe('materializeWorkflowModel', () => {
             parentPosition: null,
             config: {run: 'npm install'},
             runAfter: 'success',
+            continueOnError: false,
             authoredConfig: null,
             position: 1,
           },
@@ -227,6 +229,7 @@ describe('materializeWorkflowModel', () => {
               },
             },
             runAfter: 'success',
+            continueOnError: false,
             authoredConfig: null,
             position: 2,
           },
@@ -250,6 +253,7 @@ describe('materializeWorkflowModel', () => {
             parentPosition: null,
             config: {run: 'npm test'},
             runAfter: 'success',
+            continueOnError: false,
             authoredConfig: null,
             position: 1,
           },
@@ -326,6 +330,7 @@ describe('materializeWorkflowModel', () => {
         prompt: 'Fix the tests.',
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 2,
     });
@@ -348,6 +353,7 @@ describe('materializeWorkflowModel', () => {
         },
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 3,
     });
@@ -407,6 +413,7 @@ describe('materializeWorkflowModel', () => {
         prompt: 'Fix the failing tests.',
       },
       runAfter: 'success',
+      continueOnError: false,
       authoredConfig: null,
       position: 1,
     });
@@ -1524,6 +1531,7 @@ describe('materializeWorkflowModel', () => {
           },
         },
         runAfter: 'success',
+        continueOnError: false,
         authoredConfig: null,
         position: 0,
       },

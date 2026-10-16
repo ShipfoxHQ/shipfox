@@ -87,6 +87,7 @@ function pendingStep(step: MaterializedWorkflowStep): Step {
     config: {...step.config},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: step.configPlan ?? null,
     authoredConfig: null,
     error: null,

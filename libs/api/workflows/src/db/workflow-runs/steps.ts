@@ -218,8 +218,9 @@ export async function getJobExecutionFailureOrigin(
     )
     .where(eq(jobExecutions.id, jobExecutionId))
     .orderBy(
+      // A failure that `continue_on_error` covered did not fail the job.
       desc(
-        sql<number>`case when ${steps.status} = 'failed' or ${stepAttempts.status} = 'failed' or ${steps.statusReason} = 'condition_errored' then 1 else 0 end`,
+        sql<number>`case when ${steps.statusReason} = 'failure_ignored' then 0 when ${steps.status} = 'failed' or ${stepAttempts.status} = 'failed' or ${steps.statusReason} = 'condition_errored' then 1 else 0 end`,
       ),
       // A failed composite only reports that an inner step failed, so the inner step is the origin.
       asc(sql<number>`case when ${steps.type} = 'composite' then 1 else 0 end`),
@@ -690,6 +691,8 @@ export async function settleJobFailed(
     jobExecutionId: string;
     failedStepId: string;
     error: Record<string, unknown>;
+    // The step's `continue_on_error` covers this failure.
+    failureIgnored?: boolean;
   },
 ): Promise<'succeeded' | 'failed' | null> {
   await applyStepResult(
@@ -698,6 +701,7 @@ export async function settleJobFailed(
       stepId: params.failedStepId,
       status: 'failed',
       error: params.error,
+      ...(params.failureIgnored ? {statusReason: 'failure_ignored' as const} : {}),
     },
     tx,
   );
@@ -781,6 +785,7 @@ export interface FinishStepAttemptParams {
   logOutcome: LogOutcomeDto;
   gateResult?: Record<string, unknown> | null;
   restartFeedback?: string | null;
+  failureIgnored?: boolean;
 }
 
 async function runBestEffortCheckoutRenewalSubjectMaintenance(
@@ -838,6 +843,7 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
       logOutcome: params.logOutcome,
       gateResult: boundedGateResult.value,
       restartFeedback: boundedRestartFeedback.value,
+      failureIgnored: params.failureIgnored ?? false,
       finishedAt: new Date(),
     })
     .where(
@@ -984,6 +990,7 @@ export interface ApplyStepResultParams {
   stepId: string;
   status: 'succeeded' | 'failed';
   error: Record<string, unknown> | null;
+  statusReason?: Extract<StepStatusReason, 'failure_ignored'>;
 }
 
 export async function applyStepResult(params: ApplyStepResultParams, tx: Tx): Promise<void> {
@@ -993,7 +1000,7 @@ export async function applyStepResult(params: ApplyStepResultParams, tx: Tx): Pr
     .update(steps)
     .set({
       status: params.status,
-      statusReason: null,
+      statusReason: params.statusReason ?? null,
       error,
       updatedAt: new Date(),
     })

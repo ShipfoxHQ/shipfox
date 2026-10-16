@@ -100,7 +100,7 @@ function toStepSummaryDto(step: WorkflowStepSummaryRead): StepSummaryDto {
     current_attempt: step.currentAttempt,
     ...(step.gateMaxAttempts === undefined ? {} : {gate_max_attempts: step.gateMaxAttempts}),
     ...(step.mainStepId === undefined ? {} : {main_step_id: step.mainStepId}),
-    ...(step.affectsJob === undefined ? {} : {affects_job: step.affectsJob}),
+    affects_job: step.affectsJob,
     error: toStepErrorDto(step.error, step.type),
     attempts: toStepAttemptPageDto(step.attempts, step.type),
   };
@@ -120,6 +120,7 @@ function toStepAttemptSummaryDto(
     finished_at: attempt.finishedAt?.toISOString() ?? null,
     error: toStepErrorDto(attempt.error, stepType),
     gate_result: toStepGateResultSummaryDto(attempt.gateResult, attempt.status),
+    ...(attempt.failureIgnored ? {failure_ignored: true} : {}),
   };
 }
 

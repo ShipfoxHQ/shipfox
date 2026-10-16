@@ -1001,6 +1001,7 @@ async function persistMaterializedListenerExecution(
           authoredConfig: step.authoredConfig,
           condition: step.condition ?? null,
           runAfter: step.runAfter,
+          continueOnError: step.continueOnError,
           position: step.position,
           parentPosition: step.parentPosition,
         })),

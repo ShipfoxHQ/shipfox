@@ -37,6 +37,7 @@ export interface MaterializedWorkflowStep {
   readonly config: Readonly<Record<string, unknown>>;
   readonly condition?: WorkflowExpression;
   readonly runAfter: StepRunAfter;
+  readonly continueOnError: boolean;
   readonly configPlan?: StepConfigDispatchPlan;
   readonly authoredConfig: Readonly<Record<string, unknown>> | null;
   readonly diagnostics?: readonly WorkflowStepTemplateDiagnostic[];
@@ -69,6 +70,7 @@ const SETUP_STEP: Omit<MaterializedWorkflowStep, 'config'> = {
   type: 'setup',
   parentPosition: null,
   runAfter: 'success',
+  continueOnError: false,
   authoredConfig: null,
   position: 0,
 };
@@ -144,6 +146,7 @@ export async function materializeJobExecutionSteps(
         ...(step.if === undefined ? {} : {condition: step.if}),
         // Models stored before `run_after` keep their old gate: an `if` replaced it.
         runAfter: step.runAfter ?? (step.if === undefined ? 'success' : 'always'),
+        continueOnError: step.continueOnError === true,
         authoredConfig: resolved.authoredConfig,
         ...materializedConfigPlan(resolved.configPlan, resolved.trace),
         ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
@@ -283,6 +286,7 @@ function postStepForAction(params: {
         : {action_bundles: main.config.action_bundles}),
     },
     runAfter: 'always',
+    continueOnError: false,
     authoredConfig: null,
     position,
   };

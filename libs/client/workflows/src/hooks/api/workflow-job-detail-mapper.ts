@@ -160,6 +160,7 @@ export function toWorkflowJobStepAttemptSummary(
     finishedAt: dto.finished_at,
     error: toWorkflowJobStepError(dto.error),
     gateResult: toWorkflowJobGateResult(dto.gate_result),
+    ...(dto.failure_ignored === undefined ? {} : {failureIgnored: dto.failure_ignored}),
   };
 }
 
@@ -330,6 +331,7 @@ function toStepAttemptForJobDetail(
     error: attempt.error ? {...attempt.error} : null,
     gateResult: attempt.gateResult,
     restartFeedback: null,
+    ...(attempt.failureIgnored === undefined ? {} : {failureIgnored: attempt.failureIgnored}),
     invocations: [],
     startedAt: attempt.startedAt,
     finishedAt: attempt.finishedAt,

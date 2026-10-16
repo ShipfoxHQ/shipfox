@@ -200,6 +200,8 @@ interface WorkflowModelStepBase {
   readonly if?: WorkflowExpression;
   /** Models stored before `run_after` omit it and mean `always` with an `if`, `success` without. */
   readonly runAfter?: WorkflowModelRunAfter;
+  /** Set when a failure of this step does not count for `run_after` or the job result. */
+  readonly continueOnError?: true;
   readonly name?: string;
   readonly workingDirectory?: string;
   readonly outputs?: OutputDeclarations;
@@ -446,15 +448,26 @@ const workflowModelSchema = z.custom<WorkflowModel>(
 
 export const workflowModelSnapshotSchema = z.object({
   // v2 snapshots predate tool steps, v3 snapshots predate concurrency, v4
-  // snapshots predate job containers, and v5 snapshots predate composite
-  // actions. Historical versions stay readable while snapshots containing a
-  // composite step use v6, then a job container v5, then concurrency v4.
-  version: z.union([z.literal(6), z.literal(5), z.literal(4), z.literal(3), z.literal(2)]),
+  // snapshots predate job containers, v5 snapshots predate composite actions,
+  // and v6 snapshots predate `continue_on_error`. Historical versions stay
+  // readable while snapshots containing a `continue_on_error` step use v7, then
+  // a composite step v6, then a job container v5, then concurrency v4.
+  version: z.union([
+    z.literal(7),
+    z.literal(6),
+    z.literal(5),
+    z.literal(4),
+    z.literal(3),
+    z.literal(2),
+  ]),
   model: workflowModelSchema,
 });
 export type WorkflowModelSnapshot = z.infer<typeof workflowModelSnapshotSchema>;
 
 export function createWorkflowModelSnapshot(model: WorkflowModel): WorkflowModelSnapshot {
+  if (model.jobs.some((job) => flattenJobSteps(job).some((step) => step.continueOnError))) {
+    return {version: 7, model};
+  }
   if (model.jobs.some((job) => job.steps.some((step) => step.kind === 'composite'))) {
     return {version: 6, model};
   }
@@ -493,6 +506,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
     case 4:
     case 5:
     case 6:
+    case 7:
       return snapshot.model;
     default:
       // Callers that bypass the zod boundary (or a future version) get a
@@ -500,7 +514,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
       throw new Error(
         `Unsupported workflow model snapshot version ${String(
           snapshot.version,
-        )}; supported versions are 2, 3, 4, 5, and 6.`,
+        )}; supported versions are 2, 3, 4, 5, 6, and 7.`,
       );
   }
 }

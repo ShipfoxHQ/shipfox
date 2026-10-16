@@ -183,6 +183,13 @@
       "when": 1792114972751,
       "tag": "0025_composite_steps",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792117845202,
+      "tag": "0026_add_step_continue_on_error",
+      "breakpoints": true
     }
   ]
 }

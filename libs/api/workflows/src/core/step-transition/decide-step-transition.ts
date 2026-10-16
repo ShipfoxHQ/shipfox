@@ -12,10 +12,13 @@ export function isTerminal(status: StepStatus): boolean {
 }
 
 /**
- * False for a post whose action declared `post_failure: warn`. The post still fails, but the job
- * keeps the result of its authored steps.
+ * False for a failure that `continue_on_error` covered and for a post whose action declared
+ * `post_failure: warn`. The step still fails, but `run_after` and the job result ignore it.
  */
-export function stepAffectsConclusion(step: Pick<Step, 'type' | 'config'>): boolean {
+export function stepAffectsConclusion(
+  step: Pick<Step, 'type' | 'config' | 'statusReason'>,
+): boolean {
+  if (step.statusReason === 'failure_ignored') return false;
   if (step.type !== 'post') return true;
   const post = step.config.post;
   if (post === null || typeof post !== 'object') return true;
@@ -116,6 +119,8 @@ export type StepTransitionDecision =
       // The error to record on the step/attempt (the reported error, or a
       // structured gate error).
       failureError: Record<string, unknown> | null;
+      // Set when the step's `continue_on_error` covers its own failure.
+      failureIgnored?: true;
     }
   | {
       kind: 'restart-job-from-step';
@@ -133,6 +138,7 @@ export type StepTransitionDecision =
       attempt: number;
       maxAttempts: number;
       failureError: Record<string, unknown> | null;
+      failureIgnored?: true;
     };
 
 function succeed(target: Step, attempt: number, steps: Step[]): StepTransitionDecision {
@@ -157,6 +163,12 @@ function fail(
     attempt,
     failureError,
   };
+}
+
+// `continue_on_error` covers the step's own final failure, not a workflow error found while
+// deciding it, such as an unresolved `restart_from`.
+function ignoredFailure(target: Step): {failureIgnored?: true} {
+  return target.continueOnError ? {failureIgnored: true} : {};
 }
 
 // Pure: maps a step report (and its precomputed gate outcome) to a transition
@@ -192,7 +204,7 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
   }
 
   // 4. No restart → plain fail-and-cancel.
-  return fail(target, reportedAttempt, failureError);
+  return {...fail(target, reportedAttempt, failureError), ...ignoredFailure(target)};
 }
 
 function stepReportPassed(gate: GateOutcome, result: StepReport): boolean {
@@ -280,6 +292,7 @@ function restartStepTransition(
       failedStepId: target.id,
       attempt: reportedAttempt,
       maxAttempts,
+      ...ignoredFailure(target),
       failureError: {
         ...terminalFailureFields,
         kind: 'restart_exhausted',

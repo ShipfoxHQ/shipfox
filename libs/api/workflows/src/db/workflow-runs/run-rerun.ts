@@ -460,6 +460,7 @@ function materializedRerunStep(params: {
     config,
     condition: params.step.condition ?? null,
     runAfter: params.step.runAfter,
+    continueOnError: params.step.continueOnError,
     configPlan:
       params.rematerialized === undefined
         ? params.step.configPlan

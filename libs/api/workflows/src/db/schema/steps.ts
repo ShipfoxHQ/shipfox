@@ -2,6 +2,7 @@ import type {WorkflowExpression} from '@shipfox/expression';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -52,6 +53,7 @@ export const steps = pgTable(
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
     condition: jsonb('condition').$type<WorkflowExpression>(),
     runAfter: text('run_after').notNull().default('success').$type<StepRunAfter>(),
+    continueOnError: boolean('continue_on_error').notNull().default(false),
     configPlan: jsonb('config_plan').$type<StepConfigDispatchPlan>(),
     authoredConfig: jsonb('authored_config').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
@@ -100,6 +102,7 @@ export function toStep(row: StepDb): Step {
     config: row.config as Record<string, unknown>,
     condition: (row.condition as WorkflowExpression) ?? null,
     runAfter: row.runAfter,
+    continueOnError: row.continueOnError,
     configPlan: row.configPlan ?? null,
     authoredConfig: (row.authoredConfig as Record<string, unknown>) ?? null,
     error: (row.error as Record<string, unknown>) ?? null,

@@ -253,6 +253,18 @@ export function buildCompositeStep(params: {
 }): WorkflowModelCompositeStep {
   const {fields} = params;
   const {manifest, composite} = fields.resolved;
+  // The run engine expands a composite into its inner steps, which have no flag of their own.
+  if (params.step.continue_on_error === true) {
+    params.issues.push(
+      issue({
+        code: 'composite-continue-on-error-unsupported',
+        message:
+          '`continue_on_error` is not supported on a composite action step. Set it on the steps inside the action.',
+        path: stepPath(params, 'continue_on_error'),
+        details: {uses: fields.uses},
+      }),
+    );
+  }
   const stepEnv = normalizeEnv({
     env: params.step.env,
     path: stepPath(params, 'env'),

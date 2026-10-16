@@ -30,8 +30,10 @@ export type WorkflowStepModelDto = StepDto & {
   outputs: Record<string, unknown> | null;
   response: string | null;
   gate_result: StepAttemptDto['gate_result'];
-  attempts: StepAttemptDto[];
+  attempts: WorkflowStepAttemptModelDto[];
 };
+
+export type WorkflowStepAttemptModelDto = StepAttemptDto & {failure_ignored?: boolean};
 
 export type WorkflowJobExecutionModelDto = {
   id: string;
@@ -156,7 +158,7 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
 }
 
 export function toWorkflowStepAttemptModel(
-  dto: StepAttemptDto,
+  dto: WorkflowStepAttemptModelDto,
   jobExecutionId: string,
 ): StepAttempt {
   return new StepAttempt({
@@ -173,6 +175,7 @@ export function toWorkflowStepAttemptModel(
     error: dto.error,
     gateResult: toStepGateResult(dto.gate_result),
     restartFeedback: dto.restart_feedback,
+    ...(dto.failure_ignored === undefined ? {} : {failureIgnored: dto.failure_ignored}),
     invocations: dto.invocations.map(toStepAttemptInvocation),
     startedAt: dto.started_at,
     finishedAt: dto.finished_at,

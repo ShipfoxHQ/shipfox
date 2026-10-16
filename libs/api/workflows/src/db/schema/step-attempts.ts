@@ -1,6 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   integer,
@@ -47,6 +48,8 @@ export const stepAttempts = pgTable(
     logOutcome: text('log_outcome').$type<StepAttemptLogOutcome>(),
     gateResult: jsonb('gate_result').$type<Record<string, unknown>>(),
     restartFeedback: text('restart_feedback'),
+    // A failed attempt of a `continue_on_error` step whose failure left the job result unchanged.
+    failureIgnored: boolean('failure_ignored').notNull().default(false),
     invocations: jsonb('invocations')
       .notNull()
       .default([])
@@ -105,6 +108,7 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
     invocations: row.invocations ?? [],
     gateResult: (row.gateResult as Record<string, unknown>) ?? null,
     restartFeedback: row.restartFeedback ?? null,
+    failureIgnored: row.failureIgnored,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt ?? null,
     createdAt: row.createdAt,

@@ -120,6 +120,31 @@ describe('workflowJobLandingSelection', () => {
     });
   });
 
+  test('skips a failed step whose failure leaves the job result unchanged', () => {
+    const job = workflowJob({
+      steps: [
+        workflowStepDto({
+          id: 'step-ignored',
+          status: 'failed',
+          affects_job: false,
+          attempts: [workflowStepAttemptDto({status: 'failed', failure_ignored: true})],
+        }),
+        workflowStepDto({
+          id: 'step-failed',
+          position: 1,
+          status: 'failed',
+          affects_job: true,
+          attempts: [workflowStepAttemptDto({id: 'attempt-failed', status: 'failed'})],
+        }),
+      ],
+    }).jobExecutions[0];
+
+    expect(workflowJobLandingSelection(job)).toEqual({
+      stepId: 'step-failed',
+      attemptId: 'attempt-failed',
+    });
+  });
+
   test('selects the current attempt for the first failed step', () => {
     const job = workflowJob({
       steps: [

@@ -71,6 +71,7 @@ function step(overrides: Partial<Step>): Step {
     config: {},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,

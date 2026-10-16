@@ -33,7 +33,7 @@ import {
   defaultStepListJobExecution,
   entriesByParentEntryId,
   humanizeStatus,
-  IGNORED_POST_FAILURE_TEXT,
+  IGNORED_FAILURE_TEXT,
   isCompositeEntry,
   openStepListEntryIds,
   type StepAttemptModel,
@@ -584,7 +584,7 @@ function StepRowSummary({entry, open}: {entry: StepListEntryModel; open: boolean
         </div>
         {entry.failureIgnored ? (
           <Text as="span" size="xs" className="block truncate text-foreground-neutral-muted">
-            {IGNORED_POST_FAILURE_TEXT}
+            {IGNORED_FAILURE_TEXT}
           </Text>
         ) : null}
       </div>

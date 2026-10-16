@@ -924,6 +924,7 @@ function checkoutStep(checkout: Record<string, unknown>): Step {
     config: {checkout},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,

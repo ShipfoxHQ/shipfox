@@ -13,7 +13,7 @@ import {
   type StepAttemptDisplayDuration,
 } from '#core/workflow-run.js';
 
-export const IGNORED_POST_FAILURE_TEXT = 'This step failed. The job result is unchanged.';
+export const IGNORED_FAILURE_TEXT = 'This step failed. The job result is unchanged.';
 
 const KEY_PATH_SEPARATOR = ' › ';
 
@@ -27,7 +27,7 @@ export interface StepAttemptModel extends StepAttempt {
   displayDuration: StepAttemptDisplayDuration | null;
   statusVisual: StepStatusVisual;
   carriedOver: boolean;
-  /** A failed post whose failure leaves the job result unchanged. */
+  /** A failed attempt that leaves the job result unchanged. */
   failureIgnored: boolean;
 }
 
@@ -218,7 +218,7 @@ function toStepModel(step: Step, index: number): StepModel {
       ? undefined
       : Math.max(0, (step.attemptTotal ?? sortedAttempts.length) - sortedAttempts.length);
   const attempts = sortedAttempts.map((attempt, attemptIndex) => {
-    const failureIgnored = isIgnoredPostFailure(step, attempt.status);
+    const failureIgnored = isIgnoredFailure(step, attempt);
     return {
       ...attempt,
       attemptOrdinal:
@@ -238,8 +238,15 @@ function toStepModel(step: Step, index: number): StepModel {
   };
 }
 
-function isIgnoredPostFailure(step: Pick<Step, 'type' | 'affectsJob'>, status: string): boolean {
-  return step.type === 'post' && step.affectsJob === false && normalizeStatus(status) === 'failed';
+// The server marks each failed attempt that `continue_on_error` covered, and the step itself when
+// its current failure leaves the job result unchanged, as for a post with `post_failure: warn`.
+function isIgnoredFailure(
+  step: Pick<Step, 'affectsJob' | 'currentAttempt'>,
+  attempt: {status: string; attempt: number; failureIgnored?: boolean | undefined},
+): boolean {
+  if (normalizeStatus(attempt.status) !== 'failed') return false;
+  if (attempt.failureIgnored === true) return true;
+  return attempt.attempt === step.currentAttempt && step.affectsJob === false;
 }
 
 function entryStatusVisual(status: string, failureIgnored: boolean): StepStatusVisual {
@@ -342,7 +349,10 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
 
   if (!carriedOverJob) return [];
 
-  const failureIgnored = isIgnoredPostFailure(step, step.status);
+  const failureIgnored = isIgnoredFailure(step, {
+    status: step.status,
+    attempt: step.currentAttempt,
+  });
 
   return [
     {

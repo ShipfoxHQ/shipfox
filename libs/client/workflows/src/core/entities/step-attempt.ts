@@ -99,6 +99,8 @@ interface StepAttemptFields {
   error: Record<string, unknown> | null;
   gateResult: StepGateResult;
   restartFeedback: string | null;
+  /** `continue_on_error` covered this failed attempt. */
+  failureIgnored?: boolean | undefined;
   invocations: StepAttemptInvocation[];
   startedAt: string;
   finishedAt: string | null;
@@ -118,6 +120,7 @@ export class StepAttempt {
   error!: Record<string, unknown> | null;
   gateResult!: StepGateResult;
   restartFeedback!: string | null;
+  failureIgnored?: boolean | undefined;
   invocations!: StepAttemptInvocation[];
   startedAt!: string;
   finishedAt!: string | null;

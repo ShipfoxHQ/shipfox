@@ -13,6 +13,7 @@ export const STEP_STATUS_REASONS = [
   'timed_out',
   'run_cancelled',
   'runner_lost',
+  'failure_ignored',
 ] as const;
 
 export const stepStatusReasonSchema = z.enum(STEP_STATUS_REASONS);

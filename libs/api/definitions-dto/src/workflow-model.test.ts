@@ -83,4 +83,22 @@ describe('createWorkflowModelSnapshot', () => {
 
     expect(readPersistedWorkflowModel({version: 6, model: value})).toEqual(value);
   });
+
+  test('uses version 7 for a model with a continue_on_error step', () => {
+    const step = {...run('a'), continueOnError: true as const};
+
+    expect(createWorkflowModelSnapshot(model([step])).version).toBe(7);
+  });
+
+  test('uses version 7 for continue_on_error inside a composite', () => {
+    const inner = {...run('setup.a'), continueOnError: true as const};
+
+    expect(createWorkflowModelSnapshot(model([composite('setup', [inner])])).version).toBe(7);
+  });
+
+  test('reads a version 7 snapshot', () => {
+    const value = model([{...run('a'), continueOnError: true}]);
+
+    expect(readPersistedWorkflowModel({version: 7, model: value})).toEqual(value);
+  });
 });

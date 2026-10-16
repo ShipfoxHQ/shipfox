@@ -45,6 +45,7 @@ import {
   toWorkflowStepModel,
   type WorkflowJobExecutionModelDto,
   type WorkflowJobModelDto,
+  type WorkflowStepAttemptModelDto,
   type WorkflowStepModelDto,
 } from './workflow-model-mapper.js';
 
@@ -97,6 +98,7 @@ export function runAnnotationEntryFixture(
 }
 
 export type WorkflowStepFixtureDto = WorkflowStepModelDto;
+export type WorkflowStepAttemptDto = WorkflowStepAttemptModelDto;
 export type WorkflowJobExecutionFixtureDto = WorkflowJobExecutionModelDto;
 export type WorkflowJobFixtureDto = WorkflowJobModelDto;
 
@@ -561,6 +563,9 @@ function compactJobExecutionDto(
             finished_at: attempt.finished_at,
             error: compactAttemptError(attempt.error),
             gate_result: compactGateResult(attempt.gate_result),
+            ...(attempt.failure_ignored === undefined
+              ? {}
+              : {failure_ignored: attempt.failure_ignored}),
           })),
           next_cursor: null,
           total: step.attempts.length,
@@ -759,7 +764,9 @@ export function workflowStep(overrides: Partial<WorkflowStepFixtureDto> = {}): S
   return toWorkflowStepModel(workflowStepDto(overrides));
 }
 
-export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
+export function workflowStepAttemptDto(
+  overrides: Partial<WorkflowStepAttemptModelDto> = {},
+): WorkflowStepAttemptModelDto {
   attemptSequence += 1;
   return {
     id: `66666666-6666-4666-8666-${String(attemptSequence).padStart(12, '0')}`,

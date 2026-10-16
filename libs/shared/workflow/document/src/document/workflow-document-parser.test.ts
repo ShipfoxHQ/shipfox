@@ -55,6 +55,33 @@ describe('parseWorkflowDocument', () => {
     expect(() => parseWorkflowDocument({name: 'bad', jobs})).toThrow(InvalidWorkflowDocumentError);
   });
 
+  it('accepts continue_on_error on every step kind', () => {
+    const workflowDocument = {
+      name: 'reviews',
+      jobs: {
+        review: {
+          steps: [
+            {checkout: {}, continue_on_error: true},
+            {run: 'npm test', continue_on_error: true},
+            {key: 'perf', prompt: 'Review the diff.', continue_on_error: false},
+            {tool: 'github.get_pull_request', continue_on_error: true},
+          ],
+        },
+      },
+    };
+
+    expect(parseWorkflowDocument(workflowDocument)).toEqual(workflowDocument);
+  });
+
+  it('rejects a continue_on_error that is not a boolean', () => {
+    expect(() =>
+      parseWorkflowDocument({
+        name: 'bad',
+        jobs: {build: {steps: [{run: 'make', continue_on_error: 'yes'}]}},
+      }),
+    ).toThrow(InvalidWorkflowDocumentError);
+  });
+
   it('preserves the top-level concurrency policy when parsing', () => {
     const result = parseWorkflowDocument({
       name: 'concurrent build',

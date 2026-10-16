@@ -1,5 +1,10 @@
 import type {Step} from '../entities/step.js';
-import {decideStepTransition, deriveCompletion, isTerminal} from './decide-step-transition.js';
+import {
+  decideStepTransition,
+  deriveCompletion,
+  hasFailedStep,
+  isTerminal,
+} from './decide-step-transition.js';
 
 function step(overrides: Partial<Step> & {id: string; position: number}): Step {
   return {
@@ -15,6 +20,7 @@ function step(overrides: Partial<Step> & {id: string; position: number}): Step {
     config: {},
     condition: null,
     runAfter: 'success',
+    continueOnError: false,
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -58,6 +64,32 @@ describe('deriveCompletion with post steps', () => {
     const post = step({id: 'p', position: 2, type: 'post', status: 'failed', config: {}});
 
     expect(deriveCompletion([post])).toBe('failed');
+  });
+});
+
+describe('deriveCompletion with continue_on_error', () => {
+  test('ignores a failure that continue_on_error covered', () => {
+    const steps = [
+      step({id: 's1', position: 1, status: 'failed', statusReason: 'failure_ignored'}),
+      step({id: 's2', position: 2, status: 'succeeded'}),
+    ];
+
+    expect(hasFailedStep(steps)).toBe(false);
+    expect(deriveCompletion(steps)).toBe('succeeded');
+  });
+
+  test('counts a failure the flag did not cover, such as a timeout', () => {
+    const steps = [
+      step({
+        id: 's1',
+        position: 1,
+        status: 'failed',
+        statusReason: 'timed_out',
+        continueOnError: true,
+      }),
+    ];
+
+    expect(deriveCompletion(steps)).toBe('failed');
   });
 });
 
@@ -124,6 +156,41 @@ describe('decideStepTransition', () => {
       attempt: 1,
       failureError: {message: 'boom'},
     });
+  });
+
+  test('a failed step with continue_on_error marks its failure as ignored', () => {
+    const target = step({id: 's1', position: 1, status: 'running', continueOnError: true});
+
+    const decision = decideStepTransition({
+      steps: [target, step({id: 's2', position: 2, status: 'pending'})],
+      target,
+      reportedAttempt: 1,
+      result: {status: 'failed', error: {message: 'boom'}},
+    });
+
+    expect(decision).toEqual({
+      kind: 'fail-job',
+      failedStepId: 's1',
+      attempt: 1,
+      failureError: {message: 'boom'},
+      failureIgnored: true,
+    });
+  });
+
+  test('continue_on_error does not cover an unresolved restart_from', () => {
+    const target = step({id: 's1', position: 1, status: 'running', continueOnError: true});
+
+    const decision = decideStepTransition({
+      steps: [target],
+      target,
+      reportedAttempt: 1,
+      result: {status: 'failed', exitCode: 1},
+      gateOutcome: {kind: 'failed', source: 'exit_code == 0'},
+      gateOnFailure: {restartFrom: 'missing'},
+    });
+
+    expect(decision).toMatchObject({kind: 'fail-job'});
+    expect(decision).not.toHaveProperty('failureIgnored');
   });
 
   test('a passing gate succeeds the step even when the raw status is failed', () => {

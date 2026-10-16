@@ -142,6 +142,7 @@ const stepStatusReasonSchema = z.enum([
   'timed_out',
   'run_cancelled',
   'runner_lost',
+  'failure_ignored',
 ]);
 const boundedExecutionCountSchema = z.union([
   z.number().int().nonnegative().max(AGENT_ACCESS_WORKFLOW_EXECUTION_COUNT_MAX),
@@ -738,6 +739,7 @@ const stepsJsonSchema = {
         'timed_out',
         'run_cancelled',
         'runner_lost',
+        'failure_ignored',
       ],
     }),
     current_attempt: {type: 'integer', minimum: 1, maximum: AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX},
