@@ -144,7 +144,9 @@ describe('credential broker', () => {
 
     const firstRejection = broker.reject(repository);
     await started;
-    const capturedRejection = broker.captureFailureEvents(() => broker.reject(repository));
+    const capturedRejection = broker.captureFailureEvents((captureId) =>
+      broker.reject(repository, {captureId}),
+    );
     release();
 
     await expect(firstRejection).resolves.toEqual({rejectedGeneration: 'generation-a'});
@@ -158,6 +160,87 @@ describe('credential broker', () => {
         },
       ],
     });
+  });
+
+  it('delivers each failure only to the capture whose request it was', async () => {
+    const otherRepository = 'https://gitea.example/Org/Other';
+    const renew = vi.fn(() => Promise.reject(new Error('renewal failed')));
+    const broker = new CredentialBroker({renew, now: () => now});
+    broker.register({
+      repositoryUrl: repository,
+      subject: 'checkout-step:2',
+      credential: {...baseCredential, renewal: {mode: 'on-rejection' as const}},
+    });
+    broker.register({
+      repositoryUrl: otherRepository,
+      subject: 'checkout-step:3',
+      credential: {...baseCredential, renewal: {mode: 'on-rejection' as const}},
+    });
+    let releaseFirst!: () => void;
+    const firstHeld = new Promise<void>((resolve) => (releaseFirst = resolve));
+
+    const first = broker.captureFailureEvents(async (captureId) => {
+      await broker.reject(repository, {captureId});
+      await firstHeld;
+    });
+    const second = await broker.captureFailureEvents((captureId) =>
+      broker.reject(otherRepository, {captureId}),
+    );
+    releaseFirst();
+
+    expect((await first).events).toEqual([
+      expect.objectContaining({subject: 'checkout-step:2', kind: 'failed'}),
+    ]);
+    expect(second.events).toEqual([
+      expect.objectContaining({subject: 'checkout-step:3', kind: 'failed'}),
+    ]);
+  });
+
+  it('does not deliver a failure to a capture that sent no request', async () => {
+    const renew = vi.fn(() => Promise.reject(new Error('renewal failed')));
+    const broker = new CredentialBroker({renew, now: () => now});
+    broker.register({
+      repositoryUrl: repository,
+      subject: 'checkout-step:2',
+      credential: {...baseCredential, renewal: {mode: 'on-rejection' as const}},
+    });
+
+    const captured = await broker.captureFailureEvents(() => broker.reject(repository));
+
+    expect(captured.events).toEqual([]);
+    expect(broker.getFailureEventsSince(0)).toHaveLength(1);
+  });
+
+  it('delivers a shared renewal failure to every capture that joined it', async () => {
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => (release = resolve));
+    let resolveStarted!: () => void;
+    const started = new Promise<void>((resolve) => (resolveStarted = resolve));
+    const renew = vi.fn(async () => {
+      resolveStarted();
+      await pending;
+      throw new Error('renewal failed');
+    });
+    const broker = new CredentialBroker({renew, now: () => now});
+    broker.register({
+      repositoryUrl: repository,
+      subject: 'checkout-step:2',
+      credential: {...baseCredential, renewal: {mode: 'on-rejection' as const}},
+    });
+
+    const first = broker.captureFailureEvents((captureId) =>
+      broker.reject(repository, {captureId}),
+    );
+    await started;
+    const second = broker.captureFailureEvents((captureId) =>
+      broker.reject(repository, {captureId}),
+    );
+    release();
+
+    const [firstCapture, secondCapture] = await Promise.all([first, second]);
+    expect(renew).toHaveBeenCalledTimes(1);
+    expect(firstCapture.events).toEqual([expect.objectContaining({cursor: 1, kind: 'failed'})]);
+    expect(secondCapture.events).toEqual([expect.objectContaining({cursor: 1, kind: 'failed'})]);
   });
 
   it('starts a rejection-aware renewal after an in-flight refresh settles', async () => {
@@ -619,9 +702,9 @@ describe('credential broker', () => {
       credential: {...baseCredential, renewal: {mode: 'on-rejection' as const}},
     });
 
-    const captured = await broker.captureFailureEvents(async () => {
+    const captured = await broker.captureFailureEvents(async (captureId) => {
       for (let index = 0; index < MAX_CREDENTIAL_FAILURE_EVENTS + 1; index += 1) {
-        await broker.reject(repository);
+        await broker.reject(repository, {captureId});
       }
     });
 

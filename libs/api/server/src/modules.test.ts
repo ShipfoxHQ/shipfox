@@ -220,6 +220,7 @@ describe('defaultModules', () => {
           contract: authInterModuleContract,
           handlers: {
             mintJobLeaseToken: vi.fn(),
+            renewStepLeaseTokens: vi.fn(),
             mintRunnerSessionToken: vi.fn(),
             mintAgentLogDownloadToken: vi.fn(),
             checkAgentGrantAuthority: vi.fn(),

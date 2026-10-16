@@ -26,6 +26,7 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import {NODE_MOUNT, runnerMountPath} from '@shipfox/runner-container';
 import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
+import {CREDENTIAL_CAPTURE_ENV} from '@shipfox/runner-workspace/credential-socket';
 import {z} from 'zod';
 import {config} from '#config.js';
 import {CLAUDE_AUTH_HELPER_PATH} from '#core/claude-auth-helper.js';
@@ -333,6 +334,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     prompt,
     credentials,
     gitConfigGlobal,
+    credentialCaptureId,
     carriedEnv,
     container,
     signal,
@@ -423,16 +425,17 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         ...(credentialBroker === undefined
           ? {}
           : {settings: {apiKeyHelper: claudeApiKeyHelper(container)}}),
-        env: claudeEnvironment(
+        env: claudeEnvironment({
           auth,
           configDir,
           gitConfigGlobal,
+          credentialCaptureId,
           override,
           effectiveModel,
           credentialBroker,
           carriedEnv,
           container,
-        ),
+        }),
         ...(toolContext.mcpServers === undefined ? {} : {mcpServers: toolContext.mcpServers}),
         ...claudeSessionQueryOptions(sessionInvocation, sessionStore),
         includePartialMessages: false,
@@ -1560,16 +1563,27 @@ function forwardSessionEntry(
   }
 }
 
-function claudeEnvironment(
-  auth: ClaudeAuth,
-  configDir: string,
-  gitConfigGlobal: string | undefined,
-  override: ClaudeAnthropicOverride | undefined,
-  effectiveModel: string,
-  credentialBroker: ClaudeCredentialBroker | undefined,
-  carriedEnv: CarriedEnv | undefined,
-  container: AgentJobContainer | undefined,
-): NodeJS.ProcessEnv {
+function claudeEnvironment({
+  auth,
+  configDir,
+  gitConfigGlobal,
+  credentialCaptureId,
+  override,
+  effectiveModel,
+  credentialBroker,
+  carriedEnv,
+  container,
+}: {
+  auth: ClaudeAuth;
+  configDir: string;
+  gitConfigGlobal: string | undefined;
+  credentialCaptureId: string | undefined;
+  override: ClaudeAnthropicOverride | undefined;
+  effectiveModel: string;
+  credentialBroker: ClaudeCredentialBroker | undefined;
+  carriedEnv: CarriedEnv | undefined;
+  container: AgentJobContainer | undefined;
+}): NodeJS.ProcessEnv {
   // The container starts from its image, never from the runner's environment.
   const environment: NodeJS.ProcessEnv = {...(container?.env ?? process.env), ...carriedEnv?.env};
   if (carriedEnv !== undefined && carriedEnv.path.length > 0) {
@@ -1602,6 +1616,7 @@ function claudeEnvironment(
     CLAUDE_AGENT_SDK_CLIENT_APP: '@shipfox/runner-agent',
     CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
     ...(gitConfigGlobal ? {GIT_CONFIG_GLOBAL: gitConfigGlobal} : {}),
+    ...(credentialCaptureId ? {[CREDENTIAL_CAPTURE_ENV]: credentialCaptureId} : {}),
   });
   return environment;
 }

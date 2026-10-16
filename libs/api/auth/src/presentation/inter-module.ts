@@ -34,7 +34,7 @@ import {
   ImpersonationWindowStoppedError,
   ImpersonationWorkspaceNotActiveError,
 } from '#core/errors.js';
-import {issueJobLeaseToken} from '#core/job-lease-token.js';
+import {issueJobLeaseToken, renewStepLeaseTokens} from '#core/job-lease-token.js';
 import {AuthRateLimitExceededError, checkAuthRateLimit} from '#core/rate-limit.js';
 import {issueRunnerSessionToken} from '#core/runner-session-token.js';
 import {getUserSummary, getUserSummaryByEmail} from '#core/user-summary.js';
@@ -246,6 +246,7 @@ export function createAuthInterModulePresentation(
   return defineInterModulePresentation(authInterModuleContract, {
     mintRunnerSessionToken: async (claims) => ({token: await issueRunnerSessionToken(claims)}),
     mintJobLeaseToken: async (claims) => ({token: await issueJobLeaseToken(claims)}),
+    renewStepLeaseTokens: async (input) => ({tokens: await renewStepLeaseTokens(input)}),
     mintAgentLogDownloadToken: async (claims) => {
       const result = await mintAgentLogDownloadToken({
         sub: claims.userId,

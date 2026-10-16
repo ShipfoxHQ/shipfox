@@ -1,5 +1,13 @@
+import type {HeartbeatStepLeaseTokenDto} from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {HTTPError, heartbeat} from '@shipfox/runner-protocol';
+
+export interface RenewedLeaseTokens {
+  leaseToken: string;
+  /** The step tokens the heartbeat sent, and the renewals it got back for them. */
+  sentStepLeaseTokens: readonly string[];
+  stepLeaseTokens: readonly HeartbeatStepLeaseTokenDto[];
+}
 
 export interface HeartbeatLoopOptions {
   intervalMs: number;
@@ -13,14 +21,15 @@ export interface HeartbeatLoopOptions {
   isolationTimeoutSeconds?: number;
   /** Monotonic clock, injectable to make the fence deterministic in tests. */
   nowMs?: () => number;
-  onLeaseTokenRenewed?: (leaseToken: string) => void;
+  /** The step-scoped lease tokens to renew on each heartbeat. */
+  getStepLeaseTokens?: () => readonly string[];
+  /** Receives the renewed tokens of each heartbeat that confirmed the lease. */
+  onLeaseTokensRenewed?: (renewed: RenewedLeaseTokens) => void;
 }
 
 export interface HeartbeatLoopHandle {
   /** Aborts any in-flight heartbeat and clears the pending timer. Idempotent. */
   stop: () => void;
-  /** Marks externally adopted lease tokens so stale heartbeat renewals are ignored. */
-  bumpGeneration: () => void;
 }
 
 /**
@@ -41,7 +50,6 @@ export function startHeartbeatLoop(
   options: HeartbeatLoopOptions,
 ): HeartbeatLoopHandle {
   let stopped = false;
-  let generation = 0;
   let pendingTimer: NodeJS.Timeout | undefined;
   let currentHttpAc: AbortController | undefined;
   let isolationTimer: NodeJS.Timeout | undefined;
@@ -95,8 +103,8 @@ export function startHeartbeatLoop(
 
     const httpAc = new AbortController();
     currentHttpAc = httpAc;
-    const sentGeneration = generation;
     const sentLeaseToken = getLeaseToken();
+    const stepLeaseTokens = options.getStepLeaseTokens?.() ?? [];
 
     const staleTimer = setTimeout(() => {
       logger().warn(
@@ -107,13 +115,14 @@ export function startHeartbeatLoop(
     }, options.maxStaleMs);
 
     try {
-      const response = await heartbeat(jobId, sentLeaseToken, {signal: httpAc.signal});
+      const response = await heartbeat(jobId, sentLeaseToken, {
+        signal: httpAc.signal,
+        stepLeaseTokens,
+      });
       handleHeartbeatResponse({
         response,
+        sentStepLeaseTokens: stepLeaseTokens,
         isStopped: () => stopped,
-        generation,
-        sentGeneration,
-        getLeaseToken,
         options,
         jobId,
         confirmLease,
@@ -147,18 +156,13 @@ export function startHeartbeatLoop(
       clearIsolationTimer();
       if (currentHttpAc) currentHttpAc.abort();
     },
-    bumpGeneration: () => {
-      generation += 1;
-    },
   };
 }
 
 function handleHeartbeatResponse(params: {
   response: Awaited<ReturnType<typeof heartbeat>>;
+  sentStepLeaseTokens: readonly string[];
   isStopped: () => boolean;
-  generation: number;
-  sentGeneration: number;
-  getLeaseToken: () => string;
   options: HeartbeatLoopOptions;
   jobId: string;
   confirmLease: () => void;
@@ -166,12 +170,12 @@ function handleHeartbeatResponse(params: {
   scheduleNext: () => void;
 }): void {
   if (params.isStopped()) return;
-  if (params.generation === params.sentGeneration) {
-    params.confirmLease();
-    if (params.response.lease_token !== params.getLeaseToken()) {
-      params.options.onLeaseTokenRenewed?.(params.response.lease_token);
-    }
-  }
+  params.confirmLease();
+  params.options.onLeaseTokensRenewed?.({
+    leaseToken: params.response.lease_token,
+    sentStepLeaseTokens: params.sentStepLeaseTokens,
+    stepLeaseTokens: params.response.step_lease_tokens,
+  });
   if (params.response.cancel) {
     logger().info({jobId: params.jobId}, 'Heartbeat returned cancel:true; aborting job');
     params.abortJob(params.response.cancellation_reason ?? 'cancelled');

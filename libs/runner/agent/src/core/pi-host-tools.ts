@@ -14,6 +14,7 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import type {ExecutionHost, HostProcess, HostProcessExit} from '@shipfox/runner-container';
 import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
+import {CREDENTIAL_CAPTURE_ENV} from '@shipfox/runner-workspace/credential-socket';
 import type {AgentJobContainer} from '#core/harness.js';
 import {detectSupportedImageMimeType, SNIFF_BYTES} from '#core/pi-image-mime.js';
 
@@ -47,6 +48,8 @@ export function createPiHostToolDefinitions(params: {
   settings: PiHostToolSettings;
   /** Becomes `GIT_CONFIG_GLOBAL` for shell commands only, instead of the runner's environment. */
   gitConfigGlobal: string | undefined;
+  /** Becomes `SHIPFOX_CREDENTIAL_CAPTURE` for shell commands, like `gitConfigGlobal`. */
+  credentialCaptureId?: string | undefined;
   /** What earlier steps carried. Shell commands get it above the base environment. */
   carriedEnv?: CarriedEnv | undefined;
   /** Set in container jobs: shell commands use its shell and start from its environment. */
@@ -77,6 +80,7 @@ export function createPiHostToolDefinitions(params: {
           operations: createBashOperations(host, {
             shellPath: settings.shellPath,
             gitConfigGlobal: params.gitConfigGlobal,
+            credentialCaptureId: params.credentialCaptureId,
             carriedEnv: params.carriedEnv,
             container: params.container,
           }),
@@ -144,6 +148,7 @@ export function createBashOperations(
   options: {
     shellPath: string | undefined;
     gitConfigGlobal: string | undefined;
+    credentialCaptureId?: string | undefined;
     carriedEnv?: CarriedEnv | undefined;
     container?: Pick<AgentJobContainer, 'shell' | 'env'> | undefined;
   },
@@ -199,9 +204,13 @@ function baseEnvironment(
 
 function shellEnvironment(
   env: NodeJS.ProcessEnv,
-  options: {gitConfigGlobal: string | undefined; carriedEnv?: CarriedEnv | undefined},
+  options: {
+    gitConfigGlobal: string | undefined;
+    credentialCaptureId?: string | undefined;
+    carriedEnv?: CarriedEnv | undefined;
+  },
 ): Record<string, string> {
-  const {gitConfigGlobal, carriedEnv} = options;
+  const {gitConfigGlobal, credentialCaptureId, carriedEnv} = options;
   const shellEnv = {...definedEntries(env), ...carriedEnv?.env};
   if (carriedEnv !== undefined && carriedEnv.path.length > 0) {
     shellEnv.PATH = prependPath(carriedEnv.path, shellEnv.PATH);
@@ -209,6 +218,7 @@ function shellEnvironment(
   return {
     ...shellEnv,
     ...(gitConfigGlobal === undefined ? {} : {GIT_CONFIG_GLOBAL: gitConfigGlobal}),
+    ...(credentialCaptureId === undefined ? {} : {[CREDENTIAL_CAPTURE_ENV]: credentialCaptureId}),
   };
 }
 

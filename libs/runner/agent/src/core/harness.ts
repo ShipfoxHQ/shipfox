@@ -87,6 +87,8 @@ export interface HarnessInvocation {
   readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;
   readonly claude?: ClaudeRuntimeConfigDto | undefined;
   readonly gitConfigGlobal?: string | undefined;
+  /** Sent by the Git credential helper, so the step's credential failures are reported to it. */
+  readonly credentialCaptureId?: string | undefined;
   /** Where the agent's tools and processes run. Defaults to the runner's own machine. */
   readonly host?: ExecutionHost | undefined;
   /** Set when `host` is the job container. */

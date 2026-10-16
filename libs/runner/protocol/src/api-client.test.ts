@@ -279,7 +279,9 @@ describe('api-client auth contexts', () => {
   });
 
   it('heartbeat sends the job lease token', async () => {
-    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
+    stubFetch(() =>
+      jsonResponse({cancel: false, lease_token: 'lease-next', step_lease_tokens: []}),
+    );
 
     const response = await heartbeat(JOB_ID, 'lease-heartbeat');
 
@@ -287,6 +289,33 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
     expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
     expect(calls[0]?.body).toBeUndefined();
+  });
+
+  it('heartbeat sends the step lease tokens it should renew', async () => {
+    const renewed = {step_id: STEP_ID, attempt: 2, lease_token: 'step-lease-next'};
+    stubFetch(() =>
+      jsonResponse({cancel: false, lease_token: 'lease-next', step_lease_tokens: [renewed]}),
+    );
+
+    const response = await heartbeat(JOB_ID, 'lease-heartbeat', {
+      stepLeaseTokens: ['step-lease-current'],
+    });
+
+    expect(response.step_lease_tokens).toEqual([renewed]);
+    expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      step_lease_tokens: ['step-lease-current'],
+    });
+  });
+
+  it('heartbeat sends at most the step lease tokens the API accepts', async () => {
+    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
+    const tokens = Array.from({length: 70}, (_, index) => `step-lease-${index}`);
+
+    const response = await heartbeat(JOB_ID, 'lease-heartbeat', {stepLeaseTokens: tokens});
+
+    expect(response.step_lease_tokens).toEqual([]);
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({step_lease_tokens: tokens.slice(0, 64)});
   });
 
   it('requestNextStep sends the lease token, not the runner registration token', async () => {

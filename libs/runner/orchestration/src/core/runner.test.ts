@@ -313,7 +313,7 @@ describe('runJob', () => {
     );
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
     expect(leaseTokenSource).toEqual(expect.any(Function));
-    expect(mockRunJobSteps.mock.calls[0]?.[0].leaseToken).toEqual(expect.any(Function));
+    expect(mockRunJobSteps.mock.calls[0]?.[0].stepLeases).toBeDefined();
     expect(mockRunJobSteps).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: JOB.job_id,
@@ -414,7 +414,7 @@ describe('runJob', () => {
     );
   });
 
-  it('rotates the lease token used by step requests and redaction', async () => {
+  it('rotates the job lease token used by job requests and redaction', async () => {
     mockJobWorkspacePath.mockReturnValue(JOB_CWD);
     mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
     mockJobAgentStatePath.mockReturnValue(JOB_AGENT_STATE_DIR);
@@ -429,18 +429,26 @@ describe('runJob', () => {
 
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
     const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
-    const stepLeaseTokenSource = stepParams?.leaseToken as (() => string) | undefined;
     expect(typeof leaseTokenSource).toBe('function');
-    expect(typeof stepLeaseTokenSource).toBe('function');
     expect((leaseTokenSource as () => string)()).toBe(JOB.lease_token);
-    expect(stepLeaseTokenSource?.()).toBe(JOB.lease_token);
     expect(stepParams?.secrets).toEqual(['sf_mrt_runner-registration-token', JOB.lease_token]);
     const heartbeatOptions = mockStartHeartbeatLoop.mock.calls[0]?.[3];
-    heartbeatOptions?.onLeaseTokenRenewed?.('lease-next');
+    heartbeatOptions?.onLeaseTokensRenewed?.({
+      leaseToken: 'lease-next',
+      sentStepLeaseTokens: [],
+      stepLeaseTokens: [],
+    });
     expect((leaseTokenSource as () => string)()).toBe('lease-next');
-    expect(stepLeaseTokenSource?.()).toBe('lease-next');
-    heartbeatOptions?.onLeaseTokenRenewed?.('lease-third');
-    heartbeatOptions?.onLeaseTokenRenewed?.('lease-fourth');
+    heartbeatOptions?.onLeaseTokensRenewed?.({
+      leaseToken: 'lease-third',
+      sentStepLeaseTokens: [],
+      stepLeaseTokens: [],
+    });
+    heartbeatOptions?.onLeaseTokensRenewed?.({
+      leaseToken: 'lease-fourth',
+      sentStepLeaseTokens: [],
+      stepLeaseTokens: [],
+    });
 
     expect((leaseTokenSource as () => string)()).toBe('lease-fourth');
     expect(observedSecrets).toEqual([
@@ -471,7 +479,11 @@ describe('runJob', () => {
     await runJob(JOB, WORKSPACE_ROOT);
 
     const heartbeatOptions = mockStartHeartbeatLoop.mock.calls[0]?.[3];
-    heartbeatOptions?.onLeaseTokenRenewed?.('lease-next');
+    heartbeatOptions?.onLeaseTokensRenewed?.({
+      leaseToken: 'lease-next',
+      sentStepLeaseTokens: [],
+      stepLeaseTokens: [],
+    });
 
     expect(observedSecrets).toEqual([
       ['sf_mrt_runner-registration-token', JOB.lease_token, 'checkout-token', 'basic-credential'],
@@ -575,31 +587,61 @@ describe('runJob', () => {
     ]);
   });
 
-  it('adopts next-step lease tokens for requests, redaction, and heartbeat generation', async () => {
-    const heartbeatHandle = {stop: vi.fn(), bumpGeneration: vi.fn()};
-    mockStartHeartbeatLoop.mockReturnValueOnce(heartbeatHandle);
+  it('holds step-scoped tokens for step requests, heartbeat renewal, and redaction', async () => {
     mockJobWorkspacePath.mockReturnValue(JOB_CWD);
     mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
     mockJobAgentStatePath.mockReturnValue(JOB_AGENT_STATE_DIR);
 
     await runJob(JOB, WORKSPACE_ROOT);
 
-    const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
+    const jobLeaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0] as () => string;
     const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
-    const stepLeaseTokenSource = stepParams?.leaseToken as (() => string) | undefined;
-    expect(typeof leaseTokenSource).toBe('function');
-    expect(typeof stepLeaseTokenSource).toBe('function');
+    const heartbeatOptions = mockStartHeartbeatLoop.mock.calls[0]?.[3];
+    const stepId = crypto.randomUUID();
+    const lease = stepParams?.stepLeases.hold({stepId, attempt: 2, leaseToken: 'lease-step'});
+    const stepLeaseTokenSource = mockCreateLeaseClient.mock.calls[1]?.[0] as () => string;
 
-    stepParams?.onLeaseTokenAdopted?.('lease-step-scoped');
-
-    expect((leaseTokenSource as () => string)()).toBe('lease-step-scoped');
-    expect(stepLeaseTokenSource?.()).toBe('lease-step-scoped');
+    expect(lease?.token()).toBe('lease-step');
+    expect(stepLeaseTokenSource()).toBe('lease-step');
+    expect(jobLeaseTokenSource()).toBe(JOB.lease_token);
+    expect(heartbeatOptions?.getStepLeaseTokens?.()).toEqual(['lease-step']);
     expect(stepParams?.secrets).toEqual([
       'sf_mrt_runner-registration-token',
       JOB.lease_token,
-      'lease-step-scoped',
+      'lease-step',
     ]);
-    expect(heartbeatHandle.bumpGeneration).toHaveBeenCalledTimes(1);
+
+    const notifications: string[][] = [];
+    stepParams?.subscribeSecrets?.((secrets) => notifications.push(secrets));
+    heartbeatOptions?.onLeaseTokensRenewed?.({
+      leaseToken: 'lease-job-renewed',
+      sentStepLeaseTokens: ['lease-step'],
+      stepLeaseTokens: [
+        {step_id: stepId, attempt: 2, lease_token: 'lease-step-renewed'},
+        {step_id: crypto.randomUUID(), attempt: 1, lease_token: 'lease-ended-step'},
+      ],
+    });
+
+    expect(notifications).toHaveLength(1);
+    expect(jobLeaseTokenSource()).toBe('lease-job-renewed');
+    expect(stepLeaseTokenSource()).toBe('lease-step-renewed');
+    expect(heartbeatOptions?.getStepLeaseTokens?.()).toEqual(['lease-step-renewed']);
+    expect(stepParams?.secrets).toEqual([
+      'sf_mrt_runner-registration-token',
+      JOB.lease_token,
+      'lease-job-renewed',
+      'lease-step-renewed',
+      'lease-step',
+    ]);
+
+    lease?.release();
+
+    expect(heartbeatOptions?.getStepLeaseTokens?.()).toEqual([]);
+    expect(stepParams?.secrets).toEqual([
+      'sf_mrt_runner-registration-token',
+      JOB.lease_token,
+      'lease-job-renewed',
+    ]);
   });
 
   it('cleans up the per-job cwd when the step loop throws', async () => {

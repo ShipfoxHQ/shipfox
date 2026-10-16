@@ -94,6 +94,22 @@ describe('credential socket transport', () => {
     expect(renew).toHaveBeenCalledTimes(1);
   });
 
+  it('delivers a renewal failure to the capture the request names', async () => {
+    renew.mockReset().mockRejectedValue(new Error('renewal failed'));
+
+    const captured = await broker.captureFailureEvents((captureId) =>
+      requestCredentialSocket(socketPath, {
+        operation: 'erase',
+        repositoryUrl,
+        capability,
+        captureId,
+      }),
+    );
+
+    expect(captured.value).toEqual({version: 1, ok: true});
+    expect(captured.events).toEqual([expect.objectContaining({subject: 'job-1', kind: 'failed'})]);
+  });
+
   it('rejects invalid client setup and unsafe server repository URLs', async () => {
     await expect(
       requestCredentialSocket('relative.sock', {operation: 'get', repositoryUrl, capability}),

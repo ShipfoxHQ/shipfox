@@ -82,3 +82,42 @@ export async function verifyJobLeaseToken(token: string): Promise<JobLeaseTokenC
     return null;
   }
 }
+
+export interface RenewedStepLeaseToken {
+  stepId: string;
+  attempt: number;
+  token: string;
+}
+
+/**
+ * Re-issues each valid step-scoped token of the job execution and runner session with a fresh
+ * expiry and the same claims. Tokens that fail verification, carry no step scope, or belong to
+ * another lease are dropped.
+ */
+export async function renewStepLeaseTokens(params: {
+  jobExecutionId: string;
+  runnerSessionId: string;
+  tokens: readonly string[];
+}): Promise<RenewedStepLeaseToken[]> {
+  const renewed = await Promise.all(
+    [...new Set(params.tokens)].map(async (token): Promise<RenewedStepLeaseToken | undefined> => {
+      const claims = await verifyJobLeaseToken(token);
+      if (
+        claims === null ||
+        claims.jobExecutionId !== params.jobExecutionId ||
+        claims.runnerSessionId !== params.runnerSessionId ||
+        claims.currentStepId === undefined ||
+        claims.currentStepAttempt === undefined
+      ) {
+        return undefined;
+      }
+      const {aud: _aud, iat: _iat, exp: _exp, ...issueParams} = claims;
+      return {
+        stepId: claims.currentStepId,
+        attempt: claims.currentStepAttempt,
+        token: await issueJobLeaseToken(issueParams),
+      };
+    }),
+  );
+  return renewed.filter((entry) => entry !== undefined);
+}

@@ -233,6 +233,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
       host: invocation.host ?? localExecutionHost,
       container: invocation.container,
       gitConfigGlobal,
+      credentialCaptureId: invocation.credentialCaptureId,
       carriedEnv: invocation.carriedEnv,
       mcpConfig,
       cwd,
@@ -275,6 +276,7 @@ async function createPiSession(params: {
   host: ExecutionHost;
   container: HarnessInvocation['container'];
   gitConfigGlobal: string | undefined;
+  credentialCaptureId: string | undefined;
   carriedEnv: HarnessInvocation['carriedEnv'];
   mcpConfig: PiMcpConfig | undefined;
   cwd: string;
@@ -295,6 +297,7 @@ async function createPiSession(params: {
       shellPath: params.services.settingsManager.getShellPath(),
     },
     gitConfigGlobal: params.gitConfigGlobal,
+    credentialCaptureId: params.credentialCaptureId,
     carriedEnv: params.carriedEnv,
     container: params.container,
   });

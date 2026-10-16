@@ -2,12 +2,15 @@ import {mkdtemp, realpath, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {LocalExecutionHost} from '#local-execution-host.js';
-import {describeExecutionHostContract} from '#testing/execution-host-contract.js';
+import {
+  CONTRACT_TERMINATE_GRACE_MS,
+  describeExecutionHostContract,
+} from '#testing/execution-host-contract.js';
 
 describeExecutionHostContract('LocalExecutionHost', async () => {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'shipfox-local-host-')));
   return {
-    host: new LocalExecutionHost(),
+    host: new LocalExecutionHost({terminateGraceMs: CONTRACT_TERMINATE_GRACE_MS}),
     directory,
     dispose: () => rm(directory, {recursive: true, force: true}),
   };

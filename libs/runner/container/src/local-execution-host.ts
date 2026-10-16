@@ -3,20 +3,36 @@ import {createWriteStream, type Dirent, type Stats} from 'node:fs';
 import {access, mkdir, open, readdir, readFile, stat, writeFile} from 'node:fs/promises';
 import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
-import type {
-  ExecutionHost,
-  HostDirEntry,
-  HostFileType,
-  HostProcess,
-  HostProcessExit,
-  HostReadFileOptions,
-  HostStat,
-  HostWriteFileOptions,
-  SpawnRequest,
+import {setTimeout as sleep} from 'node:timers/promises';
+import {
+  DEFAULT_TERMINATE_GRACE_MS,
+  type ExecutionHost,
+  type HostDirEntry,
+  type HostFileType,
+  type HostProcess,
+  type HostProcessExit,
+  type HostReadFileOptions,
+  type HostStat,
+  type HostWriteFileOptions,
+  type KillTreeMode,
+  type SpawnRequest,
 } from '#execution-host.js';
+
+const GROUP_POLL_MS = 50;
+
+export interface LocalExecutionHostParams {
+  /** How long `killTree('terminate')` waits after SIGTERM before it SIGKILLs. 10 s by default. */
+  terminateGraceMs?: number | undefined;
+}
 
 /** Runs processes on the runner's machine and reads and writes its files with Node `fs`. */
 export class LocalExecutionHost implements ExecutionHost {
+  private readonly terminateGraceMs: number;
+
+  constructor(params: LocalExecutionHostParams = {}) {
+    this.terminateGraceMs = params.terminateGraceMs ?? DEFAULT_TERMINATE_GRACE_MS;
+  }
+
   spawn(request: SpawnRequest): HostProcess {
     const command = withDefaultOomScore(request.argv);
     // detached:true makes the process a process-group leader, so killTree() can SIGKILL its
@@ -28,12 +44,20 @@ export class LocalExecutionHost implements ExecutionHost {
       cwd: request.cwd,
       env: {...request.env},
     });
-    const killTree = () => Promise.resolve(killProcessGroup(child));
+    let terminating: Promise<void> | undefined;
+    const killTree = (mode: KillTreeMode = 'kill'): Promise<void> => {
+      if (mode === 'kill') {
+        signalProcessGroup(child, 'SIGKILL');
+        return Promise.resolve();
+      }
+      terminating ??= terminateProcessGroup(child, this.terminateGraceMs);
+      return terminating;
+    };
     if (!child.stdout || !child.stderr) {
-      killProcessGroup(child);
+      signalProcessGroup(child, 'SIGKILL');
       throw new Error('Failed to spawn process without output pipes');
     }
-    if (request.killTreeOnExit) child.on('exit', () => killProcessGroup(child));
+    if (request.killTreeOnExit) child.on('exit', () => signalProcessGroup(child, 'SIGKILL'));
 
     const exited = new Promise<HostProcessExit>((resolve, reject) => {
       child.on('error', reject);
@@ -128,14 +152,27 @@ export class LocalExecutionHost implements ExecutionHost {
 
 export const localExecutionHost: ExecutionHost = new LocalExecutionHost();
 
-function killProcessGroup(child: ChildProcess): void {
-  if (child.pid === undefined) return;
+// Returns false when the group is already gone. Signal 0 only probes the group.
+function signalProcessGroup(child: ChildProcess, signal: NodeJS.Signals | 0): boolean {
+  if (child.pid === undefined) return false;
   try {
     // Negative pid signals the entire process group.
-    process.kill(-child.pid, 'SIGKILL');
+    process.kill(-child.pid, signal);
+    return true;
   } catch {
-    // The group is already gone.
+    return false;
   }
+}
+
+// A descendant can outlive the process itself, so the group, not the process, is what must end.
+async function terminateProcessGroup(child: ChildProcess, graceMs: number): Promise<void> {
+  if (!signalProcessGroup(child, 'SIGTERM')) return;
+  const deadline = Date.now() + graceMs;
+  while (Date.now() < deadline) {
+    await sleep(Math.min(GROUP_POLL_MS, deadline - Date.now()));
+    if (!signalProcessGroup(child, 0)) return;
+  }
+  signalProcessGroup(child, 'SIGKILL');
 }
 
 // Runner images lower the runner's OOM score, and children inherit it. The process resets its

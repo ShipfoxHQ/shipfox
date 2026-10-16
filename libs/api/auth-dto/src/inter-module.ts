@@ -136,6 +136,27 @@ export const authInterModuleContract = defineInterModuleContract({
       input: jobLeaseClaimsSchema,
       output: z.object({token: z.string().min(1)}),
     },
+    /**
+     * Re-mints step-scoped job lease tokens with a fresh expiry. A token is renewed only when
+     * it is valid and belongs to the given job execution and runner session; any other token is
+     * left out of the result.
+     */
+    renewStepLeaseTokens: {
+      input: z.object({
+        jobExecutionId: idSchema,
+        runnerSessionId: idSchema,
+        tokens: z.array(z.string().min(1)),
+      }),
+      output: z.object({
+        tokens: z.array(
+          z.object({
+            stepId: idSchema,
+            attempt: z.number().int().positive(),
+            token: z.string().min(1),
+          }),
+        ),
+      }),
+    },
     mintAgentLogDownloadToken: {
       input: z.object({
         userId: agentLogDownloadTokenIdSchema,

@@ -276,6 +276,19 @@ describe('executeRunStep', () => {
     });
   });
 
+  it('passes the credential capture of the step to the Git credential helper', async () => {
+    const step = buildStep({config: {run: nodeEnvDumpCommand(['SHIPFOX_CREDENTIAL_CAPTURE'])}});
+
+    const output = collectOutput();
+    const result = await executeRunStep(step, {
+      credentialCaptureId: 'capture-1',
+      onOutput: output.sink,
+    });
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(output.text())).toEqual({SHIPFOX_CREDENTIAL_CAPTURE: 'capture-1'});
+  });
+
   it('leaves GIT_CONFIG_GLOBAL unset when the checkout persisted no credentials', async () => {
     const previous = process.env.GIT_CONFIG_GLOBAL;
     delete process.env.GIT_CONFIG_GLOBAL;

@@ -8,6 +8,7 @@ import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets, safeRedactionPrefixLength, secretWireForms} from '@shipfox/redact';
 import {type ExecutionHost, type HostProcess, localExecutionHost} from '@shipfox/runner-container';
+import {CREDENTIAL_CAPTURE_ENV} from '@shipfox/runner-workspace/credential-socket';
 import {
   type AnnotationSpool,
   collectAnnotationOperations,
@@ -74,6 +75,8 @@ export interface StepProcessOptions {
    * repository-scoped credential, matching what agent steps already get.
    */
   gitConfigGlobal?: string;
+  /** Sent by the Git credential helper, so the step's credential failures are reported to it. */
+  credentialCaptureId?: string;
   /** Where the process runs. Defaults to the runner's own machine. */
   host?: ExecutionHost;
   /**
@@ -444,6 +447,9 @@ function spawnRunStepProcess(
           ? {SHIPFOX_WORKSPACE: options.workspace ?? options.cwd}
           : {}),
         ...(options.gitConfigGlobal ? {GIT_CONFIG_GLOBAL: options.gitConfigGlobal} : {}),
+        ...(options.credentialCaptureId
+          ? {[CREDENTIAL_CAPTURE_ENV]: options.credentialCaptureId}
+          : {}),
         SHIPFOX_OUTPUT: files.output,
         SHIPFOX_ENV: files.env,
         SHIPFOX_PATH: files.path,

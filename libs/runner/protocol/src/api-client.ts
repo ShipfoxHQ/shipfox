@@ -22,6 +22,8 @@ import {appendLogsResponseSchema, offsetGapResponseSchema} from '@shipfox/api-lo
 import {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
+  HEARTBEAT_STEP_LEASE_TOKENS_MAX,
+  type HeartbeatBodyDto,
   type HeartbeatResponseDto,
   heartbeatResponseSchema,
   type RegisterRunnerResponseDto,
@@ -979,12 +981,17 @@ export async function writeStepAnnotations(
 export async function heartbeat(
   jobId: string,
   leaseToken: string,
-  options: {signal?: AbortSignal} = {},
+  options: {signal?: AbortSignal; stepLeaseTokens?: readonly string[]} = {},
 ): Promise<HeartbeatResponseDto> {
-  const response = await createLeaseClient(leaseToken).post(
-    `runners/jobs/${jobId}/heartbeat`,
-    options.signal ? {signal: options.signal} : undefined,
-  );
+  // The API rejects a longer list, which would fail the whole heartbeat. Concurrent steps stay
+  // well below it.
+  const stepLeaseTokens = options.stepLeaseTokens?.slice(0, HEARTBEAT_STEP_LEASE_TOKENS_MAX) ?? [];
+  const body: HeartbeatBodyDto | undefined =
+    stepLeaseTokens.length === 0 ? undefined : {step_lease_tokens: stepLeaseTokens};
+  const response = await createLeaseClient(leaseToken).post(`runners/jobs/${jobId}/heartbeat`, {
+    ...(body ? {json: body} : {}),
+    ...(options.signal ? {signal: options.signal} : {}),
+  });
   return heartbeatResponseSchema.parse(await response.json());
 }
 

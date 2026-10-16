@@ -85,6 +85,7 @@ export async function executeAgentStep(
       claude?: ClaudeRuntimeConfigDto | undefined;
     };
     gitConfigGlobal?: string | undefined;
+    credentialCaptureId?: string | undefined;
     carriedEnv?: CarriedEnv | undefined;
     /** Where the agent's processes run. Defaults to the runner's own machine. */
     host?: ExecutionHost | undefined;
@@ -161,6 +162,7 @@ export async function executeAgentStep(
       ...(options.runtime.claude === undefined ? {} : {claude: options.runtime.claude}),
       signal: options.signal,
       gitConfigGlobal: options.gitConfigGlobal,
+      credentialCaptureId: options.credentialCaptureId,
       carriedEnv: options.carriedEnv,
       placement: agentPlacement(options.host, options.container),
       onSessionEntry: options.onSessionEntry,
@@ -326,6 +328,7 @@ async function runSelectedHarness(params: {
   claude?: ClaudeRuntimeConfigDto | undefined;
   signal: AbortSignal | undefined;
   gitConfigGlobal: string | undefined;
+  credentialCaptureId: string | undefined;
   carriedEnv: CarriedEnv | undefined;
   placement: Pick<HarnessInvocation, 'host' | 'container'>;
   onSessionEntry: ((line: string) => void) | undefined;
@@ -353,6 +356,7 @@ async function runSelectedHarness(params: {
     customProvider,
     claude,
     gitConfigGlobal,
+    credentialCaptureId,
     carriedEnv,
     placement,
     onSessionEntry,
@@ -393,6 +397,7 @@ async function runSelectedHarness(params: {
         ...(claude === undefined ? {} : {claude}),
         signal,
         ...(gitConfigGlobal ? {gitConfigGlobal} : {}),
+        ...(credentialCaptureId ? {credentialCaptureId} : {}),
         ...(carriedEnv ? {carriedEnv} : {}),
         ...placement,
         ...(onSessionEntry ? {onSessionEntry} : {}),

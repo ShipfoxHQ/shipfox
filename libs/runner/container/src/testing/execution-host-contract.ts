@@ -14,6 +14,9 @@ const BASE_ENV = {PATH: process.env.PATH ?? '/usr/bin:/bin'};
 const WAIT_STEP_MS = 50;
 const WAIT_LIMIT_MS = 5000;
 
+/** The `terminateGraceMs` the host under test must be built with. */
+export const CONTRACT_TERMINATE_GRACE_MS = 3000;
+
 /**
  * The behavior every `ExecutionHost` must have. The local host runs it today, and the container
  * host runs the same suite. It only needs `sh` and coreutils in the host.
@@ -135,6 +138,49 @@ export function describeExecutionHostContract(
         await child.exited;
 
         await expect(child.killTree()).resolves.toBeUndefined();
+        await expect(child.killTree('terminate')).resolves.toBeUndefined();
+      });
+
+      it('terminates a process that exits on SIGTERM without waiting for the grace period', async () => {
+        const child = run(`trap 'exit 0' TERM; sleep 60 & echo $!; wait`);
+        const output = readAll(child.stdout);
+        const pid = await firstLine(child.stdout, output);
+        const started = Date.now();
+
+        await child.killTree('terminate');
+        const exit = await child.exited;
+
+        expect(Date.now() - started).toBeLessThan(CONTRACT_TERMINATE_GRACE_MS);
+        expect(exit.exitCode).toBe(0);
+        await waitFor(async () => !(await isAlive(pid)));
+      });
+
+      it('terminate escalates to SIGKILL after the grace period', async () => {
+        const child = run(`trap '' TERM; sleep 60 & echo $!; wait`);
+        const output = readAll(child.stdout);
+        const pid = await firstLine(child.stdout, output);
+        const started = Date.now();
+
+        await child.killTree('terminate');
+        const exit = await child.exited;
+
+        expect(Date.now() - started).toBeGreaterThanOrEqual(CONTRACT_TERMINATE_GRACE_MS);
+        expect(exit.exitCode).not.toBe(0);
+        await waitFor(async () => !(await isAlive(pid)));
+      }, 30_000);
+
+      it('kills at once when asked to during the grace period', async () => {
+        const child = run(`trap '' TERM; sleep 60 & echo $!; wait`);
+        const output = readAll(child.stdout);
+        const pid = await firstLine(child.stdout, output);
+        const started = Date.now();
+
+        const terminating = child.killTree('terminate');
+        await child.killTree();
+        await Promise.all([terminating, child.exited]);
+
+        expect(Date.now() - started).toBeLessThan(CONTRACT_TERMINATE_GRACE_MS);
+        await waitFor(async () => !(await isAlive(pid)));
       });
     });
 
