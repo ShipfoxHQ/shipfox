@@ -161,7 +161,9 @@ const GET_PULL_REQUEST_REVIEW_THREADS_QUERY = `
                 }
                 path
                 line
+                originalLine
                 startLine
+                originalStartLine
                 createdAt
                 updatedAt
                 url

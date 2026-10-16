@@ -221,7 +221,7 @@ describe('GitHub API mock pull requests', () => {
     }
   });
 
-  it('reports outdated review threads by their original line', async () => {
+  it('reports outdated review threads by their original lines in GraphQL and REST', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
@@ -235,12 +235,13 @@ describe('GitHub API mock pull requests', () => {
       mock.reviewThreads.set('PRRT_outdated', {
         pullNumber: 3,
         path: 'src/report.ts',
+        startLine: 7,
         line: 9,
         isOutdated: true,
         comments: [{id: 12, body: 'Drop the cast.', author: 'reviewer'}],
       });
 
-      const response = await fetch(new URL('/graphql', mock.endpoint), {
+      const graphql = await fetch(new URL('/graphql', mock.endpoint), {
         method: 'POST',
         headers: HEADERS,
         body: JSON.stringify({
@@ -248,21 +249,40 @@ describe('GitHub API mock pull requests', () => {
           variables: {owner: 'acme', repo: 'app', pullNumber: 3},
         }),
       });
+      const rest = await fetch(new URL('/repos/acme/app/pulls/3/comments', mock.endpoint), {
+        headers: HEADERS,
+      });
 
-      await expect(response.json()).resolves.toMatchObject({
+      const current = {line: 4, originalLine: 4, startLine: null, originalStartLine: null};
+      const outdated = {line: null, originalLine: 9, startLine: null, originalStartLine: 7};
+      await expect(graphql.json()).resolves.toMatchObject({
         data: {
           repository: {
             pullRequest: {
               reviewThreads: {
                 nodes: [
-                  {id: 'PRRT_current', isOutdated: false, line: 4, originalLine: 4},
-                  {id: 'PRRT_outdated', isOutdated: true, line: null, originalLine: 9},
+                  {
+                    id: 'PRRT_current',
+                    isOutdated: false,
+                    ...current,
+                    comments: {nodes: [current]},
+                  },
+                  {
+                    id: 'PRRT_outdated',
+                    isOutdated: true,
+                    ...outdated,
+                    comments: {nodes: [outdated]},
+                  },
                 ],
               },
             },
           },
         },
       });
+      await expect(rest.json()).resolves.toMatchObject([
+        {id: 11, line: 4, original_line: 4, start_line: null, original_start_line: null},
+        {id: 12, line: null, original_line: 9, start_line: null, original_start_line: 7},
+      ]);
     } finally {
       await mock.stop();
     }

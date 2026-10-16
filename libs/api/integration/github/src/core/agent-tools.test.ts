@@ -2383,8 +2383,10 @@ describe('github agent tool catalog', () => {
                       body: 'Please handle this.',
                       author: {login: 'reviewer'},
                       path: 'src/index.ts',
-                      line: 42,
-                      startLine: 40,
+                      line: null,
+                      originalLine: 42,
+                      startLine: null,
+                      originalStartLine: 40,
                     },
                   ],
                 },
@@ -2440,6 +2442,13 @@ describe('github agent tool catalog', () => {
         'originalStartLine',
         'startDiffSide',
       ]),
+    );
+    const commentFields = queryText
+      .slice(queryText.indexOf('comments(first: 100)'))
+      .split('\n')
+      .map((line) => line.trim());
+    expect(commentFields).toEqual(
+      expect.arrayContaining(['line', 'originalLine', 'startLine', 'originalStartLine']),
     );
     const selectedFields = queryText.split('\n').map((line) => line.trim());
     expect(selectedFields).not.toContain('side');

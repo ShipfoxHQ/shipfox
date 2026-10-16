@@ -86,10 +86,15 @@ export interface GithubReviewThreadFixture {
   /** The review the thread belongs to. A deleted pending review takes its threads along. */
   reviewId?: number | undefined;
   line?: number | undefined;
+  /** The first line of a multi-line thread. */
+  startLine?: number | undefined;
   /** `LEFT` or `RIGHT`. Defaults to `RIGHT`. */
   side?: string | undefined;
   isResolved?: boolean | undefined;
-  /** A later push changed the code under the thread. GitHub then reports `line` only as `originalLine`. */
+  /**
+   * A later push changed the code under the thread. GitHub then reports `line` and `startLine`
+   * as null on the thread and its comments, and keeps them as `originalLine` and `originalStartLine`.
+   */
   isOutdated?: boolean | undefined;
   /** In posting order. The first comment starts the thread. */
   comments: GithubReviewCommentFixture[];
@@ -435,11 +440,17 @@ function listReviewComments(context: RouteContext): void {
   const pullNumber = Number(context.match[3]);
   const comments = [...context.reviewThreads.values()]
     .filter((thread) => thread.pullNumber === pullNumber)
-    .flatMap((thread) =>
-      thread.comments.map((comment, index) => ({
+    .flatMap((thread) => {
+      const position = reviewThreadPosition(thread);
+      return thread.comments.map((comment, index) => ({
         id: comment.id,
         node_id: `PRRC_${comment.id}`,
         path: thread.path,
+        line: position.line,
+        original_line: position.originalLine,
+        start_line: position.startLine,
+        original_start_line: position.originalStartLine,
+        side: thread.side ?? 'RIGHT',
         body: comment.body,
         user: {login: comment.author},
         commit_id: pullRequest.sha,
@@ -450,8 +461,8 @@ function listReviewComments(context: RouteContext): void {
         created_at: FIXTURE_TIMESTAMP,
         updated_at: FIXTURE_TIMESTAMP,
         author_association: 'MEMBER',
-      })),
-    )
+      }));
+    })
     .sort((left, right) => left.id - right.id);
   sendJson(context.response, 200, paginate(comments, context.requestUrl.searchParams));
 }
@@ -874,20 +885,15 @@ function reviewThreadPayload(
   id: string,
   thread: GithubReviewThreadFixture,
 ): Record<string, unknown> {
-  const isOutdated = thread.isOutdated ?? false;
-  const originalLine = thread.line ?? null;
-  const line = isOutdated ? null : originalLine;
+  const position = reviewThreadPosition(thread);
   return {
     id,
     isResolved: thread.isResolved ?? false,
-    isOutdated,
+    isOutdated: thread.isOutdated ?? false,
     path: thread.path,
-    line,
-    originalLine,
+    ...position,
     diffSide: thread.side ?? 'RIGHT',
-    startLine: null,
-    originalStartLine: null,
-    startDiffSide: null,
+    startDiffSide: thread.startLine === undefined ? null : (thread.side ?? 'RIGHT'),
     comments: {
       nodes: thread.comments.map((comment) => ({
         id: `PRRC_${comment.id}`,
@@ -895,8 +901,7 @@ function reviewThreadPayload(
         body: comment.body,
         author: {login: comment.author},
         path: thread.path,
-        line,
-        startLine: null,
+        ...position,
         createdAt: FIXTURE_TIMESTAMP,
         updatedAt: FIXTURE_TIMESTAMP,
         url: `https://github.com/pull-request-review-comment/${comment.id}`,
@@ -904,6 +909,19 @@ function reviewThreadPayload(
       pageInfo: {hasNextPage: false, endCursor: null},
     },
   };
+}
+
+function reviewThreadPosition(thread: GithubReviewThreadFixture): {
+  line: number | null;
+  originalLine: number | null;
+  startLine: number | null;
+  originalStartLine: number | null;
+} {
+  const originalLine = thread.line ?? null;
+  const originalStartLine = thread.startLine ?? null;
+  return thread.isOutdated
+    ? {line: null, originalLine, startLine: null, originalStartLine}
+    : {line: originalLine, originalLine, startLine: originalStartLine, originalStartLine};
 }
 
 function commentIds(thread: GithubReviewThreadFixture): number[] {
