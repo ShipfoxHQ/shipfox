@@ -17,6 +17,7 @@ import {
   toEvaluationTrace,
   toStepAttemptInvocation,
   toStepGateResult,
+  toStepSourceLocation,
   toWorkflowExecutionEvent,
   toWorkflowJobStepError,
 } from '#hooks/api/workflow-model-mapper.js';
@@ -130,9 +131,7 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
     jobExecutionId: dto.job_execution_id,
     key: dto.key,
     name: dto.name,
-    sourceLocation: dto.source_location
-      ? {startLine: dto.source_location.start_line, endLine: dto.source_location.end_line}
-      : null,
+    sourceLocation: toStepSourceLocation(dto.source_location),
     status: dto.status,
     statusReason: dto.status_reason,
     type: dto.type,
@@ -144,6 +143,7 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
     position: dto.position,
     currentAttempt: dto.current_attempt,
     ...(dto.gate_max_attempts === undefined ? {} : {gateMaxAttempts: dto.gate_max_attempts}),
+    ...(dto.parent_step_id ? {parentStepId: dto.parent_step_id} : {}),
     ...(dto.main_step_id === undefined ? {} : {mainStepId: dto.main_step_id}),
     ...(dto.affects_job === undefined ? {} : {affectsJob: dto.affects_job}),
     attemptTotal: dto.attempts.length,

@@ -33,6 +33,7 @@ import type {
   WorkflowRunOverviewRead,
   WorkflowRunSelection,
 } from '#db/index.js';
+import {toStepSourceLocationDto} from './step.js';
 
 export function toRunDto(
   run: WorkflowRun,
@@ -233,13 +234,7 @@ export function toRunSelectionDto(selection: WorkflowRunSelection): WorkflowRunS
     step_id: selection.stepId,
     step_attempt_id: selection.stepAttemptId,
     step_attempt: selection.stepAttempt,
-    source_location:
-      selection.sourceLocation === null
-        ? null
-        : {
-            start_line: selection.sourceLocation.startLine,
-            end_line: selection.sourceLocation.endLine,
-          },
+    source_location: toStepSourceLocationDto(selection.sourceLocation),
   };
 }
 

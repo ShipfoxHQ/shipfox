@@ -1,5 +1,6 @@
 import {
   type AvailabilitySite,
+  availabilitySites,
   buildCompositeScopeEnvironment,
   buildTypedRootsEnvironment,
   type ExpressionTypeEnvironment,
@@ -321,9 +322,35 @@ export function buildCompositeStep(params: {
     },
     ...(fields.with === undefined ? {} : {with: fields.with as WorkflowJsonValue}),
     ...(stepEnv.env === undefined ? {} : {env: stepEnv.env}),
-    steps: inner.steps,
+    steps: inner.steps.map((step) => deferCompositeInputs(step) as WorkflowModelStep),
     ...(Object.keys(templates).length === 0 ? {} : {templates}),
   };
+}
+
+// Inside a composite, `inputs` names the composite's inputs, which exist only
+// once the composite opens. A segment that reads them would otherwise be
+// planned for run creation and filled with the run's own inputs.
+function deferCompositeInputs(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(deferCompositeInputs);
+  if (value === null || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  if (
+    record.kind === 'deferred' &&
+    Array.isArray(record.roots) &&
+    record.roots.includes('inputs') &&
+    typeof record.fillTarget === 'string' &&
+    fillsBeforeStepDispatch(record.fillTarget)
+  ) {
+    return {...record, fillTarget: 'step-dispatch'};
+  }
+  return Object.fromEntries(
+    Object.entries(record).map(([key, child]) => [key, deferCompositeInputs(child)]),
+  );
+}
+
+function fillsBeforeStepDispatch(fillTarget: string): boolean {
+  const index = availabilitySites.indexOf(fillTarget as AvailabilitySite);
+  return index >= 0 && index < availabilitySites.indexOf('step-dispatch');
 }
 
 function nonSecretInputDeclarations(manifest: CompositeActionManifest): OutputDeclarations {

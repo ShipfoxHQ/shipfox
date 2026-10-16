@@ -35,6 +35,7 @@ import {
 import {workflowConcurrencyClaimEvents} from './run-create.js';
 import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
 import {lockWorkflowRun} from './shared.js';
+import {withStepIds} from './step-ids.js';
 
 export interface CreateRerunWorkflowRunParams {
   workflowRunId: string;
@@ -418,14 +419,20 @@ async function materializeRerunGraphJob(
     },
     createExecution: (job) =>
       createRerunJobExecution({params, sourceJob, modelJob, carriedOver, job}),
-    createSteps: () =>
-      sourceJobSteps.map((step) =>
-        materializedRerunStep({
-          step,
-          carriedOver,
-          rematerialized: rematerializedStepByPosition.get(step.position),
-        }),
-      ),
+    createSteps: () => {
+      const sourcePositionById = new Map(sourceJobSteps.map((step) => [step.id, step.position]));
+      return withStepIds(
+        sourceJobSteps.map((step) => ({
+          ...materializedRerunStep({
+            step,
+            carriedOver,
+            rematerialized: rematerializedStepByPosition.get(step.position),
+          }),
+          parentPosition:
+            step.parentStepId === null ? null : (sourcePositionById.get(step.parentStepId) ?? null),
+        })),
+      );
+    },
   };
 }
 

@@ -2811,6 +2811,7 @@ function step(overrides: Partial<Step> = {}): Step {
   return {
     id: 'step-1',
     jobExecutionId: 'exec-1',
+    parentStepId: null,
     key: 'build',
     name: 'Build',
     sourceLocation: null,

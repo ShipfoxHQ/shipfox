@@ -4,6 +4,7 @@ import {decideStepTransition, deriveCompletion, isTerminal} from './decide-step-
 function step(overrides: Partial<Step> & {id: string; position: number}): Step {
   return {
     jobExecutionId: 'execution-1',
+    parentStepId: null,
     key: null,
     name: 'step',
     sourceLocation: null,

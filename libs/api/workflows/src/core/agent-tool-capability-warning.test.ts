@@ -58,6 +58,7 @@ function agentStep(params: Partial<Step> = {}): Step {
   return {
     id: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
+    parentStepId: null,
     key: 'fix',
     name: 'Fix',
     sourceLocation: null,

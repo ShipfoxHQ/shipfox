@@ -104,8 +104,6 @@ export interface ResolveDefinitionAtRefParams {
   integrations: IntegrationsModuleClient;
   /** Resolves registry actions. Without it, a registry reference fails. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
-  /** Accepts composite actions (`steps` in `action.yml`). Defaults to off until they can run. */
-  compositeActionsEnabled?: boolean | undefined;
   signal?: AbortSignal;
 }
 
@@ -414,7 +412,6 @@ async function parseDefinitionAtCommit(input: {
     uploads: new Map(uploads.map((upload) => [upload.path, upload.files])),
     registry: params.registry,
     persistRegistryVersions: input.persistRegistryVersions,
-    compositeActions: params.compositeActionsEnabled ?? false,
     registryActions: registryActionsEnabled,
     signal: params.signal,
   });
@@ -801,7 +798,6 @@ async function resolveDevRunActions(params: {
   uploads: ReadonlyMap<string, readonly ActionBundleFile[]>;
   registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   persistRegistryVersions: boolean;
-  compositeActions: boolean;
   registryActions: boolean;
   signal: AbortSignal | undefined;
 }): Promise<Map<string, ResolvedAction>> {
@@ -824,7 +820,6 @@ async function resolveDevRunActions(params: {
       uploads: params.uploads,
       registry: params.registry,
       persistRegistryVersions: params.persistRegistryVersions,
-      compositeActions: params.compositeActions,
       registryActions: params.registryActions,
     });
   } catch (error) {

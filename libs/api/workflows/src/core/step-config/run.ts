@@ -30,6 +30,7 @@ type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
 type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
 type WorkflowModelActionStep = Extract<WorkflowModelStep, {kind: 'action'}>;
+type WorkflowModelCompositeStep = Extract<WorkflowModelStep, {kind: 'composite'}>;
 
 export type StepConfigMode = 'effective' | 'authored';
 
@@ -371,7 +372,7 @@ function hoistCommand(
 /** Merges workflow, job, and step `env`, resolving what the current site can fill. */
 export function resolveStepEnv(
   params: Omit<ResolveRunStepConfigParams, 'step'> & {
-    readonly step: WorkflowModelRunStep | WorkflowModelActionStep;
+    readonly step: WorkflowModelRunStep | WorkflowModelActionStep | WorkflowModelCompositeStep;
   },
 ): ReturnType<typeof resolveEnv> {
   return resolveEnv(winningEnv(params), params.context, params.mode, params.definitionId);
@@ -472,7 +473,7 @@ function winningEnv(params: {
   readonly workflowEnvTemplates: WorkflowEnvTemplates | undefined;
   readonly jobEnv: WorkflowModelJob['env'];
   readonly jobEnvTemplates: WorkflowEnvTemplates | undefined;
-  readonly step: WorkflowModelRunStep | WorkflowModelActionStep;
+  readonly step: WorkflowModelRunStep | WorkflowModelActionStep | WorkflowModelCompositeStep;
 }): Readonly<Record<string, WinningEnvValue>> {
   return mergeEnvLayers(
     {env: params.workflowEnv, templates: params.workflowEnvTemplates},

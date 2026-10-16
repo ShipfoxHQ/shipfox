@@ -2,6 +2,7 @@ import {
   getWorkflowStatusVisual,
   type WorkflowStatusVisual,
 } from '#components/workflow-status/status-visuals.js';
+import {compositeAncestors} from '#core/composite-step.js';
 import {
   defaultJobExecution,
   isWorkflowStatus as isKnownWorkflowStatus,
@@ -13,6 +14,8 @@ import {
 } from '#core/workflow-run.js';
 
 export const IGNORED_POST_FAILURE_TEXT = 'This step failed. The job result is unchanged.';
+
+const KEY_PATH_SEPARATOR = ' › ';
 
 export interface StepStatusVisual extends Omit<WorkflowStatusVisual, 'kind'> {
   kind: string;
@@ -38,6 +41,10 @@ export interface StepModel extends Omit<Step, 'attempts'> {
 
 export interface StepListEntryModel extends StepAttemptModel {
   step: StepModel;
+  /** The composite attempt entry this entry ran under. Absent for a job step. */
+  parentEntryId?: string | undefined;
+  /** Nesting level under composite entries; 0 for a job step. */
+  depth: number;
 }
 
 export interface StepListModel {
@@ -58,11 +65,11 @@ export function buildStepListModel({
 }): StepListModel {
   const selectedJobExecution = jobExecution ?? defaultStepListJobExecution(job);
   const steps = withMainStepLabels(
-    [...selectedJobExecution.steps].sort(compareSteps).map(toStepModel),
+    withKeyPathLabels([...selectedJobExecution.steps].sort(compareSteps).map(toStepModel)),
   );
-  const entries = steps
-    .flatMap((step) => toStepEntries(step, job.carriedOver))
-    .sort(compareEntries);
+  const entries = groupCompositeEntries(
+    steps.flatMap((step) => toStepEntries(step, job.carriedOver)).sort(compareEntries),
+  );
 
   return {
     jobId: job.id,
@@ -72,6 +79,83 @@ export function buildStepListModel({
     activeEntryId: landingEntryId(entries),
     entries,
   };
+}
+
+export function isCompositeEntry(entry: Pick<StepListEntryModel, 'step'>): boolean {
+  return entry.step.type === 'composite';
+}
+
+/** The selected entries plus every composite entry that holds one, outermost first. */
+export function openStepListEntryIds(
+  entries: readonly StepListEntryModel[],
+  selectedIds: readonly string[],
+): string[] {
+  return [...openEntryIds(parentEntryIdById(entries), selectedIds)];
+}
+
+/**
+ * Applies an open-state change from the list. Opening an entry selects it. Closing a composite
+ * entry also deselects every entry inside it, so a selected inner step cannot keep it open.
+ * Closing an inner entry leaves its composites open, so the innermost one is selected in its
+ * place.
+ */
+export function selectionAfterOpenChange({
+  entries,
+  selectedIds,
+  nextOpenIds,
+}: {
+  entries: readonly StepListEntryModel[];
+  selectedIds: readonly string[];
+  nextOpenIds: readonly string[];
+}): string[] {
+  const parentById = parentEntryIdById(entries);
+  const openIds = openEntryIds(parentById, selectedIds);
+  const nextOpen = new Set(nextOpenIds);
+  const closedIds = new Set([...openIds].filter((id) => !nextOpen.has(id)));
+  const isInsideClosed = (id: string) =>
+    closedIds.has(id) ||
+    entryAncestorIds(parentById, id).some((ancestor) => closedIds.has(ancestor));
+
+  const selection = [
+    ...selectedIds.filter((id) => !isInsideClosed(id)),
+    ...nextOpenIds.filter((id) => !openIds.has(id)),
+  ];
+  const stillOpen = openEntryIds(parentById, selection);
+  for (const id of [...nextOpenIds].reverse()) {
+    if (stillOpen.has(id) || isInsideClosed(id)) continue;
+    selection.push(id);
+    for (const openId of [id, ...entryAncestorIds(parentById, id)]) stillOpen.add(openId);
+  }
+  return selection;
+}
+
+function parentEntryIdById(entries: readonly StepListEntryModel[]) {
+  return new Map(entries.map((entry) => [entry.id, entry.parentEntryId]));
+}
+
+function openEntryIds(
+  parentById: ReadonlyMap<string, string | undefined>,
+  selectedIds: readonly string[],
+): Set<string> {
+  const open = new Set<string>();
+  for (const id of selectedIds) {
+    for (const openId of [...entryAncestorIds(parentById, id).reverse(), id]) open.add(openId);
+  }
+  return open;
+}
+
+/** The composite entries that hold `id`, innermost first. */
+function entryAncestorIds(
+  parentById: ReadonlyMap<string, string | undefined>,
+  id: string,
+): string[] {
+  const ancestors: string[] = [];
+  let parentId = parentById.get(id);
+  while (parentId !== undefined && parentId !== id && !ancestors.includes(parentId)) {
+    ancestors.push(parentId);
+    parentId = parentById.get(parentId);
+  }
+  return ancestors;
 }
 
 export function defaultStepListJobExecution(job: Job): JobExecution {
@@ -170,6 +254,73 @@ function withMainStepLabels(steps: StepModel[]): StepModel[] {
   );
 }
 
+/** Inner steps of a composite read as a key path, such as `setup › changed_files`. */
+function withKeyPathLabels(steps: StepModel[]): StepModel[] {
+  return steps.map((step) => {
+    if (step.parentStepId === undefined) return step;
+    const path = [...compositeAncestors(steps, step.id), step];
+    return {...step, label: path.map(keyPathSegment).join(KEY_PATH_SEPARATOR)};
+  });
+}
+
+function keyPathSegment(step: StepModel): string {
+  return step.key?.trim() || step.label;
+}
+
+/**
+ * Orders entries as a tree: each composite attempt entry is followed by the inner entries that
+ * ran under it. A composite attempt opens before any inner attempt of its pass, so an inner
+ * entry belongs to the latest parent attempt that started at or before it.
+ */
+function groupCompositeEntries(entries: StepListEntryModel[]): StepListEntryModel[] {
+  const entriesByStepId = groupBy(entries, (entry) => entry.step.id);
+  const childrenByParentEntryId = groupBy(entries, (entry) => {
+    const parentStepId = entry.step.parentStepId;
+    if (parentStepId === undefined) return undefined;
+    return enclosingParentEntry(entriesByStepId.get(parentStepId) ?? [], entry)?.id;
+  });
+
+  const ordered: StepListEntryModel[] = [];
+  const visit = (parentEntryId: string | undefined, depth: number) => {
+    for (const child of childrenByParentEntryId.get(parentEntryId) ?? []) {
+      ordered.push({...child, parentEntryId, depth});
+      visit(child.id, depth + 1);
+    }
+  };
+  visit(undefined, 0);
+  return ordered;
+}
+
+/** The entries directly under each composite entry, in list order. Job steps sit under `undefined`. */
+export function entriesByParentEntryId(
+  entries: readonly StepListEntryModel[],
+): Map<string | undefined, StepListEntryModel[]> {
+  return groupBy(entries, (entry) => entry.parentEntryId);
+}
+
+function groupBy<T, K>(items: readonly T[], keyOf: (item: T) => K): Map<K, T[]> {
+  const groups = new Map<K, T[]>();
+  for (const item of items) {
+    const key = keyOf(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+}
+
+function enclosingParentEntry(
+  parentEntries: readonly StepListEntryModel[],
+  entry: StepListEntryModel,
+): StepListEntryModel | undefined {
+  let match = parentEntries[0];
+  for (const candidate of parentEntries) {
+    if (candidate.executionOrder > entry.executionOrder) break;
+    match = candidate;
+  }
+  return match;
+}
+
 export function stepLabel(step: Step, index: number): string {
   const name = step.name.trim();
   if (name) return name;
@@ -185,6 +336,7 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
     return step.attempts.map((attempt) => ({
       ...attempt,
       step,
+      depth: 0,
     }));
   }
 
@@ -216,6 +368,7 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
       carriedOver: true,
       failureIgnored,
       step,
+      depth: 0,
     },
   ];
 }

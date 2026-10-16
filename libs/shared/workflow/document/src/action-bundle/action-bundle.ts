@@ -6,6 +6,14 @@ export const invalidActionBundleErrorCode = 'invalid-action-bundle';
 
 export const actionBundleDigestSchema = z.string().regex(ACTION_BUNDLE_DIGEST_PATTERN);
 
+/**
+ * The directory a runner extracts a bundle into, under its actions directory. The server builds
+ * `action.path` from it, so both sides must name it the same way.
+ */
+export function actionBundleDirectoryName(digest: string): string {
+  return digest.replace(':', '-');
+}
+
 const actionBundleSchema = z
   .object({
     files: z.array(z.object({content: z.string(), path: z.string()}).strict()),

@@ -397,6 +397,7 @@ export function toStepDto(step: Step): StepDto {
   return {
     id: step.id,
     job_execution_id: step.jobExecutionId,
+    parent_step_id: step.parentStepId,
     key: step.key,
     name: step.name,
     source_location: toStepSourceLocationDto(step.sourceLocation),
@@ -414,13 +415,17 @@ export function toStepDto(step: Step): StepDto {
   };
 }
 
-function toStepSourceLocationDto(
+export function toStepSourceLocationDto(
   sourceLocation: Step['sourceLocation'],
 ): StepDto['source_location'] {
   if (sourceLocation === null) return null;
+  const {file} = sourceLocation;
   return {
     start_line: sourceLocation.startLine,
     end_line: sourceLocation.endLine,
+    ...(file === undefined
+      ? {}
+      : {file: {kind: file.kind, uses: file.uses, digest: file.digest, path: file.path}}),
   };
 }
 

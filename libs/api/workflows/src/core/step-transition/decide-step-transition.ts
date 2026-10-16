@@ -250,9 +250,12 @@ function restartStepTransition(
   const terminalFailureFields = {...(failureError ?? {})};
   delete terminalFailureFields.agentConfigIssue;
   delete terminalFailureFields.agent_config_issue;
+  // A restart target is an earlier step of the same scope: the job, or the composite that holds
+  // the gating step.
   const restartStep = steps.find(
     (step) =>
       step.type !== 'setup' &&
+      step.parentStepId === target.parentStepId &&
       step.position < target.position &&
       step.key === gateOnFailure.restartFrom,
   );

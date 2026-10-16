@@ -86,6 +86,7 @@ const createGatewayMcpClientMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeActionStepMock = vi.fn();
 const requestActionBundleMock = vi.fn();
+const prepareStepActionBundleMock = vi.fn();
 const executeSetupStepMock = vi.fn();
 const executeCheckoutStepMock = vi.fn();
 const createStepLogStreamMock = vi.fn();
@@ -134,6 +135,8 @@ vi.mock('@shipfox/runner-protocol/gateway-mcp-client', () => ({
 vi.mock('@shipfox/runner-execution', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
   executeActionStep: (...args: unknown[]) => executeActionStepMock(...args),
+  actionsDirectory: (jobTempDir: string) => `${jobTempDir}/actions`,
+  prepareStepActionBundle: (...args: unknown[]) => prepareStepActionBundleMock(...args),
   resolveCgroupMemoryEventsPath: () => Promise.resolve('/sys/fs/cgroup/runner/memory.events'),
   reportOutOfMemoryKills: ({run}: {run: () => unknown}) => run(),
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
@@ -203,6 +206,8 @@ const LOGS_DIR = '/runner-logs/job-1';
 const AGENT_STATE_DIR = '/runner-agent/job-1';
 const GIT_CONFIG_PATH = '/runner-cred/job-1/git-cred.config';
 const JOB_TEMP_DIR = '/runner-tmp/job-1';
+const ACTIONS_DIR = `${JOB_TEMP_DIR}/actions`;
+const COMPOSITE_DIGEST = `sha256:${'c'.repeat(64)}`;
 const CREDENTIALS_DIR = '/runner-cred/job-1';
 const JOB_CONTEXT = {
   workflowRunId: '00000000-0000-0000-0000-000000000004',
@@ -381,6 +386,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockReset();
     executeActionStepMock.mockReset();
     requestActionBundleMock.mockReset();
+    prepareStepActionBundleMock.mockReset();
     executeSetupStepMock.mockReset();
     executeCheckoutStepMock.mockReset();
     createStepLogStreamMock.mockReset();
@@ -2038,6 +2044,98 @@ describe('runJobSteps', () => {
     expect(events).toContain(`dispose:${run.id}`);
   });
 
+  it('reports where the job extracts action bundles with the setup step only', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    const reports = new Map(
+      reportStepMock.mock.calls.map(([, report]) => [report.stepId, report] as const),
+    );
+    expect(reports.get(setup.id)).toMatchObject({status: 'succeeded', actionsDir: ACTIONS_DIR});
+    expect(reports.get(run.id)).not.toHaveProperty('actionsDir');
+  });
+
+  it('extracts the composite action bundle of a run step before running it', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {run: 'node "$ACTION_PATH/build.js"', action_bundles: [COMPOSITE_DIGEST]},
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    requestActionBundleMock.mockResolvedValue(Buffer.from('bundle'));
+    prepareStepActionBundleMock.mockImplementation(
+      async (params: {load: (digest: string) => Promise<Uint8Array>}) => {
+        await params.load(COMPOSITE_DIGEST);
+        events.push('bundle-extracted');
+        return undefined;
+      },
+    );
+    executeRunStepMock.mockImplementation(() => {
+      events.push('run-started');
+      return Promise.resolve({success: true, error: null, exit_code: 0});
+    });
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(prepareStepActionBundleMock).toHaveBeenCalledWith({
+      config: run.config,
+      jobTempDir: JOB_TEMP_DIR,
+      load: expect.any(Function),
+      shared: false,
+    });
+    expect(requestActionBundleMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      digest: COMPOSITE_DIGEST,
+      signal: ac.signal,
+    });
+    expect(events.indexOf('bundle-extracted')).toBeLessThan(events.indexOf('run-started'));
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: run.id, status: 'succeeded'}),
+    );
+  });
+
+  it('fails a step whose composite action bundle cannot be loaded', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({config: {run: 'echo', action_bundles: [COMPOSITE_DIGEST]}});
+    const error = {
+      message: 'The composite action files could not be loaded: Action bundle load failed',
+      reason: 'action_unavailable' as const,
+    };
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    prepareStepActionBundleMock.mockResolvedValue({success: false, error, exit_code: null});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      status: 'failed',
+      error,
+      exitCode: null,
+      logOutcome: 'drained',
+      signal: ac.signal,
+    });
+  });
+
   it('does not request step secrets when a run step has no secret bindings', async () => {
     const setup = buildSetupStep();
     const run = buildRunStep();
@@ -2091,14 +2189,14 @@ describe('runJobSteps', () => {
         _step: StepDto,
         options: {
           jobTempDir: string;
-          loadBundle: () => Promise<Uint8Array>;
+          loadBundle: (digest: string) => Promise<Uint8Array>;
           onLogLine: (line: string) => void;
           onSecret: (secret: string) => void;
           onToolRow: (row: unknown) => void;
         },
       ) => {
         options.onToolRow({kind: 'tool-call', timestamp: 1, id: 'call-1', name: 'x', input: '{}'});
-        await options.loadBundle();
+        await options.loadBundle('sha256:abc');
         options.onLogLine('Shipfox action Slack thread sha256:abc');
         options.onSecret('endpoint-token');
         return {success: true, error: null, exit_code: 0, outputs: {path: 'thread.md'}};
@@ -2127,6 +2225,7 @@ describe('runJobSteps', () => {
     expect(registerSecrets).toHaveBeenCalledWith(['slack-secret']);
     expect(requestActionBundleMock).toHaveBeenCalledWith(leaseClient, {
       stepId: actionStep.id,
+      digest: 'sha256:abc',
       signal: ac.signal,
     });
     expect(streamFor(actionStep.id).writeOutputLine).toHaveBeenCalledWith(
@@ -2774,6 +2873,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'drained',
       signal: ac.signal,
     });
@@ -2808,6 +2908,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
       signal: ac.signal,
     });
@@ -2832,6 +2933,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
       signal: ac.signal,
     });
@@ -2855,6 +2957,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      actionsDir: ACTIONS_DIR,
       logOutcome: 'abandoned',
       signal: ac.signal,
     });

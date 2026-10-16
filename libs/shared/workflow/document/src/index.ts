@@ -3,6 +3,7 @@ export {
   ACTION_BUNDLE_VERSION,
   type ActionBundleFile,
   actionBundleDigestSchema,
+  actionBundleDirectoryName,
   decodeActionBundle,
   type EncodedActionBundle,
   encodeActionBundle,

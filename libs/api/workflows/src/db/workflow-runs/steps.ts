@@ -9,7 +9,20 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
-import {and, asc, count, desc, eq, getTableColumns, gte, inArray, lt, ne, sql} from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  inArray,
+  lt,
+  ne,
+  notInArray,
+  sql,
+} from 'drizzle-orm';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import {
   assertWorkflowExecutionPayloadSize,
@@ -208,6 +221,8 @@ export async function getJobExecutionFailureOrigin(
       desc(
         sql<number>`case when ${steps.status} = 'failed' or ${stepAttempts.status} = 'failed' or ${steps.statusReason} = 'condition_errored' then 1 else 0 end`,
       ),
+      // A failed composite only reports that an inner step failed, so the inner step is the origin.
+      asc(sql<number>`case when ${steps.type} = 'composite' then 1 else 0 end`),
       asc(steps.position),
       asc(steps.id),
     )
@@ -511,7 +526,7 @@ export interface ListStepEnvSourcesParams {
 
 // The earlier steps whose CURRENT attempt the runner executed. A skipped step
 // has no attempt row; a pending or rewound step's current attempt has none yet.
-// Tool steps run on the server, so a runner never carried env from them.
+// Tool steps and composite rows run on the server, so a runner never carried env from them.
 export async function listStepEnvSources(
   params: ListStepEnvSourcesParams,
 ): Promise<StepEnvSourceDto[]> {
@@ -526,7 +541,7 @@ export async function listStepEnvSources(
       and(
         eq(steps.jobExecutionId, params.jobExecutionId),
         lt(steps.position, params.beforePosition),
-        ne(steps.type, 'tool'),
+        notInArray(steps.type, ['tool', 'composite']),
         inArray(steps.status, ['succeeded', 'failed', 'cancelled']),
       ),
     )

@@ -15,6 +15,7 @@ import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {DEFAULT_RESTART_ATTEMPT_CAP} from '../step-transition/decide-step-transition.js';
 import {resolveActionStepConfig} from './action.js';
 import {resolveAgentStepConfig} from './agent.js';
+import {resolveCompositeStepConfig} from './composite.js';
 import {
   freezeStepField,
   resolveStepField,
@@ -32,7 +33,6 @@ type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
 type WorkflowModelAgentStep = Extract<WorkflowModelStep, {kind: 'agent'}>;
 type WorkflowModelCheckoutStep = Extract<WorkflowModelStep, {kind: 'checkout'}>;
 type WorkflowModelToolStep = Extract<WorkflowModelStep, {kind: 'tool'}>;
-type WorkflowModelActionStep = Extract<WorkflowModelStep, {kind: 'action'}>;
 
 export type {StepConfigField, WorkflowStepTemplateDiagnostic};
 
@@ -148,9 +148,8 @@ async function buildStepConfig(
     };
   }
 
-  const actionStep = actionStepOrNull(params.step);
-  if (actionStep !== null) {
-    const action = resolveActionStepConfig({...params, step: actionStep});
+  const action = resolveActionLikeStepConfig(params);
+  if (action !== null) {
     return {
       config: {...workingDirectory.config, ...action.config, ...gate, ...outputs},
       configPlan: mergeConfigPlans(action.configPlan, workingDirectory.configPlan),
@@ -286,9 +285,14 @@ function toolStepOrNull(step: WorkflowModelStep): WorkflowModelToolStep | null {
   return isToolStep ? step : null;
 }
 
-function actionStepOrNull(step: WorkflowModelStep): WorkflowModelActionStep | null {
-  const isActionStep = step.kind === 'action';
-  return isActionStep ? step : null;
+// A composite's parent row is built like an action: typed inputs from `with`, plus its own env.
+function resolveActionLikeStepConfig(
+  params: Omit<BuildStepConfigParams, 'context'> & {readonly context: WorkflowEvaluationContext},
+) {
+  const {step} = params;
+  if (step.kind === 'action') return resolveActionStepConfig({...params, step});
+  if (step.kind === 'composite') return resolveCompositeStepConfig({...params, step});
+  return null;
 }
 
 function resolveCheckoutStepConfig(

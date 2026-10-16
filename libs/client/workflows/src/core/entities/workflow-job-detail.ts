@@ -52,6 +52,8 @@ export interface WorkflowJobStepSummary {
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
   gateMaxAttempts?: number | undefined;
+  /** The composite action step that holds this step. Set on inner rows only. */
+  parentStepId?: string | undefined;
   /** The step whose action declared this post. Set on post rows only. */
   mainStepId?: string | undefined;
   /** False when a failed post leaves the job result unchanged. Set on post rows only. */

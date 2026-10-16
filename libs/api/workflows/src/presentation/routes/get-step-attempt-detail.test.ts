@@ -122,6 +122,7 @@ function stepEntity(): Step {
   return {
     id: STEP_ID,
     jobExecutionId: crypto.randomUUID(),
+    parentStepId: null,
     key: 'test',
     name: 'Run tests',
     sourceLocation: null,

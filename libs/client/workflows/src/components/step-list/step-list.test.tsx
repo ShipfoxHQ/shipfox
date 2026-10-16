@@ -856,7 +856,155 @@ describe('StepList', () => {
       screen.queryByText('This step failed. The job result is unchanged.'),
     ).not.toBeInTheDocument();
   });
+  test('groups inner steps under their composite row', async () => {
+    const user = userEvent.setup();
+    const onExpandedAttemptIdsChange = vi.fn();
+    const {job, setupAttempt, installAttempt} = compositeJob();
+    render(
+      <StepList
+        job={job}
+        onExpandedAttemptIdsChange={onExpandedAttemptIdsChange}
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+    const setupRow = screen.getByRole('button', {
+      name: 'Set up, Succeeded, attempt 1, composite action',
+    });
+
+    expect(
+      screen.queryByRole('button', {name: 'setup › install, Succeeded, attempt 1'}),
+    ).not.toBeInTheDocument();
+
+    await user.click(setupRow);
+
+    expect(setupRow).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByText(`logs for ${setupAttempt.id}`)).not.toBeInTheDocument();
+    expect(onExpandedAttemptIdsChange).toHaveBeenLastCalledWith([]);
+
+    await user.click(screen.getByRole('button', {name: 'setup › install, Succeeded, attempt 1'}));
+
+    expect(screen.getByText(`logs for ${installAttempt.id}`)).toBeInTheDocument();
+    expect(onExpandedAttemptIdsChange).toHaveBeenLastCalledWith([installAttempt.id]);
+  });
+
+  test('opens the composite of a selected inner step and closes both together', async () => {
+    const user = userEvent.setup();
+    const onSelectedAttemptChange = vi.fn();
+    const {job, installAttempt} = compositeJob();
+    render(
+      <StepList
+        job={job}
+        defaultSelectedAttemptId={installAttempt.id}
+        onSelectedAttemptChange={onSelectedAttemptChange}
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+    const setupRow = screen.getByRole('button', {
+      name: 'Set up, Succeeded, attempt 1, composite action',
+    });
+
+    expect(setupRow).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(`logs for ${installAttempt.id}`)).toBeInTheDocument();
+
+    await user.click(setupRow);
+
+    expect(setupRow).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(`logs for ${installAttempt.id}`)).not.toBeInTheDocument();
+    expect(onSelectedAttemptChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  test('closing an inner step closes only its row', async () => {
+    const user = userEvent.setup();
+    const {job, installAttempt} = compositeJob();
+    render(<ControlledCompositeStepList job={job} defaultSelectedAttemptId={installAttempt.id} />);
+    const setupRow = screen.getByRole('button', {
+      name: 'Set up, Succeeded, attempt 1, composite action',
+    });
+    const installRow = screen.getByRole('button', {name: 'setup › install, Succeeded, attempt 1'});
+
+    await user.click(installRow);
+
+    expect(setupRow).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByRole('button', {name: 'setup › install, Succeeded, attempt 1'}),
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(`logs for ${installAttempt.id}`)).not.toBeInTheDocument();
+  });
+
+  test('keeps a composite closed after closing it once its inner step is closed', async () => {
+    const user = userEvent.setup();
+    const {job, installAttempt} = compositeJob();
+    render(<ControlledCompositeStepList job={job} defaultSelectedAttemptId={installAttempt.id} />);
+    const setupRow = screen.getByRole('button', {
+      name: 'Set up, Succeeded, attempt 1, composite action',
+    });
+    await user.click(screen.getByRole('button', {name: 'setup › install, Succeeded, attempt 1'}));
+
+    await user.click(setupRow);
+
+    expect(setupRow).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('button', {name: 'setup › install, Succeeded, attempt 1'}),
+    ).not.toBeInTheDocument();
+  });
 });
+
+/** Holds the selected attempt the way the job page holds it in the URL. */
+function ControlledCompositeStepList({
+  job,
+  defaultSelectedAttemptId,
+}: {
+  job: Job;
+  defaultSelectedAttemptId: string;
+}) {
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | undefined>();
+
+  return (
+    <StepList
+      job={job}
+      selectedAttemptId={selectedAttemptId}
+      defaultSelectedAttemptId={defaultSelectedAttemptId}
+      onSelectedAttemptChange={setSelectedAttemptId}
+      renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+    />
+  );
+}
+
+function compositeJob() {
+  const setupAttempt = makeAttempt({
+    step_id: 'step-setup',
+    status: 'succeeded',
+    execution_order: 1,
+  });
+  const installAttempt = makeAttempt({
+    step_id: 'step-install',
+    status: 'succeeded',
+    execution_order: 2,
+  });
+  const job = makeJob({
+    steps: [
+      makeStep({
+        id: 'step-setup',
+        key: 'setup',
+        name: 'Set up',
+        type: 'composite',
+        status: 'succeeded',
+        position: 1,
+        attempts: [setupAttempt],
+      }),
+      makeStep({
+        id: 'step-install',
+        parent_step_id: 'step-setup',
+        key: 'install',
+        name: 'Install tools',
+        status: 'succeeded',
+        position: 2,
+        attempts: [installAttempt],
+      }),
+    ],
+  });
+  return {job, setupAttempt, installAttempt};
+}
 
 function makeJob(overrides: JobDtoOverrides = {}): Job {
   return workflowJob(overrides);

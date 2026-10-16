@@ -535,6 +535,7 @@ function compactJobExecutionDto(
     steps: {
       items: execution.steps.map((step) => ({
         id: step.id,
+        parent_step_id: step.parent_step_id ?? null,
         key: step.key,
         name: step.name,
         type: compactStepType(step.type),
@@ -589,7 +590,7 @@ function compactStepStatus(
 
 function compactStepType(
   status: string,
-): 'setup' | 'run' | 'agent' | 'checkout' | 'tool' | 'action' | 'post' {
+): 'setup' | 'run' | 'agent' | 'checkout' | 'tool' | 'action' | 'composite' | 'post' {
   if (
     status === 'setup' ||
     status === 'run' ||
@@ -597,6 +598,7 @@ function compactStepType(
     status === 'checkout' ||
     status === 'tool' ||
     status === 'action' ||
+    status === 'composite' ||
     status === 'post'
   ) {
     return status;

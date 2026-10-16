@@ -1658,6 +1658,7 @@ function stepEntity(overrides: Partial<Step> = {}): Step {
   return {
     id: '77777777-7777-4777-8777-777777777777',
     jobExecutionId: JOB_EXECUTION_ID,
+    parentStepId: null,
     key: 'run',
     name: 'Run tests',
     sourceLocation: null,

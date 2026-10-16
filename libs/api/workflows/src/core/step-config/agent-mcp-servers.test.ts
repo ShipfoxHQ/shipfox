@@ -76,6 +76,7 @@ function pendingStep(step: MaterializedWorkflowStep): Step {
   return {
     id: 'step-1',
     jobExecutionId: 'exec-1',
+    parentStepId: null,
     key: null,
     name: step.name,
     sourceLocation: null,

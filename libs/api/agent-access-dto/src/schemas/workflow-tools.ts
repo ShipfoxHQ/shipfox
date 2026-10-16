@@ -123,12 +123,22 @@ const jobModeSchema = z.enum(['one_shot', 'listening']);
 const listenerStatusSchema = z.enum(['inactive', 'listening', 'resolved']);
 const executionStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
 const stepStatusSchema = jobStatusSchema;
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']);
+const stepTypeSchema = z.enum([
+  'setup',
+  'run',
+  'agent',
+  'checkout',
+  'tool',
+  'action',
+  'composite',
+  'post',
+]);
 const stepStatusReasonSchema = z.enum([
   'default_gate_rejected',
   'condition_rejected',
   'condition_errored',
   'main_not_started',
+  'composite_skipped',
   'timed_out',
   'run_cancelled',
   'runner_lost',
@@ -302,6 +312,7 @@ export type ListWorkflowJobExecutionsResultDto = z.infer<
 const workflowStepSummarySchema = z
   .object({
     id: idSchema,
+    parent_step_id: idSchema.nullable(),
     key: textSchema.nullable(),
     name: textSchema,
     type: stepTypeSchema,
@@ -707,9 +718,13 @@ const stepsJsonSchema = {
   type: 'object',
   properties: {
     id: uuid,
+    parent_step_id: nullable(uuid),
     key: nullable(text),
     name: text,
-    type: {type: 'string', enum: ['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']},
+    type: {
+      type: 'string',
+      enum: ['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'composite', 'post'],
+    },
     position: {type: 'integer', minimum: 0},
     status: jobStatusJsonSchema,
     status_reason: nullable({
@@ -719,6 +734,7 @@ const stepsJsonSchema = {
         'condition_rejected',
         'condition_errored',
         'main_not_started',
+        'composite_skipped',
         'timed_out',
         'run_cancelled',
         'runner_lost',
@@ -726,7 +742,17 @@ const stepsJsonSchema = {
     }),
     current_attempt: {type: 'integer', minimum: 1, maximum: AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX},
   },
-  required: ['id', 'key', 'name', 'type', 'position', 'status', 'status_reason', 'current_attempt'],
+  required: [
+    'id',
+    'parent_step_id',
+    'key',
+    'name',
+    'type',
+    'position',
+    'status',
+    'status_reason',
+    'current_attempt',
+  ],
   additionalProperties: false,
 } as const;
 const stepAttemptsJsonSchema = {

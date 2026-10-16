@@ -1,4 +1,5 @@
 import {
+  flattenJobSteps,
   WORKFLOW_MODEL_CHECKOUT_TARGET_FIELDS,
   type WorkflowJsonTemplateTree,
   type WorkflowModel,
@@ -104,7 +105,7 @@ function collectWorkflowPredicateReferences(model: WorkflowModel, out: Collected
       collectPredicateReferences(trigger.filter, jobScope, 'job.listening.filter');
     }
 
-    job.steps.forEach((step, index) => {
+    flattenJobSteps(job).forEach((step, index) => {
       const stepScope = stepScopeFor(jobScope, step, index);
       collectPredicateReferences(step.if, stepScope, 'step.if');
       collectPredicateReferences(step.gate?.success, stepScope, 'step.gate.success');
@@ -121,7 +122,7 @@ function collectJobReferences(job: WorkflowModelJob, out: Collected): void {
   collectContainerReferences(job.container, scope);
   collectTemplateReferences(job.outputs, scope, {field: 'job.outputs'});
   collectTemplateReferences(job.templates?.env, scope);
-  job.steps.forEach((step, index) => {
+  flattenJobSteps(job).forEach((step, index) => {
     collectStepReferences(step, stepScopeFor(scope, step, index));
   });
 }
@@ -187,6 +188,7 @@ function collectStepReferences(step: WorkflowModelStep, scope: Scope): void {
       collectToolStepReferences(step, scope);
       return;
     case 'action':
+    case 'composite':
       collectTemplateTreeReferences(step.templates?.with, scope, {field: 'action.with'});
       collectTemplateReferences(step.templates?.env, scope);
       return;

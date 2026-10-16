@@ -802,6 +802,28 @@ describe('api-client auth contexts', () => {
     });
   });
 
+  it('reportStep includes actions_dir when the setup step reports it', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-actions-dir');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'succeeded',
+      exitCode: 0,
+      actionsDir: '/runner/tmp/job/actions',
+      logOutcome: 'drained',
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      status: 'succeeded',
+      attempt: 1,
+      exit_code: 0,
+      actions_dir: '/runner/tmp/job/actions',
+      log_outcome: 'drained',
+    });
+  });
+
   it('reportStep omits log_path when there is no finalized log', async () => {
     stubFetch(() => jsonResponse({ok: true, cancel: false}));
     const leaseClient = createLeaseClient('lease-no-log-path');
@@ -1015,6 +1037,18 @@ describe('action bundle transport', () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/action-bundle`);
     expect(calls[0]?.authorization).toBe('Bearer lease-action');
+  });
+
+  it('names the requested bundle digest in the query', async () => {
+    const digest = `sha256:${'b'.repeat(64)}`;
+    stubFetch(() => new Response(new Uint8Array([31, 139, 8, 0]), {status: 200}));
+    const leaseClient = createLeaseClient('lease-action');
+
+    await requestActionBundle(leaseClient, {stepId: STEP_ID, digest});
+
+    const url = new URL(calls[0]?.url ?? '');
+    expect(url.pathname).toContain(`runs/jobs/current/steps/${STEP_ID}/action-bundle`);
+    expect(url.searchParams.get('digest')).toBe(digest);
   });
 
   it('names the status and code of a failed load', async () => {

@@ -31,7 +31,9 @@ Code that turns a checked workflow document into the model used by definitions.
   `composite` step that holds its inner steps, normalized once per use.
   Inner ids are path ids under the composite step id. Inner steps read the
   action's non-secret `inputs`, their own earlier `steps`, `action.path`, and
-  the run-wide roots. They cannot read `secrets`: each `${{ inputs.<secret> }}`
+  the run-wide roots. A read of `inputs` fills when the inner step dispatches,
+  since the inputs exist only once the composite opens. They cannot read
+  `secrets`: each `${{ inputs.<secret> }}`
   is rewritten to the caller's secret reference, so the usual secret rules
   apply to it. Aliases bind to the caller's connections, and inner tool steps,
   agent integrations, and nested actions must fit inside them. Inner agent

@@ -142,6 +142,7 @@ function stepForClassification(params: Partial<Step> = {}): Step {
   return {
     id: 'step-1',
     jobExecutionId: 'job-execution-1',
+    parentStepId: null,
     key: 'build',
     name: 'Build',
     sourceLocation: null,

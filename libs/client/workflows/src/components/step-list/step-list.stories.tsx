@@ -314,6 +314,10 @@ export const ActionPosts: Story = {
   },
 };
 
+export const CompositeActions: Story = {
+  render: renderCompositeActions,
+};
+
 export const DataStates: Story = {
   render: () => (
     <div className="grid gap-16">
@@ -367,6 +371,86 @@ function renderCollapsedAndExpanded() {
       renderExpandedStep={({stepId}) => (
         <Text size="sm" className="text-foreground-neutral-subtle">
           Slot content for {stepId}
+        </Text>
+      )}
+    />
+  );
+}
+
+function renderCompositeActions() {
+  const leafAttempt = makeAttempt({
+    id: 'attempt-mise-2',
+    step_id: 'step-mise',
+    attempt: 2,
+    status: 'running',
+    execution_order: 9,
+  });
+  const steps = [
+    makeStep({
+      id: 'step-setup',
+      key: 'setup',
+      name: 'Set up a pull request review',
+      type: 'composite',
+      status: 'running',
+      position: 1,
+      attempts: [
+        makeAttempt({attempt: 1, status: 'succeeded', execution_order: 1}),
+        makeAttempt({attempt: 2, status: 'running', execution_order: 6}),
+      ],
+    }),
+    makeStep({
+      id: 'step-changed-files',
+      parent_step_id: 'step-setup',
+      key: 'changed_files',
+      name: 'List changed files',
+      status: 'succeeded',
+      position: 2,
+      attempts: [
+        makeAttempt({attempt: 1, status: 'succeeded', execution_order: 2}),
+        makeAttempt({attempt: 2, status: 'succeeded', execution_order: 7}),
+      ],
+    }),
+    makeStep({
+      id: 'step-tools',
+      parent_step_id: 'step-setup',
+      key: 'tools',
+      name: 'Install tools',
+      type: 'composite',
+      status: 'running',
+      position: 3,
+      attempts: [
+        makeAttempt({attempt: 1, status: 'succeeded', execution_order: 3}),
+        makeAttempt({attempt: 2, status: 'running', execution_order: 8}),
+      ],
+    }),
+    makeStep({
+      id: 'step-mise',
+      parent_step_id: 'step-tools',
+      key: 'mise',
+      name: 'Set up mise',
+      type: 'action',
+      status: 'running',
+      position: 4,
+      attempts: [makeAttempt({attempt: 1, status: 'succeeded', execution_order: 4}), leafAttempt],
+    }),
+    makeStep({
+      id: 'step-review',
+      key: 'review',
+      name: 'Review the pull request',
+      type: 'agent',
+      status: 'failed',
+      position: 5,
+      attempts: [makeAttempt({status: 'failed', execution_order: 5})],
+    }),
+  ];
+
+  return (
+    <StepList
+      job={makeJob({name: 'review', status: 'running', steps})}
+      defaultSelectedAttemptId={leafAttempt.id}
+      renderExpandedStep={({stepLabel}) => (
+        <Text size="sm" className="px-row py-row text-foreground-neutral-subtle">
+          Logs for {stepLabel}
         </Text>
       )}
     />

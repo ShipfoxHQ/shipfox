@@ -215,6 +215,7 @@ function stepAttemptSummary(params: Partial<StepAttemptSummaryDto> = {}): StepAt
 function stepSummary(params: Partial<StepSummaryDto> = {}): StepSummaryDto {
   return {
     id: stepId,
+    parent_step_id: null,
     key: 'build',
     name: 'Build',
     type: 'run',

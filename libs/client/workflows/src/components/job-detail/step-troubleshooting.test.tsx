@@ -1017,6 +1017,36 @@ describe('StepInspectorSheet', () => {
   });
 });
 
+describe('StepInspectorSheet for composite action steps', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetApiClient();
+  });
+
+  it('shows the resolved inputs and the outputs of the composite attempt', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          stepDetailResponse({
+            config: {inputs: {base_sha: 'abc123'}},
+            output: {changed_files: ['src/index.ts']},
+          }),
+        ),
+      ),
+    });
+
+    await renderPanel({entry: compositeStepEntry()});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    const inputs = await screen.findByRole('region', {name: 'Inputs'});
+    expect(within(inputs).getByText('abc123')).toBeInTheDocument();
+    const outputs = screen.getByRole('region', {name: 'Outputs'});
+    expect(within(outputs).getByText('changed_files')).toBeInTheDocument();
+    expect(screen.getByText('Attempt #1').nextElementSibling).toHaveTextContent('Composite action');
+  });
+});
+
 describe('StepInspectorSheet for action steps', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -1652,6 +1682,45 @@ function actionStepEntry(
                 step_id: STEP_ID,
                 status,
                 error: stepError,
+                finished_at: '2026-09-27T12:01:00.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Test fixture is missing an execution.');
+  const entry = buildStepListModel({job, jobExecution: execution}).entries[0];
+  if (!entry) throw new Error('Test fixture is missing a step attempt.');
+  return entry;
+}
+
+function compositeStepEntry(): StepListEntryModel {
+  const jobId = '44444444-4444-4444-8444-444444444444';
+  const job = workflowJob({
+    id: jobId,
+    key: 'review',
+    status: 'succeeded',
+    job_executions: [
+      workflowJobExecutionDto({
+        id: EXECUTION_ID,
+        job_id: jobId,
+        status: 'succeeded',
+        steps: [
+          workflowStepDto({
+            id: STEP_ID,
+            job_execution_id: EXECUTION_ID,
+            key: 'setup',
+            name: 'Set up a pull request review',
+            status: 'succeeded',
+            type: 'composite',
+            attempts: [
+              workflowStepAttemptDto({
+                id: ATTEMPT_ID,
+                step_id: STEP_ID,
+                status: 'succeeded',
                 finished_at: '2026-09-27T12:01:00.000Z',
               }),
             ],

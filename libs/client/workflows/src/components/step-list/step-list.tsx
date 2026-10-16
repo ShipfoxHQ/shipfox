@@ -31,13 +31,20 @@ import {formatJobExecutionTimeLabel} from '../job-graph/job-duration-format.js';
 import {
   buildStepListModel,
   defaultStepListJobExecution,
+  entriesByParentEntryId,
   humanizeStatus,
   IGNORED_POST_FAILURE_TEXT,
+  isCompositeEntry,
+  openStepListEntryIds,
   type StepAttemptModel,
   type StepListEntryModel,
   type StepListModel,
   type StepModel,
+  selectionAfterOpenChange,
 } from './step-list-model.js';
+
+// A child row's chevron lines up under its parent's status icon: chevron width plus row gap.
+const NESTED_ROW_INDENT_PX = 22;
 
 export interface StepExpandedContext {
   step: Step;
@@ -95,10 +102,9 @@ export function StepList({
   showHeader = true,
   className,
 }: StepListProps) {
-  const selectedJobExecution = jobExecution ?? defaultStepListJobExecution(job);
   const model = useMemo(
-    () => buildStepListModel({job, jobExecution: selectedJobExecution}),
-    [job, selectedJobExecution],
+    () => buildStepListModel({job, jobExecution: jobExecution ?? defaultStepListJobExecution(job)}),
+    [job, jobExecution],
   );
 
   return (
@@ -149,6 +155,9 @@ function StepListContent({
   const autoSelectedAttemptIdRef = useRef<string | undefined>(undefined);
   const previousSelectedAttemptIdRef = useRef<string | null | undefined>(selectedAttemptId);
   const lastReportedExpandedAttemptIdsKeyRef = useRef<string | null>(null);
+  // Set when this list closes its last open row, so the parent clearing its controlled selection
+  // in response does not reopen the default row.
+  const clearedSelectionRef = useRef(false);
   const shouldUseControlledCollapsedState =
     selectedAttemptId === null && lastNotifiedSelectedAttemptId.current === null;
   const autoSelectedAttemptId =
@@ -165,13 +174,24 @@ function StepListContent({
     return autoSelectedAttemptIds;
   }, [autoSelectedAttemptIds, localSelectedAttemptIds, shouldUseControlledCollapsedState]);
   const hasExpandedContent = renderExpandedStep !== undefined;
+  const tree = useMemo(() => stepListTree(model.entries), [model.entries]);
+  const openAttemptIds = useMemo(
+    () => openStepListEntryIds(model.entries, selectedAttemptIds),
+    [model.entries, selectedAttemptIds],
+  );
+  const openAttemptIdSet = useMemo(() => new Set(openAttemptIds), [openAttemptIds]);
+  // A composite runs on the server and writes no logs, so only its inner steps report as expanded.
+  const expandedLogAttemptIds = useMemo(
+    () => selectedAttemptIds.filter((attemptId) => !tree.compositeEntryIds.has(attemptId)),
+    [tree, selectedAttemptIds],
+  );
 
   useEffect(() => {
-    const key = selectedAttemptIds.join('|');
+    const key = expandedLogAttemptIds.join('|');
     if (lastReportedExpandedAttemptIdsKeyRef.current === key) return;
     lastReportedExpandedAttemptIdsKeyRef.current = key;
-    onExpandedAttemptIdsChange?.(selectedAttemptIds);
-  }, [onExpandedAttemptIdsChange, selectedAttemptIds]);
+    onExpandedAttemptIdsChange?.(expandedLogAttemptIds);
+  }, [onExpandedAttemptIdsChange, expandedLogAttemptIds]);
 
   useEffect(() => {
     if (selectedAttemptId !== undefined) {
@@ -183,7 +203,9 @@ function StepListContent({
     // accordion when the parent has just cleared a previously controlled URL selection.
     const wasControlled = previousSelectedAttemptIdRef.current !== undefined;
     previousSelectedAttemptIdRef.current = undefined;
-    if (!wasControlled) return;
+    const clearedByList = clearedSelectionRef.current;
+    clearedSelectionRef.current = false;
+    if (!wasControlled || clearedByList) return;
 
     setLocalSelectedAttemptIds(defaultSelectedAttemptId ? [defaultSelectedAttemptId] : []);
     setUserSelectedAttempt(false);
@@ -218,6 +240,7 @@ function StepListContent({
       return;
     }
 
+    clearedSelectionRef.current = false;
     setLocalSelectedAttemptIds(selectedAttemptId ? [selectedAttemptId] : []);
     setUserSelectedAttempt(true);
   }, [selectedAttemptId]);
@@ -236,12 +259,66 @@ function StepListContent({
     setUserSelectedAttempt(true);
     setLocalSelectedAttemptIds(nextAttemptIds);
     lastNotifiedSelectedAttemptId.current = nextAttemptId ?? null;
+    clearedSelectionRef.current = nextAttemptId === undefined;
     onSelectedAttemptChange?.(nextAttemptId);
+  }
+
+  function changeOpenAttempts(nextOpenIds: readonly string[]) {
+    selectAttempt(
+      selectionAfterOpenChange({
+        entries: model.entries,
+        selectedIds: selectedAttemptIds,
+        nextOpenIds,
+      }),
+    );
   }
 
   const inspectorEntry = model.entries.find(
     (entry) => entry.id === inspectorOpenAttemptId && !entry.carriedOver,
   );
+
+  function inspectHandler(entry: StepListEntryModel): (() => void) | undefined {
+    if (!onInspectorOpenChange || entry.carriedOver) return undefined;
+    return () => onInspectorOpenChange(entry.id);
+  }
+
+  function renderEntries(entries: readonly StepListEntryModel[]): ReactNode {
+    return entries.map((entry) => {
+      const open = openAttemptIdSet.has(entry.id);
+      const group = tree.compositeEntryIds.has(entry.id);
+      return (
+        <StepRow
+          key={entry.id}
+          entry={entry}
+          open={open}
+          selected={selectedAttemptIds.includes(entry.id)}
+          group={group}
+          hasExpandedContent={hasExpandedContent}
+          isLast={entry.id === tree.lastEntryId}
+          onSelect={() =>
+            open
+              ? changeOpenAttempts(openAttemptIds.filter((attemptId) => attemptId !== entry.id))
+              : selectAttempt([entry.id])
+          }
+          onInspect={inspectHandler(entry)}
+          inspecting={inspectorOpenAttemptId === entry.id}
+          expandedContent={open && !group ? renderExpandedStep?.(expandedContext(entry)) : null}
+          nestedEntries={
+            open && group ? (
+              <StepGroupEntries depth={entry.depth + 1}>
+                {renderEntries(tree.childrenByParentEntryId.get(entry.id) ?? [])}
+              </StepGroupEntries>
+            ) : null
+          }
+          stepFooter={
+            tree.lastEntryIdByStepId.get(entry.step.id) === entry.id
+              ? renderStepFooter?.(entry.step)
+              : null
+          }
+        />
+      );
+    });
+  }
 
   return (
     <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
@@ -265,65 +342,42 @@ function StepListContent({
         ) : (
           <Accordion
             type="multiple"
-            value={selectedAttemptIds}
-            onValueChange={selectAttempt}
+            value={openAttemptIds}
+            onValueChange={changeOpenAttempts}
             asChild
           >
-            <ol>
-              {model.entries.map((entry, index) => {
-                const selected = selectedAttemptIds.includes(entry.id);
-                const isLastAttemptForStep = !model.entries.some(
-                  (candidate, candidateIndex) =>
-                    candidateIndex > index && candidate.step.id === entry.step.id,
-                );
-                return (
-                  <StepRow
-                    key={entry.id}
-                    entry={entry}
-                    selected={selected}
-                    hasExpandedContent={hasExpandedContent}
-                    isLast={index === model.entries.length - 1}
-                    onSelect={() => {
-                      if (hasExpandedContent) {
-                        selectAttempt(toggleAttemptId(selectedAttemptIds, entry.id));
-                      } else {
-                        selectAttempt(selected ? [] : [entry.id]);
-                      }
-                    }}
-                    onInspect={
-                      onInspectorOpenChange && !entry.carriedOver
-                        ? () => onInspectorOpenChange(entry.id)
-                        : undefined
-                    }
-                    inspecting={inspectorOpenAttemptId === entry.id}
-                    expandedContent={
-                      selected
-                        ? renderExpandedStep?.({
-                            step: entry.step,
-                            stepId: entry.step.id,
-                            stepLabel: entry.step.label,
-                            sourceLocation: entry.step.sourceLocation,
-                            attempt: entry.attempt,
-                            attemptOrdinal: entry.attemptOrdinal,
-                            attemptId: entry.id,
-                            attemptStartedAt: entry.startedAt,
-                            attemptError: entry.error,
-                            attemptStatus: entry.statusVisual.kind,
-                            carriedOver: entry.carriedOver,
-                          })
-                        : null
-                    }
-                    stepFooter={isLastAttemptForStep ? renderStepFooter?.(entry.step) : null}
-                  />
-                );
-              })}
-            </ol>
+            <ol>{renderEntries(tree.childrenByParentEntryId.get(undefined) ?? [])}</ol>
           </Accordion>
         )}
       </section>
       {inspectorEntry ? renderInspector?.(inspectorEntry) : null}
     </TimeTickerProvider>
   );
+}
+
+function stepListTree(entries: readonly StepListEntryModel[]) {
+  return {
+    childrenByParentEntryId: entriesByParentEntryId(entries),
+    compositeEntryIds: new Set(entries.filter(isCompositeEntry).map((entry) => entry.id)),
+    lastEntryIdByStepId: new Map(entries.map((entry) => [entry.step.id, entry.id])),
+    lastEntryId: entries.at(-1)?.id,
+  };
+}
+
+function expandedContext(entry: StepListEntryModel): StepExpandedContext {
+  return {
+    step: entry.step,
+    stepId: entry.step.id,
+    stepLabel: entry.step.label,
+    sourceLocation: entry.step.sourceLocation,
+    attempt: entry.attempt,
+    attemptOrdinal: entry.attemptOrdinal,
+    attemptId: entry.id,
+    attemptStartedAt: entry.startedAt,
+    attemptError: entry.error,
+    attemptStatus: entry.statusVisual.kind,
+    carriedOver: entry.carriedOver,
+  };
 }
 
 function StepListEmptyStateView({
@@ -379,36 +433,143 @@ function StepListEmptyStateIcon({status}: {status: JobDisplayStatus}) {
   );
 }
 
+function StepGroupEntries({depth, children}: {depth: number; children: ReactNode}) {
+  const hasEntries = Array.isArray(children) ? children.length > 0 : Boolean(children);
+  if (!hasEntries) {
+    return (
+      <Text
+        size="xs"
+        className="px-row py-row text-foreground-neutral-muted"
+        style={nestedRowIndentStyle(depth)}
+      >
+        No inner steps have run in this attempt.
+      </Text>
+    );
+  }
+  return <ol>{children}</ol>;
+}
+
+function nestedRowIndentStyle(depth: number) {
+  if (depth === 0) return undefined;
+  return {paddingInlineStart: `calc(var(--pad-row-x) + ${depth * NESTED_ROW_INDENT_PX}px)`};
+}
+
 function StepRow({
   entry,
+  open,
   selected,
+  group,
   hasExpandedContent,
   isLast,
   onSelect,
   onInspect,
   inspecting,
   expandedContent,
+  nestedEntries,
   stepFooter,
 }: {
   entry: StepListEntryModel;
+  open: boolean;
   selected: boolean;
+  group: boolean;
   hasExpandedContent: boolean;
   isLast: boolean;
   onSelect: () => void;
   onInspect?: (() => void) | undefined;
   inspecting: boolean;
   expandedContent: ReactNode;
+  nestedEntries: ReactNode;
   stepFooter: ReactNode;
 }) {
   const shouldShowLabelTooltip = entry.step.label.length > 32;
-  const rowContent = (
+  const rowContent = <StepRowSummary entry={entry} open={open} />;
+  const rowClasses = cn(
+    'group flex min-h-44 min-w-0 flex-1 items-center gap-x-inline bg-transparent px-row py-row text-left transition-colors hover:bg-transparent active:bg-transparent focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+    entry.carriedOver && 'opacity-[0.55]',
+  );
+  const indentStyle = nestedRowIndentStyle(entry.depth);
+  const button = hasExpandedContent ? (
+    <AccordionTrigger
+      showIcon={false}
+      aria-label={entryAccessibleLabel(entry)}
+      className={rowClasses}
+      style={indentStyle}
+    >
+      {rowContent}
+    </AccordionTrigger>
+  ) : (
+    <button
+      type="button"
+      aria-expanded={group ? open : false}
+      aria-label={entryAccessibleLabel(entry)}
+      onClick={onSelect}
+      className={rowClasses}
+      style={indentStyle}
+    >
+      {rowContent}
+    </button>
+  );
+  const triggerNode = shouldShowLabelTooltip ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>
+        <span className="block max-w-320 break-words">{entry.step.label}</span>
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    button
+  );
+  const row = (
+    <>
+      <div
+        className={cn(
+          'group flex min-w-0 items-center gap-inline bg-background-neutral-base pr-[8px] transition-colors hover:bg-background-neutral-hover active:bg-background-neutral-pressed',
+          selected && 'bg-background-neutral-hover',
+          selected && hasExpandedContent && !group && 'sticky top-0 z-10',
+          !hasExpandedContent && ['border-b border-border-neutral-base', isLast && 'border-b-0'],
+        )}
+      >
+        <div className="min-w-0 flex-1">{triggerNode}</div>
+        {onInspect ? (
+          <InspectorTrigger
+            open={inspecting}
+            size="xs"
+            aria-label={`Inspect step ${entry.step.label}, attempt ${entry.attemptOrdinal}`}
+            onClick={onInspect}
+          >
+            Inspect step
+          </InspectorTrigger>
+        ) : null}
+      </div>
+      <StepRowExpansion
+        open={open}
+        hasExpandedContent={hasExpandedContent}
+        content={expandedContent ?? nestedEntries}
+      />
+      {stepFooter}
+    </>
+  );
+
+  if (hasExpandedContent) {
+    return (
+      <AccordionItem value={entry.id} asChild>
+        <li>{row}</li>
+      </AccordionItem>
+    );
+  }
+
+  return <li>{row}</li>;
+}
+
+function StepRowSummary({entry, open}: {entry: StepListEntryModel; open: boolean}) {
+  return (
     <>
       <Icon
         name="chevronRight"
         aria-hidden="true"
         className={cn(
           'size-14 shrink-0 text-foreground-neutral-muted transition-transform',
-          selected && 'rotate-90',
+          open && 'rotate-90',
         )}
       />
       <StepStatusIcon entry={entry} />
@@ -430,79 +591,25 @@ function StepRow({
       <StepAttemptDurationLabel attempt={entry} />
     </>
   );
-  const rowClasses = cn(
-    'group flex min-h-44 min-w-0 flex-1 items-center gap-x-inline bg-transparent px-row py-row text-left transition-colors hover:bg-transparent active:bg-transparent focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
-    entry.carriedOver && 'opacity-[0.55]',
-  );
-  const button = hasExpandedContent ? (
-    <AccordionTrigger
-      showIcon={false}
-      aria-label={entryAccessibleLabel(entry)}
-      className={rowClasses}
-    >
-      {rowContent}
-    </AccordionTrigger>
-  ) : (
-    <button
-      type="button"
-      aria-expanded={false}
-      aria-label={entryAccessibleLabel(entry)}
-      onClick={onSelect}
-      className={rowClasses}
-    >
-      {rowContent}
-    </button>
-  );
-  const triggerNode = shouldShowLabelTooltip ? (
-    <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent>
-        <span className="block max-w-320 break-words">{entry.step.label}</span>
-      </TooltipContent>
-    </Tooltip>
-  ) : (
-    button
-  );
-  const row = (
-    <>
-      <div
-        className={cn(
-          'group flex min-w-0 items-center gap-inline bg-background-neutral-base pr-[8px] transition-colors hover:bg-background-neutral-hover active:bg-background-neutral-pressed',
-          selected && 'bg-background-neutral-hover',
-          selected && hasExpandedContent && 'sticky top-0 z-10',
-          !hasExpandedContent && ['border-b border-border-neutral-base', isLast && 'border-b-0'],
-        )}
-      >
-        <div className="min-w-0 flex-1">{triggerNode}</div>
-        {onInspect ? (
-          <InspectorTrigger
-            open={inspecting}
-            size="xs"
-            aria-label={`Inspect step ${entry.step.label}, attempt ${entry.attemptOrdinal}`}
-            onClick={onInspect}
-          >
-            Inspect step
-          </InspectorTrigger>
-        ) : null}
-      </div>
-      {selected && expandedContent ? (
-        <AccordionContent className="border-t border-border-neutral-base bg-transparent px-0 py-0">
-          <div className="min-w-0">{expandedContent}</div>
-        </AccordionContent>
-      ) : null}
-      {stepFooter}
-    </>
-  );
+}
 
-  if (hasExpandedContent) {
-    return (
-      <AccordionItem value={entry.id} asChild>
-        <li>{row}</li>
-      </AccordionItem>
-    );
-  }
-
-  return <li>{row}</li>;
+/** Logs or inner steps under an open row. Without accordion content, inner steps render inline. */
+function StepRowExpansion({
+  open,
+  hasExpandedContent,
+  content,
+}: {
+  open: boolean;
+  hasExpandedContent: boolean;
+  content: ReactNode;
+}) {
+  if (!open || !content) return null;
+  if (!hasExpandedContent) return content;
+  return (
+    <AccordionContent className="border-t border-border-neutral-base bg-transparent px-0 py-0">
+      <div className="min-w-0">{content}</div>
+    </AccordionContent>
+  );
 }
 
 function CarriedOverBadge() {
@@ -520,13 +627,6 @@ function CarriedOverBadge() {
       </TooltipContent>
     </Tooltip>
   );
-}
-
-function toggleAttemptId(selectedAttemptIds: readonly string[], attemptId: string): string[] {
-  if (selectedAttemptIds.includes(attemptId)) {
-    return selectedAttemptIds.filter((selectedAttemptId) => selectedAttemptId !== attemptId);
-  }
-  return [...selectedAttemptIds, attemptId];
 }
 
 function nextSelectedAttemptId(
@@ -580,6 +680,16 @@ function StepStatusIcon({entry}: {entry: StepListEntryModel}) {
 }
 
 function ToolProviderIcon({entry}: {entry: StepListEntryModel}) {
+  if (isCompositeEntry(entry)) {
+    return (
+      <Icon
+        name="stackLine"
+        size={14}
+        aria-hidden="true"
+        className="shrink-0 text-foreground-neutral-muted"
+      />
+    );
+  }
   if (entry.step.type === 'action' || entry.step.type === 'post') {
     return (
       <Icon
@@ -629,6 +739,7 @@ function StepAttemptChip({attempt}: {attempt: StepAttemptModel}) {
 
 function entryAccessibleLabel(entry: StepListEntryModel): string {
   const parts = [entry.step.label, entry.statusVisual.label, `attempt ${entry.attemptOrdinal}`];
+  if (isCompositeEntry(entry)) parts.push('composite action');
   if (entry.step.type === 'action') parts.push('action');
   if (entry.step.type === 'post') parts.push('action post');
   if (entry.failureIgnored) parts.push('job result unchanged');

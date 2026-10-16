@@ -139,6 +139,7 @@ export {
   type WorkflowExecutionTriggerEventSummaryDto,
   type WorkflowExecutionTriggerEventsResponseDto,
   type WorkflowJobExecutionContextResponseDto,
+  type WorkflowRunActionFileResponseDto,
   type WorkflowRunAggregatesQueryDto,
   type WorkflowRunAggregatesResponseDto,
   type WorkflowRunAnnotationItemDto,
@@ -187,6 +188,7 @@ export {
   workflowExecutionTriggerEventSummarySchema,
   workflowExecutionTriggerEventsResponseSchema,
   workflowJobExecutionContextResponseSchema,
+  workflowRunActionFileResponseSchema,
   workflowRunAggregatesQuerySchema,
   workflowRunAggregatesResponseSchema,
   workflowRunAnnotationItemSchema,
@@ -233,7 +235,12 @@ export {
   workflowRunSourceUnavailableReasonSchema,
   workflowRunStatusSchema,
 } from '#schemas/index.js';
-export {type StepSourceLocationDto, stepSourceLocationSchema} from '#schemas/step.js';
+export {
+  type StepSourceFileDto,
+  type StepSourceLocationDto,
+  stepSourceFileSchema,
+  stepSourceLocationSchema,
+} from '#schemas/step.js';
 export {
   type StepAttemptSummaryDto,
   type StepAttemptSummaryPageDto,

@@ -141,6 +141,32 @@ describe('workflowJobLandingSelection', () => {
     });
   });
 
+  test('selects the inner step that failed a composite', () => {
+    const job = workflowJob({
+      steps: [
+        workflowStepDto({
+          id: 'step-setup',
+          type: 'composite',
+          position: 1,
+          status: 'failed',
+          attempts: [workflowStepAttemptDto({id: 'attempt-setup', status: 'failed'})],
+        }),
+        workflowStepDto({
+          id: 'step-install',
+          parent_step_id: 'step-setup',
+          position: 2,
+          status: 'failed',
+          attempts: [workflowStepAttemptDto({id: 'attempt-install', status: 'failed'})],
+        }),
+      ],
+    }).jobExecutions[0];
+
+    expect(workflowJobLandingSelection(job)).toEqual({
+      stepId: 'step-install',
+      attemptId: 'attempt-install',
+    });
+  });
+
   test('selects nothing when every step succeeded', () => {
     const job = workflowJob({
       steps: [

@@ -25,6 +25,7 @@ import {ContainerExecutionHost} from '@shipfox/runner-container';
 import {
   type ActionStepOptions,
   type ActionToolsUpstream,
+  actionsDirectory,
   type CheckoutDestination,
   type CheckoutDestinations,
   type CommandStartMetadata,
@@ -32,6 +33,7 @@ import {
   executeCheckoutStep,
   executeRunStep,
   executeSetupStep,
+  prepareStepActionBundle,
   reportOutOfMemoryKills,
   resolveCgroupMemoryEventsPath,
   type SetupContainerSecrets,
@@ -459,6 +461,7 @@ async function finishStepExecution(
     result,
     logOutcome,
     ...(logPath === undefined ? {} : {logPath}),
+    ...(step.type === 'setup' ? {actionsDir: actionsDirectory(params.tempDir)} : {}),
     jobId: params.jobId,
     jobExecutionId: params.jobContext.jobExecutionId,
     stepLabel,
@@ -925,6 +928,17 @@ export async function executeStep(params: {
       });
       stream = execution.stream;
       return execution;
+    }
+
+    const bundleFailure = await prepareStepActionBundle({
+      config: step.config,
+      jobTempDir: params.jobTempDir,
+      load: (digest) =>
+        requestActionBundle(leaseClient, {stepId: step.id, digest, signal: params.signal}),
+      shared: params.container !== undefined,
+    });
+    if (bundleFailure) {
+      return {result: bundleFailure, logOutcome: 'drained', preparedWorkspace: false};
     }
 
     const workingDirectory = await resolveStepWorkingDirectory(cwd, step.config.working_directory);
@@ -1932,8 +1946,8 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     jobTempDir: input.jobTempDir,
     runId: input.jobContext.workflowRunId,
     jobId: input.jobContext.jobId,
-    loadBundle: () =>
-      requestActionBundle(input.leaseClient, {stepId: input.step.id, signal: input.signal}),
+    loadBundle: (digest) =>
+      requestActionBundle(input.leaseClient, {stepId: input.step.id, digest, signal: input.signal}),
     ...(input.container ? await containerActionOptions(input.container) : {}),
     ...gitConfigGlobalOption(input),
     ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
@@ -2505,6 +2519,8 @@ export async function reportStepResult(params: {
   logOutcome: LogOutcomeDto;
   /** Finalized text log on the runner. Omitted when there is none. */
   logPath?: string;
+  /** Where the job extracts action bundles. Reported with the setup step only. */
+  actionsDir?: string;
   jobId: string;
   jobExecutionId: string;
   stepLabel: string;
@@ -2517,6 +2533,7 @@ export async function reportStepResult(params: {
     result,
     logOutcome,
     logPath,
+    actionsDir,
     jobId,
     jobExecutionId,
     stepLabel,
@@ -2557,6 +2574,7 @@ export async function reportStepResult(params: {
     ...(result.outputs ? {outputs: result.outputs} : {}),
     ...(result.checkout === undefined ? {} : {checkout: result.checkout}),
     ...(logPath === undefined ? {} : {logPath}),
+    ...(actionsDir === undefined ? {} : {actionsDir}),
     logOutcome,
     signal,
   });

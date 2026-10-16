@@ -4,10 +4,12 @@ import {
   type WorkflowJsonValue,
   type WorkflowModel,
   type WorkflowModelAction,
+  type WorkflowModelActionInput,
 } from '@shipfox/api-definitions-dto';
 import {
   createWorkflowExpression,
   type OutputDeclarations,
+  type OutputTypeDeclaration,
   parseWorkflowTemplate,
   planInterpolationField,
   type ResolvedFieldSegment,
@@ -77,12 +79,35 @@ interface TestActionStep extends TestWorkflowStepBase {
   readonly outputs?: OutputDeclarations | undefined;
 }
 
+interface TestCompositeStep extends TestWorkflowStepBase {
+  readonly uses: string;
+  readonly composite?:
+    | {
+        readonly name?: string | undefined;
+        readonly digest?: string | undefined;
+        readonly inputs?: Readonly<Record<string, WorkflowModelActionInput>> | undefined;
+        /** Each output's type and its `value` source. */
+        readonly outputs?:
+          | Readonly<
+              Record<string, {readonly type: OutputTypeDeclaration['type']; readonly value: string}>
+            >
+          | undefined;
+      }
+    | undefined;
+  readonly with?: WorkflowJsonValue | undefined;
+  readonly env?: WorkflowModel['env'] | undefined;
+  readonly steps: readonly TestWorkflowStep[];
+}
+
 export type TestWorkflowStep =
   | TestRunStep
   | TestAgentStep
   | TestCheckoutStep
   | TestToolStep
-  | TestActionStep;
+  | TestActionStep
+  | TestCompositeStep;
+
+export const TEST_COMPOSITE_DIGEST = `sha256:${'c'.repeat(64)}`;
 
 const DEFAULT_RUNNER_LABELS = ['ubuntu-latest'] as const;
 
@@ -282,8 +307,14 @@ function outputTemplates(
   );
 }
 
-function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number): ModelStep {
-  const base = stepBase(step, jobId, stepIndex);
+function normalizeStep(
+  step: TestWorkflowStep,
+  jobId: string,
+  stepIndex: number,
+  parentId?: string,
+): ModelStep {
+  const base = stepBase(step, jobId, stepIndex, parentId);
+  if ('steps' in step) return normalizeCompositeStep(step, jobId, base);
   if ('run' in step) return normalizeRunStep(step, base);
   if ('prompt' in step) return normalizeAgentStep(step, base);
   if ('tool' in step) return normalizeToolStep(step, base);
@@ -380,6 +411,84 @@ function normalizeActionStep(step: TestActionStep, base: ReturnType<typeof stepB
   };
 }
 
+// Like sync: inner steps read the composite's `inputs`, which exist only once it opens.
+function normalizeCompositeStep(
+  step: TestCompositeStep,
+  jobId: string,
+  base: ReturnType<typeof stepBase>,
+): ModelStep {
+  const withTree = step.with === undefined ? undefined : withTemplateTree(step.with, 'action.with');
+  const env = envTemplates(step.env);
+  const templates = {
+    ...(withTree === undefined ? {} : {with: withTree}),
+    ...(env === undefined ? {} : {env}),
+  };
+  const outputs = step.composite?.outputs ?? {};
+  return {
+    ...base,
+    kind: 'composite',
+    composite: {
+      uses: step.uses,
+      origin: 'local',
+      digest: step.composite?.digest ?? TEST_COMPOSITE_DIGEST,
+      name: step.composite?.name ?? 'Test composite',
+      inputs: step.composite?.inputs ?? {},
+      outputs: Object.fromEntries(
+        Object.entries(outputs).map(([name, output]) => [
+          name,
+          {
+            declaration: {type: output.type, required: false},
+            value: fieldTemplate('action.outputs', output.value) ?? [
+              {kind: 'literal' as const, value: output.value},
+            ],
+          },
+        ]),
+      ),
+      integrations: {},
+    },
+    ...(step.with === undefined ? {} : {with: step.with}),
+    ...optionalStepEnv(step.env),
+    outputs: Object.fromEntries(
+      Object.entries(outputs).map(([name, output]) => [name, {type: output.type, required: false}]),
+    ),
+    steps: step.steps.map((inner, index) =>
+      scopeSession(deferInputs(normalizeStep(inner, jobId, index, base.id)) as ModelStep, base.id),
+    ),
+    ...(Object.keys(templates).length === 0 ? {} : {templates}),
+  };
+}
+
+const WHOLE_INPUT_REFERENCE = /^\s*\$\{\{\s*inputs\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}\s*$/;
+
+// Like sync: a session key inside a composite is scoped to the use unless it is exactly an input.
+function scopeSession(step: ModelStep, scope: string): ModelStep {
+  if (step.kind !== 'agent' || step.session === undefined) return step;
+  const source = step.session.key
+    .map((segment) =>
+      segment.kind === 'literal' ? segment.value : `$\{{ ${segment.expression.source} }}`,
+    )
+    .join('');
+  if (WHOLE_INPUT_REFERENCE.test(source)) return step;
+  return {...step, session: {...step.session, scope}};
+}
+
+function deferInputs(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(deferInputs);
+  if (value === null || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  if (
+    record.kind === 'deferred' &&
+    Array.isArray(record.roots) &&
+    record.roots.includes('inputs') &&
+    record.fillTarget === 'run-creation'
+  ) {
+    return {...record, fillTarget: 'step-dispatch'};
+  }
+  return Object.fromEntries(
+    Object.entries(record).map(([key, child]) => [key, deferInputs(child)]),
+  );
+}
+
 function testAgentStepSession(
   session: NonNullable<TestAgentStep['session']>,
 ): NonNullable<Extract<ModelStep, {kind: 'agent'}>['session']> {
@@ -391,10 +500,10 @@ function testAgentStepSession(
   };
 }
 
-function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
+function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number, parentId?: string) {
+  const local = step.key === undefined ? `step-${stepIndex + 1}` : stableId(step.key);
   return {
-    id:
-      step.key === undefined ? `${jobId}-step-${stepIndex + 1}` : `${jobId}-${stableId(step.key)}`,
+    id: parentId === undefined ? `${jobId}-${local}` : `${parentId}.${local}`,
     ...(step.key === undefined ? {} : {key: step.key}),
     ...(step.name === undefined ? {} : {name: step.name}),
     ...(step.workingDirectory === undefined ? {} : {workingDirectory: step.workingDirectory}),

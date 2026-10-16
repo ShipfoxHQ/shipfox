@@ -211,6 +211,35 @@ describe('workflow agent-access schemas', () => {
     ).toBe(false);
   });
 
+  test('accepts composite steps and their inner steps', () => {
+    const steps = {
+      job_id: jobId,
+      execution_id: executionId,
+      steps: [
+        {...stepResult(), type: 'composite' as const},
+        {
+          ...stepResult(),
+          id: runId,
+          parent_step_id: stepId,
+          position: 1,
+          status: 'skipped' as const,
+          status_reason: 'composite_skipped' as const,
+        },
+      ],
+      next_cursor: null,
+    };
+
+    const parsed = listWorkflowExecutionStepsResultSchema.safeParse(steps);
+
+    expect(parsed.success).toBe(true);
+    const stepJsonSchema = listWorkflowExecutionStepsResultJsonSchema.properties.steps.items;
+    expect(stepJsonSchema.required).toContain('parent_step_id');
+    expect(stepJsonSchema.properties.type.enum).toContain('composite');
+    expect(stepJsonSchema.properties.status_reason.anyOf[0]).toMatchObject({
+      enum: expect.arrayContaining(['composite_skipped']),
+    });
+  });
+
   test('enforces text caps by UTF-8 bytes', () => {
     const validRun = runResult();
     const underByteCap = {...validRun, name: `${'🙂'.repeat(127)}a`};
@@ -299,6 +328,7 @@ function executionResult() {
 function stepResult() {
   return {
     id: stepId,
+    parent_step_id: null,
     key: 'run',
     name: 'Run command',
     type: 'run' as const,

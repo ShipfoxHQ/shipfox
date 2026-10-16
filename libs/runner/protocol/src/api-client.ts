@@ -384,6 +384,8 @@ export async function reportStep(
     outputs?: Record<string, string> | null;
     checkout?: CheckoutResultDto | null;
     logPath?: string;
+    /** Sent with the setup step, so the server can resolve `action.path` for later steps. */
+    actionsDir?: string;
     signal?: AbortSignal;
   },
 ): Promise<ReportStepResponseDto> {
@@ -401,7 +403,7 @@ export async function reportStep(
     ...(params.response ? {response: params.response.slice(0, STEP_RESPONSE_MAX_LENGTH)} : {}),
     ...(hasOutputs ? {output: params.outputs} : {}),
     ...(hasCheckout ? {checkout: params.checkout} : {}),
-    ...logPathField(params.logPath),
+    ...runnerPathFields(params),
     log_outcome: params.logOutcome,
   });
 
@@ -433,8 +435,14 @@ export async function reportStep(
   return reportStepResponseSchema.parse(await response.json());
 }
 
-function logPathField(logPath: string | undefined): {log_path?: string} {
-  return logPath ? {log_path: logPath} : {};
+function runnerPathFields(params: {logPath?: string; actionsDir?: string}): {
+  log_path?: string;
+  actions_dir?: string;
+} {
+  return {
+    ...(params.logPath ? {log_path: params.logPath} : {}),
+    ...(params.actionsDir ? {actions_dir: params.actionsDir} : {}),
+  };
 }
 
 function stripStepErrorClassification(
@@ -686,15 +694,19 @@ export async function requestSessionTranscript(
   };
 }
 
-/** Loads the gzipped bundle for the leased action step. The caller checks the digest. */
+/**
+ * Loads a gzipped bundle for the leased step: the action it runs, or the composite action it
+ * belongs to. `digest` names which one. The caller checks the digest.
+ */
 export async function requestActionBundle(
   leaseClient: KyInstance,
-  params: {stepId: string; signal?: AbortSignal},
+  params: {stepId: string; digest?: string; signal?: AbortSignal},
 ): Promise<Buffer> {
   let response: Response;
   try {
     response = await leaseClient.get(`runs/jobs/current/steps/${params.stepId}/action-bundle`, {
       retry: {methods: ['get'], statusCodes: [429, 500, 502, 503, 504]},
+      ...(params.digest === undefined ? {} : {searchParams: {digest: params.digest}}),
       ...(params.signal ? {signal: params.signal} : {}),
     });
   } catch (error) {

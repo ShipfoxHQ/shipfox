@@ -1,6 +1,6 @@
-import {workflowRunDtoSchema} from '@shipfox/api-workflows-dto';
+import {workflowRunDtoSchema, workflowRunSelectionResponseSchema} from '@shipfox/api-workflows-dto';
 import type {WorkflowRun} from '#core/entities/workflow-run.js';
-import {toRunDto} from './workflow-run.js';
+import {toRunDto, toRunSelectionDto} from './workflow-run.js';
 
 describe('workflow run DTOs', () => {
   it('exposes secret input references on run details with DTO field names', () => {
@@ -51,6 +51,32 @@ describe('workflow run DTOs', () => {
         key: 'DATABASE_URL',
         project_id: expect.any(String),
       }),
+    });
+  });
+
+  it('names the composite action file that holds a selected inner step', () => {
+    const file = {
+      kind: 'action' as const,
+      uses: './.shipfox/actions/setup',
+      digest: `sha256:${'c'.repeat(64)}`,
+      path: 'action.yml',
+    };
+
+    const dto = toRunSelectionDto({
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttempt: 1,
+      jobId: crypto.randomUUID(),
+      jobExecutionId: crypto.randomUUID(),
+      stepId: crypto.randomUUID(),
+      stepAttemptId: crypto.randomUUID(),
+      stepAttempt: 1,
+      sourceLocation: {startLine: 5, endLine: 6, file},
+    });
+
+    expect(workflowRunSelectionResponseSchema.parse(dto).source_location).toEqual({
+      start_line: 5,
+      end_line: 6,
+      file,
     });
   });
 });

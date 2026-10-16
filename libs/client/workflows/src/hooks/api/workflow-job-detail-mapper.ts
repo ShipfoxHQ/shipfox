@@ -22,6 +22,7 @@ import {Job, JobExecution, type Step, StepAttempt} from '#core/workflow-run.js';
 import {toWorkflowDiagnosticUnavailableField} from './workflow-diagnostic-mapper.js';
 import {
   toEvaluationTrace,
+  toStepSourceLocation,
   toWorkflowExecutionEvent,
   toWorkflowJobGateResult,
   toWorkflowJobStepError,
@@ -125,11 +126,10 @@ export function toWorkflowJobStepSummary(
     position: dto.position,
     status: dto.status,
     statusReason: dto.status_reason,
-    sourceLocation: dto.source_location
-      ? {startLine: dto.source_location.start_line, endLine: dto.source_location.end_line}
-      : null,
+    sourceLocation: toStepSourceLocation(dto.source_location),
     currentAttempt: dto.current_attempt,
     ...(dto.gate_max_attempts === undefined ? {} : {gateMaxAttempts: dto.gate_max_attempts}),
+    ...(dto.parent_step_id ? {parentStepId: dto.parent_step_id} : {}),
     ...(dto.main_step_id === undefined ? {} : {mainStepId: dto.main_step_id}),
     ...(dto.affects_job === undefined ? {} : {affectsJob: dto.affects_job}),
     error: toWorkflowJobStepError(dto.error),
@@ -290,6 +290,7 @@ function toStepForJobDetail(
     position: step.position,
     currentAttempt: step.currentAttempt,
     ...(step.gateMaxAttempts === undefined ? {} : {gateMaxAttempts: step.gateMaxAttempts}),
+    ...(step.parentStepId === undefined ? {} : {parentStepId: step.parentStepId}),
     ...(step.mainStepId === undefined ? {} : {mainStepId: step.mainStepId}),
     ...(step.affectsJob === undefined ? {} : {affectsJob: step.affectsJob}),
     ...(attemptTotal === undefined ? {} : {attemptTotal}),

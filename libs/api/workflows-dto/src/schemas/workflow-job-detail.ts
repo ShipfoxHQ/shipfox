@@ -40,7 +40,16 @@ const stepStatusSchema = z.enum([
   'skipped',
 ]);
 
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']);
+const stepTypeSchema = z.enum([
+  'setup',
+  'run',
+  'agent',
+  'checkout',
+  'tool',
+  'action',
+  'composite',
+  'post',
+]);
 
 const stepGateResultSummarySchema = z
   .union([stepGateResultDtoSchema.unwrap(), z.object({kind: z.literal('unknown')})])
@@ -67,6 +76,8 @@ export type StepAttemptSummaryDto = z.infer<typeof stepAttemptSummaryDtoSchema>;
 
 export const stepSummaryDtoSchema = z.object({
   id: z.string().uuid(),
+  /** The composite action step that holds this step. Null for a job step. */
+  parent_step_id: z.string().uuid().nullable(),
   key: z.string().nullable(),
   name: z.string(),
   type: stepTypeSchema,

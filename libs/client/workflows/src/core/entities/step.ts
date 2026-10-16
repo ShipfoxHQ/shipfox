@@ -85,9 +85,19 @@ export const AGENT_CONFIG_ISSUES = new Set<AgentConfigIssue>([
   'credentials_invalid',
 ]);
 
+/** The manifest of the composite action that holds an inner step. */
+export interface StepSourceFile {
+  kind: 'action';
+  uses: string;
+  digest: string;
+  path: string;
+}
+
 export interface StepSourceLocation {
   startLine: number;
   endLine: number;
+  /** The file that holds the lines. Absent means the workflow file. */
+  file?: StepSourceFile | undefined;
 }
 
 export interface StepError {
@@ -140,6 +150,8 @@ export interface Step {
   position: number;
   currentAttempt: number;
   gateMaxAttempts?: number | undefined;
+  /** The composite action step that holds this step. Set on inner rows only. */
+  parentStepId?: string | undefined;
   /** The step whose action declared this post. Set on post rows only. */
   mainStepId?: string | undefined;
   /** False when a failed post leaves the job result unchanged. Set on post rows only. */

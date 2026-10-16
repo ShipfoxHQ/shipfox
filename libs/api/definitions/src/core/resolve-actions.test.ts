@@ -772,22 +772,6 @@ function compositeAction(directory: string, steps: string[]): Record<string, Rep
 }
 
 describe('resolveWorkflowActions with composite actions', () => {
-  it('rejects a composite manifest unless composite actions are on', async () => {
-    const context = sourceContext(compositeAction('.shipfox/actions/setup', ['run: echo hi']));
-
-    const error = await captureError(
-      resolveWorkflowActions({
-        ...context,
-        workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
-      }),
-    );
-
-    expect(error.code).toBe('action-invalid');
-    expect(error.details).toEqual([
-      {message: 'Composite actions (`steps`) are not supported yet.', path: 'steps'},
-    ]);
-  });
-
   it('resolves nested local actions from the repository root and the action directory', async () => {
     const context = sourceContext({
       ...compositeAction('.shipfox/actions/setup', [
@@ -800,7 +784,6 @@ describe('resolveWorkflowActions with composite actions', () => {
 
     const result = await resolveWorkflowActions({
       ...context,
-      compositeActions: true,
       workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
     });
 
@@ -823,7 +806,6 @@ describe('resolveWorkflowActions with composite actions', () => {
         ...compositeAction('.shipfox/actions/setup', ['run: echo hi']),
         '.shipfox/actions/setup/prompts/review.md': {content: 'Review it.'},
       }),
-      compositeActions: true,
       workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
     });
 
@@ -846,7 +828,6 @@ describe('resolveWorkflowActions with composite actions', () => {
     const result = await resolveWorkflowActions({
       ...sourceContext(compositeAction('.shipfox/actions/setup', [`uses: ${REGISTRY_ACTION_REF}`])),
       registry,
-      compositeActions: true,
       workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
     });
 
@@ -872,7 +853,6 @@ describe('resolveWorkflowActions with composite actions', () => {
     const result = await resolveWorkflowActions({
       ...sourceContext({}),
       registry,
-      compositeActions: true,
       workflows: [workflow('.shipfox/workflows/a.yml', [compositeRef])],
     });
 
@@ -893,7 +873,6 @@ describe('resolveWorkflowActions with composite actions', () => {
       resolveWorkflowActions({
         ...sourceContext(slackAction()),
         registry: fakeRegistry(composite),
-        compositeActions: true,
         workflows: [workflow('.shipfox/workflows/a.yml', ['shipfox/pr-setup@1.0.0'])],
       }),
     );
@@ -914,7 +893,6 @@ describe('resolveWorkflowActions with composite actions', () => {
     const error = await captureError(
       resolveWorkflowActions({
         ...context,
-        compositeActions: true,
         workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/a'])],
       }),
     );
@@ -940,7 +918,6 @@ describe('resolveWorkflowActions with composite actions', () => {
     const resolve = (length: number) =>
       resolveWorkflowActions({
         ...sourceContext(chain(length)),
-        compositeActions: true,
         workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/l1'])],
       });
 
@@ -970,7 +947,6 @@ describe('resolveWorkflowActions with composite actions', () => {
     const error = await captureError(
       resolveWorkflowActions({
         ...sourceContext(repository),
-        compositeActions: true,
         workflows: [
           workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/l1', './.shipfox/actions/top']),
         ],
@@ -995,7 +971,6 @@ describe('resolveWorkflowActions with composite actions', () => {
     const error = await captureError(
       resolveWorkflowActions({
         ...context,
-        compositeActions: true,
         workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/all'])],
       }),
     );
@@ -1014,7 +989,6 @@ describe('resolveWorkflowActions with composite actions', () => {
 
     const result = await resolveWorkflowActions({
       ...context,
-      compositeActions: true,
       uploads: new Map([
         [
           './.shipfox/actions/setup',
@@ -1048,7 +1022,6 @@ describe('resolveWorkflowActions with composite actions', () => {
           compositeAction('.shipfox/actions/setup', [`uses: ${REGISTRY_ACTION_REF}`]),
         ),
         registry: fakeRegistry(await registryVersion()),
-        compositeActions: true,
         registryActions: false,
         workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
       }),
@@ -1068,7 +1041,6 @@ describe('resolveWorkflowActions with composite actions', () => {
 
     const result = await resolveWorkflowActions({
       ...context,
-      compositeActions: true,
       uploads: new Map([
         [
           './.shipfox/actions/setup/lint',
@@ -1093,7 +1065,6 @@ describe('collectReachableActions', () => {
         ...compositeAction('.shipfox/actions/setup/lint', ['uses: ./.shipfox/actions/slack']),
         ...slackAction(),
       }),
-      compositeActions: true,
       workflows: [{path: '.shipfox/workflows/a.yml', document}],
     });
 

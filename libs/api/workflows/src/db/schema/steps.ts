@@ -41,6 +41,7 @@ export const steps = pgTable(
   {
     id: uuidv7PrimaryKey(),
     jobExecutionId: uuid('job_execution_id').notNull(),
+    parentStepId: uuid('parent_step_id'),
     key: text('key'),
     name: text('name').notNull(),
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
@@ -64,12 +65,19 @@ export const steps = pgTable(
   },
   (table) => [
     index('workflows_steps_job_execution_id_idx').on(table.jobExecutionId),
+    // Leads with the parent so deleting a composite row finds its inner rows.
+    index('workflows_steps_parent_step_id_idx').on(table.parentStepId),
     uniqueIndex('workflows_steps_id_job_execution_id_uq').on(table.id, table.jobExecutionId),
     check('workflows_steps_current_attempt_positive_ck', sql`${table.currentAttempt} > 0`),
     foreignKey({
       name: 'workflows_steps_job_execution_id_workflows_job_executions_id_fk',
       columns: [table.jobExecutionId],
       foreignColumns: [jobExecutions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'workflows_steps_parent_step_id_workflows_steps_id_fk',
+      columns: [table.parentStepId],
+      foreignColumns: [table.id],
     }).onDelete('cascade'),
   ],
 );
@@ -81,6 +89,7 @@ export function toStep(row: StepDb): Step {
   return {
     id: row.id,
     jobExecutionId: row.jobExecutionId,
+    parentStepId: row.parentStepId ?? null,
     key: row.key,
     name: row.name,
     sourceLocation: row.sourceLocation ?? null,

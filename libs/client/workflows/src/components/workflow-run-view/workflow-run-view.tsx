@@ -40,6 +40,7 @@ import {
   type WorkflowRunOverview,
   type WorkflowRunOverviewJob,
   type WorkflowRunRerunMode,
+  type WorkflowRunSelectionResolution,
   type WorkflowRunSource,
 } from '#core/workflow-run.js';
 import {
@@ -88,6 +89,7 @@ import {
 import {presentRunJobExplanation} from '../workflow-run-tabs/run-job-explanation.js';
 import {WorkflowSourceContent} from '../workflow-source-panel/index.js';
 import {RunWorkspaceNav} from './run-workspace-nav.js';
+import {WorkflowRunActionSource} from './workflow-run-action-source.js';
 import {
   WorkflowRunSupersededAnnotation,
   WorkflowRunWaitingNotice,
@@ -1124,6 +1126,7 @@ function RunWorkspaceContent({
       onClearAnnotationFilters={onClearAnnotationFilters}
       source={sourceQuery.data}
       sourceQuery={sourceQuery}
+      sourceSelection={selectionQuery.data}
       highlightedLineRange={highlightedLineRange}
     />
   );
@@ -1194,6 +1197,7 @@ function RunSectionContent({
   onClearAnnotationFilters,
   source,
   sourceQuery,
+  sourceSelection,
   highlightedLineRange,
 }: {
   section: RunWorkspaceSection;
@@ -1211,6 +1215,7 @@ function RunSectionContent({
   onClearAnnotationFilters: () => void;
   source: WorkflowRunSource | undefined;
   sourceQuery: ReturnType<typeof useWorkflowRunSourceQuery>;
+  sourceSelection: WorkflowRunSelectionResolution | undefined;
   highlightedLineRange: StepSourceLocation | null;
 }) {
   if (section === 'summary') {
@@ -1283,25 +1288,74 @@ function RunSectionContent({
         </Text>
         <Panel className="min-h-160 flex-1">
           <PanelBody className="min-h-160 flex-1 p-0">
-            {source?.kind === 'available' ? (
-              <WorkflowSourceContent
-                source={source.sourceSnapshot}
-                highlightedLineRange={highlightedLineRange}
-                scrollHighlightedIntoView
-              />
-            ) : (
-              <EmptyState
-                variant="panel"
-                className="min-h-160"
-                icon="fileDamageLine"
-                title="Source snapshot unavailable"
-                description={sourceUnavailableDescription(source)}
-              />
-            )}
+            <RunSourceBody
+              workflowRunId={run.id}
+              source={source}
+              sourceSelection={sourceSelection}
+              highlightedLineRange={highlightedLineRange}
+            />
           </PanelBody>
         </Panel>
       </div>
     </section>
+  );
+}
+
+function RunSourceBody({
+  workflowRunId,
+  source,
+  sourceSelection,
+  highlightedLineRange,
+}: {
+  workflowRunId: string;
+  source: WorkflowRunSource | undefined;
+  sourceSelection: WorkflowRunSelectionResolution | undefined;
+  highlightedLineRange: StepSourceLocation | null;
+}) {
+  const navigate = useNavigate();
+  const actionFile = highlightedLineRange?.file;
+
+  function selectSourceStep(stepId: string) {
+    void navigate({
+      search: ((previous: Record<string, unknown>) => ({
+        ...withoutWorkflowRunSelectionSearch(previous),
+        stepId,
+      })) as never,
+    });
+  }
+
+  if (actionFile && highlightedLineRange) {
+    return (
+      <WorkflowRunActionSource
+        workflowRunId={workflowRunId}
+        file={actionFile}
+        highlightedLineRange={highlightedLineRange}
+        step={{
+          jobId: sourceSelection?.jobId ?? null,
+          jobExecutionId: sourceSelection?.jobExecutionId ?? null,
+          stepId: sourceSelection?.stepId ?? null,
+        }}
+        onSelectCaller={selectSourceStep}
+      />
+    );
+  }
+  if (source?.kind === 'available') {
+    return (
+      <WorkflowSourceContent
+        source={source.sourceSnapshot}
+        highlightedLineRange={highlightedLineRange}
+        scrollHighlightedIntoView
+      />
+    );
+  }
+  return (
+    <EmptyState
+      variant="panel"
+      className="min-h-160"
+      icon="fileDamageLine"
+      title="Source snapshot unavailable"
+      description={sourceUnavailableDescription(source)}
+    />
   );
 }
 

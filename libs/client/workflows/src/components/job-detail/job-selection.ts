@@ -65,14 +65,26 @@ export function workflowJobLandingSelection(
 
   const entries = orderedStepAttempts(jobExecution);
   const running = [...entries].reverse().find((entry) => entry.attempt.status === 'running');
-  const failedStep = [...jobExecution.steps]
-    .sort(compareSteps)
-    .find((step) => step.status === 'failed');
+  const failedStep = innermostFailedStep([...jobExecution.steps].sort(compareSteps));
   const failedAttempt = failedStep ? resolveStepAttempt(failedStep, undefined) : undefined;
   const failed =
     failedStep && failedAttempt ? {step: failedStep, attempt: failedAttempt} : undefined;
   const selected = running ?? failed;
   return selected ? {stepId: selected.step.id, attemptId: selected.attempt.id} : undefined;
+}
+
+/** A failed composite points at the inner step that failed it, when one did. */
+function innermostFailedStep(sortedSteps: readonly Step[]): Step | undefined {
+  let failed = sortedSteps.find((step) => step.status === 'failed');
+  while (failed?.type === 'composite') {
+    const parentId: string = failed.id;
+    const failedChild = sortedSteps.find(
+      (step) => step.parentStepId === parentId && step.status === 'failed',
+    );
+    if (!failedChild) break;
+    failed = failedChild;
+  }
+  return failed;
 }
 
 function findStep(job: Job, stepId: string): Step | undefined {

@@ -823,7 +823,6 @@ jobs:
     source?: DefinitionsSourceControl;
     onProgress?: (path: string) => void;
     loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>;
-    compositeActionsEnabled?: boolean;
   }) {
     return fetchAndParseWorkflowsBase({
       ...baseContext,
@@ -836,7 +835,6 @@ jobs:
       registry: params.registry,
       onProgress: params.onProgress,
       loadIntegrationValidationContext: params.loadIntegrationValidationContext,
-      compositeActionsEnabled: params.compositeActionsEnabled,
     });
   }
 
@@ -863,18 +861,8 @@ jobs:
       });
     }
 
-    it('rejects a composite action while composite actions are off', async () => {
-      const error = await sync({repository: compositeRepository()}).catch((reason) => reason);
-
-      expect(error).toBeInstanceOf(DefinitionSyncPermanentError);
-      expect(error).toMatchObject({
-        code: 'action-invalid',
-        filePath: '.shipfox/actions/setup/action.yml',
-      });
-    });
-
     it('expands a composite action and stores every action of its tree', async () => {
-      const result = await sync({repository: compositeRepository(), compositeActionsEnabled: true});
+      const result = await sync({repository: compositeRepository()});
 
       expect(result.actions.map((action) => action.uses)).toEqual([
         './.shipfox/actions/setup',
@@ -891,16 +879,14 @@ jobs:
     });
 
     it('changes the hash when only a nested action or a composite prompt file changes', async () => {
-      const before = await sync({repository: compositeRepository(), compositeActionsEnabled: true});
+      const before = await sync({repository: compositeRepository()});
       const nested = await sync({
         repository: compositeRepository({
           '.shipfox/actions/notify/lib/format.ts': 'export const format = 2;\n',
         }),
-        compositeActionsEnabled: true,
       });
       const prompt = await sync({
         repository: compositeRepository({'REVIEW.md': 'Follow the new guide.'}),
-        compositeActionsEnabled: true,
       });
 
       const hash = before.workflows[0]?.contentHash;
@@ -912,9 +898,7 @@ jobs:
       const repository = compositeRepository();
       delete repository['REVIEW.md'];
 
-      const error = await sync({repository, compositeActionsEnabled: true}).catch(
-        (reason) => reason,
-      );
+      const error = await sync({repository}).catch((reason) => reason);
 
       expect(error).toMatchObject({
         code: 'prompt-file-invalid',

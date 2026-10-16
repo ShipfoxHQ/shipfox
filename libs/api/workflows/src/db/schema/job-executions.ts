@@ -73,6 +73,8 @@ export const jobExecutions = pgTable(
     durationLimits: jsonb('duration_limits').$type<JobExecutionLimits>(),
     durationCapped: boolean('duration_capped').notNull().default(false),
     durationNotice: jsonb('duration_notice').$type<PolicyNotice>(),
+    // Where the runner unpacks action bundles, reported with the setup step. Fills `action.path`.
+    actionsDir: text('actions_dir'),
   },
   (table) => [
     index('workflows_job_executions_job_id_idx').on(table.jobId),
@@ -118,6 +120,7 @@ export const jobExecutionWithoutTriggerEventsSelection = {
   durationLimits: jobExecutions.durationLimits,
   durationCapped: jobExecutions.durationCapped,
   durationNotice: jobExecutions.durationNotice,
+  actionsDir: jobExecutions.actionsDir,
 } satisfies Record<keyof JobExecutionDbWithoutTriggerEvents, unknown>;
 
 export function toJobExecution(
@@ -154,5 +157,6 @@ export function toJobExecution(
     durationLimits: row.durationLimits ?? null,
     durationCapped: row.durationCapped,
     durationNotice: row.durationNotice ?? null,
+    actionsDir: row.actionsDir ?? null,
   };
 }

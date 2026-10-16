@@ -11,6 +11,7 @@ import type {
   EvaluationTraceEntry,
   EvaluationTraceLimitEntry,
   ResolvedField,
+  ResolvedFieldSegment,
   WorkflowExpression,
 } from '@shipfox/expression';
 import type {Harness} from '@shipfox/workflow-document';
@@ -18,7 +19,16 @@ import type {InterpolationUnresolvableField} from '../errors.js';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
 
-export const STEP_TYPES = ['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post'] as const;
+export const STEP_TYPES = [
+  'setup',
+  'run',
+  'agent',
+  'checkout',
+  'tool',
+  'action',
+  'composite',
+  'post',
+] as const;
 
 export type StepType = (typeof STEP_TYPES)[number];
 
@@ -27,6 +37,7 @@ export const STEP_STATUS_REASONS = [
   'condition_rejected',
   'condition_errored',
   'main_not_started',
+  'composite_skipped',
   'timed_out',
   'run_cancelled',
   'runner_lost',
@@ -63,6 +74,8 @@ export interface StepAttemptInvocation {
 export interface StepSourceLocation {
   startLine: number;
   endLine: number;
+  /** The composite action manifest that holds the lines. Absent means the workflow file. */
+  file?: {kind: 'action'; uses: string; digest: string; path: string};
 }
 
 /**
@@ -114,6 +127,10 @@ export interface StepConfigDispatchPlan {
     inputs: Readonly<Record<string, WorkflowModelActionInput>>;
     with?: WorkflowJsonTemplateTree;
   };
+  // Composite parent rows only: the output values filled when the composite closes.
+  composite?: {
+    outputs: Readonly<Record<string, readonly ResolvedFieldSegment[]>>;
+  };
   agent?: {
     prompt?: ResolvedField;
     model?: ResolvedField;
@@ -145,6 +162,8 @@ export type StepRunAfter = 'success' | 'failure' | 'always';
 export interface Step {
   id: string;
   jobExecutionId: string;
+  /** The composite action step that holds this step. Null for a job step. */
+  parentStepId: string | null;
   key: string | null;
   name: string;
   sourceLocation: StepSourceLocation | null;

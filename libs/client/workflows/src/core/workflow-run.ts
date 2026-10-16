@@ -38,6 +38,7 @@ export type {
   StepError,
   StepErrorCategory,
   StepErrorReason,
+  StepSourceFile,
   StepSourceLocation,
   ToolStepConfig,
 } from './entities/step.js';
@@ -82,6 +83,7 @@ export type {
 export type {
   DevRunLaunch,
   ManualWorkflowLaunch,
+  WorkflowActionFile,
   WorkflowDisplayStatus,
   WorkflowRun,
   WorkflowRunAttemptIdentity,

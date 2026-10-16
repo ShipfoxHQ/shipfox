@@ -9,6 +9,7 @@ import {
 function step(overrides: Partial<Step> & Pick<Step, 'id' | 'position'>): Step {
   return {
     jobExecutionId: 'execution-1',
+    parentStepId: null,
     key: null,
     name: 'step',
     sourceLocation: null,

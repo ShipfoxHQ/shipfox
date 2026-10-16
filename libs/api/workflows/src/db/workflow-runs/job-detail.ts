@@ -116,6 +116,7 @@ export interface WorkflowJobExecutionDetailRead extends WorkflowRunJobExecutionS
 
 export interface WorkflowStepSummaryRead {
   id: string;
+  parentStepId: string | null;
   key: string | null;
   name: string;
   type: StepType;
@@ -1033,6 +1034,7 @@ interface ExecutionProjection extends WorkflowRunJobExecutionSummaryRow {
 
 interface StepRow {
   id: string;
+  parentStepId: string | null;
   key: string | null;
   name: string;
   type: StepType;
@@ -1247,6 +1249,7 @@ async function loadStepPage(
   const rows = await tx
     .select({
       id: steps.id,
+      parentStepId: steps.parentStepId,
       key: steps.key,
       name: steps.name,
       type: steps.type,
@@ -1418,6 +1421,7 @@ function toStepSummary(
     : undefined;
   return {
     id: row.id,
+    parentStepId: row.parentStepId,
     key: row.key,
     name: row.name,
     type: row.type,
