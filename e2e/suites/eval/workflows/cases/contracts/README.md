@@ -67,7 +67,7 @@ Remove the case's backlog entry in the same change, and lower `ceiling` to the n
 
 ## Write an error case
 
-An error case has `kind: error` and one step with `expect.error`. It reads its object from `$target`, never from `$fixture`, and fails when the call succeeds:
+An error case has `kind: error` and one step with `expect.error`. It reads its object from `$target`, and fails when the call succeeds:
 
 ```yaml
 provider: linear
@@ -81,7 +81,7 @@ steps:
       error: not-found
 ```
 
-Run the case once against the real provider and write the code the step reports. Providers do not agree on codes: a missing GitHub repository is `provider-rejected`, a missing ClickUp task or Notion page is `access-denied`, and Slack and PostHog answer `unknown`. A case with an input the provider rejects needs no target.
+Run the case once against the real provider and write the code the step reports. Providers do not agree on codes: a missing GitHub repository is `provider-rejected`, a missing ClickUp task or Notion page is `access-denied`, and Slack and PostHog answer `unknown`. A case with an input the provider rejects needs no target. Neither does a case that Shipfox refuses before it writes, such as an edit to a GitHub comment that a person wrote. It reads the existing object from `$fixture`, and a write it sends must leave that object as it is, in case the refusal breaks.
 
 In fake mode an `absent` target is never seeded, so the fake answers it like any unknown id, with the status and body the provider returned. A fake that serves a placeholder for an unknown id, such as ClickUp, Notion, Jira, and GitHub, is started with `rejectUnseeded` so it answers like the provider. An adapter that implements `deny` puts the `inaccessible` targets on its fake's deny list. Only the GitHub adapter does: Slack answers a private channel the bot has not joined the way it answers any channel it does not know.
 

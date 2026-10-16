@@ -113,6 +113,10 @@ const NO_PENDING_REVIEW_MESSAGE =
   'No pending pull request review found for the authenticated GitHub user.';
 const NO_REVIEW_THREAD_MESSAGE =
   'GitHub did not create the review thread. Check that path, line, side, and any start_line range describe a line in the pull request diff.';
+const ISSUE_COMMENT_ROUTE = 'GET /repos/{owner}/{repo}/issues/comments/{comment_id}';
+const UPDATE_ISSUE_COMMENT_ROUTE = 'PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}';
+const FOREIGN_ISSUE_COMMENT_MESSAGE =
+  'The comment was not written by this GitHub app, so Shipfox will not edit it.';
 const CHECK_RUN_INPUT_STATUSES = new Set<string>(checkRunInputStatuses);
 const CHECK_RUN_INPUT_CONCLUSIONS = new Set<string>(checkRunInputConclusions);
 const CHECK_RUN_OUTPUT_STATUSES = new Set<string>(checkRunOutputStatuses);
@@ -490,6 +494,8 @@ export function githubOperationRoute(
       return args.reaction !== undefined && args.body === undefined
         ? `POST ${repoPath}/issues/${issue}/reactions`
         : `POST ${repoPath}/issues/${issue}/comments`;
+    case 'update_issue_comment.':
+      return `PATCH ${repoPath}/issues/comments/{comment_id}`;
     case 'issue_write.create':
       return `POST ${repoPath}/issues`;
     case 'issue_write.update':
@@ -790,10 +796,39 @@ async function executeGithubRestOperation(
   if (isGitReadTool(toolId)) return await executeGitReadTool(client, toolId, parameters);
   if (toolId === 'get_job_logs') return await getJobLogs(client, parameters);
   if (toolId === 'create_commit') return await createCommit(client, parameters);
+  if (toolId === 'update_issue_comment') return await updateIssueComment(client, parameters);
   if (toolId === 'create_pull_request' || toolId === 'update_pull_request') {
     return await savePullRequest(client, route, parameters, toolId);
   }
   return await client.request(route, parameters);
+}
+
+// The installation token can edit any comment in the repository, so edits are limited to the
+// app's own comments to keep a bad prompt from rewriting what a person wrote. Both requests name
+// their parameters explicitly: Octokit reads an extra `url` parameter as the request URL, which
+// would let the edit reach a comment other than the one checked.
+async function updateIssueComment(
+  client: GithubToolClient,
+  parameters: Record<string, unknown>,
+): Promise<GithubToolResponse> {
+  const comment = {
+    owner: parameters.owner,
+    repo: parameters.repo,
+    comment_id: parameters.comment_id,
+  };
+  const {data} = await client.request(ISSUE_COMMENT_ROUTE, comment);
+  if (!isRecord(data)) {
+    throw new GithubIntegrationProviderError(
+      'malformed-provider-response',
+      'GitHub issue comment response was malformed',
+    );
+  }
+  // A deleted account leaves a comment with no user, which is not the app's either.
+  const login = isRecord(data.user) ? data.user.login : undefined;
+  if (typeof login !== 'string' || login.toLowerCase() !== githubAppBotLogin().toLowerCase()) {
+    throw new GithubIntegrationProviderError('access-denied', FOREIGN_ISSUE_COMMENT_MESSAGE);
+  }
+  return await client.request(UPDATE_ISSUE_COMMENT_ROUTE, {...comment, body: parameters.body});
 }
 
 const REQUESTED_REVIEWERS_ROUTE =

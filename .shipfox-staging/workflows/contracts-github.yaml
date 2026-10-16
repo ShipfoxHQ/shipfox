@@ -21,6 +21,20 @@ jobs:
           value_title: '${{ has(result.title) ? result.title : "" }}'
         gate:
           success: 'step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 1 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: markdown, unicode, long body"'
+      - key: issue_comment
+        tool: issue_read.get_comments
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          issue_number: 1
+          per_page: 1
+        outputs:
+          value_result_0_id: "${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.id)) ? result.result[0].id : 6000362436 }}"
+          value_result_0_user_login: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.user) && has(i0.user.login)) ? result.result[0].user.login : "" }}'
+          value_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body)) ? result.result[0].body : "" }}'
+        gate:
+          success: 'step.status == "succeeded" && (type(step.outputs.value_result_0_id) == type(1) || type(step.outputs.value_result_0_id) == type(1.0)) && step.outputs.value_result_0_id == 6000362435 && type(step.outputs.value_result_0_user_login) == type("") && step.outputs.value_result_0_user_login == "noe-charmet" && type(step.outputs.value_result_0_body) == type("") && step.outputs.value_result_0_body == "Comment 1: café 日本語 🚀 **markdown**"'
       - key: closed_issue
         tool: issue_read.get
         connection: github_shipfoxsandbox
@@ -1147,6 +1161,7 @@ jobs:
           shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
           shape_body: ${{ has(result.body) && type(result.body) == type("") }}
           shape_html_url: ${{ has(result.html_url) && type(result.html_url) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_body && step.outputs.shape_html_url
       - key: comment_effect
@@ -1160,6 +1175,32 @@ jobs:
           value_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body)) ? result.result[0].body : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_result_0_body) == type("") && step.outputs.value_result_0_body == "Contract comment"
+      - key: update_comment
+        tool: update_issue_comment
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          comment_id: ${{ steps.comment.outputs.ref_id }}
+          body: Contract comment updated
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_body: ${{ has(result.body) && type(result.body) == type("") }}
+          shape_user_login: ${{ has(result.user) && has(result.user.login) && type(result.user.login) == type("") }}
+          value_body: '${{ has(result.body) ? result.body : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_body && step.outputs.shape_user_login && type(step.outputs.value_body) == type("") && step.outputs.value_body == "Contract comment updated"
+      - key: update_comment_effect
+        tool: issue_read.get_comments
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          issue_number: ${{ steps.create.outputs.ref_number }}
+        outputs:
+          value_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body)) ? result.result[0].body : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_result_0_body) == type("") && step.outputs.value_result_0_body == "Contract comment updated"
       - key: close
         tool: issue_write.update
         connection: github_shipfoxsandbox
@@ -2260,3 +2301,16 @@ jobs:
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed"
+  update_issue_comment_human_author:
+    checkout: false
+    steps:
+      - key: update_issue_comment_human_author
+        tool: update_issue_comment
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          comment_id: 6000362435
+          body: "Comment 1: café 日本語 🚀 **markdown**"
+        gate:
+          success: step.status == "failed" && step.error.code == "access-denied"

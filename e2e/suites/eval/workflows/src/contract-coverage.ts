@@ -210,6 +210,9 @@ function checkStep({
   const effectReason = step.effect && reasonOf({provider, ...step.effect});
   const problems = effectReason ? [`effect "${step.effect?.tool}" names ${effectReason}`] : [];
   if (units.get(unitKey({provider, ...step}))?.kind !== 'write') return {problems, covers: true};
+  // An error case proves that the tool refuses a write, such as an edit to a comment the app did not
+  // write. It writes nothing, so it needs no round-trip, and it is not the case of the write.
+  if (kind === 'error') return {problems, covers: false};
 
   const writeFailures = writeProblems({step, laterSteps, provider, kind, units});
   return {

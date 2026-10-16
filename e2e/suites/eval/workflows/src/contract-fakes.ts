@@ -138,6 +138,7 @@ const GITHUB_PULL_REQUEST_FIXTURES = [
 
 const GITHUB_PARENT_FIXTURE = 'parent_issue';
 const GITHUB_SUB_ISSUE_FIXTURE = 'sub_issue';
+const GITHUB_ISSUE_COMMENT_FIXTURE = 'issue_comment';
 const GITHUB_SANDBOX_AUTHOR = 'e2e-author';
 const GITHUB_SANDBOX_REVIEWER = 'e2e-reviewer';
 // The checks the sandbox workflow reports on the head of the open pull request: its two jobs.
@@ -191,7 +192,10 @@ function githubIssue({
   const label = field({fixture: fixtures.label ?? {}, name: 'name'});
   const parent =
     fixtureName === GITHUB_SUB_ISSUE_FIXTURE ? fixtures[GITHUB_PARENT_FIXTURE] : undefined;
-  const comments = githubIssueComments(fixture);
+  const comments = githubIssueComments({
+    fixture,
+    first: fixtureName === 'issue' ? fixtures[GITHUB_ISSUE_COMMENT_FIXTURE] : undefined,
+  });
   return {
     repository,
     title: title === undefined ? `Contract fixture issue ${number}` : String(title),
@@ -213,12 +217,31 @@ function githubIssue({
 }
 
 // The sandbox comments carry non-ASCII text from the first one, so a read proves the encoding.
-function githubIssueComments(fixture: SandboxFixtures[string]) {
+// The `issue_comment` fixture is the first comment of the `issue` fixture, with its id, author, and
+// body.
+function githubIssueComments({
+  fixture,
+  first,
+}: {
+  fixture: SandboxFixtures[string];
+  first: SandboxFixtures[string] | undefined;
+}) {
   const count = Number(field({fixture, name: 'comment_count'}) ?? 0);
   return Array.from({length: count}, (_, index) => ({
     id: index + 1,
     body: `Comment ${index + 1}: café 日本語`,
     author: GITHUB_SANDBOX_AUTHOR,
+    ...(index === 0 && first !== undefined
+      ? {
+          id: Number(
+            requiredField({fixture: first, fixtureName: GITHUB_ISSUE_COMMENT_FIXTURE, name: 'id'}),
+          ),
+          author: String(field({fixture: first, name: 'author'}) ?? GITHUB_SANDBOX_AUTHOR),
+          body: String(
+            field({fixture: first, name: 'body'}) ?? `Comment ${index + 1}: café 日本語`,
+          ),
+        }
+      : {}),
   }));
 }
 
@@ -382,7 +405,8 @@ function seedGithubTriggerWorkflow({
  * requests, the `branch` and `commit` fixtures as a branch tip and its commit, and the `workflow`
  * fixture as a workflow with two completed runs, and the `trigger_workflow` fixture as a workflow
  * with none, which a dispatch starts. The `label` fixture goes on the `issue` fixture,
- * the `issue` fixture gets its `comment_count` comments, and `sub_issue` is a sub-issue of
+ * the `issue` fixture gets its `comment_count` comments, the first one with the id and author of
+ * the `issue_comment` fixture, and `sub_issue` is a sub-issue of
  * `parent_issue`. The open pull request gets the files, review, and check runs the sandbox holds.
  *
  * The sandbox repository is not the project's repository, and a connection only reaches the

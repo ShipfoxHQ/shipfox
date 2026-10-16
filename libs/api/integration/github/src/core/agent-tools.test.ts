@@ -58,6 +58,16 @@ const expectedCatalogRows = [
     ],
   },
   {
+    id: 'update_issue_comment',
+    category: 'issues',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: [
+      {permission: 'issues', access: 'write'},
+      {permission: 'pull_requests', access: 'write'},
+    ],
+  },
+  {
     id: 'issue_write',
     category: 'issues',
     sensitivity: 'write',
@@ -363,6 +373,11 @@ const githubOperationRouteCases = [
     toolId: 'add_issue_comment',
     args: {comment_id: 1, reaction: '+1'},
     expectedRoute: 'POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions',
+  },
+  {
+    toolId: 'update_issue_comment',
+    args: {comment_id: 1, body: 'Comment'},
+    expectedRoute: 'PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}',
   },
   {
     toolId: 'issue_write',
@@ -2523,6 +2538,77 @@ describe('github agent tool catalog', () => {
       content: [{type: 'text', text: '{"id":7}'}],
       structuredContent: {id: 7},
     });
+  });
+
+  it('updates an issue comment the GitHub app wrote', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({data: {id: 7, user: githubAppReviewUser}})
+      .mockResolvedValueOnce({data: {id: 7, body: 'Updated'}});
+
+    const result = await callGithubToolWithRequest(
+      'update_issue_comment',
+      {owner: 'shipfox', repo: 'platform', comment_id: 7, body: 'Updated'},
+      request,
+    );
+
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      'GET /repos/{owner}/{repo}/issues/comments/{comment_id}',
+      {owner: 'shipfox', repo: 'platform', comment_id: 7},
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      'PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}',
+      {owner: 'shipfox', repo: 'platform', comment_id: 7, body: 'Updated'},
+    );
+    expect(result).toEqual({
+      content: [{type: 'text', text: '{"id":7,"body":"Updated"}'}],
+      structuredContent: {id: 7, body: 'Updated'},
+    });
+  });
+
+  it.each([
+    {author: 'another person', user: {login: 'octocat'}},
+    {author: 'a deleted account', user: null},
+  ])('refuses to update an issue comment written by $author', async ({user}) => {
+    const request = vi.fn().mockResolvedValueOnce({data: {id: 7, user}});
+
+    await expect(
+      callGithubToolWithRequest(
+        'update_issue_comment',
+        {owner: 'shipfox', repo: 'platform', comment_id: 7, body: 'Updated'},
+        request,
+      ),
+    ).rejects.toMatchObject({
+      reason: 'access-denied',
+      message: 'The comment was not written by this GitHub app, so Shipfox will not edit it.',
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores request options passed as issue comment update arguments', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({data: {id: 7, user: githubAppReviewUser}})
+      .mockResolvedValueOnce({data: {id: 7, body: 'Updated'}});
+
+    await callGithubToolWithRequest(
+      'update_issue_comment',
+      {
+        owner: 'shipfox',
+        repo: 'platform',
+        comment_id: 7,
+        body: 'Updated',
+        url: '/repos/shipfox/platform/issues/comments/8',
+      },
+      request,
+    );
+
+    expect(request).toHaveBeenLastCalledWith(
+      'PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}',
+      {owner: 'shipfox', repo: 'platform', comment_id: 7, body: 'Updated'},
+    );
   });
 
   it('adds a comment to the latest caller pending review through GraphQL', async () => {

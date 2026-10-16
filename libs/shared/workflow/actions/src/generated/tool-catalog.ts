@@ -683,6 +683,14 @@ export interface ProviderToolCatalog {
       structured: GithubSubIssueWriteResult;
     };
     /**
+     * Replace the body of an issue or pull request conversation comment that this GitHub app wrote. Use it to keep one status comment up to date instead of posting a new one. Comments written by anyone else are rejected.
+     */
+    update_issue_comment: {
+      arguments: GithubUpdateIssueCommentArguments;
+      result: 'json';
+      structured: GithubUpdateIssueCommentResult;
+    };
+    /**
      * Update an existing pull request in a GitHub repository. add_labels and add_assignees add to what the pull request already has and remove nothing. milestone sets the milestone. draft true converts an open pull request to a draft, and draft false marks it ready for review. These and reviewers are applied after the update itself. When one of them fails, the call still succeeds and the result lists the failure under warnings. On failure, the error reason is one of: permission-denied, unprocessable.
      */
     update_pull_request: {
@@ -4718,6 +4726,29 @@ export interface GithubSubIssueWriteReprioritizeArguments {
    * The ID of the sub-issue to be prioritized before
    */
   before_id?: number;
+}
+
+export interface GithubUpdateIssueCommentResult {
+  [k: string]: unknown;
+}
+
+export interface GithubUpdateIssueCommentArguments {
+  /**
+   * Repository owner
+   */
+  owner: string;
+  /**
+   * Repository name
+   */
+  repo: string;
+  /**
+   * The numeric ID of the issue or pull request comment to edit
+   */
+  comment_id: number;
+  /**
+   * New comment content. Replaces the existing body
+   */
+  body: string;
 }
 
 export interface GithubUpdatePullRequestResult {

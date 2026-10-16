@@ -101,6 +101,94 @@ describe('GitHub API mock issues', () => {
     }
   });
 
+  it('reads and edits a comment by its id, keeping the author', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(5, {
+        repository: 'acme/app',
+        title: 'Seeded',
+        comments: [{id: 7, body: 'From a person.', author: 'octo'}],
+      });
+      const posted = await request('POST', '/repos/acme/app/issues/5/comments', {body: 'Working.'});
+      const human = await request('GET', '/repos/acme/app/issues/comments/7');
+      const edited = await request('PATCH', '/repos/acme/app/issues/comments/8', {body: 'Done.'});
+      const empty = await request('PATCH', '/repos/acme/app/issues/comments/8', {});
+      const listed = await request('GET', '/repos/acme/app/issues/5/comments');
+
+      expect(posted.status).toBe(201);
+      await expect(human.json()).resolves.toMatchObject({
+        id: 7,
+        body: 'From a person.',
+        user: {login: 'octo', type: 'User'},
+        issue_url: 'https://api.github.com/repos/acme/app/issues/5',
+      });
+      expect(edited.status).toBe(200);
+      const editedComment = (await edited.json()) as {updated_at: string};
+      expect(editedComment).toMatchObject({
+        id: 8,
+        body: 'Done.',
+        user: {login: 'shipfox-e2e[bot]', type: 'Bot'},
+        html_url: 'https://github.com/acme/app/issues/5#issuecomment-8',
+        created_at: '2026-01-01T00:00:00Z',
+      });
+      expect(editedComment.updated_at).not.toBe('2026-01-01T00:00:00Z');
+      expect(empty.status).toBe(422);
+      await expect(listed.json()).resolves.toMatchObject([
+        {id: 7, body: 'From a person.'},
+        {id: 8, body: 'Done.'},
+      ]);
+      expect(mock.writes()).toContainEqual({
+        kind: 'github.update_issue_comment',
+        target: 'acme/app#5',
+        payload: {comment_id: 8, body: 'Done.'},
+      });
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('keeps a comment posted on a pull request, so it can be read and edited', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.pullRequests.set(2, {repository: 'acme/app', ref: 'feature', sha: 'a'.repeat(40)});
+      const posted = await request('POST', '/repos/acme/app/issues/2/comments', {body: 'Working.'});
+      const {id} = (await posted.json()) as {id: number};
+      const edited = await request('PATCH', `/repos/acme/app/issues/comments/${id}`, {
+        body: 'Done.',
+      });
+      const listed = await request('GET', '/repos/acme/app/issues/2/comments');
+
+      expect(edited.status).toBe(200);
+      await expect(listed.json()).resolves.toMatchObject([{id, body: 'Done.'}]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('answers 404 for a comment id the repository does not hold', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(5, {
+        repository: 'acme/app',
+        title: 'Seeded',
+        comments: [{id: 7, body: 'From a person.', author: 'octo'}],
+      });
+      const unknown = await request('GET', '/repos/acme/app/issues/comments/99');
+      const otherRepository = await request('GET', '/repos/acme/other/issues/comments/7');
+      const edit = await request('PATCH', '/repos/acme/app/issues/comments/99', {body: 'Done.'});
+
+      expect(unknown.status).toBe(404);
+      expect(otherRepository.status).toBe(404);
+      expect(edit.status).toBe(404);
+      expect(mock.writes()).toEqual([]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('adds and removes labels, recording each request', async () => {
     const {mock, request} = await startMock();
 

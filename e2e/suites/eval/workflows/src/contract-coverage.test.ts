@@ -387,6 +387,28 @@ describe('checkContractCoverage', () => {
         problemsOf(arrangeWrite({effect: savedIssue, kind: 'read', backlogged: true})),
       ).toEqual(['case linear/save: write step "save_issue" needs a case of kind `round-trip`']);
     });
+
+    it('accepts a write the tool refuses in an error case, without counting it as the case', () => {
+      const files = arrange({
+        cases: [
+          getIssue,
+          issueReadGet,
+          {
+            id: 'linear/save-refused',
+            provider: 'linear',
+            kind: 'error',
+            steps: [{tool: 'save_issue', expect: {error: 'invalid-request'}}],
+          },
+        ],
+        exemptions: [{id: 'gitea/all', provider: 'gitea'}],
+        backlog: [
+          {tool: 'github.issue_read', method: 'get_comments', kind: 'read', issue: 'ENG-1'},
+          {tool: 'linear.save_issue', kind: 'write', issue: 'ENG-1'},
+        ],
+      });
+
+      expect(problemsOf(files)).toEqual([]);
+    });
   });
 
   it('keeps the backlog entry of a write whose effect names an unknown tool', () => {
