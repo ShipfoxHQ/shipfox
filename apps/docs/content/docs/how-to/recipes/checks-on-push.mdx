@@ -75,6 +75,6 @@ Make a test commit that causes `npm test` to fail. Confirm that `checks`
 fails and Shipfox skips `review`. Revert the test commit when the check is
 complete.
 
-If lint and tests should run at the same time, use the [parallel CI
-recipe](/how-to/recipes/parallel-ci-agent-review). It accounts for separate
-checkouts and dependency installs instead of adding that concern here.
+If lint and tests should run at the same time, see the [parallel review
+recipe](/how-to/recipes/parallel-ci-agent-review). It runs them at the same time
+in one job, over one checkout and one dependency install.

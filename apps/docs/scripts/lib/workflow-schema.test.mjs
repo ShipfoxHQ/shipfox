@@ -202,6 +202,43 @@ describe('buildWorkflowSchemaDocument', () => {
     assert.match(first.markdown, NAME_ROW_PATTERN);
   });
 
+  it('documents a step and a parallel block when the schema lists both', () => {
+    const step = {
+      type: 'object',
+      properties: {run: {type: 'string'}, background: {type: 'boolean'}},
+    };
+    const parallel = {
+      type: 'object',
+      required: ['parallel'],
+      properties: {parallel: {type: 'array', minItems: 2, items: {}, description: 'Block.'}},
+    };
+    const withBlock = structuredClone(schema);
+    withBlock.properties.jobs.additionalProperties.properties.steps.items = {
+      anyOf: [step, parallel],
+    };
+    const document = buildWorkflowSchemaDocument({
+      schema: withBlock,
+      examples,
+      parseYaml,
+      validate: () => undefined,
+    });
+    const section = (id) => document.sections.find((candidate) => candidate.id === id);
+    assert.deepEqual(
+      section('step-fields').fields.map((field) => field.name),
+      ['background'],
+    );
+    assert.deepEqual(section('parallel-block-fields').fields, [
+      {
+        name: 'parallel',
+        type: 'Step[]',
+        requirement: 'required',
+        description: 'Block.',
+        constraints: 'Add at least 2 items.',
+        link: '#step-fields',
+      },
+    ]);
+  });
+
   it('renders one generated export per section', () => {
     const document = buildWorkflowSchemaDocument({
       schema,

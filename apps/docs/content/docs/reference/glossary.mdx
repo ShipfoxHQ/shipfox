@@ -58,7 +58,17 @@ A group of steps that runs on a single runner. Jobs within a workflow run in par
 
 ## Step key
 
-A stable identifier on a step, set with the `key` field. Unlike `name` (a display label), `key` is what other parts of the workflow reference: `gate.on_failure.restart_from` restarts a job from the step carrying that key, and `steps.<key>.outputs` reads its outputs. Must be at least one character. Valid on run steps, agent steps, and tool steps.
+The ID of a step. You set it with the `key` field. Other parts of the workflow
+use the key to find the step. The `name` field is only a label.
+
+Use the key to:
+
+- Read the outputs of the step with `steps.<key>.outputs`.
+- Restart the job from the step with `gate.on_failure.restart_from`.
+- Wait for or stop a background step with `wait` or `cancel`.
+
+A key has at least one character. You cannot set `key` on a `wait`,
+`wait_all`, or `cancel` step.
 
 ## Listening job
 
@@ -114,7 +124,10 @@ availability](/reference/contexts#context-availability).
 
 ## Workflow step
 
-The smallest unit of work in a Shipfox workflow. A step is a run step (executes a shell command), an agent step (invokes an AI model), or a tool step (calls one integration tool). Steps within a job run sequentially. Each step can optionally carry a `gate` block for success evaluation and failure recovery.
+One unit of work in a job. A step runs a shell command, an AI agent, or an
+integration tool. By default, steps run one after the other. A `background`
+step or a `parallel` block runs at the same time as other steps. See [Jobs and
+steps](/understand/jobs-and-steps).
 
 ## Tool step
 

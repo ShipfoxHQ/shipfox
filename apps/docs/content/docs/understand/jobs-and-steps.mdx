@@ -1,11 +1,12 @@
 ---
 title: "Jobs and steps"
 sidebarTitle: "Jobs & Steps"
-description: "Understand how the split into jobs affects shared files, parallel work, runner placement, and results."
+description: "Understand how the split into jobs affects shared files, parallel work, runner placement, and results, and when steps of one job run at the same time."
 ---
 
-A **job** is the unit that Shipfox places on a runner. A **step** is one ordered
-action inside that job. A step is a run step, an agent step, or a tool step.
+A **job** is the unit that Shipfox places on a runner. A **step** is one action
+inside that job. A step is a run step, an agent step, or a tool step. Steps
+start in the order they appear in the file.
 
 The main design choice is where one job ends and the next begins. That choice
 decides which steps share a checkout, what can run at the same time, and which
@@ -71,9 +72,9 @@ In this job, `.` holds the project and `helm` holds `acme/helm`.
 
 ## When to keep steps in one job
 
-Steps in one job run in order and use the same checkout. A later step can read
-files that an earlier step changed. It can also use packages that an earlier
-step installed.
+Steps in one job use the same checkout. By default, a step starts after the
+step before it ends. A later step can read files that an earlier step changed.
+It can also use packages that an earlier step installed.
 
 Steps don't share one long-lived shell process. A shell variable set in one run
 step doesn't reach the next. Save a file in the checkout when the next step
@@ -86,8 +87,10 @@ One job is usually the right choice when steps must:
 - Repeat together in a feedback loop.
 - Use the same runner capabilities and repository permission.
 
-The tradeoff is less parallelism. One slow step holds the job's runner and
-delays every later step.
+The tradeoff is less parallelism. By default, one slow step holds the job's
+runner and delays every later step. [Steps that run at the same
+time](#run-steps-of-one-job-at-the-same-time) remove that delay for work that
+doesn't touch the same files.
 
 ## When to split work into jobs
 
@@ -97,7 +100,7 @@ is free.
 
 Separate jobs fit work that must:
 
-- Run in parallel.
+- Run in parallel in separate checkouts.
 - Fail or skip on its own.
 - Use a different execution environment.
 - Expose a small, named result to later work.
@@ -136,11 +139,7 @@ jobs:
 its own fresh checkout.
 
 The `shipfox` label selects the default hosted runner. The [Hosted runners
-reference](/reference/runner-labels) lists the other sizes.
-
-The [parallel CI
-recipe](/how-to/recipes/parallel-ci-agent-review) applies this shape to a GitHub
-push. The [job fields
+reference](/reference/runner-labels) lists the other sizes. The [job fields
 reference](/reference/workflow-schema#job-fields) defines the dependency syntax.
 
 ## When a step or job runs
@@ -160,6 +159,9 @@ Set `run_after` on a step or a job to change the default.
 | `success` (default) | No earlier step in the job failed. | Every job in `needs` succeeded. |
 | `failure` | An earlier step in the job failed. | At least one job in `needs` failed. |
 | `always` | Whatever earlier steps did. | Whatever the status of `needs`. |
+
+A failed [background step](#run-steps-of-one-job-at-the-same-time) counts as a
+failure only from the `wait` that joins it.
 
 A job always waits until every job in its `needs` has finished. With
 `run_after: failure`, a job looks only at the jobs in its own `needs`. It does
@@ -264,7 +266,8 @@ that cannot be filled. It also does not cover a job that times out. Those
 failures still fail the job.
 
 A step that uses a composite action cannot set `continue_on_error`. Set it on
-the steps inside the action.
+the steps inside the action. `wait`, `wait_all`, and `cancel` steps cannot set
+it either. Inside a `parallel` block, set it on each step that may fail.
 
 ### Read outputs after a failure
 
@@ -288,6 +291,169 @@ the workflow file changes.
 
 The [step fields](/reference/workflow-schema#step-fields) and [job
 fields](/reference/workflow-schema#job-fields) references define the field.
+
+## Run steps of one job at the same time
+
+Some steps don't need the step before them to end. A test database can start
+while dependencies install. Three agents can review the same code at once.
+Shipfox can run such steps at the same time, on the job's runner and in its
+checkout. The fields follow GitHub Actions.
+
+- `background: true` starts a step and moves on to the next step. The step
+  needs a `key`, because `wait` and `cancel` name steps by key.
+- `wait` blocks until the background steps it names end. `wait_all` blocks
+  until every background step started earlier ends.
+- `cancel` stops the background steps it names, without waiting for them.
+- `parallel` runs a list of steps at the same time, then waits for them all.
+
+Run, action, agent, and tool steps can run in the background. A checkout step
+can't. Shipfox checks the `if` and `run_after` of a background step when the
+step would start.
+
+This complete workflow starts a database, prepares the tests at the same time,
+and stops the database at the end:
+
+```yaml title=".shipfox/workflows/test-with-database.yml"
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Test with a database
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  test:
+    steps:
+      # Starts Postgres and moves on to the next step.
+      - key: db
+        background: true
+        run: docker run --rm --name pg -p 5432:5432 -e POSTGRES_PASSWORD=pg postgres:17
+      # Runs both steps at the same time, then waits for both.
+      - parallel:
+          - run: npm ci
+          - run: docker pull ghcr.io/acme/fixtures:latest
+      - run: npx wait-on tcp:127.0.0.1:5432
+      - run: npm test
+      # Stops Postgres. Without it, the job waits for the server.
+      - cancel: db
+```
+
+In this job, `db` keeps running while every later step runs. A step that isn't
+in the background still blocks the next step. Background steps keep running
+while it does.
+
+A `parallel` block is shorthand. It marks each step in the list as a background
+step, then adds a `wait` that names exactly those steps. It doesn't wait for
+other background steps that were already running, such as `db` here.
+
+### Concurrent steps share everything
+
+Steps that run at the same time share the job's working tree, its environment,
+and its job container. **Shipfox does not isolate them.** When two steps write
+the same file at the same time, the result depends on timing. Shipfox doesn't
+detect or prevent it.
+
+Concurrent steps fit work that doesn't collide:
+
+- Agents that only read the code.
+- Setup steps that write to different paths.
+
+Run steps that edit the same files one after the other, or in separate jobs.
+
+Concurrent steps also share the runner's CPU and memory. Each step keeps its
+own log, but the job's log budget is shared, so concurrent steps use it up
+faster. Shipfox also limits how many steps of one job run at once. A step above
+the limit waits, in order, for a free slot. [Limits](/reference/limits#workflow-execution)
+gives both numbers.
+
+### When results become readable
+
+A background step's results become readable only after a `wait` that joins it.
+These results are its `steps.<key>.outputs`, its `steps.<key>.status`, and the
+variables it wrote to `$SHIPFOX_ENV` or `$SHIPFOX_PATH`.
+
+- Steps that run at the same time never see each other's results.
+- A step inside a `parallel` block sees every step before the block. It sees
+  nothing from the other steps in the block.
+- After the block, every step of the block is readable. Give a step a `key`
+  when a later step must read it.
+- When several joined steps write the same variable, the step that comes later
+  in the file wins. The order in which the steps end doesn't matter.
+
+Sync rejects an expression that reads a step before its results are readable.
+
+### When a background step fails
+
+A failed background step doesn't fail the job at once. The failure shows at the
+`wait` that joins it. That `wait` fails, and the job fails from there. Later
+steps follow their `run_after`.
+
+- Steps that run next to the failed step run to the end.
+- A failed step that isn't in the background doesn't stop the background steps.
+- A step with `continue_on_error` never makes a `wait`, a `run_after`, or the
+  job fail.
+
+A failed step keeps only the outputs it wrote before it failed. Give an output a
+`default` when a later step reads it after a possible failure. The [parallel
+review recipe](/how-to/recipes/parallel-ci-agent-review) shows this with three
+agent reviewers.
+
+### When a background step is cancelled
+
+`cancel` stops a step in the way that fits its kind:
+
+- A run or action step gets `SIGTERM`, then `SIGKILL` after a [short
+  period](/reference/limits#workflow-execution).
+- An agent step stops its turn.
+- A tool step that already called its provider is not undone. Shipfox ignores
+  its result.
+
+The step ends `cancelled`, which is not a failure. Its outputs are never
+readable. Cancelling a step that already ended does nothing. Cancelling a step
+that hasn't started yet marks it `cancelled`, and it never starts.
+
+`cancel` doesn't wait for the step to stop. These wait until the process exits:
+
+- A checkout step.
+- The post of an action.
+- A step that reuses the cancelled step's [agent session](/understand/agent-sessions).
+- The end of the job.
+
+The run page shows **Cancelling** until the process exits. A cancelled action
+step still gets its post. The post sees the state that the action saved before
+it stopped.
+
+### When the steps run out
+
+After the last step, Shipfox waits for every background step that is still
+running, as if the job ended with `wait_all`. The run page shows this as a
+**Wait for background steps** row. A failure there fails the job. Action posts
+run after this wait, including the post of a background action.
+
+A background step that never exits, such as a server, holds the job until its
+`execution_timeout`. End such a step with `cancel`.
+
+### Follow concurrent steps on the run page
+
+- The steps of a `parallel` block appear as a group. Its last row is the wait,
+  labeled **Wait for parallel steps**.
+- A background step carries a **background** marker.
+- Each `wait` shows how long it blocked the job.
+- Several steps can be running, each with its own live log.
+- A step whose failure `continue_on_error` ignored shows **failure ignored**.
+
+### Concurrent steps or separate jobs
+
+| The work needs | Use |
+| --- | --- |
+| One checkout and one dependency install. | Concurrent steps in one job. |
+| Separate files or a separate environment. | Separate jobs. |
+| Another runner, or to fail or skip on its own. | Separate jobs. |
+| To edit the same files. | Steps that run one after the other. |
+
+The [concurrent step rules](/reference/workflow-schema#concurrent-step-rules)
+list what sync checks.
 
 ## How results move between jobs
 

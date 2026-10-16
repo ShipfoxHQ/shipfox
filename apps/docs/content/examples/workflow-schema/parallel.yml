@@ -1,0 +1,12 @@
+name: Test
+jobs:
+  test:
+    steps:
+      - run: npm ci
+      - parallel:
+          - key: lint
+            run: npm run lint
+          - key: unit
+            continue_on_error: true
+            run: npm test
+      - run: npm run build

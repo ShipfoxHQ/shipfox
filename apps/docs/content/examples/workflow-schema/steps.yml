@@ -2,6 +2,9 @@ name: Test
 jobs:
   test:
     steps:
+      - key: db
+        background: true
+        run: docker run --rm --name pg -p 5432:5432 -e POSTGRES_PASSWORD=pg postgres:17
       - key: unit
         name: Unit tests
         if: ${{ event.pull_request.draft == false }}
@@ -11,3 +14,4 @@ jobs:
         outputs:
           coverage: number
         export: true
+      - cancel: db

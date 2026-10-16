@@ -33,8 +33,9 @@ A named session gives both workflows that conversation.
 ## How it fits
 
 A Shipfox run splits work into jobs. Each job gets a fresh checkout of the
-repository. Steps inside one job share that checkout and run in order. Every agent step normally starts a new conversation, even when
-the step before it was also an agent step. [Jobs and
+repository. Steps inside one job share that checkout. Every agent step
+normally starts a new conversation, even when the step before it was also an
+agent step. [Jobs and
 steps](/understand/jobs-and-steps) explains that isolation.
 
 A named session changes one thing: the conversation the agent starts with. It
@@ -149,21 +150,37 @@ step that tries to resume the same key while another running step holds it fails
 
 Ordered steps share sessions without competing for the same claim:
 
-- Steps in one job run in order.
-- Executions of one listening job run one after another.
-- Jobs linked by `needs`, directly or through other jobs, never overlap.
+- Steps of one job that run one after the other.
+- Executions of one listening job, which run one after another.
+- Jobs linked by `needs`, directly or through other jobs, which never overlap.
 
-The only conflict is two jobs with no `needs` path between them that both
-resume the same key. When both steps use the same literal key, sync rejects the
-workflow with `agent-session-parallel-resume`. Any other conflict fails the
-second step at run time with `agent_session_held`.
+Two cases can conflict:
+
+- Two jobs with no `needs` path between them that both resume the same key.
+- Two steps of one job that can run at the same time, such as two steps of one
+  `parallel` block, or a [background
+  step](/understand/jobs-and-steps#run-steps-of-one-job-at-the-same-time) and a
+  step that starts before the `wait` that joins it.
+
+In one job, two steps that can run at the same time cannot use the same
+session. The only exception is two steps that both use `mode: fork`. A fork
+next to a resume in the same job still conflicts.
+
+When both steps use the same key text, sync rejects the workflow with
+`agent-session-parallel-resume`. Any other conflict fails the second step at
+run time with `agent_session_held`.
+
+A step can reuse the session of a background step that `cancel` stopped. That
+step waits until the cancelled step has stopped, then it starts.
 
 If a completed attempt still holds a claim, Shipfox releases it before the next
 step resumes the session. A running attempt keeps its exclusive claim.
 
 To let parallel jobs share a session, give one of them `mode: fork`. A fork
-reads a copy and never writes, so it can run in parallel with a resuming step.
-Otherwise add a `needs` edge or use separate keys.
+reads a copy and never writes, so it can run in parallel with a resuming step
+of another job. Otherwise add a `needs` edge or use separate keys. Inside one
+job, add a `wait` before the second step, fork the session on both steps, or
+use separate keys.
 
 ## Consequences and tradeoffs
 

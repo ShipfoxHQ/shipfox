@@ -119,18 +119,19 @@ These limits apply:
 
 ## Check which value a step gets
 
-A step can get the same variable from several places. Shipfox applies the
-places in this order. A later place replaces an earlier one:
+A variable can come from more than one place. The step gets the value from the
+last place in this list:
 
-1. The environment of the runner.
-2. The values that earlier steps wrote to `$SHIPFOX_ENV`. When two steps write
-   the same name, the later step wins.
-3. The `env` of the workflow, the job, and the step, including the secrets they
-   bind.
-4. The variables that Shipfox sets, such as `SHIPFOX_RUN_ID`.
+1. The runner environment.
+2. `$SHIPFOX_ENV` in earlier steps. If two steps set the same variable, the
+   step that is lower in the workflow file sets the value. A [background
+   step](/understand/jobs-and-steps#when-results-become-readable) sets values
+   only after a `wait` for that step.
+3. `env` in the workflow, the job, or the step. This includes secrets in `env`.
+4. Variables that Shipfox sets, for example `SHIPFOX_RUN_ID`.
 
-Shipfox puts the directories from `$SHIPFOX_PATH` before the directories that
-`PATH` already contains. The directory that was written last comes first.
+Directories from `$SHIPFOX_PATH` come before the directories in `PATH`. The
+directory that a step wrote last comes first.
 
 ## Know what a gate restart changes
 

@@ -111,11 +111,11 @@ key with batching unless every event in a batch belongs to one item.
 
 Choose the mode for each step that names a session:
 
-| Need | Mode |
+| When | Mode |
 | --- | --- |
-| The step's work should become part of the shared conversation. | `resume`, the default. |
-| The step runs at the same time as a step that resumes the same key. | `fork`. |
-| The step should read the conversation but must not add to it. | `fork`. |
+| The step adds its work to the shared conversation. | `resume` (default) |
+| A step in another job resumes the same key at the same time. | `fork` |
+| The step reads the conversation and does not add to it. | `fork` |
 
 This fragment adds a parallel reader to **Plan then implement**. Add it under
 the `jobs` map:
@@ -170,7 +170,8 @@ shows a higher segment. Its summary refers to the earlier batch.
 - **Parallel resumes fail fast.** Two steps that resume one key at the same time
   do not queue. Sync rejects the literal case. At run time the second attempt
   fails with `agent_session_held`. Order the jobs with `needs`, fork one of
-  them, or use different keys.
+  them, or use different keys. In one job, two steps that run at the same time
+  can use the same key only if both steps use `fork`.
 - **Changing the model costs context reuse.** The model and thinking level can
   differ between segments. The harness must stay the same. A model change loses
   the provider's prompt cache. It may also drop reasoning state the provider

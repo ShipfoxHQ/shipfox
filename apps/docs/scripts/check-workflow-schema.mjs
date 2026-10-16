@@ -26,6 +26,7 @@ const requiredAnchors = new Set([
   'checkout-step-fields',
   'checkout-fields',
   'checkout-permissions-fields',
+  'parallel-block-fields',
   'gate-fields',
   'gate-failure-fields',
   'step-outputs',

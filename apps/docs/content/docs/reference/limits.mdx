@@ -1,7 +1,7 @@
 ---
 title: "Limits and Defaults Reference"
 sidebarTitle: "Limits"
-description: "Look up Shipfox gate attempt caps, job timeouts, log budgets and retention, output grouping caps, environment-map limits, workspace secret and variable caps, and agent session caps."
+description: "Look up Shipfox gate attempt caps, job timeouts, concurrent step caps, log budgets and retention, output grouping caps, environment-map limits, workspace secret and variable caps, and agent session caps."
 ---
 
 This page is the canonical home for shared operational limits. Other pages
@@ -14,6 +14,8 @@ can change the values marked configurable.
 | --- | --- | --- | --- |
 | Gate attempts per gating step | 5 (including the first execution) | 1 to 1,000 per restart rule, in YAML | `gate.on_failure.max_attempts` sets how many times the gating step can run. Each rule in a list of `on_failure` rules has its own value. The selected rule's value is compared with the total runs of the step, whichever rules caused the earlier restarts. The first run counts as attempt 1. If you omit the field, a new run uses five. Active and rerun executions with no persisted limit retain the legacy limit of three. When the selected rule's attempts are used up, the job fails with `restart_exhausted`. When no rule applies, the job fails with the error of the step. You cannot remove the limit. See [Feedback loops](/understand/feedback-loops#loop-bounds). |
 | Job `execution_timeout` | 6 hours | Per job, in YAML | Wall-clock bound on one job execution, including gate retries. Authored values range from 1 second through 24 hours. When the time ends, the job fails with `timed_out`. See [Job fields](/reference/workflow-schema#job-fields). |
+| Concurrent steps per job | 20 | Self-host: `WORKFLOWS_MAX_CONCURRENT_STEPS`, from 1 through 64 | Counts background steps and other steps of one job together. A step above the limit waits, in file order, for a free slot. The workflow file cannot change the limit. See [Jobs and steps](/understand/jobs-and-steps#concurrent-steps-share-everything). |
+| Cancelled step stop period | 10 seconds | No | `cancel` sends `SIGTERM` to a run or action step, then `SIGKILL` after this period. See [Jobs and steps](/understand/jobs-and-steps#when-a-background-step-is-cancelled). |
 | Run timeout | 30 days | No (not authorable) | Outer bound on a whole run, including its listening jobs. Time spent waiting for a concurrency group does not count toward this timeout. A listening job's `timeout` is capped by it. |
 | Manual triggers per workflow | 1 | No | See [Trigger fields](/reference/workflow-schema#trigger-fields). |
 | Concurrency with listening jobs | Not supported | No | A workflow cannot use `concurrency` when it has a listening job. See [Concurrency fields](/reference/workflow-schema#concurrency-fields). |
@@ -78,7 +80,7 @@ Workflow outputs use the same JSON-safe encoding as job outputs.
 
 | Limit | Default | Configurable | Details |
 | --- | --- | --- | --- |
-| Per-job log budget | 32 MiB + 1 MiB per minute | Self-host: `LOG_BUDGET_BASE_BYTES`, `LOG_BUDGET_RATE_BYTES_PER_MINUTE` | The budget limits the log output that Shipfox keeps. It does not stop the job. After the job reaches the budget, later output is dropped, so later attempts can have incomplete logs or no logs. A `capped` record marks the boundary. See [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs). |
+| Per-job log budget | 32 MiB + 1 MiB per minute | Self-host: `LOG_BUDGET_BASE_BYTES`, `LOG_BUDGET_RATE_BYTES_PER_MINUTE` | The budget limits the log output that Shipfox keeps. It does not stop the job. After the job reaches the budget, later output is dropped, so later attempts can have incomplete logs or no logs. A `capped` record marks the boundary. Steps that run at the same time share the budget, so they use it up faster. See [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs). |
 | Log file on the runner | 16 MiB per step attempt | No | The runner writes a plain-text copy of each `run`, `action`, and `checkout` step attempt's log to a file. `log_path` gives the file's path. When the log is larger than the limit, the file keeps only the end of it, and its first line starts with `[shipfox] Log truncated:`. This limit is separate from the per-job log budget. See the [Contexts reference](/reference/contexts#context-properties). |
 | Log retention | 90 days | Self-host: `LOG_RETENTION_DAYS` | Persisted logs are deleted from the database and object storage after this window. |
 | Output group nesting | 32 levels | No | Past the cap a group is flattened into plain output. Wrap output in `::group::<name>` / `::endgroup::` marker lines to create collapsible sections. |

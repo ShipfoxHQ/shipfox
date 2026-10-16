@@ -24,6 +24,7 @@ import {
   JobFields,
   ListeningBatchFields,
   ListeningFields,
+  ParallelBlockFields,
   RunStepFields,
   StepFields,
   StepOutputs,
@@ -144,6 +145,48 @@ Accepts the shared step fields plus:
 #### `steps[*].checkout.permissions` [#checkout-permissions-fields]
 
 <CheckoutPermissionsFields />
+
+### `steps[*]` parallel block [#parallel-block-fields]
+
+A parallel block is an item of `steps` that holds only the `parallel` field.
+Each item of its list is a step with the [shared step fields](#step-fields).
+
+<ParallelBlockFields />
+
+#### Concurrent step rules [#concurrent-step-rules]
+
+These rules cover `background`, `wait`, `wait_all`, `cancel`, and `parallel`.
+Sync rejects a workflow that breaks one of them.
+
+| Rule | Applies to |
+| --- | --- |
+| Needs a `key`. | A step with `background: true`. |
+| Is a run, action, agent, or tool step. A checkout step cannot run in the background. | A step with `background: true`. |
+| Cannot have a `gate`. | A background step and a step of a `parallel` block. |
+| Accepts only `name`. It cannot set `if`, `run_after`, or `continue_on_error`. | A `wait`, `wait_all`, or `cancel` step. |
+| Names a background step that exists and is still running at that point. | A `wait` or `cancel` step. |
+| Cannot run while a background step may still run. Add `wait_all` before it. | A checkout step. |
+| Lists at least two steps and takes no other field. Blocks do not nest. | A `parallel` block. |
+| Is not a checkout, `wait`, `wait_all`, `cancel`, or `parallel` step, and does not set `background` or `gate`. | A step of a `parallel` block. |
+| Cannot go back past a background step that may still be running. Cannot name a step in the middle of a `parallel` block. | `gate.on_failure.restart_from`. |
+| Cannot read `steps.<key>` of a background step before a `wait` joins it. | An expression. |
+| Cannot use the same key as another step that can run at the same time, unless both steps use `mode: fork`. | An agent `session`. |
+
+A `wait` or `wait_all` step always runs. It fails when a step it waits for
+failed without `continue_on_error`. `wait_all` waits for every background step
+started earlier that no `wait` joined and no `cancel` stopped.
+
+Without `name`, the run page labels these steps by their keys:
+
+| Step | Label |
+| --- | --- |
+| `wait: [security, perf]` | `Wait for security, perf` |
+| `wait_all:` | `Wait for background steps` |
+| `cancel: db` | `Cancel db` |
+| The wait at the end of a `parallel` block | `Wait for parallel steps` |
+
+[Jobs and steps](/understand/jobs-and-steps#run-steps-of-one-job-at-the-same-time)
+explains how these steps run.
 
 ## Related pages
 

@@ -322,6 +322,17 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
       properties(properties(objectSchemaFor(stepProperties(schema).checkout)).permissions),
   },
   {
+    id: 'parallel-block-fields',
+    component: 'ParallelBlockFields',
+    path: 'jobs.<job_id>.steps[*]',
+    example: 'parallel.yml',
+    fields: ['parallel'],
+    select: (schema) => properties(parallelBlockSchema(schema)),
+    required: ['parallel'],
+    nested: {parallel: '#step-fields'},
+    types: {parallel: 'Step[]'},
+  },
+  {
     id: 'gate-fields',
     component: 'GateFields',
     path: 'jobs.<job_id>.steps[*].gate',
@@ -595,7 +606,26 @@ function jobProperties(schema) {
 }
 
 function stepProperties(schema) {
-  return properties(object(jobProperties(schema).steps).items);
+  return properties(stepSchema(schema));
+}
+
+// A job step is a step or a `parallel` block. The schema lists the two as
+// alternatives when it accepts the block.
+function stepSchema(schema) {
+  const items = stepItems(schema);
+  return objects(items.anyOf).find((option) => !isParallelBlock(option)) ?? items;
+}
+
+function parallelBlockSchema(schema) {
+  return objects(stepItems(schema).anyOf).find(isParallelBlock) ?? {};
+}
+
+function isParallelBlock(schema) {
+  return strings(schema.required).includes('parallel');
+}
+
+function stepItems(schema) {
+  return object(object(jobProperties(schema).steps).items);
 }
 
 function properties(schema) {
