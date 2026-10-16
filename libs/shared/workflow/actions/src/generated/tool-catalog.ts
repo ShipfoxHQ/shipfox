@@ -3,6 +3,36 @@
 
 /** Tool arguments, result kinds, and structured results, by provider slug and tool name. */
 export interface ProviderToolCatalog {
+  claap: {
+    /**
+     * Get one recording (captured meeting or call) of the Claap workspace by recordingId or share URL, with its full metadata and its AI-generated summary. The summary is the cheap way to know what a meeting was about: prefer it over get_recording_transcript, which returns the entire transcript. Discover the recordingId via get_recordings or search_recording_transcripts.
+     */
+    get_recording: {arguments: ClaapGetRecordingArguments; result: 'json'; structured: unknown};
+    /**
+     * Fetch the full transcript for a recording (captured meeting or call), by recordingId or share URL.
+     */
+    get_recording_transcript: {
+      arguments: ClaapGetRecordingTranscriptArguments;
+      result: 'json';
+      structured: unknown;
+    };
+    /**
+     * Search many recordings (captured meetings and calls) of the Claap workspace with a set of filters. Returns recording metadata ordered by relevance and creation date descending. Metadata only: it never returns summaries. To read one recording with its AI-generated summary, use get_recording.
+     */
+    get_recordings: {arguments: ClaapGetRecordingsArguments; result: 'json'; structured: unknown};
+    /**
+     * Return the Claap workspace this connection belongs to, with its ID and name.
+     */
+    list_workspaces: {arguments: ClaapListWorkspacesArguments; result: 'json'; structured: unknown};
+    /**
+     * Perform keyword or semantic search on the transcripts of recordings (captured meetings and calls), with optional filters on the recording metadata. Returns transcript chunks grouped by recording. Both search types paginate via `cursor`/`nextCursor`. Semantic search stops after the 1000 closest chunks; to reach further, narrow the filters (for example split the `createdAt` range). `total` is only returned for keyword search.
+     */
+    search_recording_transcripts: {
+      arguments: ClaapSearchRecordingTranscriptsArguments;
+      result: 'json';
+      structured: unknown;
+    };
+  };
   clickup: {
     /**
      * Add a plain-text comment to a ClickUp task. Markdown is not rendered and notifications are disabled.
@@ -1479,6 +1509,259 @@ export interface ProviderToolCatalog {
      */
     update_message: {arguments: SlackUpdateMessageArguments; result: 'json'; structured: unknown};
   };
+}
+
+export interface ClaapGetRecordingArguments {
+  /**
+   * The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.
+   */
+  recordingId?: string;
+  /**
+   * The Claap share URL of the recording, for example https://app.claap.io/my-call-c-<workspaceId>-<recordingId>. It must belong to the connected Claap workspace. Pass exactly one of recordingId and recordingUrl.
+   */
+  recordingUrl?: string;
+  [k: string]: unknown;
+}
+
+export interface ClaapGetRecordingTranscriptArguments {
+  /**
+   * The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.
+   */
+  recordingId?: string;
+  /**
+   * The Claap share URL of the recording, for example https://app.claap.io/my-call-c-<workspaceId>-<recordingId>. It must belong to the connected Claap workspace. Pass exactly one of recordingId and recordingUrl.
+   */
+  recordingUrl?: string;
+  [k: string]: unknown;
+}
+
+export interface ClaapGetRecordingsArguments {
+  /**
+   * Opaque cursor returned as `nextCursor` by a previous call. Pass the value VERBATIM (do not construct, modify, decode, or invent a cursor; it is an internal token whose format is not part of the API contract) to fetch the next page of results. Omit on the first call.
+   */
+  cursor?: string;
+  /**
+   * Filters to apply to the search.
+   */
+  filters?: {
+    /**
+     * Filter by company ID matching at least one of these values.
+     */
+    companyId?: string[];
+    /**
+     * Filter by company name containing this string.
+     */
+    companyName?: string;
+    /**
+     * Filter by participant email (detected speaker or meeting attendee) containing this string.
+     */
+    contactEmail?: string;
+    /**
+     * Filter by contact ID matching at least one of these values.
+     */
+    contactId?: string[];
+    /**
+     * Filter by participant name (detected speaker or meeting attendee) containing this string.
+     */
+    contactName?: string;
+    /**
+     * Filter by recording creation date (ISO YYYY-MM-DD).
+     */
+    createdAt?: {
+      /**
+       * Greater than or equal to this date (YYYY-MM-DD).
+       */
+      gte?: string;
+      /**
+       * Less than or equal to this date (YYYY-MM-DD).
+       */
+      lte?: string;
+      [k: string]: unknown;
+    };
+    /**
+     * Filter by deal ID matching at least one of these values.
+     */
+    dealId?: string[];
+    /**
+     * Filter by deal title containing this string.
+     */
+    dealTitle?: string;
+    /**
+     * Filter by folder ID matching at least one of these values.
+     */
+    folderId?: string[];
+    /**
+     * Filter by folder title containing this string.
+     */
+    folderTitle?: string;
+    /**
+     * Only include results with at least one speaker external to the user's organization (eg. client, prospects, partners)
+     */
+    hasExternalSpeaker?: boolean;
+    /**
+     * Filter by label name containing this string.
+     */
+    labelName?: string;
+    /**
+     * Filter by recording ID matching at least one of these values.
+     */
+    recordingId?: string[];
+    /**
+     * Filter by recording title containing this string.
+     */
+    recordingTitle?: string;
+    /**
+     * Filter by participant user ID (speaker or attendee) matching at least one of these values.
+     */
+    userId?: string[];
+    /**
+     * Filter by recording source (meeting platform, call provider, upload...) matching at least one of these values.
+     */
+    source?: (
+      | 'Aircall'
+      | 'Allo'
+      | 'Api'
+      | 'Call'
+      | 'GoogleMeet'
+      | 'LemlistVoip'
+      | 'Loom'
+      | 'MobileApp'
+      | 'MsTeams'
+      | 'Nooks'
+      | 'Ringover'
+      | 'Uploaded'
+      | 'Zoom'
+    )[];
+    [k: string]: unknown;
+  };
+  /**
+   * Maximum number of results per page (default 10, max 100). The response includes `total` (full match count) and, when more results exist, `nextCursor`. To fetch more results, ALWAYS paginate via `nextCursor`, and do not adjust filters or limits to skip past already-returned items.
+   */
+  limit?: number;
+  /**
+   * Sort dimensions to apply to the search results. When omitted, results are ordered by relevance and creation date descending.
+   */
+  sort?: {
+    /**
+     * Field to sort by. Use `lastActivityAt` for "what recordings have been active recently?" (most recently viewed, commented, or reacted to).
+     */
+    field: 'createdAt' | 'lastActivityAt';
+    /**
+     * Sort order.
+     */
+    order: 'asc' | 'desc';
+    [k: string]: unknown;
+  }[];
+  [k: string]: unknown;
+}
+
+export interface ClaapListWorkspacesArguments {
+  [k: string]: unknown;
+}
+
+export interface ClaapSearchRecordingTranscriptsArguments {
+  /**
+   * Opaque cursor returned as `nextCursor` by a previous call. Pass the value VERBATIM (do not construct, modify, decode, or invent a cursor; it is an internal token whose format is not part of the API contract) to fetch the next page of results. Omit on the first call.
+   */
+  cursor?: string;
+  /**
+   * Filters to apply to the search.
+   */
+  filters?: {
+    /**
+     * Filter by company ID matching at least one of these values.
+     */
+    companyId?: string[];
+    /**
+     * Filter by company name containing this string.
+     */
+    companyName?: string;
+    /**
+     * Filter by participant email (detected speaker or meeting attendee) containing this string.
+     */
+    contactEmail?: string;
+    /**
+     * Filter by contact ID matching at least one of these values.
+     */
+    contactId?: string[];
+    /**
+     * Filter by participant name (detected speaker or meeting attendee) containing this string.
+     */
+    contactName?: string;
+    /**
+     * Filter by recording creation date (ISO YYYY-MM-DD).
+     */
+    createdAt?: {
+      /**
+       * Greater than or equal to this date (YYYY-MM-DD).
+       */
+      gte?: string;
+      /**
+       * Less than or equal to this date (YYYY-MM-DD).
+       */
+      lte?: string;
+      [k: string]: unknown;
+    };
+    /**
+     * Filter by deal ID matching at least one of these values.
+     */
+    dealId?: string[];
+    /**
+     * Filter by deal title containing this string.
+     */
+    dealTitle?: string;
+    /**
+     * Filter by folder ID matching at least one of these values.
+     */
+    folderId?: string[];
+    /**
+     * Filter by folder title containing this string.
+     */
+    folderTitle?: string;
+    /**
+     * Only include results with at least one speaker external to the user's organization (eg. client, prospects, partners)
+     */
+    hasExternalSpeaker?: boolean;
+    /**
+     * Filter by label name containing this string.
+     */
+    labelName?: string;
+    /**
+     * Filter by recording ID matching at least one of these values.
+     */
+    recordingId?: string[];
+    /**
+     * Filter by recording title containing this string.
+     */
+    recordingTitle?: string;
+    /**
+     * Filter by participant user ID (speaker or attendee) matching at least one of these values.
+     */
+    userId?: string[];
+    /**
+     * Filter by tag matching at least one of these values.
+     *
+     * Items: CompetitorMentions: an external speaker mentioned a competitor. Objections: an external speaker raised an objection. PainPoints: an external speaker expressed a pain point. FeatureRequests: an external speaker requested a feature to be implemented.
+     */
+    tag?: ('CompetitorMentions' | 'FeatureRequests' | 'Objections' | 'PainPoints')[];
+    [k: string]: unknown;
+  };
+  /**
+   * Maximum number of results per page (default 10, max 100). The response includes `total` (full match count) and, when more results exist, `nextCursor`. To fetch more results, ALWAYS paginate via `nextCursor`, and do not adjust filters or limits to skip past already-returned items.
+   */
+  limit?: number;
+  search: {
+    /**
+     * The query to search for.
+     */
+    query: string;
+    /**
+     * Type of search technique. Use semantic search to find transcript chunks matching the meaning of the query. Use keyword search to find transcript chunks matching all of the provided keywords.
+     */
+    type: 'semantic' | 'keyword';
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
 }
 
 export interface ClickupAddCommentArguments {

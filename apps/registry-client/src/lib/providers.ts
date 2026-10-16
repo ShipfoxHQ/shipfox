@@ -8,6 +8,7 @@ const PROVIDER_LABELS = new Map(
     jira: 'Jira',
     linear: 'Linear',
     notion: 'Notion',
+    claap: 'Claap',
     posthog: 'PostHog',
     sentry: 'Sentry',
     shipfox: 'Shipfox',

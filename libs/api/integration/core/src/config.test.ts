@@ -31,6 +31,17 @@ describe('integration provider config', () => {
     expect(config.INTEGRATIONS_ENABLE_POSTHOG_PROVIDER).toBe(false);
   });
 
+  it('points the Claap MCP endpoint at Claap by default and allows an override', async () => {
+    vi.resetModules();
+    const {config: defaults} = await import('#config.js');
+    expect(defaults.CLAAP_MCP_ENDPOINT).toBe('https://api.claap.io/mcp');
+
+    vi.stubEnv('CLAAP_MCP_ENDPOINT', 'http://localhost:4020/mcp');
+    vi.resetModules();
+    const {config: overridden} = await import('#config.js');
+    expect(overridden.CLAAP_MCP_ENDPOINT).toBe('http://localhost:4020/mcp');
+  });
+
   it('allows disabling the built-in cron provider', async () => {
     vi.stubEnv('INTEGRATIONS_ENABLE_CRON_PROVIDER', 'false');
     vi.resetModules();

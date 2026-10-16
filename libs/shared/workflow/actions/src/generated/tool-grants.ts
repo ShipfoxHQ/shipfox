@@ -10,6 +10,13 @@ export interface ToolGrant {
 
 /** Grant data by provider slug and tool id. */
 export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGrant>>>> = {
+  claap: {
+    get_recording: {sensitivity: 'read', result: 'json'},
+    get_recording_transcript: {sensitivity: 'read', result: 'json'},
+    get_recordings: {sensitivity: 'read', result: 'json'},
+    list_workspaces: {sensitivity: 'read', result: 'json'},
+    search_recording_transcripts: {sensitivity: 'read', result: 'json'},
+  },
   clickup: {
     add_comment: {sensitivity: 'write', result: 'json'},
     add_tag: {sensitivity: 'write', result: 'json'},

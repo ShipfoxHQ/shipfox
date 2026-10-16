@@ -1,0 +1,419 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Claap agent tool catalog > keeps the allow-list and selection catalog deliberate 1`] = `
+[
+  {
+    "description": "Return the Claap workspace this connection belongs to, with its ID and name.",
+    "id": "list_workspaces",
+    "inputSchema": {
+      "properties": {},
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": false,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Search many recordings (captured meetings and calls) of the Claap workspace with a set of filters. Returns recording metadata ordered by relevance and creation date descending. Metadata only: it never returns summaries. To read one recording with its AI-generated summary, use get_recording.",
+    "id": "get_recordings",
+    "inputSchema": {
+      "properties": {
+        "cursor": {
+          "description": "Opaque cursor returned as \`nextCursor\` by a previous call. Pass the value VERBATIM (do not construct, modify, decode, or invent a cursor; it is an internal token whose format is not part of the API contract) to fetch the next page of results. Omit on the first call.",
+          "type": "string",
+        },
+        "filters": {
+          "description": "Filters to apply to the search.",
+          "properties": {
+            "companyId": {
+              "description": "Filter by company ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "companyName": {
+              "description": "Filter by company name containing this string.",
+              "type": "string",
+            },
+            "contactEmail": {
+              "description": "Filter by participant email (detected speaker or meeting attendee) containing this string.",
+              "type": "string",
+            },
+            "contactId": {
+              "description": "Filter by contact ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "contactName": {
+              "description": "Filter by participant name (detected speaker or meeting attendee) containing this string.",
+              "type": "string",
+            },
+            "createdAt": {
+              "description": "Filter by recording creation date (ISO YYYY-MM-DD).",
+              "properties": {
+                "gte": {
+                  "description": "Greater than or equal to this date (YYYY-MM-DD).",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "type": "string",
+                },
+                "lte": {
+                  "description": "Less than or equal to this date (YYYY-MM-DD).",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "type": "string",
+                },
+              },
+              "type": "object",
+            },
+            "dealId": {
+              "description": "Filter by deal ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "dealTitle": {
+              "description": "Filter by deal title containing this string.",
+              "type": "string",
+            },
+            "folderId": {
+              "description": "Filter by folder ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "folderTitle": {
+              "description": "Filter by folder title containing this string.",
+              "type": "string",
+            },
+            "hasExternalSpeaker": {
+              "description": "Only include results with at least one speaker external to the user's organization (eg. client, prospects, partners)",
+              "type": "boolean",
+            },
+            "labelName": {
+              "description": "Filter by label name containing this string.",
+              "type": "string",
+            },
+            "recordingId": {
+              "description": "Filter by recording ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "recordingTitle": {
+              "description": "Filter by recording title containing this string.",
+              "type": "string",
+            },
+            "source": {
+              "description": "Filter by recording source (meeting platform, call provider, upload...) matching at least one of these values.",
+              "items": {
+                "enum": [
+                  "Aircall",
+                  "Allo",
+                  "Api",
+                  "Call",
+                  "GoogleMeet",
+                  "LemlistVoip",
+                  "Loom",
+                  "MobileApp",
+                  "MsTeams",
+                  "Nooks",
+                  "Ringover",
+                  "Uploaded",
+                  "Zoom",
+                ],
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "userId": {
+              "description": "Filter by participant user ID (speaker or attendee) matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "limit": {
+          "description": "Maximum number of results per page (default 10, max 100). The response includes \`total\` (full match count) and, when more results exist, \`nextCursor\`. To fetch more results, ALWAYS paginate via \`nextCursor\`, and do not adjust filters or limits to skip past already-returned items.",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number",
+        },
+        "sort": {
+          "description": "Sort dimensions to apply to the search results. When omitted, results are ordered by relevance and creation date descending.",
+          "items": {
+            "properties": {
+              "field": {
+                "description": "Field to sort by. Use \`lastActivityAt\` for "what recordings have been active recently?" (most recently viewed, commented, or reacted to).",
+                "enum": [
+                  "createdAt",
+                  "lastActivityAt",
+                ],
+                "type": "string",
+              },
+              "order": {
+                "description": "Sort order.",
+                "enum": [
+                  "asc",
+                  "desc",
+                ],
+                "type": "string",
+              },
+            },
+            "required": [
+              "field",
+              "order",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+      },
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Get one recording (captured meeting or call) of the Claap workspace by recordingId or share URL, with its full metadata and its AI-generated summary. The summary is the cheap way to know what a meeting was about: prefer it over get_recording_transcript, which returns the entire transcript. Discover the recordingId via get_recordings or search_recording_transcripts.",
+    "id": "get_recording",
+    "inputSchema": {
+      "properties": {
+        "recordingId": {
+          "description": "The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.",
+          "type": "string",
+        },
+        "recordingUrl": {
+          "description": "The Claap share URL of the recording, for example https://app.claap.io/my-call-c-<workspaceId>-<recordingId>. It must belong to the connected Claap workspace. Pass exactly one of recordingId and recordingUrl.",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Fetch the full transcript for a recording (captured meeting or call), by recordingId or share URL.",
+    "id": "get_recording_transcript",
+    "inputSchema": {
+      "properties": {
+        "recordingId": {
+          "description": "The ID of the recording. Discover it via get_recordings or search_recording_transcripts. Pass exactly one of recordingId and recordingUrl.",
+          "type": "string",
+        },
+        "recordingUrl": {
+          "description": "The Claap share URL of the recording, for example https://app.claap.io/my-call-c-<workspaceId>-<recordingId>. It must belong to the connected Claap workspace. Pass exactly one of recordingId and recordingUrl.",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Perform keyword or semantic search on the transcripts of recordings (captured meetings and calls), with optional filters on the recording metadata. Returns transcript chunks grouped by recording. Both search types paginate via \`cursor\`/\`nextCursor\`. Semantic search stops after the 1000 closest chunks; to reach further, narrow the filters (for example split the \`createdAt\` range). \`total\` is only returned for keyword search.",
+    "id": "search_recording_transcripts",
+    "inputSchema": {
+      "properties": {
+        "cursor": {
+          "description": "Opaque cursor returned as \`nextCursor\` by a previous call. Pass the value VERBATIM (do not construct, modify, decode, or invent a cursor; it is an internal token whose format is not part of the API contract) to fetch the next page of results. Omit on the first call.",
+          "type": "string",
+        },
+        "filters": {
+          "description": "Filters to apply to the search.",
+          "properties": {
+            "companyId": {
+              "description": "Filter by company ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "companyName": {
+              "description": "Filter by company name containing this string.",
+              "type": "string",
+            },
+            "contactEmail": {
+              "description": "Filter by participant email (detected speaker or meeting attendee) containing this string.",
+              "type": "string",
+            },
+            "contactId": {
+              "description": "Filter by contact ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "contactName": {
+              "description": "Filter by participant name (detected speaker or meeting attendee) containing this string.",
+              "type": "string",
+            },
+            "createdAt": {
+              "description": "Filter by recording creation date (ISO YYYY-MM-DD).",
+              "properties": {
+                "gte": {
+                  "description": "Greater than or equal to this date (YYYY-MM-DD).",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "type": "string",
+                },
+                "lte": {
+                  "description": "Less than or equal to this date (YYYY-MM-DD).",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "type": "string",
+                },
+              },
+              "type": "object",
+            },
+            "dealId": {
+              "description": "Filter by deal ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "dealTitle": {
+              "description": "Filter by deal title containing this string.",
+              "type": "string",
+            },
+            "folderId": {
+              "description": "Filter by folder ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "folderTitle": {
+              "description": "Filter by folder title containing this string.",
+              "type": "string",
+            },
+            "hasExternalSpeaker": {
+              "description": "Only include results with at least one speaker external to the user's organization (eg. client, prospects, partners)",
+              "type": "boolean",
+            },
+            "labelName": {
+              "description": "Filter by label name containing this string.",
+              "type": "string",
+            },
+            "recordingId": {
+              "description": "Filter by recording ID matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "recordingTitle": {
+              "description": "Filter by recording title containing this string.",
+              "type": "string",
+            },
+            "tag": {
+              "description": "Filter by tag matching at least one of these values.",
+              "items": {
+                "description": "CompetitorMentions: an external speaker mentioned a competitor. Objections: an external speaker raised an objection. PainPoints: an external speaker expressed a pain point. FeatureRequests: an external speaker requested a feature to be implemented.",
+                "enum": [
+                  "CompetitorMentions",
+                  "FeatureRequests",
+                  "Objections",
+                  "PainPoints",
+                ],
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "userId": {
+              "description": "Filter by participant user ID (speaker or attendee) matching at least one of these values.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "type": "object",
+        },
+        "limit": {
+          "description": "Maximum number of results per page (default 10, max 100). The response includes \`total\` (full match count) and, when more results exist, \`nextCursor\`. To fetch more results, ALWAYS paginate via \`nextCursor\`, and do not adjust filters or limits to skip past already-returned items.",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number",
+        },
+        "search": {
+          "properties": {
+            "query": {
+              "description": "The query to search for.",
+              "type": "string",
+            },
+            "type": {
+              "description": "Type of search technique. Use semantic search to find transcript chunks matching the meaning of the query. Use keyword search to find transcript chunks matching all of the provided keywords.",
+              "enum": [
+                "semantic",
+                "keyword",
+              ],
+              "type": "string",
+            },
+          },
+          "required": [
+            "query",
+            "type",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "search",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+]
+`;
+
+exports[`Claap agent tool catalog > keeps the allow-list and selection catalog deliberate 2`] = `
+{
+  "selectors": [
+    {
+      "kind": "standalone",
+      "sensitive": false,
+      "sensitivity": "read",
+      "token": "list_workspaces",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "get_recordings",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "get_recording",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "get_recording_transcript",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "search_recording_transcripts",
+    },
+  ],
+}
+`;

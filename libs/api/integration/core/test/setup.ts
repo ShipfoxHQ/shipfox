@@ -1,4 +1,5 @@
 import './env.js';
+import {closeDb as closeClaapDb} from '@shipfox/api-integration-claap';
 import {closeDb as closeClickUpDb} from '@shipfox/api-integration-clickup';
 import {closeDb as closeDiscordDb} from '@shipfox/api-integration-discord';
 import {closeDb as closeGiteaDb} from '@shipfox/api-integration-gitea';
@@ -29,6 +30,7 @@ afterAll(async () => {
   // isolate:false shares provider module state across files, so every memoized
   // Drizzle handle must be cleared before the shared pool is ended.
   closeLinearDb();
+  closeClaapDb();
   closePosthogDb();
   closeJamDb();
   closeSlackDb();

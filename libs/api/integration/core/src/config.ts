@@ -57,6 +57,10 @@ export const config = createConfig({
     desc: 'Jam API base URL, used to introspect personal access tokens. Override it only for a compatible proxy or E2E fake.',
     default: 'https://api.jam.dev',
   }),
+  CLAAP_MCP_ENDPOINT: url({
+    desc: 'Claap MCP endpoint that the Claap integration calls with the connection API key. Override it only for a compatible proxy or an E2E fake.',
+    default: 'https://api.claap.io/mcp',
+  }),
   INTEGRATIONS_ENABLE_SENTRY_PROVIDER: bool({
     desc: 'Enables the Sentry integration provider so users can connect Sentry.',
     default: false,

@@ -10,6 +10,7 @@ const architecturePackages = {
     definitions: ['libs/api/definitions'],
     integrations: [
       'libs/api/integration/core',
+      'libs/api/integration/claap',
       'libs/api/integration/clickup',
       'libs/api/integration/discord',
       'libs/api/integration/notion',
@@ -44,6 +45,7 @@ const architecturePackages = {
     definitions: ['libs/api/definitions-dto'],
     integrations: [
       'libs/api/integration/core-dto',
+      'libs/api/integration/claap-dto',
       'libs/api/integration/discord-dto',
       'libs/api/integration/clickup-dto',
       'libs/api/integration/gitea-dto',

@@ -1,3 +1,4 @@
+import {claapProviderModule} from '#providers/claap.js';
 import {clickupProviderModule} from '#providers/clickup.js';
 import {cronProviderModule} from '#providers/cron.js';
 import {discordProviderModule} from '#providers/discord.js';
@@ -25,6 +26,7 @@ const providerModules = [
   linearProviderModule,
   posthogProviderModule,
   jamProviderModule,
+  claapProviderModule,
   slackProviderModule,
   jiraProviderModule,
   clickupProviderModule,

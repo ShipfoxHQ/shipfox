@@ -216,6 +216,7 @@ export async function defaultModules(
       clickup: integrationSecrets(secretsClient, 'clickup'),
       posthog: integrationSecrets(secretsClient, 'posthog'),
       jam: integrationSecrets(secretsClient, 'jam'),
+      claap: integrationSecrets(secretsClient, 'claap'),
       sentry: integrationSecrets(secretsClient, 'sentry'),
       notion: integrationSecrets(secretsClient, 'notion'),
       slack: integrationSecrets(secretsClient, 'slack'),

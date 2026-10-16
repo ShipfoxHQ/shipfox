@@ -26,6 +26,8 @@
       "@shipfox/api-integration-discord",
       "@shipfox/api-integration-clickup",
       "@shipfox/api-integration-notion",
+      "@shipfox/api-integration-claap",
+      "@shipfox/api-integration-claap-dto",
       "@shipfox/api-integration-posthog",
       "@shipfox/api-integration-posthog-dto",
       "@shipfox/api-integration-jam",

@@ -151,6 +151,14 @@ const databaseMigrationUnits = freezeEntries([
     migrationsPath: 'libs/api/integration/jam/drizzle',
   },
   {
+    id: 'integrations-claap',
+    ownerId: 'integrations',
+    namespace: 'integrations_claap',
+    packagePath: 'libs/api/integration/claap',
+    drizzleConfigPath: 'libs/api/integration/claap/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/claap/drizzle',
+  },
+  {
     id: 'integrations-sentry',
     ownerId: 'integrations',
     namespace: 'integrations_sentry',

@@ -90,6 +90,7 @@ export interface IntegrationProviderSecrets {
   slack?: IntegrationProviderScopedSecrets | undefined;
   posthog?: IntegrationProviderScopedSecrets | undefined;
   jam?: IntegrationProviderScopedSecrets | undefined;
+  claap?: IntegrationProviderScopedSecrets | undefined;
   sentry?: IntegrationProviderScopedSecrets | undefined;
   deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }

@@ -292,6 +292,7 @@ function providerLabel(provider: string): string {
     gitlab: 'GitLab',
     gitea: 'Gitea',
     clickup: 'ClickUp',
+    claap: 'Claap',
     posthog: 'PostHog',
   };
   return (

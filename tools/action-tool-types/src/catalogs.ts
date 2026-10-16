@@ -1,3 +1,4 @@
+import {claapAgentToolCatalog} from '@shipfox/api-integration-claap/agent-tools';
 import {clickupAgentToolCatalog} from '@shipfox/api-integration-clickup/agent-tools';
 import {discordAgentToolCatalog} from '@shipfox/api-integration-discord/agent-tools';
 import {giteaAgentToolCatalog} from '@shipfox/api-integration-gitea/agent-tools';
@@ -19,6 +20,7 @@ export interface ProviderToolCatalog {
 }
 
 export const providerToolCatalogs: readonly ProviderToolCatalog[] = [
+  {provider: 'claap', tools: claapAgentToolCatalog},
   {provider: 'clickup', tools: clickupAgentToolCatalog},
   {provider: 'discord', tools: discordAgentToolCatalog},
   {provider: 'gitea', tools: giteaAgentToolCatalog},

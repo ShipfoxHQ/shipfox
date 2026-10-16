@@ -21,6 +21,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'jam',
+      'claap',
       'shipfox',
       'cron',
       'webhook',
@@ -34,7 +35,7 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['jam', 'shipfox', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual(['jam', 'claap', 'shipfox', 'webhook']);
   });
 
   it('loads the built-in Shipfox provider with inter-module clients', async () => {
@@ -75,6 +76,7 @@ describe('loadEnabledProviderModules', () => {
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'linear',
       'jam',
+      'claap',
       'shipfox',
       'cron',
       'webhook',
@@ -95,6 +97,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'jam',
+      'claap',
       'slack',
       'shipfox',
       'cron',
@@ -116,6 +119,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'jam',
+      'claap',
       'jira',
       'shipfox',
       'cron',
@@ -156,6 +160,7 @@ describe('loadEnabledProviderModules', () => {
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'posthog',
       'jam',
+      'claap',
       'shipfox',
       'cron',
       'webhook',
@@ -166,6 +171,18 @@ describe('loadEnabledProviderModules', () => {
     });
     expect(posthog?.provider.adapters).toBeUndefined();
     expect(posthog?.provider.eventCatalog).toBeUndefined();
+  });
+
+  it('always loads Claap with its own database and no event catalog', async () => {
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+    const claap = parts.find((part) => part.provider.provider === 'claap');
+
+    expect(claap?.provider).toMatchObject({provider: 'claap', displayName: 'Claap'});
+    expect(claap?.provider.eventCatalog).toBeUndefined();
+    expect(claap?.database?.databaseNamespace).toBe('integrations_claap');
   });
 
   it('does not load ClickUp when the provider is disabled', async () => {
@@ -202,6 +219,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'jam',
+      'claap',
       'discord',
       'shipfox',
       'cron',
@@ -230,6 +248,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'jam',
+      'claap',
       'notion',
       'shipfox',
       'cron',
@@ -252,6 +271,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'jam',
+      'claap',
       'clickup',
       'shipfox',
       'cron',
@@ -270,6 +290,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'jam',
+      'claap',
       'test-vcs',
       'shipfox',
       'cron',
