@@ -108,7 +108,11 @@ describe('Test VCS smart HTTP fixture', () => {
         name: 'repository',
         files: [{path: 'README.md', content: '# Test VCS\n'}],
       });
-      const first = credentials(fixture, {owner: 'e2e-owner', name: 'repository'});
+      const first = credentials(
+        fixture,
+        {owner: 'e2e-owner', name: 'repository'},
+        {ttlSeconds: 60},
+      );
 
       await expect(
         git(
@@ -118,7 +122,7 @@ describe('Test VCS smart HTTP fixture', () => {
           first,
         ),
       ).resolves.toContain('refs/heads/main');
-      await new Promise((resolve) => setTimeout(resolve, 1_100));
+      vi.spyOn(Date, 'now').mockReturnValue(first.expiresAt.getTime());
       await expect(
         git(
           ['ls-remote', repository.cloneUrl, 'refs/heads/main'],

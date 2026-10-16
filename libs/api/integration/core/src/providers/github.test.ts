@@ -1,3 +1,5 @@
+import {randomInt} from 'node:crypto';
+
 const captured = vi.hoisted(() => ({
   integrationProviderOptions: undefined as unknown,
   providerOptions: undefined as unknown,
@@ -71,7 +73,7 @@ describe('githubProviderModule', () => {
     };
     const installerUserId = crypto.randomUUID();
     const installation: ConnectGithubInstallationInput['installation'] = {
-      installationId: '123456',
+      installationId: String(randomInt(1_000_000, 9_999_999)),
       accountLogin: 'shipfox',
       accountType: 'Organization',
       repositorySelection: 'all',
@@ -99,6 +101,11 @@ describe('githubProviderModule', () => {
     const secondConnection = await providerOptions.connectGithubInstallation(input);
 
     expect(secondConnection.id).not.toBe(firstConnection.id);
+    await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${secondConnection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
   });
 
   it('uses the GitHub package contract for the shared installation-token envelope', async () => {
