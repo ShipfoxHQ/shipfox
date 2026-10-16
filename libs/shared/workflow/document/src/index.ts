@@ -41,7 +41,6 @@ export {
   type CompositeActionManifest,
   checkoutTargetValidationIssues,
   claudeAgentThinkingSchema,
-  concurrentWorkflowDocumentSchema,
   DEFAULT_AGENT_THINKING,
   DEFAULT_HARNESS,
   DEFAULT_MODEL_PROVIDER,

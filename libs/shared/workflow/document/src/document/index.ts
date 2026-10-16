@@ -49,7 +49,6 @@ export {
   thinkingLevelsForHarness,
 } from './step-enums.js';
 export {
-  concurrentWorkflowDocumentSchema,
   isValidWorkflowSessionKeyTemplateLiteralParts,
   isWorkflowDocumentParallelBlock,
   triggerSourceConfigSchemas,

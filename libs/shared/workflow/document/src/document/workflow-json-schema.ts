@@ -20,23 +20,13 @@ export interface BuildWorkflowJsonSchemaOptions {
   id?: string;
   /** Includes action step fields (`uses`, `connections`). Defaults to `false`. */
   actions?: boolean;
-  /**
-   * Includes concurrent steps: the `background`, `wait`, `wait_all`, and
-   * `cancel` fields, and the `parallel` block. Defaults to `false`.
-   */
-  concurrentSteps?: boolean;
 }
 
-const CONCURRENT_STEP_FIELDS: readonly string[] = [
-  'background',
-  ...workflowDocumentControlStepFields,
-];
 const STEPS_ITEMS_POINTER = '#/properties/jobs/additionalProperties/properties/steps/items';
 
 export function buildWorkflowJsonSchema({
   id = 'https://www.shipfox.io/docs/workflow.schema.json',
   actions = false,
-  concurrentSteps = false,
 }: BuildWorkflowJsonSchemaOptions = {}): JsonSchema {
   const schema = z.toJSONSchema(workflowDocumentSchema, {
     io: 'input',
@@ -61,10 +51,7 @@ export function buildWorkflowJsonSchema({
     delete stepProperties.uses;
     delete stepProperties.connections;
   }
-  if (!concurrentSteps) {
-    for (const field of CONCURRENT_STEP_FIELDS) delete stepProperties[field];
-  }
-  projectWorkflowValidation(schema, stepSchema, {actions, concurrentSteps});
+  projectWorkflowValidation(schema, stepSchema, {actions});
   projectAgentMcpServerValidation(stepProperties.mcp_servers);
   const thinkingConditionals = (['pi', 'claude'] as const).map((harness) => {
     const conditional: JsonSchema = {
@@ -95,7 +82,7 @@ export function buildWorkflowJsonSchema({
     return conditional;
   });
   stepSchema.allOf = [...objects(stepSchema.allOf), ...thinkingConditionals];
-  if (concurrentSteps) addParallelBlockSchema(schema);
+  addParallelBlockSchema(schema);
   schema.$schema = 'https://json-schema.org/draft/2020-12/schema';
   schema.$id = id;
   schema.title = 'Shipfox Workflow';
@@ -142,15 +129,12 @@ function addParallelBlockSchema(schema: JsonSchema) {
 function projectWorkflowValidation(
   schema: JsonSchema,
   stepSchema: JsonSchema,
-  {actions, concurrentSteps}: {actions: boolean; concurrentSteps: boolean},
+  {actions}: {actions: boolean},
 ) {
-  // Without actions, the other kinds must not name the omitted action fields,
-  // and without concurrent steps, the omitted concurrent step fields.
+  // Without actions, the other kinds must not name the omitted action fields.
   const invalidFields = (kind: keyof typeof workflowDocumentStepKindInvalidFields) =>
     workflowDocumentStepKindInvalidFields[kind].filter(
-      (field) =>
-        (actions || (field !== 'uses' && field !== 'connections')) &&
-        (concurrentSteps || !CONCURRENT_STEP_FIELDS.includes(field)),
+      (field) => actions || (field !== 'uses' && field !== 'connections'),
     );
   const rootProperties = propertiesOf(schema);
   const jobs = object(rootProperties.jobs);
@@ -191,16 +175,14 @@ function projectWorkflowValidation(
             anyOf: invalidFields('tool').map((field) => ({required: [field]})),
           },
         },
-        ...(concurrentSteps
-          ? workflowDocumentControlStepFields.map((field) => ({
-              required: [field],
-              not: {
-                anyOf: Object.keys(propertiesOf(stepSchema))
-                  .filter((other) => other !== field && other !== 'name')
-                  .map((other) => ({required: [other]})),
-              },
-            }))
-          : []),
+        ...workflowDocumentControlStepFields.map((field) => ({
+          required: [field],
+          not: {
+            anyOf: Object.keys(propertiesOf(stepSchema))
+              .filter((other) => other !== field && other !== 'name')
+              .map((other) => ({required: [other]})),
+          },
+        })),
         ...(actions
           ? [
               {

@@ -13,10 +13,11 @@ function interpolation(source: string): string {
 }
 
 function documentWith(steps: Step[], job: Record<string, unknown> = {}) {
-  return parseWorkflowDocument(
-    {name: 'concurrent', runner: 'ubuntu-latest', jobs: {build: {...job, steps}}},
-    {concurrentSteps: true},
-  );
+  return parseWorkflowDocument({
+    name: 'concurrent',
+    runner: 'ubuntu-latest',
+    jobs: {build: {...job, steps}},
+  });
 }
 
 function normalize(steps: Step[], job: Record<string, unknown> = {}): WorkflowModel {
@@ -158,9 +159,7 @@ describe('expanding a parallel block', () => {
       '          - run: right',
       '      - run: last',
     ].join('\n');
-    const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yaml, {
-      concurrentSteps: true,
-    });
+    const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yaml);
 
     const model = normalizeWorkflowDocument(document, {
       agentValidationCatalog,
@@ -548,32 +547,26 @@ describe('the sync rules', () => {
     it('does not compare job-dependent keys across jobs, which resolve differently', () => {
       const session = `review-${interpolation('job.key')}`;
       const step = {key: 'work', prompt: 'Work.', session};
-      const document = parseWorkflowDocument(
-        {
-          name: 'two jobs',
-          runner: 'ubuntu-latest',
-          jobs: {one: {steps: [step]}, two: {steps: [step]}},
-        },
-        {concurrentSteps: true},
-      );
+      const document = parseWorkflowDocument({
+        name: 'two jobs',
+        runner: 'ubuntu-latest',
+        jobs: {one: {steps: [step]}, two: {steps: [step]}},
+      });
 
       expect(() => normalizeWorkflowDocument(document, {agentValidationCatalog})).not.toThrow();
     });
 
     it('reports a broken session key once, even in a job named session', () => {
       const broken = interpolation('run.nope');
-      const document = parseWorkflowDocument(
-        {
-          name: 'named session',
-          runner: 'ubuntu-latest',
-          jobs: {
-            session: {
-              steps: [{parallel: [agent('first', broken), agent('second', broken)]}],
-            },
+      const document = parseWorkflowDocument({
+        name: 'named session',
+        runner: 'ubuntu-latest',
+        jobs: {
+          session: {
+            steps: [{parallel: [agent('first', broken), agent('second', broken)]}],
           },
         },
-        {concurrentSteps: true},
-      );
+      });
 
       let codes: string[] = [];
       try {

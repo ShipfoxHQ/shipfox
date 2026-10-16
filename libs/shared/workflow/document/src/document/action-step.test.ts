@@ -335,7 +335,11 @@ describe('buildWorkflowJsonSchema actions option', () => {
 function stepSchema(schema: Record<string, unknown>): Record<string, unknown> {
   const jobs = record(record(schema.properties).jobs);
   const job = record(jobs.additionalProperties);
-  return record(record(record(job.properties).steps).items);
+  const items = record(record(record(job.properties).steps).items);
+  // A job step is a step or a `parallel` block; the step is the first branch.
+  const [step] = Array.isArray(items.anyOf) ? items.anyOf : [];
+  if (step === undefined) throw new Error('The steps items have no step branch.');
+  return record(step);
 }
 
 function record(value: unknown): Record<string, unknown> {

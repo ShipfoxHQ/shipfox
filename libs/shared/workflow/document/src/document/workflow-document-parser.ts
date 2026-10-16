@@ -2,7 +2,6 @@ import {z} from 'zod';
 import {parseWorkflowActionRef, REMOTE_ACTIONS_UNSUPPORTED_MESSAGE} from './action-ref.js';
 import {rawJobSteps} from './raw-job-steps.js';
 import {
-  concurrentWorkflowDocumentSchema,
   WORKFLOW_LITERAL_NAME_PATTERN,
   type WorkflowDocument,
   workflowDocumentSchema,
@@ -31,11 +30,6 @@ export interface ParseWorkflowDocumentOptions {
   registryActions?: boolean;
   /** Accepts the job `container` field. Defaults to `true`. */
   jobContainers?: boolean;
-  /**
-   * Accepts concurrent steps: `background`, `wait`, `wait_all`, `cancel`, and
-   * `parallel`. Defaults to `false`.
-   */
-  concurrentSteps?: boolean;
 }
 
 export function parseWorkflowDocument(
@@ -44,7 +38,6 @@ export function parseWorkflowDocument(
     actions = false,
     registryActions = false,
     jobContainers = true,
-    concurrentSteps = false,
   }: ParseWorkflowDocumentOptions = {},
 ): WorkflowDocument {
   try {
@@ -64,9 +57,7 @@ export function parseWorkflowDocument(
       );
     }
 
-    const result = (
-      concurrentSteps ? concurrentWorkflowDocumentSchema : workflowDocumentSchema
-    ).safeParse(input);
+    const result = workflowDocumentSchema.safeParse(input);
     if (result.success) return result.data;
 
     throw new InvalidWorkflowDocumentError(result.error as z.ZodError<WorkflowDocument>);

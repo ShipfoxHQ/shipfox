@@ -280,12 +280,9 @@ A step takes the concurrency fields `background`, `wait`, `wait_all`, and
 `cancel`, and a job's `steps` can hold a `parallel` block of at least two
 steps. A `wait` or `cancel` step accepts only `name` and its own key. A
 `parallel` member cannot be a `checkout`, `wait`, or `cancel` step, and cannot
-set `background` or `gate`. `workflowDocumentSchema` and `parseWorkflowDocument`
-reject all five keys with "Concurrent steps (`...`) are not supported yet."
-unless you pass `{concurrentSteps: true}` (or use
-`concurrentWorkflowDocumentSchema`), and `buildWorkflowJsonSchema()` leaves them
-out unless you pass `{concurrentSteps: true}`. Composite actions never accept
-them. `rawJobSteps(input)` yields the steps of a document that is not parsed yet,
+set `background` or `gate`. `workflowDocumentSchema`, `parseWorkflowDocument`,
+and `buildWorkflowJsonSchema()` accept all five keys. Composite actions never
+accept them. `rawJobSteps(input)` yields the steps of a document that is not parsed yet,
 `parallel` members included.
 
 A job may name a Docker image with `container`. The value is an image string,

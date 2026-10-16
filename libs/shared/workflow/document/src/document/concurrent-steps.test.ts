@@ -1,8 +1,11 @@
 import {actionManifestSchema} from './action-manifest.js';
 import {jobSteps} from './job-steps.js';
 import {rawJobSteps} from './raw-job-steps.js';
-import {concurrentWorkflowDocumentSchema, workflowDocumentSchema} from './workflow-document.js';
-import {InvalidWorkflowDocumentError, parseWorkflowDocument} from './workflow-document-parser.js';
+import {workflowDocumentSchema} from './workflow-document.js';
+import {
+  type InvalidWorkflowDocumentError,
+  parseWorkflowDocument,
+} from './workflow-document-parser.js';
 import {buildWorkflowJsonSchema} from './workflow-json-schema.js';
 
 type JsonSchema = Record<string, unknown>;
@@ -14,7 +17,7 @@ function documentWith(steps: unknown[]) {
 }
 
 function issuesFor(steps: unknown[]) {
-  const result = concurrentWorkflowDocumentSchema.safeParse(documentWith(steps));
+  const result = workflowDocumentSchema.safeParse(documentWith(steps));
   return result.success
     ? []
     : result.error.issues.map((issue) => ({
@@ -36,9 +39,7 @@ describe('concurrent steps in the document', () => {
       {cancel: ['db', 'pull']},
     ];
 
-    expect(concurrentWorkflowDocumentSchema.parse(documentWith(steps)).jobs.build?.steps).toEqual(
-      steps,
-    );
+    expect(workflowDocumentSchema.parse(documentWith(steps)).jobs.build?.steps).toEqual(steps);
   });
 
   it.each([
@@ -186,7 +187,7 @@ describe('concurrent steps in the document', () => {
 
 describe('jobSteps', () => {
   it('yields every step with its document path', () => {
-    const document = concurrentWorkflowDocumentSchema.parse(
+    const document = workflowDocumentSchema.parse(
       documentWith([
         {run: 'one'},
         {run: 'two'},
@@ -219,7 +220,7 @@ describe('jobSteps', () => {
   });
 
   it('finds a uses step inside a parallel block', () => {
-    const document = concurrentWorkflowDocumentSchema.parse(
+    const document = workflowDocumentSchema.parse(
       documentWith([{parallel: [{run: 'a'}, {uses: './deploy'}]}]),
     );
     const job = document.jobs.build;
@@ -233,56 +234,8 @@ describe('jobSteps', () => {
   });
 });
 
-describe('the concurrentSteps parser option', () => {
-  it.each([
-    ['background', {key: 'a', run: 'echo', background: true}, 'background'],
-    ['wait', {wait: 'a'}, 'wait'],
-    ['wait_all', {wait_all: null}, 'wait_all'],
-    ['cancel', {cancel: 'a'}, 'cancel'],
-    ['parallel', {parallel: [{run: 'a'}, {run: 'b'}]}, 'parallel'],
-  ])('rejects %s by default', (_label, step, key) => {
-    let error: unknown;
-    try {
-      parseWorkflowDocument(documentWith([step]));
-    } catch (caught) {
-      error = caught;
-    }
-
-    expect(error).toBeInstanceOf(InvalidWorkflowDocumentError);
-    expect((error as InvalidWorkflowDocumentError).validationError.issues).toMatchObject([
-      {
-        path: ['jobs', 'build', 'steps', 0, key],
-        message: `Concurrent steps (\`${key}\`) are not supported yet.`,
-      },
-    ]);
-  });
-
-  it('rejects the plain schema the same way, so it cannot be used to skip the option', () => {
-    const result = workflowDocumentSchema.safeParse(
-      documentWith([
-        {key: 'a', run: 'echo', background: true},
-        {parallel: [{run: 'a'}, {run: 'b'}]},
-      ]),
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error?.issues.map((issue) => [issue.path.join('.'), issue.message])).toEqual([
-      ['jobs.build.steps.0.background', 'Concurrent steps (`background`) are not supported yet.'],
-      ['jobs.build.steps.1.parallel', 'Concurrent steps (`parallel`) are not supported yet.'],
-    ]);
-  });
-
-  it('accepts concurrent steps in the concurrent schema', () => {
-    const steps = [
-      {key: 'a', run: 'echo', background: true},
-      {parallel: [{run: 'b'}, {run: 'c'}]},
-      {wait_all: null},
-    ];
-
-    expect(concurrentWorkflowDocumentSchema.safeParse(documentWith(steps)).success).toBe(true);
-  });
-
-  it('accepts every concurrency field when enabled', () => {
+describe('parseWorkflowDocument with concurrent steps', () => {
+  it('accepts every concurrency field', () => {
     const steps = [
       {key: 'a', run: 'echo', background: true},
       {parallel: [{run: 'b'}, {run: 'c'}]},
@@ -291,17 +244,13 @@ describe('the concurrentSteps parser option', () => {
       {cancel: 'a'},
     ];
 
-    expect(parseWorkflowDocument(documentWith(steps), {concurrentSteps: true})).toEqual(
-      documentWith(steps),
-    );
+    expect(parseWorkflowDocument(documentWith(steps))).toEqual(documentWith(steps));
   });
 
   it('keeps action steps gated inside a parallel block', () => {
     let error: unknown;
     try {
-      parseWorkflowDocument(documentWith([{parallel: [{run: 'a'}, {uses: './deploy'}]}]), {
-        concurrentSteps: true,
-      });
+      parseWorkflowDocument(documentWith([{parallel: [{run: 'a'}, {uses: './deploy'}]}]));
     } catch (caught) {
       error = caught;
     }
@@ -333,18 +282,8 @@ describe('composite actions', () => {
 describe('the concurrent steps JSON Schema', () => {
   const concurrentFields = ['background', 'wait', 'wait_all', 'cancel'];
 
-  it('leaves the concurrency fields out by default', () => {
+  it('publishes the fields and the parallel block', () => {
     const items = itemsOf(buildWorkflowJsonSchema());
-
-    expect(items.anyOf).toBeUndefined();
-    for (const field of concurrentFields) {
-      expect(object(items.properties)).not.toHaveProperty(field);
-    }
-    expect(JSON.stringify(items.allOf)).not.toContain('"wait_all"');
-  });
-
-  it('adds the fields and the parallel block when enabled', () => {
-    const items = itemsOf(buildWorkflowJsonSchema({concurrentSteps: true}));
     const [step, block] = objects(items.anyOf);
 
     for (const field of concurrentFields) {
@@ -355,7 +294,7 @@ describe('the concurrent steps JSON Schema', () => {
   });
 
   it('keeps one-kind-per-step projection and adds the control kinds', () => {
-    const step = objects(itemsOf(buildWorkflowJsonSchema({concurrentSteps: true})).anyOf)[0];
+    const step = objects(itemsOf(buildWorkflowJsonSchema()).anyOf)[0];
     const kinds = objects(objects(step?.allOf).find((entry) => 'oneOf' in entry)?.oneOf);
 
     expect(kinds.map((kind) => kind.required)).toEqual(
@@ -372,7 +311,7 @@ describe('the concurrent steps JSON Schema', () => {
   });
 
   it('describes every property of the concurrent schema', () => {
-    expect(descriptionsMissingFrom(buildWorkflowJsonSchema({concurrentSteps: true}))).toEqual([]);
+    expect(descriptionsMissingFrom(buildWorkflowJsonSchema())).toEqual([]);
   });
 });
 

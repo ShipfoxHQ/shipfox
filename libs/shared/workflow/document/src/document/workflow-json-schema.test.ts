@@ -176,6 +176,9 @@ describe('buildWorkflowJsonSchema', () => {
         {required: ['prompt']},
         {required: ['checkout']},
         {required: ['tool']},
+        {required: ['wait']},
+        {required: ['wait_all']},
+        {required: ['cancel']},
       ],
     });
     expect(requiredAlternatives(gate)).toEqual(['success', 'on_failure']);
@@ -331,7 +334,10 @@ function stepSchemaFor(schema: JsonSchema): JsonSchema {
   const jobs = object(object(schema.properties).jobs);
   const job = object(jobs.additionalProperties);
   const steps = object(object(job.properties).steps);
-  return object(steps.items);
+  // A job step is a step or a `parallel` block; the step is the first branch.
+  const [step] = objects(object(steps.items).anyOf);
+  if (step === undefined) throw new Error('The steps items have no step branch.');
+  return step;
 }
 
 function batchSchemaFor(schema: JsonSchema): JsonSchema {

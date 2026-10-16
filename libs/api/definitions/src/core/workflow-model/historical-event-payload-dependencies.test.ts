@@ -54,21 +54,18 @@ describe('historical event-payload definition analysis', () => {
 
   it('points a step in a parallel block at its document path', () => {
     const source = 'executions[0].events[0].data.action';
-    const document = parseWorkflowDocument(
-      {
-        name: 'historical parallel',
-        jobs: {
-          review: {
-            listening: {on: [{source: 'github', event: 'push'}], timeout: '1h'},
-            steps: [
-              {run: 'echo first'},
-              {parallel: [{run: 'echo left'}, {run: `echo ${interpolation(source)}`}]},
-            ],
-          },
+    const document = parseWorkflowDocument({
+      name: 'historical parallel',
+      jobs: {
+        review: {
+          listening: {on: [{source: 'github', event: 'push'}], timeout: '1h'},
+          steps: [
+            {run: 'echo first'},
+            {parallel: [{run: 'echo left'}, {run: `echo ${interpolation(source)}`}]},
+          ],
         },
       },
-      {concurrentSteps: true},
-    );
+    });
 
     const {diagnostics} = normalize(document);
 

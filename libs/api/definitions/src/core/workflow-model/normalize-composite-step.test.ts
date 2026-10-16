@@ -372,7 +372,7 @@ describe('normalizeWorkflowDocument composite steps', () => {
         runner: 'ubuntu-latest',
         jobs: {build: {steps: [{parallel: [{run: 'echo'}, {uses: SETUP}]}]}},
       },
-      {concurrentSteps: true, actions: true},
+      {actions: true},
     );
 
     const issues = issuesFor(workflow, [setup]);
