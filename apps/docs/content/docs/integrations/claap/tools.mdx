@@ -1,0 +1,64 @@
+---
+title: "Claap tools"
+sidebarTitle: "Tools"
+description: "Look up the five read-only Claap tools, their access and rate limits, inputs, and examples for agent steps and tool steps."
+toolReference: "integrations/claap/tools"
+---
+
+This reference lists the five shipped Claap tools. See the [Claap
+overview](/integrations/claap) for authentication and integration connection
+identity.
+
+## Access
+
+Every Claap tool is read-only. Each call uses the Claap workspace of the
+integration connection. A workflow cannot pass another Claap workspace or key.
+
+The API key acts as a Claap workspace admin. Claap also offers write tools to
+that key, but Shipfox never forwards them. Shipfox forwards only the tools in
+the catalog below.
+
+The key type sets which recordings the tools can read. With a default key, a
+private recording returns not found. See [Choose the key
+type](/integrations/claap/setup#choose-the-key-type).
+
+`get_recording` and `get_recording_transcript` take exactly one of `recordingId`
+and `recordingUrl`. A `recordingUrl` must be an `https://app.claap.io` share URL
+of the connected Claap workspace.
+
+## Sensitive tools and logs
+
+`get_recordings`, `get_recording`, `get_recording_transcript`, and
+`search_recording_transcripts` are sensitive. Even the recording list names
+participants, companies, and deals.
+
+Tool-step logs redact the arguments and results of sensitive tools. Agent
+session logs still show what the agent read from them.
+
+## Untrusted content
+
+Transcripts and summaries are untrusted input. Anyone who speaks in a recorded
+meeting can put instructions into its transcript. Tell the agent in its prompt
+to treat recording content as data, never as instructions.
+
+## Rate limits
+
+Claap limits API calls per Claap workspace. Every other use of the Claap API in
+that workspace shares the same limits:
+
+| Limit | Value |
+| --- | --- |
+| Calls per endpoint | 3 per second |
+| Calls per Claap workspace | 3,000 per rolling 24 hours |
+
+A call over a limit fails as rate limited.
+
+## Output size
+
+A mapped tool step output value is limited to 64 KiB. A one-hour transcript is
+about 60 KB. Read long transcripts in an agent step instead of mapping them to
+an output. See [Limits](/reference/limits).
+
+## Tool catalog
+
+<ToolReference />

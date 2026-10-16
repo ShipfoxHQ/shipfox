@@ -50,6 +50,7 @@
     "@shipfox/api-agent-access": "workspace:*",
     "@shipfox/api-agent-access-dto": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
+    "@shipfox/api-integration-claap": "workspace:*",
     "@shipfox/api-integration-clickup": "workspace:*",
     "@shipfox/api-integration-clickup-dto": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",

@@ -1,0 +1,143 @@
+---
+title: "Connect Claap to a Shipfox workspace"
+sidebarTitle: "Setup"
+description: "Create a Claap API key, connect its Claap workspace, and verify that workflows can read its recordings."
+---
+
+Connect Claap when a workflow needs to read meeting recordings, summaries, or
+transcripts from one Claap workspace. See the [Claap overview](/integrations/claap)
+for the access boundary.
+
+## Before you begin
+
+- Complete onboarding in [Shipfox](https://app.shipfox.io).
+- Sign in to the target Claap workspace as an Admin or Owner.
+- Ask a Claap Owner to create the key if you need a **Full access** key.
+
+## Choose the key type
+
+Claap offers two kinds of workspace API keys. Choose the one that matches where
+the recordings live.
+
+| Recordings | Key | What the key reads |
+| --- | --- | --- |
+| Shared with the workspace | Default key | Recordings that workspace members can access and that appear in global search. |
+| Private | **Full access** key | Every recording, including private ones. Only a Claap Owner can create it. |
+
+With a default key, a private recording returns not found.
+
+<Callout type="warn">
+  A **Full access** key exposes private recordings to every workflow author in
+  the Shipfox workspace. Use it only when workflows must read private
+  recordings.
+</Callout>
+
+## Create the Claap API key
+
+<Steps>
+  <Step>
+
+    **Open the API key settings**
+
+    Sign in to Claap as an Admin or Owner. Open **Settings → API & Webhooks**.
+  </Step>
+  <Step>
+
+    **Create the key**
+
+    Create a workspace API key with a name that identifies Shipfox. Select
+    **Full access** only if you chose that key type.
+  </Step>
+  <Step>
+
+    **Copy the key**
+
+    Copy the key when Claap displays it. Claap shows it only once. The key
+    begins with `cla_`.
+  </Step>
+</Steps>
+
+## Connect the Claap workspace
+
+<Steps>
+  <Step>
+
+    **Start the integration connection**
+
+    Open **Settings → Integrations** in the Shipfox workspace. Select **Claap**.
+  </Step>
+  <Step>
+
+    **Enter the API key**
+
+    Paste the `cla_` key, then select **Connect**. Shipfox checks the key with
+    Claap and reads the Claap workspace it belongs to.
+
+    That Claap workspace may already have an integration connection. In that
+    case, the modal offers to replace the key of the existing integration
+    connection.
+  </Step>
+  <Step>
+
+    **Record the integration connection slug**
+
+    Open the new integration connection's menu. Select **Use this
+    integration**, then copy the slug. Workflows use it as `connection`.
+  </Step>
+</Steps>
+
+Before you share the integration connection with workflow authors, read the
+[access and logging notes](/integrations/claap/tools#access) on the tools page.
+
+## Verify the integration connection
+
+Open **Settings → Integrations**. Check that the Claap integration connection is
+active and advertises Agent tools.
+
+Add this tool step under an existing job's `steps` list, then run the workflow:
+
+```yaml
+- key: claap_workspace
+  tool: list_workspaces
+  connection: claap_acme # Replace with the slug of your Claap integration connection.
+```
+
+Open the step result. Confirm that it names the Claap workspace you connected.
+
+## Replace an API key
+
+Replace the key when you rotate it, or when Claap rejects the current key. A
+rejected key puts the integration connection in an error state that asks for a
+new key.
+
+<Steps>
+  <Step>
+
+    **Create a new key**
+
+    Create a new key in the same Claap workspace. Follow [Create the Claap API
+    key](#create-the-claap-api-key).
+  </Step>
+  <Step>
+
+    **Paste the new key**
+
+    Open **Settings → Integrations**. In the Claap integration connection's
+    menu, select **Manage API key**. Select **Replace API key**, paste the new
+    key, and confirm.
+  </Step>
+</Steps>
+
+Shipfox refuses a key from another Claap workspace. The integration connection
+and its slug stay the same. An integration connection in an error state becomes
+active again.
+
+## If Shipfox refuses the key
+
+| What Shipfox reports | What to do |
+| --- | --- |
+| The key does not start with `cla_`. | Copy a Claap workspace API key. Claap keys begin with `cla_`. |
+| Claap did not accept the key. | Check that the key is active and copied in full. Otherwise, create a new key. |
+| The key does not belong to exactly one Claap workspace. | Create the key in the Claap workspace that you want to connect. |
+| The Claap workspace is already connected. | Replace the key of the existing integration connection, as the modal offers. |
+| The replacement key belongs to another Claap workspace. | Create the replacement key in the connected Claap workspace. Connect another Claap workspace as a new integration connection. |

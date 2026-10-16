@@ -56,6 +56,10 @@ import {
   MODEL_PROVIDER_CATALOG_SEED,
 } from '@shipfox/api-agent-dto';
 import {
+  claapAgentToolCatalog,
+  claapAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-claap/agent-tools';
+import {
   clickupAgentToolCatalog,
   clickupAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-clickup/agent-tools';
@@ -139,6 +143,10 @@ import {
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW_SCHEMA_EXAMPLES_DIRECTORY = 'content/examples/workflow-schema';
 const dtoCatalogBySlug = {
+  claap: {
+    toolCatalog: claapAgentToolCatalog,
+    toolSelectionCatalog: claapAgentToolSelectionCatalog,
+  },
   clickup: {
     eventCatalog: clickupEventCatalog,
     toolCatalog: clickupAgentToolCatalog,

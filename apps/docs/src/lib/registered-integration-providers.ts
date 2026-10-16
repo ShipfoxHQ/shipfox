@@ -66,6 +66,14 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     displayPriority: 1,
   },
   {
+    slug: 'claap',
+    kind: 'catalog',
+    connectable: true,
+    capabilities: ['agent_tools'],
+    category: 'docs-knowledge',
+    displayPriority: 2,
+  },
+  {
     slug: 'sentry',
     kind: 'catalog',
     connectable: true,

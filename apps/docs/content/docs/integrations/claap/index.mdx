@@ -1,0 +1,55 @@
+---
+title: "Claap integration"
+sidebarTitle: "Overview"
+description: "Connect one Claap workspace and let workflows read its meeting recordings, summaries, and transcripts through Claap tools."
+catalog:
+  name: "Claap"
+  summary: "Read meeting and call recordings, their AI summaries, and their full transcripts from one Claap workspace."
+  capabilities: ["agent_tools"]
+  categories: ["docs-knowledge", "support"]
+  aliases: ["meetings", "calls", "recordings", "transcripts"]
+  icon: "claap"
+---
+
+The Claap integration lets agent steps and tool steps read the recordings of one
+Claap workspace. A workflow can:
+
+- List recordings and filter them by participant, company, deal, folder, or date.
+- Read one recording with its metadata and its AI-generated summary.
+- Read the full transcript of one recording.
+- Search transcripts by keyword or by meaning.
+
+The tools that read one recording accept a Claap share URL or a recording ID.
+A share URL must belong to the connected Claap workspace.
+
+Every Claap tool is read-only. Shipfox forwards only the tools on the [tools
+page](/integrations/claap/tools) and never any other Claap tool.
+
+## Authentication
+
+Shipfox authenticates with a Claap workspace API key. The key must begin with
+`cla_`. A Claap Admin or Owner creates it.
+
+The key acts as a Claap workspace admin. A default key reads the recordings that
+workspace members can access. A **Full access** key also reads private
+recordings. The [setup guide](/integrations/claap/setup) explains which key to
+create.
+
+## Integration connection identity
+
+One Claap integration connection represents one Claap workspace. Shipfox names
+the integration connection `Claap <workspace name>`.
+
+The slug of a Claap integration connection defaults to `claap_<workspace>`,
+where `<workspace>` is the normalized Claap workspace name. For example,
+`claap_acme`. Shipfox makes the slug unique within the Shipfox workspace.
+
+Use the slug as `connection` in an agent integration or tool step.
+
+## Capabilities
+
+| Capability | Details |
+| --- | --- |
+| Tools | [View Claap tools and examples](/integrations/claap/tools). |
+
+[Connect Claap](/integrations/claap/setup) to create an integration connection.

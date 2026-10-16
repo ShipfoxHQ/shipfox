@@ -830,6 +830,9 @@ importers:
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../../libs/api/agent-dto
+      '@shipfox/api-integration-claap':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/claap
       '@shipfox/api-integration-clickup':
         specifier: workspace:*
         version: link:../../libs/api/integration/clickup

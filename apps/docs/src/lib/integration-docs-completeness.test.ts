@@ -59,6 +59,11 @@ const validInput: IntegrationDocsCompletenessInput = {
       toolCount: 19,
     },
     jam: {capabilities: ['agent_tools'], eventCount: 0, toolCount: 10},
+    claap: {
+      capabilities: ['agent_tools'],
+      eventCount: 0,
+      toolCount: 5,
+    },
     shipfox: {capabilities: ['events', 'agent_tools'], eventCount: 6, toolCount: 7},
   },
   integrationDirectories: {
@@ -136,6 +141,11 @@ const validInput: IntegrationDocsCompletenessInput = {
       capabilities: ['agent_tools'],
       categories: ['design', 'observability'],
       aliases: ['bug reports', 'screen recording', 'console logs'],
+    }),
+    claap: directory('claap', ['index', 'setup', 'tools'], ['setup', 'tools'], {
+      capabilities: ['agent_tools'],
+      categories: ['docs-knowledge', 'support'],
+      aliases: ['meetings', 'calls', 'recordings', 'transcripts'],
     }),
     shipfox: directory('shipfox', ['index', 'events', 'tools'], ['events', 'tools'], {
       capabilities: ['events', 'agent_tools'],
