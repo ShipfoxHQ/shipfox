@@ -2240,7 +2240,6 @@ describe('claudeHarnessAdapter', () => {
       registration: {
         metadataMode: 'warm',
         directToolNames: [sdkTool],
-        proxyFallback: false,
       },
       providerTools: expect.arrayContaining([
         expect.objectContaining({

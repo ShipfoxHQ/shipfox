@@ -164,6 +164,7 @@ export {
   type ModelProviderId,
   type ModelProviderRef,
   modelProviderRefSchema,
+  piModelProviderId,
   providerIdSchema,
   SUPPORTED_MODEL_PROVIDER_IDS,
   type SupportedModelProviderId,

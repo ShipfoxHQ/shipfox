@@ -1,9 +1,9 @@
 import {
   type AssistantMessage,
   type AssistantMessageEventStream,
-  type Context,
   createAssistantMessageEventStream,
   type Model,
+  normalizeContext,
 } from '@earendil-works/pi-ai';
 import {
   isManagedProviderStreamInterruption,
@@ -16,7 +16,7 @@ const model = {
   provider: 'shipfox',
   id: 'managed-model',
 } as Model<'openai-responses'>;
-const context: Context = {messages: []};
+const context = normalizeContext({messages: []});
 
 function assistantMessage(errorMessage: string): AssistantMessage {
   return {
@@ -120,6 +120,7 @@ describe('managed provider stream recovery', () => {
         error: {
           ...assistantMessage(PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE),
           timestamp: expect.any(Number),
+          durationMs: expect.any(Number),
         },
       },
     ]);

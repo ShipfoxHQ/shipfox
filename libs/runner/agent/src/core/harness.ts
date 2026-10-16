@@ -75,7 +75,7 @@ export interface HarnessInvocation {
   readonly repositoryContext?: RepositoryContext | undefined;
   readonly tools?: readonly string[] | undefined;
   readonly mcpServers?: readonly IntegrationToolsBridge[] | undefined;
-  /** Defaults to strict direct tools; discovery keeps the generic `mcp` proxy. */
+  /** Defaults to strict direct tools; discovery hands the tool servers to Pi's built-in MCP. */
   readonly toolSurface?: HarnessToolSurface | undefined;
   /** Materialized integration tool IDs requested by this step, without schemas or secrets. */
   readonly requestedIntegrationTools?: readonly RequestedIntegrationTool[] | undefined;

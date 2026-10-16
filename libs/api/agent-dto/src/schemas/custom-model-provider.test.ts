@@ -65,6 +65,7 @@ describe('custom model provider schemas', () => {
 
   it('detects reserved built-in provider ids', () => {
     expect(isReservedModelProviderId('anthropic')).toBe(true);
+    expect(isReservedModelProviderId('azure')).toBe(true);
     expect(isReservedModelProviderId('local-vllm')).toBe(false);
   });
 

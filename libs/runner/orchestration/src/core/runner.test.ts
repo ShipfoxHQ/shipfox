@@ -77,7 +77,7 @@ vi.mock('@shipfox/runner-agent', () => {
   runnerAgentBarrelEvaluated.value = true;
   return {
     isPiExtensionAvailable: isPiExtensionAvailableMock,
-    PI_HARNESS_EXTENSION_PACKAGE_NAMES: ['pi-web-access', 'pi-mcp-adapter'],
+    PI_HARNESS_EXTENSION_PACKAGE_NAMES: ['pi-web-access'],
     runnerToolCapabilities: vi.fn(() => ({
       harnesses: {
         pi: {tools: ['read']},
@@ -88,7 +88,7 @@ vi.mock('@shipfox/runner-agent', () => {
 
 vi.mock('@shipfox/runner-agent/pi-extensions', () => ({
   isPiExtensionAvailable: isPiExtensionAvailableMock,
-  PI_HARNESS_EXTENSION_PACKAGE_NAMES: ['pi-web-access', 'pi-mcp-adapter'],
+  PI_HARNESS_EXTENSION_PACKAGE_NAMES: ['pi-web-access'],
 }));
 
 vi.mock('@shipfox/runner-agent/tool-capabilities', () => ({
@@ -806,9 +806,7 @@ describe('startRunner', () => {
 
   it('warns once when required Pi extensions are unavailable', async () => {
     const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
-    isPiExtensionAvailableMock.mockImplementation(
-      ({packageName}: {packageName: string}) => packageName === 'pi-web-access',
-    );
+    isPiExtensionAvailableMock.mockReturnValue(false);
     mockRequestJob.mockRejectedValue(new RunnerSessionExhaustedError());
 
     await startRunner();
@@ -816,7 +814,7 @@ describe('startRunner', () => {
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
-      {packageNames: ['pi-mcp-adapter']},
+      {packageNames: ['pi-web-access']},
       'Required Pi extensions are unavailable; functionality may be degraded',
     );
   });

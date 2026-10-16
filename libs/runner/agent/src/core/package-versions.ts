@@ -8,7 +8,6 @@ const packageVersionCache = new Map<string, string | undefined>();
 
 export interface PiPackageVersions {
   readonly pi?: string;
-  readonly piMcpAdapter?: string;
   readonly piWebAccess?: string;
 }
 
@@ -18,12 +17,10 @@ export interface PiPackageVersions {
  */
 export function piPackageVersions(): PiPackageVersions {
   const pi = packageVersion('@earendil-works/pi-coding-agent');
-  const piMcpAdapter = packageVersion('pi-mcp-adapter');
   const piWebAccess = packageVersion('pi-web-access');
 
   return {
     ...(pi === undefined ? {} : {pi}),
-    ...(piMcpAdapter === undefined ? {} : {piMcpAdapter}),
     ...(piWebAccess === undefined ? {} : {piWebAccess}),
   };
 }

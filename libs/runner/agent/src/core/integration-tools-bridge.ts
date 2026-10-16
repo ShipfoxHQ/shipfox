@@ -58,7 +58,6 @@ export function createIntegrationToolsBridge(params: {
   /** Absent when the step has custom MCP servers but no integrations. */
   gateway?: {readonly url: URL; readonly fetch: typeof fetch} | undefined;
   customServers?: CustomMcpServers | undefined;
-  preferredPort?: number;
 }): IntegrationToolsBridge {
   const upstream = createToolsUpstream(
     params.gateway === undefined
@@ -68,6 +67,7 @@ export function createIntegrationToolsBridge(params: {
   );
   const server = new McpServer({name: params.name, version: '0.0.0'}, {capabilities: {tools: {}}});
   let activationPromise: Promise<URL> | undefined;
+  let activationToken: string | undefined;
   let cancelActivation: ((reason: unknown) => void) | undefined;
   let activationSettled = false;
   let activationWaiters = 0;
@@ -95,7 +95,15 @@ export function createIntegrationToolsBridge(params: {
       if (closePromise !== undefined) {
         return Promise.reject(new Error('Integration tools bridge is closed.'));
       }
+      // The endpoint accepts only the first caller's token, so a later caller with another
+      // token would be refused on every request.
+      if (activationPromise !== undefined && options?.authToken !== activationToken) {
+        return Promise.reject(
+          new Error('Integration tools bridge is already active with another token.'),
+        );
+      }
       if (activationPromise === undefined) {
+        activationToken = options?.authToken;
         const activationController = new AbortController();
         cancelActivation = (reason) => {
           if (!activationController.signal.aborted) activationController.abort(reason);
@@ -104,7 +112,6 @@ export function createIntegrationToolsBridge(params: {
           server,
           signal: activationController.signal,
           setHttpServer: (value) => (httpServer = value),
-          ...(params.preferredPort === undefined ? {} : {preferredPort: params.preferredPort}),
           ...(options?.authToken === undefined ? {} : {authToken: options.authToken}),
           createHttpSession: async () => {
             const id = crypto.randomUUID();
@@ -194,7 +201,6 @@ async function activateBridgeHttp(params: {
   server: McpServer;
   signal: AbortSignal;
   setHttpServer: (server: HttpServer) => void;
-  preferredPort?: number;
   authToken?: string;
   createHttpSession: () => Promise<HttpSession>;
   httpSessions: Map<string, HttpSession>;
@@ -213,16 +219,7 @@ async function activateBridgeHttp(params: {
   params.setHttpServer(httpServer);
 
   try {
-    try {
-      await listenHttpServer(httpServer, params.preferredPort ?? 0, params.signal);
-    } catch (error) {
-      if (params.preferredPort === undefined || !isAddressInUseError(error)) throw error;
-      logger().warn(
-        {err: error, port: params.preferredPort},
-        'Stable MCP bridge port is unavailable; using an ephemeral port',
-      );
-      await listenHttpServer(httpServer, 0, params.signal);
-    }
+    await listenHttpServer(httpServer, 0, params.signal);
     const address = httpServer.address();
     if (typeof address !== 'object' || address === null) {
       throw new Error('Integration tools bridge did not bind a TCP address.');
@@ -281,10 +278,6 @@ async function listenHttpServer(
       reject(error);
     }
   });
-}
-
-function isAddressInUseError(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE';
 }
 
 interface HttpSession {

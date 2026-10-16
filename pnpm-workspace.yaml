@@ -22,9 +22,9 @@ catalog:
   "@changesets/cli": "^2.27.10"
   "@discordjs/rest": "^2.6.3"
   "@discordjs/ws": "2.0.4"
-  "@earendil-works/pi-ai": "0.84.2"
-  "@earendil-works/pi-coding-agent": "0.84.2"
-  "@earendil-works/pi-tui": "0.84.2"
+  "@earendil-works/pi-ai": "1.2.0"
+  "@earendil-works/pi-coding-agent": "1.2.0"
+  "@earendil-works/pi-tui": "1.2.0"
   "@faker-js/faker": "^10.4.0"
   "@fastify/cookie": "^11.0.2"
   "@fastify/cors": "^11.0.1"
@@ -164,7 +164,6 @@ catalog:
   "nodemailer": "^9.0.0"
   "octokit": "^5.0.3"
   "pg": "^8.15.5"
-  "pi-mcp-adapter": "2.11.0"
   "pi-web-access": "0.13.0"
   "pino": "^10.3.0"
   "pino-pretty": "^13.1.3"
@@ -249,6 +248,3 @@ packages:
   - "!e2e/suites/eval/workflows/cases/**"
   - "!**/vite/types/**"
   - "!**/node_modules/**"
-
-patchedDependencies:
-  pi-mcp-adapter@2.11.0: patches/pi-mcp-adapter@2.11.0.patch

@@ -550,7 +550,6 @@ async function createClaudeToolContext(
     ],
     metadataMode: invocation.session?.mode === 'resume' ? 'warm' : 'cold',
     directToolNames: integrationTools.resolvedSdkToolNames,
-    proxyFallback: false,
     requiredOutputCount: Object.keys(invocation.outputs ?? {}).length,
   });
   return {

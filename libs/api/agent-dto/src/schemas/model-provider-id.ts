@@ -43,6 +43,9 @@ export const UNSUPPORTED_MODEL_PROVIDER_IDS = [
   'google-vertex',
   'openai-codex',
   'github-copilot',
+  'meta',
+  'radius',
+  'typesafe',
 ] as const;
 
 export const MODEL_PROVIDER_IDS = [
@@ -59,6 +62,20 @@ export type SupportedModelProviderId = z.infer<typeof supportedModelProviderIdSc
 export type ModelProviderId = z.infer<typeof providerIdSchema>;
 export type ModelProviderRef = z.infer<typeof modelProviderRefSchema>;
 
+/** Pi 1.x provider IDs that differ from the Shipfox ID stored in provider configs and secrets. */
+const PI_MODEL_PROVIDER_IDS: Readonly<Record<string, string>> = {
+  'azure-openai-responses': 'azure',
+};
+
+/** Shipfox and Pi built-in provider IDs, which custom and managed providers cannot use. */
 export function isReservedModelProviderId(value: string): boolean {
-  return (MODEL_PROVIDER_IDS as readonly string[]).includes(value);
+  return (
+    (MODEL_PROVIDER_IDS as readonly string[]).includes(value) ||
+    Object.values(PI_MODEL_PROVIDER_IDS).includes(value)
+  );
+}
+
+/** Translates a Shipfox provider ID into the ID Pi knows it by. */
+export function piModelProviderId(providerId: string): string {
+  return PI_MODEL_PROVIDER_IDS[providerId] ?? providerId;
 }

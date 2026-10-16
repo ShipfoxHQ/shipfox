@@ -3,10 +3,10 @@ import {
   type AssistantMessage,
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
-  type Context,
   createAssistantMessageEventStream,
   type Model,
   type SimpleStreamOptions,
+  type TranscriptContext,
 } from '@earendil-works/pi-ai';
 
 export const PROVIDER_STREAM_INTERRUPTED_CODE = 'provider_stream_interrupted' as const;
@@ -38,7 +38,7 @@ const MANAGED_PROVIDER_STREAM_INTERRUPTION_MESSAGES = new Set([
 
 type ProviderStreamFunction = (
   model: Model<Api>,
-  context: Context,
+  context: TranscriptContext,
   options?: SimpleStreamOptions,
 ) => AssistantMessageEventStream;
 

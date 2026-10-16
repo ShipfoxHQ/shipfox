@@ -34,7 +34,6 @@ describe('AgentSessionDiagnostics', () => {
         },
       ],
       directToolNames: ['pull_request_read'],
-      proxyFallback: true,
     });
     record.recordSessionId('session-1');
     record.recordTurnStart();
@@ -80,7 +79,6 @@ describe('AgentSessionDiagnostics', () => {
         registration: {
           metadataMode: 'warm',
           directToolNames: ['pull_request_read'],
-          proxyFallback: true,
         },
         providerTools: [
           {

@@ -342,12 +342,6 @@ patch file in `patches/`, named after the exact package version. Pin the
 patched package to that exact version. Document the reason and the removal
 condition in the pull request, and cover the patched behavior with a test.
 
-`pi-mcp-adapter` is patched so that, when the runner passes `--mcp-config`, the
-adapter reads only that file. Without the patch, it also merges
-`~/.config/mcp/mcp.json`, `<cwd>/.mcp.json`, and `<cwd>/.pi/mcp.json`, so a
-checked-out repository could add or replace MCP servers. Remove the patch when
-the adapter offers an option to read only the given config file.
-
 ## Deterministic pull-request checks
 
 Pull-request dependency-policy checks read committed repository files only. The

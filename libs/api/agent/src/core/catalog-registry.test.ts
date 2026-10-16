@@ -3,6 +3,7 @@ import {
   MODEL_PROVIDER_CATALOG_SEED,
   MODEL_PROVIDER_IDS,
   type ModelProviderId,
+  piModelProviderId,
   SUPPORTED_MODEL_PROVIDER_IDS,
 } from '@shipfox/api-agent-dto';
 import {getModelProviderEntry, isReservedModelProviderId} from './model-provider-policy.js';
@@ -11,7 +12,7 @@ const STORE_COMPATIBLE_CREDENTIAL_KEY_PATTERN = /^[a-z_][a-z0-9_]*$/;
 
 describe('model provider catalog registry', () => {
   it('keeps catalog provider ids synced with the pinned Pi provider registry', () => {
-    const catalogModelProviderIds = [...MODEL_PROVIDER_IDS].sort();
+    const catalogModelProviderIds = MODEL_PROVIDER_IDS.map(piModelProviderId).sort();
     const piModelProviderIds = getProviders().sort();
 
     expect(catalogModelProviderIds).toEqual(piModelProviderIds);
@@ -30,7 +31,7 @@ describe('model provider catalog registry', () => {
     );
 
     const missingDefaults = supportedEntries.flatMap((entry) => {
-      const piModels = getModels(entry.id as Parameters<typeof getModels>[0]);
+      const piModels = getModels(piModelProviderId(entry.id) as Parameters<typeof getModels>[0]);
       const defaultExists = piModels.some((model) => model.id === entry.default_model);
       return defaultExists ? [] : [formatMissingDefault(entry.id, entry.default_model)];
     });

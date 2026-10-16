@@ -11,7 +11,7 @@ import {
   piExtensionDirectory,
 } from '#core/pi-extensions.js';
 
-const extensionPackageNames = ['pi-web-access', 'pi-mcp-adapter'] as const;
+const extensionPackageNames = ['pi-web-access'] as const;
 const require = createRequire(import.meta.url);
 
 type PiExtensionsResult = ReturnType<ResourceLoader['getExtensions']>;
@@ -199,14 +199,14 @@ describe('assertPiHarnessExtensionsAvailable', () => {
   it('names the package and entry when a declared entry file is missing', () => {
     const closure = piExtensionClosure({
       ...completePiExtensionFixtures(),
-      'pi-mcp-adapter': {
-        packageJson: JSON.stringify({name: 'pi-mcp-adapter', pi: {extensions: ['index.js']}}),
+      'pi-web-access': {
+        packageJson: JSON.stringify({name: 'pi-web-access', pi: {extensions: ['index.js']}}),
       },
     });
 
     try {
       expect(() => assertPiHarnessExtensionsAvailable({resolve: closure.resolve})).toThrow(
-        'Pi extension package "pi-mcp-adapter" is missing entry "index.js"',
+        'Pi extension package "pi-web-access" is missing entry "index.js"',
       );
     } finally {
       closure.cleanup();

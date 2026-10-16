@@ -5,11 +5,12 @@ import {
   getModels,
   type ProviderStreamOptions,
 } from '@earendil-works/pi-ai/compat';
-import type {
-  CustomAgentModelDto,
-  ModelProviderApi,
-  ModelProviderRef,
-  SupportedModelProviderId,
+import {
+  type CustomAgentModelDto,
+  type ModelProviderApi,
+  type ModelProviderRef,
+  piModelProviderId,
+  type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {type EgressPolicy, parseEgressHostDenylist} from '@shipfox/node-egress-guard';
 import {redactSecrets, secretWireForms} from '@shipfox/redact';
@@ -86,7 +87,9 @@ export async function probeModelProviderCredentials(
     throw new UnsupportedModelProviderError(params.providerId);
   }
 
-  const model = getModels(params.providerId).find((candidate) => candidate.id === params.model);
+  const model = getModels(
+    piModelProviderId(params.providerId) as Parameters<typeof getModels>[0],
+  ).find((candidate) => candidate.id === params.model);
   if (!model) throw new InvalidAgentModelError('pi', params.providerId, params.model);
 
   const secretField = entry.credential_fields.find((field) => field.secret);
