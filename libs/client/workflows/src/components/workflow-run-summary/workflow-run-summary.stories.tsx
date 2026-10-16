@@ -394,25 +394,41 @@ const RUN_ACTIONS_CHROME: ChromeSlots = {
   projectSlugResolver: async () => 'project',
   WorkflowRunActions: () => (
     <Button type="button" variant="secondary" size="xs">
-      Improve
+      Improve with Shipfox AI
     </Button>
   ),
 };
 
+const withRunActionsSlot: Decorator = (Story) => (
+  <ChromeProvider chrome={RUN_ACTIONS_CHROME}>
+    <Story />
+  </ChromeProvider>
+);
+
+const RUN_ACTIONS_SLOT_ARGS = {
+  run: workflowRunOverview({status: 'failed', jobs: [workflowJobDto({status: 'failed'})]}),
+  onRerun: noopRerun,
+  onOpenInspector: noop,
+};
+
 /** A composing application's extra action, rendered left of the run's own actions. */
 export const WithRunActionsSlot: Story = {
+  decorators: [withAttemptApi, withRunActionsSlot],
+  args: RUN_ACTIONS_SLOT_ARGS,
+};
+
+/** The extra action wraps the action cluster instead of clipping the run's own actions. */
+export const NarrowWithRunActionsSlot: Story = {
   decorators: [
+    withAttemptApi,
+    withRunActionsSlot,
     (Story) => (
-      <ChromeProvider chrome={RUN_ACTIONS_CHROME}>
+      <div className="w-[440px] max-w-full overflow-hidden border-x border-border-neutral-base">
         <Story />
-      </ChromeProvider>
+      </div>
     ),
   ],
-  args: {
-    run: workflowRunOverview({status: 'failed', jobs: [workflowJobDto({status: 'failed'})]}),
-    onRerun: noopRerun,
-    onOpenInspector: noop,
-  },
+  args: RUN_ACTIONS_SLOT_ARGS,
 };
 
 export const MissingTriggerMetadata: Story = {

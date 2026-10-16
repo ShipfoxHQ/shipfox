@@ -13,6 +13,7 @@
 - **Amended by:** [ADR 0018: Client analytics subject context](0018-client-analytics-subject-context.md)
 - **Amended by:** [ADR 0020: Header actions chrome slot](0020-header-actions-chrome-slot.md)
 - **Amended by:** [ADR 0021: Required action rendering and intent slot](0021-required-action-rendering-and-intent-slot.md)
+- **Amended by:** [ADR 0024: Workflow run actions chrome slot](0024-workflow-run-actions-chrome-slot.md)
 
 ## Context
 

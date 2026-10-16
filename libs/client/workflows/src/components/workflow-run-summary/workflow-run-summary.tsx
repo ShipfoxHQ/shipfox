@@ -105,61 +105,65 @@ export function WorkflowRunSummary({
   return (
     <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
       <section aria-labelledby={headingId} className="px-row py-row">
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-cluster gap-y-inline overflow-hidden max-[480px]:grid-cols-1">
-          <div className="col-start-1 row-start-1 min-w-0 max-[480px]:col-start-auto max-[480px]:row-start-auto">
-            <div className="flex min-w-0 items-center gap-inline">
-              <Badge variant={status.badge} size="xs">
-                <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
-                  {status.label}
-                </span>
-              </Badge>
-
-              {isDevRun ? (
-                <Badge variant="feature" size="xs">
-                  Dev
+        <div className="grid min-w-0 gap-y-inline overflow-hidden">
+          {/* Wraps instead of a fixed breakpoint, so a composed action of any width moves the
+              actions below the title rather than clipping them. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-cluster gap-y-inline">
+            <div className="min-w-[min(12rem,100%)] flex-1">
+              <div className="flex min-w-0 items-center gap-inline">
+                <Badge variant={status.badge} size="xs">
+                  <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
+                    {status.label}
+                  </span>
                 </Badge>
-              ) : null}
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Header as="h1" id={headingId} variant="h3" className="min-w-0 truncate">
-                    <span ref={headingTextRef} className="block min-w-0 truncate">
-                      {run.name}
-                    </span>
-                  </Header>
-                </TooltipTrigger>
-                {isHeadingTruncated ? (
-                  <TooltipContent>
-                    <Text as="span" size="xs" className="max-w-[360px] break-words">
-                      {run.name}
-                    </Text>
-                  </TooltipContent>
+                {isDevRun ? (
+                  <Badge variant="feature" size="xs">
+                    Dev
+                  </Badge>
                 ) : null}
-              </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Header as="h1" id={headingId} variant="h3" className="min-w-0 truncate">
+                      <span ref={headingTextRef} className="block min-w-0 truncate">
+                        {run.name}
+                      </span>
+                    </Header>
+                  </TooltipTrigger>
+                  {isHeadingTruncated ? (
+                    <TooltipContent>
+                      <Text as="span" size="xs" className="max-w-[360px] break-words">
+                        {run.name}
+                      </Text>
+                    </TooltipContent>
+                  ) : null}
+                </Tooltip>
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-wrap items-center gap-inline">
+              <WorkflowRunActionsSlot workflowRunId={run.id} projectId={run.projectId} />
+              <WorkflowRunActionSlot
+                action={action}
+                cancelling={cancelling}
+                onCancel={onCancel}
+                rerunPending={rerunPending}
+                onRerun={onRerun}
+              />
+              {onOpenInspector ? (
+                <InspectorTrigger
+                  open={inspectorOpen}
+                  data-workflow-inspector-trigger="run"
+                  onClick={(event) => onOpenInspector(event.currentTarget)}
+                >
+                  Inspect workflow
+                </InspectorTrigger>
+              ) : null}
             </div>
           </div>
 
-          <div className="col-start-2 row-start-1 flex min-w-max items-center gap-inline justify-self-end max-[480px]:col-start-auto max-[480px]:row-start-auto max-[480px]:justify-self-start">
-            <WorkflowRunActionsSlot workflowRunId={run.id} projectId={run.projectId} />
-            <WorkflowRunActionSlot
-              action={action}
-              cancelling={cancelling}
-              onCancel={onCancel}
-              rerunPending={rerunPending}
-              onRerun={onRerun}
-            />
-            {onOpenInspector ? (
-              <InspectorTrigger
-                open={inspectorOpen}
-                data-workflow-inspector-trigger="run"
-                onClick={(event) => onOpenInspector(event.currentTarget)}
-              >
-                Inspect workflow
-              </InspectorTrigger>
-            ) : null}
-          </div>
-
-          <div className="col-span-2 row-start-2 flex min-w-0 flex-nowrap items-center gap-cluster overflow-hidden text-foreground-neutral-subtle max-[480px]:col-span-1 max-[480px]:row-start-auto max-[480px]:flex-wrap max-[480px]:overflow-visible">
+          <div className="flex min-w-0 flex-nowrap items-center gap-cluster overflow-hidden text-foreground-neutral-subtle max-[480px]:flex-wrap max-[480px]:overflow-visible">
             {run.number !== null ? (
               <>
                 <WorkflowRunNumberLabel run={run} />
@@ -229,7 +233,7 @@ export function WorkflowRunSummary({
           </div>
 
           {localDefaultCheckout ? (
-            <div className="col-span-2 row-start-3 flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-subtle max-[480px]:col-span-1 max-[480px]:row-start-auto">
+            <div className="flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-subtle">
               <Text as="span" size="xs" bold>
                 Default checkout
               </Text>
