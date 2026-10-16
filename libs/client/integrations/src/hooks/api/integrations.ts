@@ -189,6 +189,13 @@ type ConnectionsQueryOptions = FetchQueryOptions<
   ConnectionsQueryKey
 >;
 
+type JamConnectionDetailsQueryOptions = FetchQueryOptions<
+  JamConnectionDetails,
+  Error,
+  JamConnectionDetails,
+  ReturnType<typeof integrationsQueryKeys.jamConnectionDetails>
+>;
+
 type RepositoriesQueryKey =
   | ReturnType<typeof integrationsQueryKeys.repositories>
   | readonly ['integrations', 'repositories'];
@@ -942,7 +949,9 @@ export function useReplaceJamTokenMutation() {
   });
 }
 
-export function jamConnectionDetailsQueryOptions(connectionId: string) {
+export function jamConnectionDetailsQueryOptions(
+  connectionId: string,
+): JamConnectionDetailsQueryOptions {
   return queryOptions({
     queryKey: integrationsQueryKeys.jamConnectionDetails(connectionId),
     queryFn: ({signal}) => getJamConnectionDetails({connectionId, signal}),
