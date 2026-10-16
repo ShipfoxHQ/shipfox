@@ -2,6 +2,7 @@ import {clickupAgentToolCatalog} from '@shipfox/api-integration-clickup/agent-to
 import {discordAgentToolCatalog} from '@shipfox/api-integration-discord/agent-tools';
 import {giteaAgentToolCatalog} from '@shipfox/api-integration-gitea/agent-tools';
 import {githubAgentToolCatalog} from '@shipfox/api-integration-github/agent-tools';
+import {jamAgentToolCatalog} from '@shipfox/api-integration-jam/agent-tools';
 import {jiraAgentToolCatalog} from '@shipfox/api-integration-jira/agent-tools';
 import {linearAgentToolCatalog} from '@shipfox/api-integration-linear/agent-tools';
 import {notionAgentToolCatalog} from '@shipfox/api-integration-notion/agent-tools';
@@ -22,6 +23,7 @@ export const providerToolCatalogs: readonly ProviderToolCatalog[] = [
   {provider: 'discord', tools: discordAgentToolCatalog},
   {provider: 'gitea', tools: giteaAgentToolCatalog},
   {provider: 'github', tools: githubAgentToolCatalog},
+  {provider: 'jam', tools: jamAgentToolCatalog},
   {provider: 'jira', tools: jiraAgentToolCatalog},
   {provider: 'linear', tools: linearAgentToolCatalog},
   {provider: 'notion', tools: notionAgentToolCatalog},

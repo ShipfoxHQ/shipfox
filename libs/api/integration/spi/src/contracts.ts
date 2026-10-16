@@ -254,8 +254,12 @@ export interface AgentToolCatalogMethod<RequiredScope = unknown> {
   indirectTargetNote?: string | undefined;
 }
 
-/** `file` tools return bytes rather than JSON, so agents cannot receive their result. */
-export type AgentToolResultKind = 'json' | 'file';
+/**
+ * `file` tools return bytes rather than JSON, so agents cannot receive their result.
+ * `image` tools return image content: an agent can receive it, but a tool step and an action
+ * only read JSON, so neither can call them.
+ */
+export type AgentToolResultKind = 'json' | 'file' | 'image';
 
 export interface AgentToolCatalogEntry<RequiredScope = unknown> {
   id: string;

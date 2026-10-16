@@ -65,6 +65,7 @@ A built-in provider still needs an `agent_tools` adapter. Its `openSession` rece
 - Built-in providers must not depend on connection secrets or database rows for their provider connection.
 - The frozen step configuration keeps `connectionId`, `connectionSlug`, and `provider` so rolling deployments can read existing materialized steps.
 - **File tools** have `result: 'file'` in the catalog. Agents never see them over MCP. A leased action step downloads their bytes from `POST /runs/jobs/current/integration-tools/download`, which the provider's `downloadFile` adapter serves. The route streams at most 100 MiB and stops at the smaller of `x-shipfox-deadline` (remaining milliseconds) and 5 minutes.
+- **Image tools** have `result: 'image'` in the catalog. Agents see them over MCP and receive the image blocks. A tool step cannot call one: definition validation reports `integration-tool-agent-only`. An action cannot either: the generated action tool types leave it out and the action endpoint refuses the call.
 
 ## Development
 

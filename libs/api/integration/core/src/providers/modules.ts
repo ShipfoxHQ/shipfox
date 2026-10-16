@@ -3,6 +3,7 @@ import {cronProviderModule} from '#providers/cron.js';
 import {discordProviderModule} from '#providers/discord.js';
 import {giteaProviderModule} from '#providers/gitea.js';
 import {githubProviderModule} from '#providers/github.js';
+import {jamProviderModule} from '#providers/jam.js';
 import {jiraProviderModule} from '#providers/jira.js';
 import {linearProviderModule} from '#providers/linear.js';
 import {notionProviderModule} from '#providers/notion.js';
@@ -23,6 +24,7 @@ const providerModules = [
   githubProviderModule,
   linearProviderModule,
   posthogProviderModule,
+  jamProviderModule,
   slackProviderModule,
   jiraProviderModule,
   clickupProviderModule,

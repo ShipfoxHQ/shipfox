@@ -143,6 +143,38 @@ export type DefaultModulesExtension = (options: {
   usage: UsageModuleClient;
 }) => ShipfoxModule[];
 
+type IntegrationSecretsClient = Pick<
+  SecretsInterModuleClient,
+  'deleteSecrets' | 'getSecret' | 'setSecrets'
+>;
+
+/** The secrets a provider reads and writes, all under `system/integrations/<provider>/`. */
+function integrationSecrets(secretsClient: IntegrationSecretsClient, provider: string) {
+  const scoped = (namespace: string) => `system/integrations/${provider}/${namespace}`;
+  return {
+    getSecret: async (
+      params: Parameters<IntegrationSecretsClient['getSecret']>[0] & {namespace: string},
+    ) => (await secretsClient.getSecret({...params, namespace: scoped(params.namespace)})).value,
+    setSecrets: async (
+      params: Parameters<IntegrationSecretsClient['setSecrets']>[0] & {
+        namespace: string;
+        editedBy?: string | null | undefined;
+      },
+    ) => {
+      const {editedBy, ...secretParams} = params;
+      await secretsClient.setSecrets({
+        ...secretParams,
+        namespace: scoped(secretParams.namespace),
+        ...(editedBy === undefined ? {} : {editedBy}),
+      });
+    },
+    deleteSecrets: async (
+      params: Parameters<IntegrationSecretsClient['deleteSecrets']>[0] & {namespace: string},
+    ) =>
+      (await secretsClient.deleteSecrets({...params, namespace: scoped(params.namespace)})).deleted,
+  };
+}
+
 export async function defaultModules(
   options: DefaultModulesOptions = {},
 ): Promise<ShipfoxModule[]> {
@@ -179,174 +211,14 @@ export async function defaultModules(
     workspaces: workspacesClient,
     secrets: {
       deleteSecrets: async (params) => (await secretsClient.deleteSecrets(params)).deleted,
-      linear: {
-        getSecret: async (params) =>
-          (
-            await secretsClient.getSecret({
-              ...params,
-              namespace: `system/integrations/linear/${params.namespace}`,
-            })
-          ).value,
-        setSecrets: async (params) => {
-          const {editedBy, ...secretParams} = params;
-          await secretsClient.setSecrets({
-            ...secretParams,
-            namespace: `system/integrations/linear/${secretParams.namespace}`,
-            ...(editedBy === undefined ? {} : {editedBy}),
-          });
-        },
-        deleteSecrets: async (params) =>
-          (
-            await secretsClient.deleteSecrets({
-              ...params,
-              namespace: `system/integrations/linear/${params.namespace}`,
-            })
-          ).deleted,
-      },
-      jira: {
-        getSecret: async (params) =>
-          (
-            await secretsClient.getSecret({
-              ...params,
-              namespace: `system/integrations/jira/${params.namespace}`,
-            })
-          ).value,
-        setSecrets: async (params) => {
-          const {editedBy, ...secretParams} = params;
-          await secretsClient.setSecrets({
-            ...secretParams,
-            namespace: `system/integrations/jira/${secretParams.namespace}`,
-            ...(editedBy === undefined ? {} : {editedBy}),
-          });
-        },
-        deleteSecrets: async (params) =>
-          (
-            await secretsClient.deleteSecrets({
-              ...params,
-              namespace: `system/integrations/jira/${params.namespace}`,
-            })
-          ).deleted,
-      },
-      clickup: {
-        getSecret: async (params) =>
-          (
-            await secretsClient.getSecret({
-              ...params,
-              namespace: `system/integrations/clickup/${params.namespace}`,
-            })
-          ).value,
-        setSecrets: async (params) => {
-          const {editedBy, ...secretParams} = params;
-          await secretsClient.setSecrets({
-            ...secretParams,
-            namespace: `system/integrations/clickup/${secretParams.namespace}`,
-            ...(editedBy === undefined ? {} : {editedBy}),
-          });
-        },
-        deleteSecrets: async (params) =>
-          (
-            await secretsClient.deleteSecrets({
-              ...params,
-              namespace: `system/integrations/clickup/${params.namespace}`,
-            })
-          ).deleted,
-      },
-      posthog: {
-        getSecret: async (params) =>
-          (
-            await secretsClient.getSecret({
-              ...params,
-              namespace: `system/integrations/posthog/${params.namespace}`,
-            })
-          ).value,
-        setSecrets: async (params) => {
-          const {editedBy, ...secretParams} = params;
-          await secretsClient.setSecrets({
-            ...secretParams,
-            namespace: `system/integrations/posthog/${secretParams.namespace}`,
-            ...(editedBy === undefined ? {} : {editedBy}),
-          });
-        },
-        deleteSecrets: async (params) =>
-          (
-            await secretsClient.deleteSecrets({
-              ...params,
-              namespace: `system/integrations/posthog/${params.namespace}`,
-            })
-          ).deleted,
-      },
-      sentry: {
-        getSecret: async (params) =>
-          (
-            await secretsClient.getSecret({
-              ...params,
-              namespace: `system/integrations/sentry/${params.namespace}`,
-            })
-          ).value,
-        setSecrets: async (params) => {
-          const {editedBy, ...secretParams} = params;
-          await secretsClient.setSecrets({
-            ...secretParams,
-            namespace: `system/integrations/sentry/${secretParams.namespace}`,
-            ...(editedBy === undefined ? {} : {editedBy}),
-          });
-        },
-        deleteSecrets: async (params) =>
-          (
-            await secretsClient.deleteSecrets({
-              ...params,
-              namespace: `system/integrations/sentry/${params.namespace}`,
-            })
-          ).deleted,
-      },
-      notion: {
-        getSecret: async (params) =>
-          (
-            await secretsClient.getSecret({
-              ...params,
-              namespace: `system/integrations/notion/${params.namespace}`,
-            })
-          ).value,
-        setSecrets: async (params) => {
-          const {editedBy, ...secretParams} = params;
-          await secretsClient.setSecrets({
-            ...secretParams,
-            namespace: `system/integrations/notion/${secretParams.namespace}`,
-            ...(editedBy === undefined ? {} : {editedBy}),
-          });
-        },
-        deleteSecrets: async (params) =>
-          (
-            await secretsClient.deleteSecrets({
-              ...params,
-              namespace: `system/integrations/notion/${params.namespace}`,
-            })
-          ).deleted,
-      },
-      slack: {
-        getSecret: async (params) =>
-          (
-            await secretsClient.getSecret({
-              ...params,
-              namespace: `system/integrations/slack/${params.namespace}`,
-            })
-          ).value,
-        setSecrets: async (params) => {
-          const {editedBy, ...secretParams} = params;
-          await secretsClient.setSecrets({
-            ...secretParams,
-            namespace: `system/integrations/slack/${secretParams.namespace}`,
-            ...(editedBy === undefined ? {} : {editedBy}),
-          });
-        },
-        deleteSecrets: async (params) =>
-          (
-            await secretsClient.deleteSecrets({
-              ...params,
-              namespace: `system/integrations/slack/${params.namespace}`,
-            })
-          ).deleted,
-      },
+      linear: integrationSecrets(secretsClient, 'linear'),
+      jira: integrationSecrets(secretsClient, 'jira'),
+      clickup: integrationSecrets(secretsClient, 'clickup'),
+      posthog: integrationSecrets(secretsClient, 'posthog'),
+      jam: integrationSecrets(secretsClient, 'jam'),
+      sentry: integrationSecrets(secretsClient, 'sentry'),
+      notion: integrationSecrets(secretsClient, 'notion'),
+      slack: integrationSecrets(secretsClient, 'slack'),
       github: {
         getSecret: async (params) =>
           (

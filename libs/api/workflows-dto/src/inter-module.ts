@@ -339,7 +339,9 @@ const workflowRunFiltersSchema = z
 const leasedToolIntegrationSchema = materializedAgentIntegrationSchema.extend({
   tools: z
     .array(
-      materializedAgentIntegrationToolSchema.extend({result: z.enum(['json', 'file']).optional()}),
+      materializedAgentIntegrationToolSchema.extend({
+        result: z.enum(['json', 'file', 'image']).optional(),
+      }),
     )
     .min(1),
 });

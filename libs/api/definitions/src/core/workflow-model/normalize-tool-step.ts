@@ -31,6 +31,7 @@ interface ToolCatalogEntry {
   readonly requiredScope: unknown;
   readonly inputSchema: Readonly<Record<string, unknown>>;
   readonly outputSchema?: Readonly<Record<string, unknown>>;
+  readonly result?: 'json' | 'file' | 'image';
   readonly methods?: readonly {readonly id: string}[];
 }
 
@@ -328,6 +329,18 @@ function findToolEntry(params: {
       issue({
         code: 'unknown-integration-tool',
         message: `Unknown integration tool: ${params.source}.`,
+        path: toolIdPath(params),
+        details: {tool: params.tool.id},
+      }),
+    );
+    return undefined;
+  }
+
+  if (entry.result === 'image') {
+    params.issues.push(
+      issue({
+        code: 'integration-tool-agent-only',
+        message: `Integration tool ${params.source} returns images. A tool step only reads JSON, so call it from an agent step.`,
         path: toolIdPath(params),
         details: {tool: params.tool.id},
       }),

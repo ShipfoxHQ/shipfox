@@ -28,6 +28,8 @@ interface AgentToolCatalogTool {
   readonly requiredScope: unknown;
   readonly inputSchema: Readonly<Record<string, unknown>>;
   readonly outputSchema?: Readonly<Record<string, unknown>>;
+  /** Absent means `json`. */
+  readonly result?: 'json' | 'file' | 'image';
   readonly methods?: readonly AgentToolCatalogMethod[];
 }
 

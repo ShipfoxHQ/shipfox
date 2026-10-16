@@ -3,6 +3,7 @@ import {closeDb as closeClickUpDb} from '@shipfox/api-integration-clickup';
 import {closeDb as closeDiscordDb} from '@shipfox/api-integration-discord';
 import {closeDb as closeGiteaDb} from '@shipfox/api-integration-gitea';
 import {closeDb as closeGithubDb} from '@shipfox/api-integration-github';
+import {closeDb as closeJamDb} from '@shipfox/api-integration-jam';
 import {closeDb as closeJiraDb} from '@shipfox/api-integration-jira';
 import {closeDb as closeLinearDb} from '@shipfox/api-integration-linear';
 import {closeDb as closePosthogDb} from '@shipfox/api-integration-posthog';
@@ -29,6 +30,7 @@ afterAll(async () => {
   // Drizzle handle must be cleared before the shared pool is ended.
   closeLinearDb();
   closePosthogDb();
+  closeJamDb();
   closeSlackDb();
   closeJiraDb();
   closeSentryDb();

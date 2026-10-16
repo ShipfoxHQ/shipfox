@@ -70,7 +70,7 @@ export interface ActionToolGrant {
   readonly sensitivity: 'read' | 'write';
   /** Keeps the arguments and result out of the step log. */
   readonly sensitive: boolean;
-  readonly result: 'json' | 'file';
+  readonly result: 'json' | 'file' | 'image';
   readonly inputSchema: unknown;
   readonly methods?: readonly ActionToolMethodGrant[] | undefined;
 }
@@ -652,10 +652,7 @@ function resolveTool(
       status: 400,
       error: {
         code: 'tool-result-kind-mismatch',
-        message:
-          grant.result === 'file'
-            ? `${call.tool} returns a file. Use download() instead of call().`
-            : `${call.tool} does not return a file. Use call() instead of download().`,
+        message: resultKindMismatchMessage(call.tool, grant.result),
         outcome_unknown: false,
       },
     };
@@ -941,4 +938,10 @@ function preview(value: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function resultKindMismatchMessage(tool: string, resultKind: 'json' | 'file' | 'image'): string {
+  if (resultKind === 'file') return `${tool} returns a file. Use download() instead of call().`;
+  if (resultKind === 'image') return `${tool} returns images, which only an agent step can read.`;
+  return `${tool} does not return a file. Use call() instead of download().`;
 }

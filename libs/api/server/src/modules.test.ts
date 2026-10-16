@@ -1222,6 +1222,11 @@ describe('defaultModules', () => {
           getSecret: expect.any(Function),
           setSecrets: expect.any(Function),
         },
+        jam: {
+          deleteSecrets: expect.any(Function),
+          getSecret: expect.any(Function),
+          setSecrets: expect.any(Function),
+        },
         sentry: {
           deleteSecrets: expect.any(Function),
           getSecret: expect.any(Function),
@@ -1264,6 +1269,7 @@ describe('defaultModules', () => {
         jira: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         clickup: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         posthog: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
+        jam: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         sentry: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         notion: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         slack: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
@@ -1334,6 +1340,13 @@ describe('defaultModules', () => {
         editedBy: undefined,
       }),
       integrationsOptions.secrets.posthog.deleteSecrets({...scope, keys: ['token']}),
+      integrationsOptions.secrets.jam.getSecret({...scope, key: 'token'}),
+      integrationsOptions.secrets.jam.setSecrets({
+        ...scope,
+        values: {token: 'secret'},
+        editedBy: undefined,
+      }),
+      integrationsOptions.secrets.jam.deleteSecrets({...scope, keys: ['token']}),
       integrationsOptions.secrets.sentry.getSecret({...scope, key: 'token'}),
       integrationsOptions.secrets.sentry.setSecrets({
         ...scope,
@@ -1431,6 +1444,24 @@ describe('defaultModules', () => {
     expect(mocks.deleteSecrets.mock.calls.map(([params]) => params)).toContainEqual({
       keys: ['token'],
       namespace: 'system/integrations/posthog/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
+    });
+    expect(mocks.getSecret.mock.calls.map(([params]) => params)).toContainEqual({
+      key: 'token',
+      namespace: 'system/integrations/jam/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
+    });
+    expect(mocks.setSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      values: {token: 'secret'},
+      namespace: 'system/integrations/jam/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
+    });
+    expect(mocks.deleteSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      keys: ['token'],
+      namespace: 'system/integrations/jam/workspace',
       projectId: null,
       workspaceId: scope.workspaceId,
     });

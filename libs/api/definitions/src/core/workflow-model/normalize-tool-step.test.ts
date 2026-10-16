@@ -104,6 +104,19 @@ const integrationValidationContext = {
             },
           },
           {
+            id: 'get_screenshot',
+            description: 'Get a screenshot',
+            sensitivity: 'read',
+            sensitive: false,
+            requiredScope: 'read',
+            result: 'image',
+            inputSchema: {
+              type: 'object',
+              properties: {id: {type: 'string'}},
+              required: ['id'],
+            },
+          },
+          {
             id: 'save_comment',
             description: 'Save a comment',
             sensitivity: 'write',
@@ -851,6 +864,26 @@ describe('normalizeToolStep', () => {
       expect.objectContaining({
         code: 'integration-connection-not-capable',
         path: ['jobs', 'use', 'steps', 0, 'connection'],
+      }),
+    ]);
+  });
+
+  it('rejects a tool that returns images, which only an agent step can read', () => {
+    const error = expectInvalid(
+      toolDocument(
+        toolStep({
+          tool: 'get_screenshot',
+          connection: 'linear-main',
+          with: {id: 'screenshot-1'},
+        }),
+      ),
+      {integrationValidationContext},
+    );
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'integration-tool-agent-only',
+        path: ['jobs', 'use', 'steps', 0, 'tool'],
       }),
     ]);
   });

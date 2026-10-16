@@ -107,7 +107,7 @@ export function renderToolGrantsSource(catalogs: readonly ProviderToolCatalog[])
     HEADER,
     `export interface ToolGrant {
   readonly sensitivity: 'read' | 'write';
-  readonly result: 'json' | 'file';
+  readonly result: 'json' | 'file' | 'image';
   /** Method sensitivities of a family tool, by method id. */
   readonly methods?: Readonly<Record<string, 'read' | 'write'>>;
 }`,
@@ -125,6 +125,9 @@ function callableTools(
   const callable: CallableTool[] = [];
   for (const entry of [...tools].sort((a, b) => a.id.localeCompare(b.id))) {
     const result = agentToolResultKind(entry);
+    // An action only reads JSON, so it cannot call an image tool. The grant data still lists it,
+    // and the endpoint refuses the call with a clear error.
+    if (result === 'image') continue;
     // A file tool is downloaded, so its structured result never reaches the action.
     const structured =
       result === 'json' && entry.outputSchema !== undefined

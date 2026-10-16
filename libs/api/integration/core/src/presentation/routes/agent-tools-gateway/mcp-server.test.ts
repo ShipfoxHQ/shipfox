@@ -98,6 +98,34 @@ describe('buildAgentToolsMcpServer', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it('lists image tools and dispatches calls to them, since an agent can read images', async () => {
+    const dispatch = vi.fn(async () => ({
+      content: [{type: 'image' as const, data: 'AAAA', mimeType: 'image/png'}],
+    }));
+    const imageToolName = 'github_main__get_screenshot';
+    const authorizedTools = defaultAuthorizedTools();
+    const jsonTool = authorizedTools.get('github_main__issue_read');
+    if (!jsonTool) throw new Error('Expected default authorized tool');
+    authorizedTools.set(imageToolName, {
+      ...jsonTool,
+      tool: {...jsonTool.tool, id: 'get_screenshot', methods: undefined},
+      mcpName: imageToolName,
+      catalogEntry: catalogTool({id: 'get_screenshot', result: 'image', methods: undefined}),
+    });
+    const {client, close} = await connectClient(dispatch, authorizedTools);
+
+    const tools = await client.listTools();
+    const result = await client.callTool(
+      {name: imageToolName, arguments: {}},
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(tools.tools.map((tool) => tool.name)).toContain(imageToolName);
+    expect(result.content).toEqual([{type: 'image', data: 'AAAA', mimeType: 'image/png'}]);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps a tool frozen as a file tool out of MCP even without a live catalog entry', async () => {
     const dispatch = vi.fn(async () => ({content: [{type: 'text' as const, text: 'ok'}]}));
     const authorizedTools = defaultAuthorizedTools();

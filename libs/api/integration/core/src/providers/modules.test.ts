@@ -19,7 +19,12 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['shipfox', 'cron', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
   });
 
   it('does not load cron when the provider is disabled', async () => {
@@ -29,7 +34,7 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['shipfox', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual(['jam', 'shipfox', 'webhook']);
   });
 
   it('loads the built-in Shipfox provider with inter-module clients', async () => {
@@ -69,6 +74,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'linear',
+      'jam',
       'shipfox',
       'cron',
       'webhook',
@@ -88,16 +94,17 @@ describe('loadEnabledProviderModules', () => {
     const parts = await loadEnabledProviderModules();
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
       'slack',
       'shipfox',
       'cron',
       'webhook',
     ]);
-    expect(parts[0]?.provider).toMatchObject({
+    expect(parts[1]?.provider).toMatchObject({
       provider: 'slack',
       displayName: 'Slack',
     });
-    expect(parts[0]?.provider.adapters?.agent_tools).toBeDefined();
+    expect(parts[1]?.provider.adapters?.agent_tools).toBeDefined();
   });
 
   it('loads Jira when the provider is enabled', async () => {
@@ -108,12 +115,25 @@ describe('loadEnabledProviderModules', () => {
     const parts = await loadEnabledProviderModules();
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
       'jira',
       'shipfox',
       'cron',
       'webhook',
     ]);
-    expect(parts[0]?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
+    expect(parts[1]?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
+  });
+
+  it('loads Jam without a flag, with its own database and no events', async () => {
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+    const jam = parts.find((part) => part.provider.provider === 'jam');
+
+    expect(jam?.provider).toMatchObject({provider: 'jam', displayName: 'Jam'});
+    expect(jam?.database?.databaseNamespace).toBe('integrations_jam');
+    expect(jam?.provider.eventCatalog).toBeUndefined();
   });
 
   it('does not load PostHog when the provider is disabled', async () => {
@@ -135,6 +155,7 @@ describe('loadEnabledProviderModules', () => {
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
       'posthog',
+      'jam',
       'shipfox',
       'cron',
       'webhook',
@@ -180,6 +201,7 @@ describe('loadEnabledProviderModules', () => {
     const discord = parts.find((part) => part.provider.provider === 'discord');
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
       'discord',
       'shipfox',
       'cron',
@@ -207,6 +229,7 @@ describe('loadEnabledProviderModules', () => {
     const notion = parts.find((part) => part.provider.provider === 'notion');
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
       'notion',
       'shipfox',
       'cron',
@@ -228,6 +251,7 @@ describe('loadEnabledProviderModules', () => {
     const clickup = parts.find((part) => part.provider.provider === 'clickup');
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
       'clickup',
       'shipfox',
       'cron',
@@ -245,6 +269,7 @@ describe('loadEnabledProviderModules', () => {
     const testVcsPart = parts.find((part) => part.provider.provider === 'test-vcs');
 
     expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jam',
       'test-vcs',
       'shipfox',
       'cron',

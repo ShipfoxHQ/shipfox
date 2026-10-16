@@ -49,6 +49,14 @@ export const config = createConfig({
     desc: 'Optional PostHog MCP endpoint override for a compatible proxy or E2E fake. Leave unset to route by region.',
     default: undefined,
   }),
+  JAM_MCP_ENDPOINT: url({
+    desc: 'Jam MCP endpoint. Override it only for a compatible proxy or E2E fake.',
+    default: 'https://mcp.jam.dev/mcp',
+  }),
+  JAM_API_BASE_URL: url({
+    desc: 'Jam API base URL, used to introspect personal access tokens. Override it only for a compatible proxy or E2E fake.',
+    default: 'https://api.jam.dev',
+  }),
   INTEGRATIONS_ENABLE_SENTRY_PROVIDER: bool({
     desc: 'Enables the Sentry integration provider so users can connect Sentry.',
     default: false,

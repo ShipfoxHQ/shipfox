@@ -4,6 +4,7 @@ const PROVIDER_LABELS = new Map(
     clickup: 'ClickUp',
     gitea: 'Gitea',
     github: 'GitHub',
+    jam: 'Jam',
     jira: 'Jira',
     linear: 'Linear',
     notion: 'Notion',

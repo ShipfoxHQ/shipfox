@@ -25,7 +25,7 @@ const connectionToolMethod = z.object({
   sensitivity: z.enum(['read', 'write']),
   sensitive: z.boolean(),
 });
-const toolResultKind = z.enum(['json', 'file']);
+const toolResultKind = z.enum(['json', 'file', 'image']);
 const connectionTool = connectionToolMethod.extend({
   result: toolResultKind,
   methods: z.array(connectionToolMethod).optional(),

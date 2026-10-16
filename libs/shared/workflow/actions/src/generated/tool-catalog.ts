@@ -747,6 +747,52 @@ export interface ProviderToolCatalog {
       structured: GithubUpdatePullRequestBranchResult;
     };
   };
+  jam: {
+    /**
+     * Read the browser console entries captured in a Jam: errors, warnings, info and debug messages, with stack traces. Filter by level. The response reports the `total` of matching entries; when fewer are returned, narrow the filter or page with `after` and the `nextCursor` of the previous response.
+     */
+    getConsoleLogs: {arguments: JamGetConsoleLogsArguments; result: 'json'; structured: unknown};
+    /**
+     * Read a Jam bug report: reporter, title, description, type (video or screenshot), page URL, device and browser, event counts and comments. Call it first, before the other Jam tools. The Jam ID can be a UUID or a jam.dev link.
+     */
+    getDetails: {arguments: JamGetDetailsArguments; result: 'json'; structured: unknown};
+    /**
+     * Read the custom key-value metadata that the reporter's app set with `jam.metadata()`, such as user IDs, app versions and feature flags. When the app set none, the answer is a short text saying so.
+     */
+    getMetadata: {arguments: JamGetMetadataArguments; result: 'json'; structured: unknown};
+    /**
+     * Read the network requests captured in a Jam: URL, method, status, content type, timing, errors and request and response bodies. Filters combine with AND; values within one filter combine with OR. Response bodies are included for failed requests only unless `bodies` is `all`, and every body is cut at 4 KB. Request headers and cookies are not captured. The response reports the `total` of matching requests; page with `after` and `nextCursor`.
+     */
+    getNetworkRequests: {
+      arguments: JamGetNetworkRequestsArguments;
+      result: 'json';
+      structured: unknown;
+    };
+    /**
+     * Read the reporter's clicks, typed input, form submissions and navigation in a Jam, in order. This is the list of steps to reproduce the bug. The whole timeline is returned by default; use `limit` to cap it and `after` with `nextCursor` to page.
+     */
+    getUserEvents: {arguments: JamGetUserEventsArguments; result: 'json'; structured: unknown};
+    /**
+     * Read the generated chapters of a video Jam: titled segments with start and end times. `status` is `ready` when chapters exist, `not_requested` when none were generated, and `skipped` when the video is shorter than 45 seconds. Instant Replay Jams have no video.
+     */
+    getVideoChapters: {
+      arguments: JamGetVideoChaptersArguments;
+      result: 'json';
+      structured: unknown;
+    };
+    /**
+     * Read what the reporter said while recording a video Jam, as WebVTT with timestamps. Available only for video Jams recorded with the microphone on.
+     */
+    getVideoTranscript: {
+      arguments: JamGetVideoTranscriptArguments;
+      result: 'json';
+      structured: unknown;
+    };
+    /**
+     * Search the Jams of the Jam workspace that the connection belongs to. `text` matches every term against titles, descriptions, comments, linked issue titles, reporter emails and transcripts; `textIn` narrows where. `where` is a list of `{field, op, value}` filters, all combined with AND; its description lists each field and operator. Each result carries a `url` to a Jam.
+     */
+    searchJams: {arguments: JamSearchJamsArguments; result: 'json'; structured: unknown};
+  };
   jira: {
     /**
      * Add a plain-text comment to a Jira issue.
@@ -5065,6 +5111,162 @@ export interface GithubUpdatePullRequestBranchArguments {
    * The expected SHA of the pull request's HEAD ref
    */
   expected_head_sha?: string;
+}
+
+export interface JamGetConsoleLogsArguments {
+  /**
+   * Jam identifier: a UUID or a jam.dev URL
+   */
+  jamId: string;
+  /**
+   * Optional filter by log levels, e.g. ['error','warn'] for problems.
+   */
+  logLevel?: ('error' | 'warn' | 'info' | 'debug')[];
+  /**
+   * Maximum number of events to return
+   */
+  limit?: number;
+  /**
+   * Page cursor: pass the `nextCursor` from a previous response to continue
+   */
+  after?: number;
+}
+
+export interface JamGetDetailsArguments {
+  /**
+   * Jam identifier: a UUID or a jam.dev URL
+   */
+  jamId: string;
+}
+
+export interface JamGetMetadataArguments {
+  /**
+   * Jam identifier: a UUID or a jam.dev URL
+   */
+  jamId: string;
+}
+
+export interface JamGetNetworkRequestsArguments {
+  /**
+   * Jam identifier: a UUID or a jam.dev URL
+   */
+  jamId: string;
+  /**
+   * Filter by status codes and/or classes, e.g. ['500'] or ['4xx','5xx'] for all failures
+   */
+  statusCode?: string[];
+  /**
+   * Filter by content-type substrings, e.g. ['application/json']
+   */
+  contentType?: string[];
+  /**
+   * Filter by host substrings, e.g. ['api.example.com']
+   */
+  host?: string[];
+  /**
+   * Filter by HTTP methods, e.g. ['POST','PUT','PATCH','DELETE'] for mutations
+   */
+  method?: string[];
+  /**
+   * Maximum number of events to return
+   */
+  limit?: number;
+  /**
+   * Page cursor: pass the `nextCursor` from a previous response to continue
+   */
+  after?: number;
+  /**
+   * Which response bodies to include. 'errors' (default) returns bodies only for failed requests; 'all' returns every body. Both are truncated to 4KB per body.
+   */
+  bodies?: 'errors' | 'all';
+}
+
+export interface JamGetUserEventsArguments {
+  /**
+   * Jam identifier: a UUID or a jam.dev URL
+   */
+  jamId: string;
+  /**
+   * Maximum number of events to return
+   */
+  limit?: number;
+  /**
+   * Page cursor: pass the `nextCursor` from a previous response to continue
+   */
+  after?: number;
+}
+
+export interface JamGetVideoChaptersArguments {
+  /**
+   * Jam identifier: a UUID or a jam.dev URL
+   */
+  jamId: string;
+}
+
+export interface JamGetVideoTranscriptArguments {
+  /**
+   * Jam identifier: a UUID or a jam.dev URL
+   */
+  jamId: string;
+}
+
+export interface JamSearchJamsArguments {
+  /**
+   * Free text. Split on whitespace into at most 8 terms; a jam matches only when every term matches somewhere (title, description, a comment, a linked issue title, the reporter's email or external id, or the transcript). A term made of only one or two letters or digits is matched against comments only through the whole text: a comment that contains the text as typed matches when another term has three or more letters or digits, or punctuation next to them (such as "cool" or "#12"). Terms like "#12" or "v1.2" also match comments on their own.
+   */
+  text?: string;
+  /**
+   * Which places text may match in: title, description, comment, integration, transcript. Omit to search every one.
+   */
+  textIn?: ('title' | 'description' | 'comment' | 'integration' | 'transcript')[];
+  /**
+   * Created-at bounds. from is inclusive, to is exclusive. Accepts an ISO date, an ISO datetime with at most millisecond precision, or a negative ISO 8601 duration such as -P7D.
+   */
+  window?: {
+    from?: string;
+    to?: string;
+  };
+  /**
+   * newest (created_at descending, the default), oldest (created_at ascending), updated (updated_at descending).
+   */
+  sort?: 'newest' | 'oldest' | 'updated';
+  /**
+   * Paging. limit is between 1 and 250 and defaults to 20; cursor is the opaque value the previous page returned.
+   */
+  page?: {
+    limit?: number;
+    cursor?: string;
+  };
+  /**
+   * count: none skips the count query (default); exact returns the total match count, at about the cost of a second search.
+   */
+  options?: {
+    count?: 'exact' | 'none';
+  };
+  /**
+   * Filters, all ANDed. Each entry is { field, op, value }. Negation is ne / notIn on a leaf; there is no or and no not node.
+   * id (eq|ne|in|notIn): The jam itself, as a UUID or a jam.dev link.
+   * author (eq|ne|in|notIn): Who recorded the jam, as a user UUID or the literal 'me' for the signed-in viewer.
+   * folder (eq|ne|in|notIn): The folder the jam sits in, as a folder UUID or short id. 'eq null' is the team root; 'ne' and 'notIn' count root jams as matching, since a jam with no folder is not in the named one.
+   * type (eq|ne|in|notIn): What was captured.
+   * origin (eq|ne|in|notIn): The capture surface. extension_chrome is the browser extension, native_macos the macOS app and native_cli its command line, recording_link a shareable recorder link, web_recorder the recorder opened directly, mobile_ios and mobile_android the phone apps, csup_intercom the Intercom support widget, dashboard a jam created in the app. Some are no longer produced but still sit on older jams, so every member stays filterable.
+   * capturedUrl (contains): Substring of the page URL the jam was captured on, matched case-insensitively.
+   * recordingLink (eq|ne|in|notIn): The recording link the jam was submitted through, as its id or the public id its URL carries.
+   * recordingLink.reference (eq|ne|in|notIn|contains): The free-form label on the recording link the jam came through, the one that records where the link was handed out.
+   * integration.name (eq|ne|in|notIn): The provider of an issue created from the jam. Only entities attached to the jam itself count, never one attached to a comment on it.
+   * integration.id (eq|ne|in|notIn): The provider's own key for an issue created from the jam, such as 'JIRA-123'. Matches the provider id or its alias.
+   * country (eq|ne|in|notIn): Where the jam was recorded, as an uppercase ISO 3166-1 alpha-2 code (US, DE, PL).
+   * browser (eq|ne|in|notIn): Browser name from the recorded system info, matched exactly against the name the user agent reported, so 'Mobile Safari' and 'Safari' are different values. Any value is accepted; the listed ones are what most rows carry.
+   * os (eq|ne|in|notIn): Operating system, matched exactly. The CPU architecture some browsers append to the name is ignored, so macOS matches a jam recorded on 'macOS (arm)'. Any value is accepted; use in to cover several spellings at once.
+   * isIncognito (eq|ne): Whether the jam was recorded in a private browsing window.
+   * isCharging (eq|ne): Whether the device was plugged in while the jam was recorded. Jams that recorded no battery reading match neither value.
+   * connection (eq|ne|in|notIn): Effective network type from the recorded system info, matched exactly. Any value is accepted.
+   */
+  where?: {
+    field: string;
+    op: string;
+    value?: unknown;
+  }[];
 }
 
 export interface JiraAddCommentArguments {

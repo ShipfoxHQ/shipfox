@@ -143,6 +143,14 @@ const databaseMigrationUnits = freezeEntries([
     migrationsPath: 'libs/api/integration/posthog/drizzle',
   },
   {
+    id: 'integrations-jam',
+    ownerId: 'integrations',
+    namespace: 'integrations_jam',
+    packagePath: 'libs/api/integration/jam',
+    drizzleConfigPath: 'libs/api/integration/jam/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/jam/drizzle',
+  },
+  {
     id: 'integrations-sentry',
     ownerId: 'integrations',
     namespace: 'integrations_sentry',

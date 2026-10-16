@@ -273,10 +273,7 @@ function refuse(
   if (grant.result !== kind) {
     return {
       code: 'tool-result-kind-mismatch',
-      message:
-        grant.result === 'file'
-          ? `${request.tool} returns a file. Use download() instead of call().`
-          : `${request.tool} does not return a file. Use call() instead of download().`,
+      message: resultKindMismatchMessage(request.tool, grant.result),
       outcome_unknown: false,
     };
   }
@@ -355,4 +352,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function resultKindMismatchMessage(tool: string, resultKind: 'json' | 'file' | 'image'): string {
+  if (resultKind === 'file') return `${tool} returns a file. Use download() instead of call().`;
+  if (resultKind === 'image') return `${tool} returns images, which only an agent step can read.`;
+  return `${tool} does not return a file. Use call() instead of download().`;
 }

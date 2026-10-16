@@ -1,0 +1,484 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Jam agent tool catalog > keeps the allow-list and selection catalog deliberate 1`] = `
+[
+  {
+    "description": "Read a Jam bug report: reporter, title, description, type (video or screenshot), page URL, device and browser, event counts and comments. Call it first, before the other Jam tools. The Jam ID can be a UUID or a jam.dev link.",
+    "id": "getDetails",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": false,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read the browser console entries captured in a Jam: errors, warnings, info and debug messages, with stack traces. Filter by level. The response reports the \`total\` of matching entries; when fewer are returned, narrow the filter or page with \`after\` and the \`nextCursor\` of the previous response.",
+    "id": "getConsoleLogs",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "description": "Page cursor: pass the \`nextCursor\` from a previous response to continue",
+          "type": "number",
+        },
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+        "limit": {
+          "description": "Maximum number of events to return",
+          "type": "number",
+        },
+        "logLevel": {
+          "description": "Optional filter by log levels, e.g. ['error','warn'] for problems.",
+          "items": {
+            "enum": [
+              "error",
+              "warn",
+              "info",
+              "debug",
+            ],
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read the network requests captured in a Jam: URL, method, status, content type, timing, errors and request and response bodies. Filters combine with AND; values within one filter combine with OR. Response bodies are included for failed requests only unless \`bodies\` is \`all\`, and every body is cut at 4 KB. Request headers and cookies are not captured. The response reports the \`total\` of matching requests; page with \`after\` and \`nextCursor\`.",
+    "id": "getNetworkRequests",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "description": "Page cursor: pass the \`nextCursor\` from a previous response to continue",
+          "type": "number",
+        },
+        "bodies": {
+          "description": "Which response bodies to include. 'errors' (default) returns bodies only for failed requests; 'all' returns every body. Both are truncated to 4KB per body.",
+          "enum": [
+            "errors",
+            "all",
+          ],
+          "type": "string",
+        },
+        "contentType": {
+          "description": "Filter by content-type substrings, e.g. ['application/json']",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "host": {
+          "description": "Filter by host substrings, e.g. ['api.example.com']",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+        "limit": {
+          "description": "Maximum number of events to return",
+          "type": "number",
+        },
+        "method": {
+          "description": "Filter by HTTP methods, e.g. ['POST','PUT','PATCH','DELETE'] for mutations",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "statusCode": {
+          "description": "Filter by status codes and/or classes, e.g. ['500'] or ['4xx','5xx'] for all failures",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read the reporter's clicks, typed input, form submissions and navigation in a Jam, in order. This is the list of steps to reproduce the bug. The whole timeline is returned by default; use \`limit\` to cap it and \`after\` with \`nextCursor\` to page.",
+    "id": "getUserEvents",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "description": "Page cursor: pass the \`nextCursor\` from a previous response to continue",
+          "type": "number",
+        },
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+        "limit": {
+          "description": "Maximum number of events to return",
+          "type": "number",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read the custom key-value metadata that the reporter's app set with \`jam.metadata()\`, such as user IDs, app versions and feature flags. When the app set none, the answer is a short text saying so.",
+    "id": "getMetadata",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read what the reporter said while recording a video Jam, as WebVTT with timestamps. Available only for video Jams recorded with the microphone on.",
+    "id": "getVideoTranscript",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read the generated chapters of a video Jam: titled segments with start and end times. \`status\` is \`ready\` when chapters exist, \`not_requested\` when none were generated, and \`skipped\` when the video is shorter than 45 seconds. Instant Replay Jams have no video.",
+    "id": "getVideoChapters",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": false,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Search the Jams of the Jam workspace that the connection belongs to. \`text\` matches every term against titles, descriptions, comments, linked issue titles, reporter emails and transcripts; \`textIn\` narrows where. \`where\` is a list of \`{field, op, value}\` filters, all combined with AND; its description lists each field and operator. Each result carries a \`url\` to a Jam.",
+    "id": "searchJams",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "options": {
+          "additionalProperties": false,
+          "description": "count: none skips the count query (default); exact returns the total match count, at about the cost of a second search.",
+          "properties": {
+            "count": {
+              "enum": [
+                "exact",
+                "none",
+              ],
+              "type": "string",
+            },
+          },
+          "type": "object",
+        },
+        "page": {
+          "additionalProperties": false,
+          "description": "Paging. limit is between 1 and 250 and defaults to 20; cursor is the opaque value the previous page returned.",
+          "properties": {
+            "cursor": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "limit": {
+              "type": "integer",
+            },
+          },
+          "type": "object",
+        },
+        "sort": {
+          "description": "newest (created_at descending, the default), oldest (created_at ascending), updated (updated_at descending).",
+          "enum": [
+            "newest",
+            "oldest",
+            "updated",
+          ],
+          "type": "string",
+        },
+        "text": {
+          "description": "Free text. Split on whitespace into at most 8 terms; a jam matches only when every term matches somewhere (title, description, a comment, a linked issue title, the reporter's email or external id, or the transcript). A term made of only one or two letters or digits is matched against comments only through the whole text: a comment that contains the text as typed matches when another term has three or more letters or digits, or punctuation next to them (such as "cool" or "#12"). Terms like "#12" or "v1.2" also match comments on their own.",
+          "type": "string",
+        },
+        "textIn": {
+          "description": "Which places text may match in: title, description, comment, integration, transcript. Omit to search every one.",
+          "items": {
+            "enum": [
+              "title",
+              "description",
+              "comment",
+              "integration",
+              "transcript",
+            ],
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "where": {
+          "description": "Filters, all ANDed. Each entry is { field, op, value }. Negation is ne / notIn on a leaf; there is no or and no not node.
+id (eq|ne|in|notIn): The jam itself, as a UUID or a jam.dev link.
+author (eq|ne|in|notIn): Who recorded the jam, as a user UUID or the literal 'me' for the signed-in viewer.
+folder (eq|ne|in|notIn): The folder the jam sits in, as a folder UUID or short id. 'eq null' is the team root; 'ne' and 'notIn' count root jams as matching, since a jam with no folder is not in the named one.
+type (eq|ne|in|notIn): What was captured.
+origin (eq|ne|in|notIn): The capture surface. extension_chrome is the browser extension, native_macos the macOS app and native_cli its command line, recording_link a shareable recorder link, web_recorder the recorder opened directly, mobile_ios and mobile_android the phone apps, csup_intercom the Intercom support widget, dashboard a jam created in the app. Some are no longer produced but still sit on older jams, so every member stays filterable.
+capturedUrl (contains): Substring of the page URL the jam was captured on, matched case-insensitively.
+recordingLink (eq|ne|in|notIn): The recording link the jam was submitted through, as its id or the public id its URL carries.
+recordingLink.reference (eq|ne|in|notIn|contains): The free-form label on the recording link the jam came through, the one that records where the link was handed out.
+integration.name (eq|ne|in|notIn): The provider of an issue created from the jam. Only entities attached to the jam itself count, never one attached to a comment on it.
+integration.id (eq|ne|in|notIn): The provider's own key for an issue created from the jam, such as 'JIRA-123'. Matches the provider id or its alias.
+country (eq|ne|in|notIn): Where the jam was recorded, as an uppercase ISO 3166-1 alpha-2 code (US, DE, PL).
+browser (eq|ne|in|notIn): Browser name from the recorded system info, matched exactly against the name the user agent reported, so 'Mobile Safari' and 'Safari' are different values. Any value is accepted; the listed ones are what most rows carry.
+os (eq|ne|in|notIn): Operating system, matched exactly. The CPU architecture some browsers append to the name is ignored, so macOS matches a jam recorded on 'macOS (arm)'. Any value is accepted; use in to cover several spellings at once.
+isIncognito (eq|ne): Whether the jam was recorded in a private browsing window.
+isCharging (eq|ne): Whether the device was plugged in while the jam was recorded. Jams that recorded no battery reading match neither value.
+connection (eq|ne|in|notIn): Effective network type from the recorded system info, matched exactly. Any value is accepted.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "type": "string",
+              },
+              "op": {
+                "type": "string",
+              },
+              "value": {},
+            },
+            "required": [
+              "field",
+              "op",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "window": {
+          "additionalProperties": false,
+          "description": "Created-at bounds. from is inclusive, to is exclusive. Accepts an ISO date, an ISO datetime with at most millisecond precision, or a negative ISO 8601 duration such as -P7D.",
+          "properties": {
+            "from": {
+              "type": "string",
+            },
+            "to": {
+              "type": "string",
+            },
+          },
+          "type": "object",
+        },
+      },
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "sensitive": false,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read the screenshots and image attachments of a screenshot Jam, as images. Works only for Jams of type screenshot: check the type with getDetails first. Agent steps only; a tool step cannot read images.",
+    "id": "getScreenshots",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "result": "image",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+  {
+    "description": "Read still frames of a video Jam as images, to see what was on screen. Use exactly one mode: \`overview: true\` for one labeled grid of frames spread over the whole video, \`at\` for specific timestamps in milliseconds, or \`fromMs\`, \`toMs\` and \`count\` for evenly spaced frames over a window. At most 30 frames per call. \`size\` is small (360p), medium (720p, the default) or large (1080p); larger frames cost more context. Works only for video Jams. Agent steps only; a tool step cannot read images.",
+    "id": "getFrames",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "description": "Explicit list of timestamps in milliseconds to capture. Use exactly one mode: this, a window, or \`overview\`.",
+          "items": {
+            "minimum": 0,
+            "type": "integer",
+          },
+          "minItems": 1,
+          "type": "array",
+        },
+        "count": {
+          "description": "Number of evenly-spaced frames to sample across the window (use with fromMs and toMs)",
+          "minimum": 1,
+          "type": "integer",
+        },
+        "fromMs": {
+          "description": "Window start in milliseconds (use with toMs and count)",
+          "minimum": 0,
+          "type": "integer",
+        },
+        "jamId": {
+          "description": "Jam identifier: a UUID or a jam.dev URL",
+          "type": "string",
+        },
+        "overview": {
+          "description": "Set to true to get one labeled grid of frames evenly spaced across the whole video, for orienting on a visual Jam before requesting specific times. Use instead of \`at\` or a window, not alongside them.",
+          "type": "boolean",
+        },
+        "size": {
+          "default": "medium",
+          "description": "Frame height: small=360p, medium=720p (default), large=1080p",
+          "enum": [
+            "small",
+            "medium",
+            "large",
+          ],
+          "type": "string",
+        },
+        "toMs": {
+          "description": "Window end in milliseconds (use with fromMs and count)",
+          "minimum": 0,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "jamId",
+      ],
+      "type": "object",
+    },
+    "requiredScope": "read",
+    "result": "image",
+    "sensitive": true,
+    "sensitivity": "read",
+  },
+]
+`;
+
+exports[`Jam agent tool catalog > keeps the allow-list and selection catalog deliberate 2`] = `
+{
+  "selectors": [
+    {
+      "kind": "standalone",
+      "sensitive": false,
+      "sensitivity": "read",
+      "token": "getDetails",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "getConsoleLogs",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "getNetworkRequests",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "getUserEvents",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "getMetadata",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "getVideoTranscript",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": false,
+      "sensitivity": "read",
+      "token": "getVideoChapters",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": false,
+      "sensitivity": "read",
+      "token": "searchJams",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "getScreenshots",
+    },
+    {
+      "kind": "standalone",
+      "sensitive": true,
+      "sensitivity": "read",
+      "token": "getFrames",
+    },
+  ],
+}
+`;

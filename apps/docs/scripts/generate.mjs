@@ -66,6 +66,10 @@ import {
 } from '@shipfox/api-integration-github/agent-tools';
 import {githubEventCatalog} from '@shipfox/api-integration-github-dto';
 import {
+  jamAgentToolCatalog,
+  jamAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-jam/agent-tools';
+import {
   jiraAgentToolCatalog,
   jiraAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-jira/agent-tools';
@@ -144,6 +148,10 @@ const dtoCatalogBySlug = {
     eventCatalog: githubEventCatalog,
     toolCatalog: githubAgentToolCatalog,
     toolSelectionCatalog: githubAgentToolSelectionCatalog,
+  },
+  jam: {
+    toolCatalog: jamAgentToolCatalog,
+    toolSelectionCatalog: jamAgentToolSelectionCatalog,
   },
   jira: {
     eventCatalog: jiraEventCatalog,

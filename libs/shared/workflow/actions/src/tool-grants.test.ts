@@ -10,4 +10,10 @@ describe('tool grants', () => {
     expect(toolGrants.github?.issue_read?.methods?.get).toBe('read');
     expect(toolGrants.github?.actions_run_trigger?.methods?.run_workflow).toBe('write');
   });
+
+  it('lists a tool that returns images as image, so an action cannot call it', () => {
+    expect(toolGrants.jam?.getFrames?.result).toBe('image');
+    expect(toolGrants.jam?.getScreenshots?.result).toBe('image');
+    expect(toolGrants.jam?.getDetails?.result).toBe('json');
+  });
 });

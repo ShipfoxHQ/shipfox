@@ -2,6 +2,7 @@ import type {ToolResult} from '#tool-result.js';
 import type {
   AliasTools,
   ProviderToolArguments,
+  ProviderToolName,
   ProviderToolResult,
   Tools,
   ToolsFor,
@@ -24,6 +25,12 @@ describe('tool argument types', () => {
       issue_number: number;
       page?: number;
       per_page?: number;
+    }>();
+    expectTypeOf<ProviderToolArguments<'jam', 'getConsoleLogs'>>().toEqualTypeOf<{
+      jamId: string;
+      logLevel?: ('error' | 'warn' | 'info' | 'debug')[];
+      limit?: number;
+      after?: number;
     }>();
     expectTypeOf<ProviderToolArguments<'jira', 'get_user'>>().toEqualTypeOf<{
       accountId: string;
@@ -50,6 +57,12 @@ describe('tool argument types', () => {
       user_id: string;
       include_locale?: boolean;
     }>();
+  });
+
+  it('leaves out a tool that returns images', () => {
+    expectTypeOf<'getDetails'>().toExtend<ProviderToolName<'jam'>>();
+    expectTypeOf<'getFrames'>().not.toExtend<ProviderToolName<'jam'>>();
+    expectTypeOf<'getScreenshots'>().not.toExtend<ProviderToolName<'jam'>>();
   });
 
   it('keeps the method argument on a family tool id', () => {

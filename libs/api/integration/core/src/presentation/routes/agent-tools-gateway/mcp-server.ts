@@ -78,7 +78,7 @@ export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams)
     {name: 'shipfox-integration-tools', version: '0.0.0'},
     {capabilities: {tools: {}}},
   );
-  const agentTools = jsonResultTools(params.authorizedTools);
+  const agentTools = agentReceivableTools(params.authorizedTools);
   server.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [...agentTools.values()].map((authorizedTool) => ({
       name: authorizedTool.mcpName,
@@ -176,13 +176,13 @@ export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams)
   return server;
 }
 
-/** An agent cannot receive a file, so file tools are neither listed nor callable over MCP. */
-function jsonResultTools(
+/** An agent cannot receive a file, so file tools are neither listed nor callable over MCP. Image tools are, since an agent can read images. */
+function agentReceivableTools(
   authorizedTools: AuthorizedIntegrationToolMap,
 ): AuthorizedIntegrationToolMap {
   return new Map(
     [...authorizedTools].filter(
-      ([, authorizedTool]) => authorizedToolResultKind(authorizedTool) === 'json',
+      ([, authorizedTool]) => authorizedToolResultKind(authorizedTool) !== 'file',
     ),
   );
 }

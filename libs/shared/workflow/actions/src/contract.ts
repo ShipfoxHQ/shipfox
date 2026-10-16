@@ -194,7 +194,7 @@ export type ToolDownloadResponseV1 = ToolDownloadSuccessResponseV1 | ToolFailure
 export interface GrantedToolV1 {
   readonly tool: string;
   readonly input_schema: unknown;
-  readonly result: 'json' | 'file';
+  readonly result: 'json' | 'file' | 'image';
 }
 
 export interface ToolListResponseV1 {

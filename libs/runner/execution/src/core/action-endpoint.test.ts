@@ -73,6 +73,13 @@ const INTEGRATIONS: ActionIntegrationGrant[] = [
         result: 'file',
         inputSchema: {type: 'object'},
       },
+      {
+        id: 'get_screenshot',
+        sensitivity: 'read',
+        sensitive: false,
+        result: 'image',
+        inputSchema: {type: 'object'},
+      },
     ],
   },
 ];
@@ -294,6 +301,7 @@ describe('startActionEndpoint', () => {
     expect(body.aliases.linear?.tools.map((tool) => [tool.tool, tool.result])).toEqual([
       ['issues', 'json'],
       ['download_file', 'file'],
+      ['get_screenshot', 'image'],
     ]);
   });
 
@@ -380,6 +388,7 @@ describe('startActionEndpoint', () => {
       ['an ungranted tool', {alias: 'slack', tool: 'delete_channel'}, 'tool-not-granted'],
       ['an ungranted method', {alias: 'linear', tool: 'issues.delete'}, 'tool-not-granted'],
       ['a file tool', {alias: 'linear', tool: 'download_file'}, 'tool-result-kind-mismatch'],
+      ['an image tool', {alias: 'linear', tool: 'get_screenshot'}, 'tool-result-kind-mismatch'],
     ])('refuses %s before reaching the gateway', async (_label, body, code) => {
       const {upstream, calls} = fakeUpstream();
       const target = await start({upstream});

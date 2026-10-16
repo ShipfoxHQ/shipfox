@@ -47,7 +47,7 @@ const actionIntegrationsSchema = z
           sensitivity: sensitivitySchema,
           // A config written before `sensitive` existed redacts rather than leaks.
           sensitive: z.boolean().default(true),
-          result: z.enum(['json', 'file']).default('json'),
+          result: z.enum(['json', 'file', 'image']).default('json'),
           input_schema: z.unknown(),
           methods: z
             .array(

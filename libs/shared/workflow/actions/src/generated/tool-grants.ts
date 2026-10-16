@@ -3,7 +3,7 @@
 
 export interface ToolGrant {
   readonly sensitivity: 'read' | 'write';
-  readonly result: 'json' | 'file';
+  readonly result: 'json' | 'file' | 'image';
   /** Method sensitivities of a family tool, by method id. */
   readonly methods?: Readonly<Record<string, 'read' | 'write'>>;
 }
@@ -149,6 +149,18 @@ export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGra
     update_issue_comment: {sensitivity: 'write', result: 'json'},
     update_pull_request: {sensitivity: 'write', result: 'json'},
     update_pull_request_branch: {sensitivity: 'write', result: 'json'},
+  },
+  jam: {
+    getConsoleLogs: {sensitivity: 'read', result: 'json'},
+    getDetails: {sensitivity: 'read', result: 'json'},
+    getFrames: {sensitivity: 'read', result: 'image'},
+    getMetadata: {sensitivity: 'read', result: 'json'},
+    getNetworkRequests: {sensitivity: 'read', result: 'json'},
+    getScreenshots: {sensitivity: 'read', result: 'image'},
+    getUserEvents: {sensitivity: 'read', result: 'json'},
+    getVideoChapters: {sensitivity: 'read', result: 'json'},
+    getVideoTranscript: {sensitivity: 'read', result: 'json'},
+    searchJams: {sensitivity: 'read', result: 'json'},
   },
   jira: {
     add_comment: {sensitivity: 'write', result: 'json'},
