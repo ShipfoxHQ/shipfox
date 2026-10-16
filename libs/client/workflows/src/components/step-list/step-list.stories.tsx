@@ -23,6 +23,7 @@ import {AgentConfigFailureCallout as AgentConfigFailureCalloutView} from '../job
 import {StepList} from './step-list.js';
 
 const AGENTS_LINK_NAME = 'Configure Agents';
+const STORY_START = '2026-06-21T12:00:00.000Z';
 
 const meta = {
   title: 'Workflows/StepList',
@@ -314,6 +315,129 @@ export const ActionPosts: Story = {
   },
 };
 
+export const RunningParallelGroup: Story = {
+  render: renderRunningParallelGroup,
+};
+
+export const FailedParallelJoin: Story = {
+  args: {
+    job: makeJob({
+      name: 'review',
+      status: 'failed',
+      steps: [
+        makeStep({
+          key: 'install',
+          name: 'npm ci',
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 1, ...timed(0, 41)})],
+        }),
+        makeStep({
+          key: 'security',
+          name: 'security',
+          type: 'agent',
+          position: 1,
+          background: true,
+          parallel_group: 'review',
+          status: 'failed',
+          error: {message: 'Agent invocation failed', category: 'user'},
+          attempts: [
+            makeAttempt({status: 'failed', exit_code: 1, execution_order: 2, ...timed(41, 98)}),
+          ],
+        }),
+        makeStep({
+          key: 'perf',
+          name: 'perf',
+          type: 'agent',
+          position: 2,
+          background: true,
+          parallel_group: 'review',
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 3, ...timed(41, 132)})],
+        }),
+        makeStep({
+          name: 'Wait for parallel steps',
+          type: 'wait',
+          position: 3,
+          parallel_group: 'review',
+          status: 'failed',
+          error: {message: 'The background step `security` failed.', source: 'workflows'},
+          attempts: [makeAttempt({status: 'failed', execution_order: 4, ...timed(41, 132)})],
+        }),
+      ],
+    }),
+  },
+};
+
+export const CancellingBackgroundStep: Story = {
+  args: {
+    job: makeJob({
+      name: 'test',
+      status: 'running',
+      steps: [
+        makeStep({
+          key: 'db',
+          name: 'db',
+          position: 0,
+          background: true,
+          status: 'cancelled',
+          attempts: [makeAttempt({status: 'running', execution_order: 1, ...timed(0)})],
+        }),
+        makeStep({
+          name: 'npm test',
+          position: 1,
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 2, ...timed(1, 88)})],
+        }),
+        makeStep({
+          name: 'Cancel db',
+          type: 'cancel',
+          position: 2,
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 3, ...timed(88, 88)})],
+        }),
+        makeStep({
+          name: 'Upload coverage',
+          position: 3,
+          status: 'running',
+          attempts: [makeAttempt({status: 'running', execution_order: 4, ...timed(88)})],
+        }),
+      ],
+    }),
+  },
+};
+
+export const EndOfJobWait: Story = {
+  args: {
+    job: makeJob({
+      name: 'package',
+      status: 'running',
+      steps: [
+        makeStep({
+          key: 'upload',
+          name: 'Upload telemetry',
+          position: 0,
+          background: true,
+          status: 'running',
+          attempts: [makeAttempt({status: 'running', execution_order: 1, ...timed(0)})],
+        }),
+        makeStep({
+          name: 'npm run package',
+          position: 1,
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 2, ...timed(0, 37)})],
+        }),
+        makeStep({
+          name: 'Wait for background steps',
+          type: 'wait',
+          position: 2,
+          status: 'running',
+          attempts: [makeAttempt({status: 'running', execution_order: 3, ...timed(37)})],
+        }),
+      ],
+    }),
+  },
+};
+
 export const CompositeActions: Story = {
   render: renderCompositeActions,
 };
@@ -457,6 +581,59 @@ function renderCompositeActions() {
   );
 }
 
+// Two members stream at once, each in its own log under its own row.
+function renderRunningParallelGroup() {
+  const security = makeAttempt({status: 'running', execution_order: 2, ...timed(41)});
+  const perf = makeAttempt({status: 'running', execution_order: 3, ...timed(41)});
+  const steps = [
+    makeStep({
+      key: 'install',
+      name: 'npm ci',
+      status: 'succeeded',
+      attempts: [makeAttempt({status: 'succeeded', execution_order: 1, ...timed(0, 41)})],
+    }),
+    makeStep({
+      key: 'security',
+      name: 'security',
+      type: 'agent',
+      position: 1,
+      background: true,
+      parallel_group: 'review',
+      status: 'running',
+      attempts: [security],
+    }),
+    makeStep({
+      key: 'perf',
+      name: 'perf',
+      type: 'agent',
+      position: 2,
+      background: true,
+      parallel_group: 'review',
+      status: 'running',
+      attempts: [perf],
+    }),
+    makeStep({
+      name: 'Wait for parallel steps',
+      type: 'wait',
+      position: 3,
+      parallel_group: 'review',
+      status: 'running',
+      attempts: [makeAttempt({status: 'running', execution_order: 4, ...timed(41)})],
+    }),
+    makeStep({key: 'comment', name: 'comment', type: 'agent', position: 4}),
+  ];
+
+  return (
+    <StepList
+      job={makeJob({name: 'review', status: 'running', steps})}
+      autoSelectActiveAttempt
+      renderExpandedStep={() => (
+        <LogView records={activeLogRecords} className="max-h-[160px] rounded-8" />
+      )}
+    />
+  );
+}
+
 function renderActiveExpandedLogs() {
   const attempt = makeAttempt({status: 'running'});
   const step = makeStep({
@@ -535,6 +712,14 @@ function renderAgentConfigFailureCallout() {
       )}
     />
   );
+}
+
+function timed(startSeconds: number, endSeconds?: number) {
+  const at = (seconds: number) => new Date(Date.parse(STORY_START) + seconds * 1000).toISOString();
+  return {
+    started_at: at(startSeconds),
+    finished_at: endSeconds === undefined ? null : at(endSeconds),
+  };
 }
 
 function makeJob(overrides: JobDtoOverrides = {}): Job {

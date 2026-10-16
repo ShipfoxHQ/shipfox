@@ -1,5 +1,5 @@
+import type {StepListModel} from '#components/step-list/step-list-model.js';
 import {
-  compareStepAttempts,
   type Job,
   type JobExecution,
   resolveJobExecution,
@@ -58,16 +58,22 @@ export function resolveWorkflowJobSelection({
 }
 
 /**
- * Picks the running step, then the first failed step that counts for the job result, for the
- * first useful page state.
+ * Picks the running step the page follows, then the first failed step that counts for the job
+ * result, for the first useful page state.
  */
-export function workflowJobLandingSelection(
-  jobExecution: JobExecution | undefined,
-): WorkflowJobLandingSelection | undefined {
+export function workflowJobLandingSelection({
+  jobExecution,
+  stepListModel,
+}: {
+  jobExecution: JobExecution | undefined;
+  stepListModel: StepListModel;
+}): WorkflowJobLandingSelection | undefined {
   if (!jobExecution) return undefined;
 
-  const entries = orderedStepAttempts(jobExecution);
-  const running = [...entries].reverse().find((entry) => entry.attempt.status === 'running');
+  const runningEntry = stepListModel.entries.find(
+    (entry) => entry.id === stepListModel.activeEntryId,
+  );
+  const running = runningEntry ? {step: runningEntry.step, attempt: runningEntry} : undefined;
   const failedStep = innermostFailedStep([...jobExecution.steps].sort(compareSteps));
   const failedAttempt = failedStep ? resolveStepAttempt(failedStep, undefined) : undefined;
   const failed =
@@ -101,14 +107,6 @@ function findStep(job: Job, stepId: string): Step | undefined {
     if (step) return step;
   }
   return undefined;
-}
-
-function orderedStepAttempts(jobExecution: JobExecution) {
-  return [...jobExecution.steps]
-    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
-    .flatMap((step) =>
-      [...step.attempts].sort(compareStepAttempts).map((attempt) => ({step, attempt})),
-    );
 }
 
 function compareSteps(left: Step, right: Step): number {

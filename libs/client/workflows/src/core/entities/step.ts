@@ -156,6 +156,10 @@ export interface Step {
   mainStepId?: string | undefined;
   /** False when a failure of this step leaves the job result unchanged. */
   affectsJob?: boolean | undefined;
+  /** True when the job moves on without waiting for this step. */
+  background?: boolean | undefined;
+  /** Shared by the members of a `parallel` block and the wait that joins them. */
+  parallelGroup?: string | undefined;
   attemptTotal?: number | undefined;
   createdAt: string;
   updatedAt: string;

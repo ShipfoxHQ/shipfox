@@ -13,6 +13,7 @@ import {
   buildStepListModel,
   getStepStatusVisual,
   humanizeStatus,
+  isFollowableRunningEntry,
   openStepListEntryIds,
   selectionAfterOpenChange,
 } from './step-list-model.js';
@@ -725,6 +726,119 @@ describe('composite steps', () => {
     });
 
     expect(selected).toEqual(['review#1', 'outer#1']);
+  });
+});
+
+describe('concurrent steps', () => {
+  test('follows the running step the job waits on over background steps', () => {
+    const db = makeAttempt({status: 'running', execution_order: 1});
+    const test = makeAttempt({status: 'running', execution_order: 2});
+    const upload = makeAttempt({status: 'running', execution_order: 3});
+
+    const result = buildStepListModel({
+      job: makeJob({
+        steps: [
+          makeStep({key: 'db', background: true, status: 'running', attempts: [db]}),
+          makeStep({name: 'npm test', position: 1, status: 'running', attempts: [test]}),
+          makeStep({
+            key: 'upload',
+            position: 2,
+            background: true,
+            status: 'running',
+            attempts: [upload],
+          }),
+        ],
+      }),
+    });
+
+    expect(result.activeEntryId).toBe(test.id);
+  });
+
+  test('follows the earliest background step when only background steps and a wait run', () => {
+    const security = makeAttempt({status: 'running', execution_order: 1});
+    const perf = makeAttempt({status: 'running', execution_order: 2});
+    const wait = makeAttempt({status: 'running', execution_order: 3});
+
+    const result = buildStepListModel({
+      job: makeJob({
+        steps: [
+          makeStep({
+            key: 'security',
+            background: true,
+            parallel_group: 'group-1',
+            status: 'running',
+            attempts: [security],
+          }),
+          makeStep({
+            key: 'perf',
+            position: 1,
+            background: true,
+            parallel_group: 'group-1',
+            status: 'running',
+            attempts: [perf],
+          }),
+          makeStep({
+            name: 'Wait for parallel steps',
+            type: 'wait',
+            position: 2,
+            parallel_group: 'group-1',
+            status: 'running',
+            attempts: [wait],
+          }),
+        ],
+      }),
+    });
+
+    expect(result.activeEntryId).toBe(security.id);
+  });
+
+  test('shows a cancelled step whose attempt still runs as cancelling', () => {
+    const db = makeAttempt({status: 'running', execution_order: 1});
+
+    const result = buildStepListModel({
+      job: makeJob({
+        steps: [makeStep({key: 'db', background: true, status: 'cancelled', attempts: [db]})],
+      }),
+    });
+
+    const [entry] = result.entries;
+    expect(entry?.stopping).toBe(true);
+    expect(entry?.statusVisual).toMatchObject({kind: 'running', label: 'Cancelling'});
+    expect(result.activeEntryId).toBeUndefined();
+  });
+
+  test('does not follow a running wait row or a stopping step', () => {
+    const result = buildStepListModel({
+      job: makeJob({
+        steps: [
+          makeStep({
+            key: 'db',
+            background: true,
+            status: 'cancelled',
+            attempts: [makeAttempt({id: 'db#1', status: 'running', execution_order: 1})],
+          }),
+          makeStep({
+            key: 'worker',
+            position: 1,
+            background: true,
+            status: 'running',
+            attempts: [makeAttempt({id: 'worker#1', status: 'running', execution_order: 2})],
+          }),
+          makeStep({
+            name: 'Wait for worker',
+            type: 'wait',
+            position: 2,
+            status: 'running',
+            attempts: [makeAttempt({id: 'wait#1', status: 'running', execution_order: 3})],
+          }),
+        ],
+      }),
+    });
+
+    expect(result.entries.filter(isFollowableRunningEntry).map((entry) => entry.id)).toEqual([
+      'worker#1',
+    ]);
+    expect(result.activeEntryId).toBe('worker#1');
   });
 });
 

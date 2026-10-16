@@ -551,6 +551,8 @@ function compactJobExecutionDto(
           : {gate_max_attempts: step.gate_max_attempts}),
         ...(step.main_step_id === undefined ? {} : {main_step_id: step.main_step_id}),
         ...(step.affects_job === undefined ? {} : {affects_job: step.affects_job}),
+        ...(step.background ? {background: true} : {}),
+        ...(step.parallel_group ? {parallel_group: step.parallel_group} : {}),
         error: step.error,
         attempts: {
           items: step.attempts.map((attempt) => ({
@@ -595,7 +597,17 @@ function compactStepStatus(
 
 function compactStepType(
   status: string,
-): 'setup' | 'run' | 'agent' | 'checkout' | 'tool' | 'action' | 'composite' | 'post' {
+):
+  | 'setup'
+  | 'run'
+  | 'agent'
+  | 'checkout'
+  | 'tool'
+  | 'action'
+  | 'composite'
+  | 'wait'
+  | 'cancel'
+  | 'post' {
   if (
     status === 'setup' ||
     status === 'run' ||
@@ -604,6 +616,8 @@ function compactStepType(
     status === 'tool' ||
     status === 'action' ||
     status === 'composite' ||
+    status === 'wait' ||
+    status === 'cancel' ||
     status === 'post'
   ) {
     return status;

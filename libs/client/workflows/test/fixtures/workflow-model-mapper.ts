@@ -148,6 +148,8 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
     ...(dto.parent_step_id ? {parentStepId: dto.parent_step_id} : {}),
     ...(dto.main_step_id === undefined ? {} : {mainStepId: dto.main_step_id}),
     ...(dto.affects_job === undefined ? {} : {affectsJob: dto.affects_job}),
+    ...(dto.background ? {background: true} : {}),
+    ...(dto.parallel_group ? {parallelGroup: dto.parallel_group} : {}),
     attemptTotal: dto.attempts.length,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,

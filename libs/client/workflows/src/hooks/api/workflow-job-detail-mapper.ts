@@ -132,6 +132,8 @@ export function toWorkflowJobStepSummary(
     ...(dto.parent_step_id ? {parentStepId: dto.parent_step_id} : {}),
     ...(dto.main_step_id === undefined ? {} : {mainStepId: dto.main_step_id}),
     ...(dto.affects_job === undefined ? {} : {affectsJob: dto.affects_job}),
+    ...(dto.background ? {background: true} : {}),
+    ...(dto.parallel_group ? {parallelGroup: dto.parallel_group} : {}),
     error: toWorkflowJobStepError(dto.error),
     attempts: {
       items: dto.attempts.items.map((attempt) =>
@@ -294,6 +296,8 @@ function toStepForJobDetail(
     ...(step.parentStepId === undefined ? {} : {parentStepId: step.parentStepId}),
     ...(step.mainStepId === undefined ? {} : {mainStepId: step.mainStepId}),
     ...(step.affectsJob === undefined ? {} : {affectsJob: step.affectsJob}),
+    ...(step.background ? {background: true} : {}),
+    ...(step.parallelGroup === undefined ? {} : {parallelGroup: step.parallelGroup}),
     ...(attemptTotal === undefined ? {} : {attemptTotal}),
     createdAt: firstAttempt?.startedAt ?? fallbackUpdatedAt,
     updatedAt,

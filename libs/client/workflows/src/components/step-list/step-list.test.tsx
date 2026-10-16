@@ -856,6 +856,76 @@ describe('StepList', () => {
       screen.queryByText('This step failed. The job result is unchanged.'),
     ).not.toBeInTheDocument();
   });
+  test('marks a background step and names a cancelled step that is still stopping', () => {
+    render(
+      <StepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              key: 'db',
+              name: 'db',
+              background: true,
+              status: 'cancelled',
+              attempts: [makeAttempt({status: 'running', execution_order: 1})],
+            }),
+            makeStep({
+              key: 'upload',
+              name: 'upload',
+              position: 1,
+              background: true,
+              status: 'running',
+              attempts: [makeAttempt({status: 'running', execution_order: 2})],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {name: 'db, Cancelling, attempt 1, background step'}),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Cancelling. Waiting for the process to stop.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'upload, Running, attempt 1, background step'}),
+    ).toBeInTheDocument();
+  });
+
+  test('marks parallel members but not the wait that joins them', () => {
+    render(
+      <StepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              key: 'security',
+              name: 'security',
+              background: true,
+              parallel_group: 'review',
+              status: 'succeeded',
+              attempts: [makeAttempt({status: 'succeeded', execution_order: 1})],
+            }),
+            makeStep({
+              name: 'Wait for parallel steps',
+              type: 'wait',
+              position: 1,
+              parallel_group: 'review',
+              status: 'succeeded',
+              attempts: [makeAttempt({status: 'succeeded', execution_order: 2})],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {name: 'security, Succeeded, attempt 1, parallel step'}),
+    ).toHaveTextContent('parallel');
+    expect(
+      screen.getByRole('button', {
+        name: 'Wait for parallel steps, Succeeded, attempt 1, wait step',
+      }),
+    ).toBeInTheDocument();
+  });
+
   test('groups inner steps under their composite row', async () => {
     const user = userEvent.setup();
     const onExpandedAttemptIdsChange = vi.fn();

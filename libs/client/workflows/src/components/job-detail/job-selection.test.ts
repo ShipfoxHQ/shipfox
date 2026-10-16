@@ -1,3 +1,5 @@
+import {buildStepListModel} from '#components/step-list/step-list-model.js';
+import type {Job} from '#core/workflow-run.js';
 import {
   workflowJob,
   workflowJobExecutionDto,
@@ -89,11 +91,64 @@ describe('workflowJobLandingSelection', () => {
           attempts: [workflowStepAttemptDto({id: 'attempt-running', status: 'running'})],
         }),
       ],
-    }).jobExecutions[0];
+    });
 
-    expect(workflowJobLandingSelection(job)).toEqual({
+    expect(landingSelection(job)).toEqual({
       stepId: 'step-running',
       attemptId: 'attempt-running',
+    });
+  });
+
+  test('selects the running step the job waits on, not a background step started after it', () => {
+    const job = workflowJob({
+      steps: [
+        workflowStepDto({
+          id: 'step-test',
+          status: 'running',
+          attempts: [
+            workflowStepAttemptDto({id: 'attempt-test', status: 'running', execution_order: 1}),
+          ],
+        }),
+        workflowStepDto({
+          id: 'step-upload',
+          position: 1,
+          background: true,
+          status: 'running',
+          attempts: [
+            workflowStepAttemptDto({id: 'attempt-upload', status: 'running', execution_order: 2}),
+          ],
+        }),
+      ],
+    });
+
+    expect(landingSelection(job)).toEqual({
+      stepId: 'step-test',
+      attemptId: 'attempt-test',
+    });
+  });
+
+  test('selects the earliest running step when only background steps run', () => {
+    const job = workflowJob({
+      steps: ['security', 'perf'].map((key, index) =>
+        workflowStepDto({
+          id: `step-${key}`,
+          position: index,
+          background: true,
+          status: 'running',
+          attempts: [
+            workflowStepAttemptDto({
+              id: `attempt-${key}`,
+              status: 'running',
+              execution_order: index + 1,
+            }),
+          ],
+        }),
+      ),
+    });
+
+    expect(landingSelection(job)).toEqual({
+      stepId: 'step-security',
+      attemptId: 'attempt-security',
     });
   });
 
@@ -112,9 +167,9 @@ describe('workflowJobLandingSelection', () => {
           attempts: [workflowStepAttemptDto({status: 'failed'})],
         }),
       ],
-    }).jobExecutions[0];
+    });
 
-    expect(workflowJobLandingSelection(job)).toEqual({
+    expect(landingSelection(job)).toEqual({
       stepId: 'step-failed-first',
       attemptId: 'attempt-failed-first',
     });
@@ -137,9 +192,9 @@ describe('workflowJobLandingSelection', () => {
           attempts: [workflowStepAttemptDto({id: 'attempt-failed', status: 'failed'})],
         }),
       ],
-    }).jobExecutions[0];
+    });
 
-    expect(workflowJobLandingSelection(job)).toEqual({
+    expect(landingSelection(job)).toEqual({
       stepId: 'step-failed',
       attemptId: 'attempt-failed',
     });
@@ -158,9 +213,9 @@ describe('workflowJobLandingSelection', () => {
           ],
         }),
       ],
-    }).jobExecutions[0];
+    });
 
-    expect(workflowJobLandingSelection(job)).toEqual({
+    expect(landingSelection(job)).toEqual({
       stepId: 'step-failed',
       attemptId: 'attempt-current',
     });
@@ -184,9 +239,9 @@ describe('workflowJobLandingSelection', () => {
           attempts: [workflowStepAttemptDto({id: 'attempt-install', status: 'failed'})],
         }),
       ],
-    }).jobExecutions[0];
+    });
 
-    expect(workflowJobLandingSelection(job)).toEqual({
+    expect(landingSelection(job)).toEqual({
       stepId: 'step-install',
       attemptId: 'attempt-install',
     });
@@ -200,8 +255,16 @@ describe('workflowJobLandingSelection', () => {
           attempts: [workflowStepAttemptDto({status: 'succeeded'})],
         }),
       ],
-    }).jobExecutions[0];
+    });
 
-    expect(workflowJobLandingSelection(job)).toBeUndefined();
+    expect(landingSelection(job)).toBeUndefined();
   });
 });
+
+function landingSelection(job: Job) {
+  const jobExecution = job.jobExecutions[0];
+  return workflowJobLandingSelection({
+    jobExecution,
+    stepListModel: buildStepListModel({job, jobExecution}),
+  });
+}

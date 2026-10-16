@@ -30,6 +30,7 @@ import {
 import {formatJobExecutionTimeLabel} from '../job-graph/job-duration-format.js';
 import {
   buildStepListModel,
+  CANCELLING_TEXT,
   defaultStepListJobExecution,
   entriesByParentEntryId,
   humanizeStatus,
@@ -283,41 +284,43 @@ function StepListContent({
   }
 
   function renderEntries(entries: readonly StepListEntryModel[]): ReactNode {
-    return entries.map((entry) => {
-      const open = openAttemptIdSet.has(entry.id);
-      const group = tree.compositeEntryIds.has(entry.id);
-      return (
-        <StepRow
-          key={entry.id}
-          entry={entry}
-          open={open}
-          selected={selectedAttemptIds.includes(entry.id)}
-          group={group}
-          hasExpandedContent={hasExpandedContent}
-          isLast={entry.id === tree.lastEntryId}
-          onSelect={() =>
-            open
-              ? changeOpenAttempts(openAttemptIds.filter((attemptId) => attemptId !== entry.id))
-              : selectAttempt([entry.id])
-          }
-          onInspect={inspectHandler(entry)}
-          inspecting={inspectorOpenAttemptId === entry.id}
-          expandedContent={open && !group ? renderExpandedStep?.(expandedContext(entry)) : null}
-          nestedEntries={
-            open && group ? (
-              <StepGroupEntries depth={entry.depth + 1}>
-                {renderEntries(tree.childrenByParentEntryId.get(entry.id) ?? [])}
-              </StepGroupEntries>
-            ) : null
-          }
-          stepFooter={
-            tree.lastEntryIdByStepId.get(entry.step.id) === entry.id
-              ? renderStepFooter?.(entry.step)
-              : null
-          }
-        />
-      );
-    });
+    return entries.map(renderEntry);
+  }
+
+  function renderEntry(entry: StepListEntryModel): ReactNode {
+    const open = openAttemptIdSet.has(entry.id);
+    const group = tree.compositeEntryIds.has(entry.id);
+    return (
+      <StepRow
+        key={entry.id}
+        entry={entry}
+        open={open}
+        selected={selectedAttemptIds.includes(entry.id)}
+        group={group}
+        hasExpandedContent={hasExpandedContent}
+        isLast={entry.id === tree.lastEntryId}
+        onSelect={() =>
+          open
+            ? changeOpenAttempts(openAttemptIds.filter((attemptId) => attemptId !== entry.id))
+            : selectAttempt([entry.id])
+        }
+        onInspect={inspectHandler(entry)}
+        inspecting={inspectorOpenAttemptId === entry.id}
+        expandedContent={open && !group ? renderExpandedStep?.(expandedContext(entry)) : null}
+        nestedEntries={
+          open && group ? (
+            <StepGroupEntries depth={entry.depth + 1}>
+              {renderEntries(tree.childrenByParentEntryId.get(entry.id) ?? [])}
+            </StepGroupEntries>
+          ) : null
+        }
+        stepFooter={
+          tree.lastEntryIdByStepId.get(entry.step.id) === entry.id
+            ? renderStepFooter?.(entry.step)
+            : null
+        }
+      />
+    );
   }
 
   return (
@@ -580,11 +583,17 @@ function StepRowSummary({entry, open}: {entry: StepListEntryModel; open: boolean
             {entry.step.label}
           </Text>
           {entry.step.attempts.length > 1 ? <StepAttemptChip attempt={entry} /> : null}
+          <ConcurrencyMarker entry={entry} />
           {entry.carriedOver ? <CarriedOverBadge /> : null}
         </div>
         {entry.failureIgnored ? (
           <Text as="span" size="xs" className="block truncate text-foreground-neutral-muted">
             {IGNORED_FAILURE_TEXT}
+          </Text>
+        ) : null}
+        {entry.stopping ? (
+          <Text as="span" size="xs" className="block truncate text-foreground-neutral-muted">
+            {CANCELLING_TEXT}
           </Text>
         ) : null}
       </div>
@@ -609,6 +618,39 @@ function StepRowExpansion({
     <AccordionContent className="border-t border-border-neutral-base bg-transparent px-0 py-0">
       <div className="min-w-0">{content}</div>
     </AccordionContent>
+  );
+}
+
+// How a step runs beside others. Metadata, not state, so it is muted label text, not a pill.
+function concurrencyMarker(entry: StepListEntryModel) {
+  if (entry.step.type === 'wait') return undefined;
+  if (entry.step.parallelGroup !== undefined) {
+    return {
+      label: 'parallel',
+      description: 'Runs at the same time as the other steps in its block.',
+    };
+  }
+  if (entry.step.background) {
+    return {
+      label: 'background',
+      description: 'Runs while the job moves on. A later wait joins it.',
+    };
+  }
+  return undefined;
+}
+
+function ConcurrencyMarker({entry}: {entry: StepListEntryModel}) {
+  const marker = concurrencyMarker(entry);
+  if (!marker) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Text as="span" size="xs" className="shrink-0 text-foreground-neutral-muted">
+          {marker.label}
+        </Text>
+      </TooltipTrigger>
+      <TooltipContent>{marker.description}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -642,6 +684,9 @@ function nextSelectedAttemptId(
 }
 
 function StepStatusIcon({entry}: {entry: StepListEntryModel}) {
+  if (entry.stopping) {
+    return <WorkflowStatusIcon status="cancelled" ariaLabel="Cancelling" size={14} />;
+  }
   if (entry.failureIgnored) {
     return (
       <Tooltip>
@@ -700,6 +745,16 @@ function ToolProviderIcon({entry}: {entry: StepListEntryModel}) {
       />
     );
   }
+  if (entry.step.type === 'wait' || entry.step.type === 'cancel') {
+    return (
+      <Icon
+        name={entry.step.type === 'wait' ? 'hourglassLine' : 'stopCircleLine'}
+        size={14}
+        aria-hidden="true"
+        className="shrink-0 text-foreground-neutral-muted"
+      />
+    );
+  }
   if (entry.step.type !== 'tool') return null;
   const provider = entry.step.toolConfig?.provider;
   const catalogEntry = provider ? PROVIDER_CATALOG[provider] : undefined;
@@ -742,6 +797,10 @@ function entryAccessibleLabel(entry: StepListEntryModel): string {
   if (isCompositeEntry(entry)) parts.push('composite action');
   if (entry.step.type === 'action') parts.push('action');
   if (entry.step.type === 'post') parts.push('action post');
+  if (entry.step.type === 'wait') parts.push('wait step');
+  if (entry.step.type === 'cancel') parts.push('cancel step');
+  const marker = concurrencyMarker(entry);
+  if (marker) parts.push(`${marker.label} step`);
   if (entry.failureIgnored) parts.push('job result unchanged');
   if (entry.step.toolConfig?.provider) {
     const provider = entry.step.toolConfig.provider;

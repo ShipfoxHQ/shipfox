@@ -68,6 +68,7 @@ import {type StepExpandedContext, StepList} from '../step-list/index.js';
 import {
   buildStepListModel,
   getStepStatusVisual,
+  isFollowableRunningEntry,
   type StepListModel,
   type StepModel,
 } from '../step-list/step-list-model.js';
@@ -1066,26 +1067,18 @@ function NewerAttemptNotice({
   );
 }
 
-function runningStepSelection(jobExecution: JobExecution | undefined, model: StepListModel) {
-  if (!jobExecution) return undefined;
-  const steps = [...jobExecution.steps].sort(
-    (left, right) => left.position - right.position || left.id.localeCompare(right.id),
-  );
-  for (let stepIndex = steps.length - 1; stepIndex >= 0; stepIndex -= 1) {
-    const step = steps[stepIndex];
-    if (!step) continue;
-    const attempt = [...step.attempts]
-      .sort((left, right) => left.attempt - right.attempt || left.id.localeCompare(right.id))
-      .reverse()
-      .find((candidate) => candidate.status === 'running');
-    if (attempt)
-      return {
-        stepId: step.id,
-        attemptId: attempt.id,
-        stepLabel: model.entries.find((entry) => entry.id === attempt.id)?.step.label ?? 'Step',
-      };
-  }
-  return undefined;
+function runningStepSelection(model: StepListModel) {
+  const entry = model.entries.find((candidate) => candidate.id === model.activeEntryId);
+  if (!entry) return undefined;
+  return {
+    stepId: entry.step.id,
+    attemptId: entry.id,
+    stepLabel: entry.step.label,
+    // Several steps can run at once. Viewing any step the page could follow is following the run.
+    followableAttemptIds: new Set(
+      model.entries.filter(isFollowableRunningEntry).map((candidate) => candidate.id),
+    ),
+  };
 }
 
 function findAttempt(jobExecution: JobExecution, attemptId: string) {
@@ -1152,11 +1145,11 @@ function resolveJobDetailState({
     landingSelectionRef,
     job,
     selectedJobExecution,
-    workflowJobLandingSelection(selectedJobExecution),
+    workflowJobLandingSelection({jobExecution: selectedJobExecution, stepListModel}),
   );
   const landingSelection = landingSelectionRef.current?.selection;
   const selectedAttemptId = hasExplicitStep ? resolvedSelection.selectedAttemptId : undefined;
-  const runningSelection = runningStepSelection(selectedJobExecution, stepListModel);
+  const runningSelection = runningStepSelection(stepListModel);
   const selectedStepId = resolvedSelection.step?.id ?? landingSelection?.stepId;
   const selectedAttemptForNotice = hasExplicitStep
     ? resolvedSelection.selectedAttemptId
@@ -1232,6 +1225,9 @@ function shouldShowRetargetNotice(
   selectedAttemptId: string | null | undefined,
 ): boolean {
   if (!runningSelection) return false;
+  if (selectedAttemptId && runningSelection.followableAttemptIds.has(selectedAttemptId)) {
+    return false;
+  }
   return (
     selectedStepId !== runningSelection.stepId || selectedAttemptId !== runningSelection.attemptId
   );

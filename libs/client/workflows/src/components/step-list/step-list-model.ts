@@ -14,6 +14,7 @@ import {
 } from '#core/workflow-run.js';
 
 export const IGNORED_FAILURE_TEXT = 'This step failed. The job result is unchanged.';
+export const CANCELLING_TEXT = 'Cancelling. Waiting for the process to stop.';
 
 const KEY_PATH_SEPARATOR = ' › ';
 
@@ -29,6 +30,8 @@ export interface StepAttemptModel extends StepAttempt {
   carriedOver: boolean;
   /** A failed attempt that leaves the job result unchanged. */
   failureIgnored: boolean;
+  /** The step is cancelled, but its process has not stopped yet. */
+  stopping: boolean;
 }
 
 export interface StepModel extends Omit<Step, 'attempts'> {
@@ -76,9 +79,34 @@ export function buildStepListModel({
     jobName: job.name ?? job.key,
     jobExecutionId: selectedJobExecution.id,
     stepCount: steps.length,
-    activeEntryId: landingEntryId(entries),
+    activeEntryId: followedRunningEntry(entries)?.id,
     entries,
   };
+}
+
+/**
+ * A running entry the page can follow. A wait row has no output of its own, and a stopping step
+ * is already cancelled, so neither counts.
+ */
+export function isFollowableRunningEntry(entry: StepListEntryModel): boolean {
+  return entry.statusVisual.kind === 'running' && !entry.stopping && entry.step.type !== 'wait';
+}
+
+// The latest followable entry the job waits on, else the earliest background one.
+function followedRunningEntry(
+  entries: readonly StepListEntryModel[],
+): StepListEntryModel | undefined {
+  const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+  const running = entries.filter(isFollowableRunningEntry);
+  const runsInBackground = (entry: StepListEntryModel): boolean => {
+    for (let current: StepListEntryModel | undefined = entry; current; ) {
+      if (current.step.background) return true;
+      current =
+        current.parentEntryId === undefined ? undefined : entryById.get(current.parentEntryId);
+    }
+    return false;
+  };
+  return running.filter((entry) => !runsInBackground(entry)).at(-1) ?? running[0];
 }
 
 export function isCompositeEntry(entry: Pick<StepListEntryModel, 'step'>): boolean {
@@ -219,14 +247,16 @@ function toStepModel(step: Step, index: number): StepModel {
       : Math.max(0, (step.attemptTotal ?? sortedAttempts.length) - sortedAttempts.length);
   const attempts = sortedAttempts.map((attempt, attemptIndex) => {
     const failureIgnored = isIgnoredFailure(step, attempt);
+    const stopping = isStopping(step, attempt);
     return {
       ...attempt,
       attemptOrdinal:
         gateAttemptOffset === undefined ? attempt.attempt : gateAttemptOffset + attemptIndex + 1,
       displayDuration: attempt.displayDuration,
-      statusVisual: entryStatusVisual(attempt.status, failureIgnored),
+      statusVisual: entryStatusVisual(attempt.status, {failureIgnored, stopping}),
       carriedOver: false,
       failureIgnored,
+      stopping,
     };
   });
 
@@ -249,8 +279,26 @@ function isIgnoredFailure(
   return attempt.attempt === step.currentAttempt && step.affectsJob === false;
 }
 
-function entryStatusVisual(status: string, failureIgnored: boolean): StepStatusVisual {
+// A cancel turns the step cancelled at once, and its attempt stays running until the runner
+// confirms the process stopped.
+function isStopping(
+  step: Pick<Step, 'status' | 'currentAttempt'>,
+  attempt: {status: string; attempt: number},
+): boolean {
+  return (
+    normalizeStatus(step.status) === 'cancelled' &&
+    normalizeStatus(attempt.status) === 'running' &&
+    attempt.attempt === step.currentAttempt
+  );
+}
+
+// A stopping attempt keeps its running kind, so its log stays live until the process exits.
+function entryStatusVisual(
+  status: string,
+  {failureIgnored, stopping}: {failureIgnored: boolean; stopping: boolean},
+): StepStatusVisual {
   const visual = getStepStatusVisual(status);
+  if (stopping) return {...visual, label: 'Cancelling', dot: 'neutral', badge: 'neutral'};
   return failureIgnored ? {...visual, dot: 'warning', badge: 'warning'} : visual;
 }
 
@@ -374,9 +422,10 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
       startedAt: step.createdAt,
       finishedAt: null,
       displayDuration: null,
-      statusVisual: entryStatusVisual(step.status, failureIgnored),
+      statusVisual: entryStatusVisual(step.status, {failureIgnored, stopping: false}),
       carriedOver: true,
       failureIgnored,
+      stopping: false,
       step,
       depth: 0,
     },
@@ -402,14 +451,6 @@ function compareEntries(left: StepListEntryModel, right: StepListEntryModel): nu
     left.attempt - right.attempt ||
     left.id.localeCompare(right.id)
   );
-}
-
-function landingEntryId(entries: readonly StepListEntryModel[]): string | undefined {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (entry?.statusVisual.kind === 'running') return entry.id;
-  }
-  return undefined;
 }
 
 function normalizeStatus(status: string): string {
