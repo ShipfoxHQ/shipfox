@@ -1,5 +1,10 @@
-ceiling: 10
+ceiling: 15
 entries:
+  - {tool: claap.get_recording, kind: read, issue: ENG-3098}
+  - {tool: claap.get_recording_transcript, kind: read, issue: ENG-3098}
+  - {tool: claap.get_recordings, kind: read, issue: ENG-3098}
+  - {tool: claap.list_workspaces, kind: read, issue: ENG-3098}
+  - {tool: claap.search_recording_transcripts, kind: read, issue: ENG-3098}
   - {tool: jam.getConsoleLogs, kind: read, issue: ENG-3099}
   - {tool: jam.getDetails, kind: read, issue: ENG-3099}
   - {tool: jam.getFrames, kind: read, issue: ENG-3099}
