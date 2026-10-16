@@ -228,6 +228,41 @@ function withoutSecretInputs(
 }
 
 /** Normalizes the steps of one composite use and assembles the composite step. */
+// The run engine expands a composite into its inner steps, which have no flag of their own.
+function reportUnsupportedCompositeFlags(params: {
+  step: WorkflowDocumentStep;
+  fields: NormalizedCompositeFields;
+  inParallelBlock?: boolean;
+  issues: WorkflowModelValidationIssue[];
+  sourceName: string;
+  stepIndex: number;
+}): void {
+  const details = {uses: params.fields.uses};
+  if (params.step.background === true) {
+    params.issues.push(
+      issue({
+        code: 'composite-background-unsupported',
+        message: params.inParallelBlock
+          ? 'A composite action cannot be a step of a `parallel` block.'
+          : '`background` is not supported on a composite action step. Set it on a step that is not a composite action.',
+        path: params.inParallelBlock ? stepPath(params) : stepPath(params, 'background'),
+        details,
+      }),
+    );
+  }
+  if (params.step.continue_on_error === true) {
+    params.issues.push(
+      issue({
+        code: 'composite-continue-on-error-unsupported',
+        message:
+          '`continue_on_error` is not supported on a composite action step. Set it on the steps inside the action.',
+        path: stepPath(params, 'continue_on_error'),
+        details,
+      }),
+    );
+  }
+}
+
 export function buildCompositeStep(params: {
   fields: NormalizedCompositeFields;
   step: WorkflowDocumentStep;
@@ -242,6 +277,8 @@ export function buildCompositeStep(params: {
   allowedJobReferences: ReadonlySet<string>;
   typeOverlay?: ExpressionTypeEnvironment | undefined;
   scope: StepScope | undefined;
+  /** Whether the step is a member of a `parallel` block, which runs it in the background. */
+  inParallelBlock?: boolean;
   context: NormalizeContext;
   normalizeSteps: (input: {
     steps: readonly WorkflowDocumentStep[];
@@ -253,18 +290,7 @@ export function buildCompositeStep(params: {
 }): WorkflowModelCompositeStep {
   const {fields} = params;
   const {manifest, composite} = fields.resolved;
-  // The run engine expands a composite into its inner steps, which have no flag of their own.
-  if (params.step.continue_on_error === true) {
-    params.issues.push(
-      issue({
-        code: 'composite-continue-on-error-unsupported',
-        message:
-          '`continue_on_error` is not supported on a composite action step. Set it on the steps inside the action.',
-        path: stepPath(params, 'continue_on_error'),
-        details: {uses: fields.uses},
-      }),
-    );
-  }
+  reportUnsupportedCompositeFlags(params);
   const stepEnv = normalizeEnv({
     env: params.step.env,
     path: stepPath(params, 'env'),

@@ -71,4 +71,21 @@ describe('scripted.yaml', () => {
 
     expect(agentStepKeys(yaml)).toEqual(['fix']);
   });
+
+  it('lists the steps in a parallel block that call a model', () => {
+    const yaml = [
+      'jobs:',
+      '  review:',
+      '    steps:',
+      '      - run: npm ci',
+      '      - parallel:',
+      '          - key: security',
+      '            prompt: Review security.',
+      '          - key: perf',
+      '            prompt: Review performance.',
+      '          - run: npm test',
+    ].join('\n');
+
+    expect(agentStepKeys(yaml)).toEqual(['security', 'perf']);
+  });
 });

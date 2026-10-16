@@ -131,6 +131,8 @@ const stepTypeSchema = z.enum([
   'tool',
   'action',
   'composite',
+  'wait',
+  'cancel',
   'post',
 ]);
 const stepStatusReasonSchema = z.enum([

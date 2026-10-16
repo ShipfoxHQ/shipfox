@@ -1,4 +1,5 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
+import {flattenJobSteps} from '@shipfox/api-definitions-dto';
 import {
   type AvailabilitySite,
   buildTypedRootsEnvironment,
@@ -63,6 +64,17 @@ import {
   normalizeCompositeFields,
   WHOLE_INPUT_REFERENCE_PATTERN,
 } from './normalize-composite-step.js';
+import {
+  type ConcurrentStepControl,
+  documentStepNumber,
+  type ExpandedStep,
+  expandJobSteps,
+  explainUnreadableStepReads,
+  type JobConcurrencyPlan,
+  jobStepId,
+  planJobConcurrency,
+  remapExpandedIssuePath,
+} from './normalize-concurrent-steps.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
 import {
@@ -96,6 +108,7 @@ interface NormalizeJobsState {
   modelsBySourceName: Map<string, WorkflowModelJob>;
   jobOutputTypesBySourceName: Map<string, Readonly<Record<string, ExpressionType>>>;
   issuesBySourceName: Map<string, WorkflowModelValidationIssue[]>;
+  plansBySourceName: Map<string, JobConcurrencyPlan>;
 }
 
 interface NormalizeJobsSharedParams {
@@ -117,6 +130,7 @@ function normalizeAndStoreJob(
     job,
     issues: issuesForSourceName(state.issuesBySourceName, sourceName),
     jobOutputTypesBySourceName: state.jobOutputTypesBySourceName,
+    plansBySourceName: state.plansBySourceName,
   });
   if (model !== undefined) state.modelsBySourceName.set(sourceName, model);
 }
@@ -156,6 +170,8 @@ export function normalizeJobs(
   issues: WorkflowModelValidationIssue[],
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
   context: NormalizeContext,
+  /** Receives the concurrency plan of each job, by source name. */
+  plansBySourceName: Map<string, JobConcurrencyPlan> = new Map(),
 ): readonly WorkflowModelJob[] {
   const entries = Object.entries(document.jobs);
   const state: NormalizeJobsState = {
@@ -163,6 +179,7 @@ export function normalizeJobs(
     modelsBySourceName: new Map(),
     jobOutputTypesBySourceName: new Map(),
     issuesBySourceName: new Map(),
+    plansBySourceName,
   };
   const shared = {document, jobIdBySourceName, stepSourceLocations, context};
 
@@ -182,16 +199,30 @@ export function normalizeJobs(
         if (seenCompositeIssues.has(key)) continue;
         seenCompositeIssues.add(key);
       }
-      issues.push(jobIssue);
+      issues.push(documentIssue(jobIssue, sourceName, state.plansBySourceName.get(sourceName)));
     }
   }
 
-  validateAgentSessionSharing(document, issues, context.agentValidationCatalog.default_harness_id);
+  validateAgentSessionSharing(
+    document,
+    state.plansBySourceName,
+    issues,
+    context.agentValidationCatalog.default_harness_id,
+  );
 
   return entries.flatMap(([sourceName]) => {
     const model = state.modelsBySourceName.get(sourceName);
     return model === undefined ? [] : [model];
   });
+}
+
+function documentIssue(
+  jobIssue: WorkflowModelValidationIssue,
+  sourceName: string,
+  plan: JobConcurrencyPlan | undefined,
+): WorkflowModelValidationIssue {
+  if (plan === undefined) return jobIssue;
+  return remapExpandedIssuePath({issue: jobIssue, sourceName, entries: plan.entries});
 }
 
 function issuesForSourceName(
@@ -215,10 +246,19 @@ function normalizeJob(params: {
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
   context: NormalizeContext;
   jobOutputTypesBySourceName: Map<string, Readonly<Record<string, ExpressionType>>>;
+  plansBySourceName: Map<string, JobConcurrencyPlan>;
 }): WorkflowModelJob | undefined {
   const id = params.jobIdBySourceName.get(params.sourceName);
   if (id === undefined) return undefined;
-  if (!withinExpandedStepLimit(params)) return undefined;
+  const plan = planJobConcurrency({
+    jobId: id,
+    sourceName: params.sourceName,
+    job: params.job,
+    issues: params.issues,
+  });
+  params.plansBySourceName.set(params.sourceName, plan);
+  const documentSteps = plan.entries.map((entry) => entry.step);
+  if (!withinExpandedStepLimit({...params, steps: documentSteps})) return undefined;
 
   const dependencies = normalizeJobDependencies({
     sourceName: params.sourceName,
@@ -246,17 +286,19 @@ function normalizeJob(params: {
   });
   // Step config can reference peer step outputs, which are completed at dispatch.
   const stepFillSite: AvailabilitySite = 'step-dispatch';
-  const stepTypeOverlay = params.job.steps.some((step) => step.outputs !== undefined)
-    ? {}
-    : undefined;
+  // A background step is typed out of the context until its join, even when no step declares
+  // outputs, so a read that comes too early fails here and not when the step runs.
+  const stepTypeOverlay =
+    plan.hasBackground || documentSteps.some((step) => step.outputs !== undefined) ? {} : undefined;
   // Tool and action steps record a `steps.<key>` type overlay while they
   // normalize, so later steps and the job outputs see their outputs typed from
   // the catalog output schema or the action manifest.
   const toolOverlayByKey = new Map<string, WorkflowStepTypeOverlay>();
-  const steps = normalizeJobSteps({
+  const normalizedSteps = normalizeJobSteps({
     sourceName: params.sourceName,
     jobId: id,
-    steps: params.job.steps,
+    steps: documentSteps,
+    plan,
     workflowEnvKeys: Object.keys(params.document.env ?? {}),
     jobEnvKeys: Object.keys(params.job.env ?? {}),
     issues: params.issues,
@@ -269,8 +311,10 @@ function normalizeJob(params: {
     toolOverlayByKey,
     context: params.context,
   });
+  const steps = recordJoinedPositions(normalizedSteps, plan);
   validateCheckoutPathsRequired({
     job: params.job,
+    entries: plan.entries,
     sourceName: params.sourceName,
     issues: params.issues,
   });
@@ -318,13 +362,15 @@ function normalizeJob(params: {
     outputs: params.job.outputs,
     issues: params.issues,
     allowedJobReferences,
-    steps: params.job.steps,
+    steps: documentSteps,
+    plan,
     toolOverlayByKey,
     upstreamJobs,
   });
   if (outputs?.types !== undefined) {
     params.jobOutputTypesBySourceName.set(params.sourceName, outputs.types);
   }
+  explainUnreadableStepReads({issues: params.issues, sourceName: params.sourceName, plan});
   const executionTimeoutMs = parseDurationMs({
     source: params.job.execution_timeout,
     path: ['jobs', params.sourceName, 'execution_timeout'],
@@ -367,13 +413,11 @@ function normalizeJob(params: {
 // rejected without being expanded.
 function withinExpandedStepLimit(params: {
   sourceName: string;
-  job: WorkflowDocumentJob;
+  steps: readonly WorkflowDocumentStep[];
   issues: WorkflowModelValidationIssue[];
   context: NormalizeContext;
 }): boolean {
-  if (
-    expandedStepCount(params.job.steps, params.context.actionManifests) <= MAX_EXPANDED_JOB_STEPS
-  ) {
+  if (expandedStepCount(params.steps, params.context.actionManifests) <= MAX_EXPANDED_JOB_STEPS) {
     return true;
   }
   params.issues.push(
@@ -486,13 +530,17 @@ function directNeedSourceNames(params: {
   );
 }
 
+// A background step is readable only after the wait that joins it, so the steps before `index`
+// are filtered by the plan. Without one, which is the case inside a composite action, they all are.
 function previousStepOverlays(
   steps: readonly WorkflowDocumentStep[],
   index: number,
   toolOverlayByKey: ReadonlyMap<string, WorkflowStepTypeOverlay>,
+  plan?: JobConcurrencyPlan | undefined,
 ): readonly WorkflowStepTypeOverlay[] {
-  return steps.slice(0, index).flatMap((step) => {
+  return steps.slice(0, index).flatMap((step, candidate) => {
     if (step.key === undefined) return [];
+    if (plan?.isReadable(candidate, index) === false) return [];
     const toolOverlay = toolOverlayByKey.get(step.key);
     if (toolOverlay !== undefined) return [toolOverlay];
     const outputs = step.tool === undefined ? step.outputs : undefined;
@@ -503,8 +551,9 @@ function previousStepOverlays(
 function allStepOverlays(
   steps: readonly WorkflowDocumentStep[],
   toolOverlayByKey: ReadonlyMap<string, WorkflowStepTypeOverlay>,
+  plan?: JobConcurrencyPlan | undefined,
 ): readonly WorkflowStepTypeOverlay[] {
-  return previousStepOverlays(steps, steps.length, toolOverlayByKey);
+  return previousStepOverlays(steps, steps.length, toolOverlayByKey, plan);
 }
 
 function upstreamJobTypeOverlays(params: {
@@ -534,6 +583,7 @@ function normalizeJobOutputs(params: {
   issues: WorkflowModelValidationIssue[];
   allowedJobReferences: ReadonlySet<string>;
   steps: readonly WorkflowDocumentStep[];
+  plan: JobConcurrencyPlan;
   toolOverlayByKey: ReadonlyMap<string, WorkflowStepTypeOverlay>;
   upstreamJobs: readonly WorkflowJobTypeOverlay[];
 }):
@@ -557,10 +607,13 @@ function normalizeJobOutputs(params: {
   const hasStepOutputDeclarations = params.steps.some((step) => step.outputs !== undefined);
   const hasToolOverlays = params.toolOverlayByKey.size > 0;
   const typeOverlay =
-    hasStepOutputDeclarations || hasToolOverlays || params.upstreamJobs.length > 0
+    hasStepOutputDeclarations ||
+    hasToolOverlays ||
+    params.plan.hasBackground ||
+    params.upstreamJobs.length > 0
       ? buildTypedRootsEnvironment({
-          ...(hasStepOutputDeclarations || hasToolOverlays
-            ? {steps: allStepOverlays(params.steps, params.toolOverlayByKey)}
+          ...(hasStepOutputDeclarations || hasToolOverlays || params.plan.hasBackground
+            ? {steps: allStepOverlays(params.steps, params.toolOverlayByKey, params.plan)}
             : {}),
           ...(params.upstreamJobs.length === 0 ? {} : {jobs: params.upstreamJobs}),
         })
@@ -714,6 +767,8 @@ function normalizeJobSteps(params: {
   sourceName: string;
   jobId: string;
   steps: readonly WorkflowDocumentStep[];
+  /** The concurrency plan of the job, whose entries line up with `steps`. Unset inside composite actions. */
+  plan?: JobConcurrencyPlan | undefined;
   scope?: StepScope | undefined;
   workflowEnvKeys: readonly string[];
   jobEnvKeys: readonly string[];
@@ -736,6 +791,7 @@ function normalizeJobSteps(params: {
       sourceName: params.sourceName,
       jobId: params.jobId,
       scope: params.scope,
+      plan: params.plan,
       allSteps: params.steps,
       workflowEnvKeys: params.workflowEnvKeys,
       jobEnvKeys: params.jobEnvKeys,
@@ -762,10 +818,13 @@ function registerStepId(params: NormalizeStepParams, stepId: string): void {
     params.usedStepIds.set(stepId, params.index);
     return;
   }
+  const entries = params.plan?.entries;
+  const existing = documentStepNumber(entries?.[existingIndex], existingIndex);
+  const current = documentStepNumber(entries?.[params.index], params.index);
   params.issues.push(
     issue({
       code: 'duplicate-step-id',
-      message: `Steps ${existingIndex} and ${params.index} in job "${params.sourceName}" resolve to the same stable id "${stepId}".`,
+      message: `Steps ${existing} and ${current} in job "${params.sourceName}" resolve to the same stable id "${stepId}".`,
       path: ['jobs', params.sourceName, 'steps', params.index],
       details: {id: stepId, indexes: [existingIndex, params.index]},
     }),
@@ -782,7 +841,12 @@ function previousStepTypeContext(params: NormalizeStepParams): {
     params.upstreamJobs.length > 0 ||
     params.toolOverlayByKey.size > 0 ||
     params.scope?.roots !== undefined;
-  const overlays = previousStepOverlays(params.allSteps, params.index, params.toolOverlayByKey);
+  const overlays = previousStepOverlays(
+    params.allSteps,
+    params.index,
+    params.toolOverlayByKey,
+    params.plan,
+  );
   const environment = shouldBuild
     ? {
         ...buildTypedRootsEnvironment({
@@ -891,6 +955,7 @@ function normalizeConcreteStep(params: {
       fields: params.compositeFields,
       jobId: source.jobId,
       scope: source.scope,
+      inParallelBlock: source.plan?.entries[source.index]?.viaParallel === true,
       context: source.context,
       normalizeSteps: (input) => {
         const toolOverlayByKey = new Map<string, WorkflowStepTypeOverlay>();
@@ -1031,6 +1096,7 @@ function normalizeStep(params: {
   sourceName: string;
   jobId: string;
   scope?: StepScope | undefined;
+  plan?: JobConcurrencyPlan | undefined;
   allSteps: readonly WorkflowDocumentStep[];
   workflowEnvKeys: readonly string[];
   jobEnvKeys: readonly string[];
@@ -1045,6 +1111,8 @@ function normalizeStep(params: {
   toolOverlayByKey: Map<string, WorkflowStepTypeOverlay>;
   context: NormalizeContext;
 }): WorkflowModelStep | undefined {
+  const control = params.plan?.controls.get(params.index);
+  if (control !== undefined) return normalizeControlStep(params, control);
   const stepKey = params.step.key;
   const stepId = stepIdFor(params, stepKey);
   registerStepId(params, stepId);
@@ -1058,6 +1126,7 @@ function normalizeStep(params: {
     id: stepId,
     runAfter: params.step.run_after ?? 'success',
     ...(params.step.continue_on_error === true ? {continueOnError: true as const} : {}),
+    ...concurrentStepFields(params.plan?.entries[params.index]),
     ...(stepKey === undefined ? {} : {key: stepKey}),
     ...(params.step.name === undefined ? {} : {name: params.step.name}),
     ...(params.step.working_directory === undefined
@@ -1143,8 +1212,67 @@ function stepIdFor(
   stepKey: string | undefined,
 ): string {
   const parentId = params.scope?.parentId;
+  if (parentId === undefined) {
+    return jobStepId({jobId: params.jobId, index: params.index, key: stepKey});
+  }
   const local = stepKey === undefined ? `step-${params.index + 1}` : stableId(stepKey);
-  return parentId === undefined ? `${params.jobId}-${local}` : `${parentId}.${local}`;
+  return `${parentId}.${local}`;
+}
+
+function concurrentStepFields(entry: ExpandedStep | undefined) {
+  return {
+    ...(entry?.background === true ? {background: true as const} : {}),
+    ...(entry?.parallelGroup === undefined ? {} : {parallelGroup: entry.parallelGroup}),
+  };
+}
+
+// A wait or cancel step runs no work. The plan has already resolved its targets, so it only needs
+// an id, its name, and a place in the source.
+function normalizeControlStep(
+  params: NormalizeStepParams,
+  control: ConcurrentStepControl,
+): WorkflowModelStep {
+  const stepId = stepIdFor(params, undefined);
+  registerStepId(params, stepId);
+  const sourceLocation = params.stepSourceLocations?.get(params.sourceName)?.get(params.index);
+  const name = normalizeStepName({
+    ...params,
+    typeOverlay: previousStepTypeContext(params).environment,
+  });
+  const parallelGroup = params.plan?.entries[params.index]?.parallelGroup;
+  const base = {
+    id: stepId,
+    runAfter: 'always' as const,
+    ...(parallelGroup === undefined ? {} : {parallelGroup}),
+    ...(params.step.name === undefined ? {} : {name: params.step.name}),
+    ...(sourceLocation === undefined ? {} : {sourceLocation}),
+    targets: control.targets,
+    ...(name === undefined ? {} : {templates: {name}}),
+  };
+  return control.kind === 'wait'
+    ? {...base, kind: 'wait', origin: control.origin}
+    : {...base, kind: 'cancel'};
+}
+
+// A background step records the position of the wait that joins it, which is the position of that
+// wait's row once composite steps have expanded. The plan counts steps before the expansion.
+function recordJoinedPositions(
+  steps: readonly WorkflowModelStep[],
+  plan: JobConcurrencyPlan,
+): readonly WorkflowModelStep[] {
+  // A step that failed to normalize leaves a gap, and the job is rejected anyway.
+  if (plan.joinedBy.size === 0 || steps.length !== plan.entries.length) return steps;
+  const positions: number[] = [];
+  let position = 1;
+  for (const step of steps) {
+    positions.push(position);
+    position += flattenJobSteps({steps: [step]}).length;
+  }
+  return steps.map((step, index) => {
+    const joiner = plan.joinedBy.get(index);
+    const joinedAt = joiner === undefined ? undefined : positions[joiner];
+    return joinedAt === undefined ? step : ({...step, joinedAt} as WorkflowModelStep);
+  });
 }
 
 function normalizeStepName(params: {
@@ -1563,9 +1691,16 @@ function normalizeAgentStepSession(params: {
 
 interface SessionSharingStep {
   readonly jobName: string;
+  /** The index in the job's expanded step list. */
   readonly stepIndex: number;
+  /** Where the step sits in the document, such as `steps.2.parallel.1`. */
+  readonly stepPath: readonly (string | number)[];
+  /** The index before which the step can still be running in its job. */
+  readonly windowEnd: number;
   readonly stepKey: string | undefined;
   readonly keySource: string;
+  /** Whether the key resolves the same in every job, so steps of different jobs can share it. */
+  readonly runGlobal: boolean;
   readonly mode: 'resume' | 'fork';
   readonly harness: string | undefined;
 }
@@ -1600,48 +1735,100 @@ const RUN_GLOBAL_SESSION_KEY_CONTEXT_ROOTS = new Set<string>([
   'secrets',
 ]);
 
+// Within one job, the job itself and the jobs it needs are fixed too, so a key built from them
+// resolves the same for every step of the job. It can still differ between jobs.
+const SAME_JOB_SESSION_KEY_CONTEXT_ROOTS = new Set<string>([
+  ...RUN_GLOBAL_SESSION_KEY_CONTEXT_ROOTS,
+  'job',
+  'jobs',
+  'needs',
+]);
+
+interface SessionKeyClassification {
+  /** Resolves the same in every job. */
+  readonly runGlobal: boolean;
+  /** Resolves the same for every step of one job. */
+  readonly sameJob: boolean;
+}
+
 function collectSessionSharingSteps(
   document: WorkflowDocument,
+  plansBySourceName: ReadonlyMap<string, JobConcurrencyPlan>,
   defaultHarnessId: string,
 ): SessionSharingStep[] {
   const steps: SessionSharingStep[] = [];
+  const classificationByKeySource = new Map<string, SessionKeyClassification>();
   for (const [jobName, job] of Object.entries(document.jobs)) {
-    job.steps.forEach((step, stepIndex) => {
-      if (step.session === undefined) return;
-      const mode = typeof step.session === 'string' ? 'resume' : (step.session.mode ?? 'resume');
-      steps.push({
+    const plan = plansBySourceName.get(jobName);
+    const entries = plan?.entries ?? expandJobSteps(job);
+    for (const [stepIndex, entry] of entries.entries()) {
+      const sharing = sessionSharingStepOf({
         jobName,
+        entry,
         stepIndex,
-        stepKey: step.key,
-        keySource: typeof step.session === 'string' ? step.session : step.session.key,
-        mode,
-        // A resume without an authored harness creates the session with the
-        // workspace default. An omitted fork instead inherits an existing
-        // session's pin, so it cannot participate in a static mismatch pair.
-        harness: step.harness ?? (mode === 'resume' ? defaultHarnessId : undefined),
+        windowEnd: plan?.windowEnd(stepIndex) ?? stepIndex,
+        defaultHarnessId,
+        classificationByKeySource,
       });
-    });
+      if (sharing !== undefined) steps.push(sharing);
+    }
   }
   return steps;
+}
+
+function sessionSharingStepOf(params: {
+  jobName: string;
+  entry: ExpandedStep;
+  stepIndex: number;
+  windowEnd: number;
+  defaultHarnessId: string;
+  classificationByKeySource: Map<string, SessionKeyClassification>;
+}): SessionSharingStep | undefined {
+  const {step, path} = params.entry;
+  if (step.session === undefined) return undefined;
+  const keySource = typeof step.session === 'string' ? step.session : step.session.key;
+  const mode = typeof step.session === 'string' ? 'resume' : (step.session.mode ?? 'resume');
+  return {
+    jobName: params.jobName,
+    stepIndex: params.stepIndex,
+    stepPath: path,
+    windowEnd: params.windowEnd,
+    stepKey: step.key,
+    keySource,
+    runGlobal: sessionKeyClassification(keySource, params.classificationByKeySource).runGlobal,
+    mode,
+    // A resume without an authored harness creates the session with the
+    // workspace default. An omitted fork instead inherits an existing
+    // session's pin, so it cannot participate in a static mismatch pair.
+    harness: step.harness ?? (mode === 'resume' ? params.defaultHarnessId : undefined),
+  };
 }
 
 function sessionFieldIssueStepKeys(issues: readonly WorkflowModelValidationIssue[]): Set<string> {
   const keys = new Set<string>();
   for (const entry of issues) {
     const path = entry.path;
-    if (path.length >= 5 && path[0] === 'jobs' && path[2] === 'steps' && path[4] === 'session') {
-      keys.add(`${path[1]}\u0000${path[3]}`);
+    // Start after the job name, which can itself be `session`.
+    const sessionIndex = path.indexOf('session', 4);
+    if (path.length >= 5 && path[0] === 'jobs' && path[2] === 'steps' && sessionIndex >= 4) {
+      keys.add(`${path[1]}\u0000${path.slice(2, sessionIndex).join('.')}`);
     }
   }
   return keys;
 }
 
-function isRunGlobalSessionKey(keySource: string, cache: Map<string, boolean>): boolean {
+function sessionKeyClassification(
+  keySource: string,
+  cache: Map<string, SessionKeyClassification>,
+): SessionKeyClassification {
   const cached = cache.get(keySource);
   if (cached !== undefined) return cached;
-  const runGlobalOnly = referencesRunGlobalOnlySessionKey(keySource);
-  cache.set(keySource, runGlobalOnly);
-  return runGlobalOnly;
+  const classification = {
+    runGlobal: referencesOnlySessionKeyRoots(keySource, RUN_GLOBAL_SESSION_KEY_CONTEXT_ROOTS),
+    sameJob: referencesOnlySessionKeyRoots(keySource, SAME_JOB_SESSION_KEY_CONTEXT_ROOTS),
+  };
+  cache.set(keySource, classification);
+  return classification;
 }
 
 function groupSessionSharingSteps(
@@ -1649,10 +1836,10 @@ function groupSessionSharingSteps(
   invalidSteps: ReadonlySet<string>,
 ): Map<string, SessionSharingStep[]> {
   const groups = new Map<string, SessionSharingStep[]>();
-  const runGlobalOnlyByKeySource = new Map<string, boolean>();
+  const classificationByKeySource = new Map<string, SessionKeyClassification>();
   for (const step of steps) {
     if (invalidSteps.has(sessionStepPathKey(step))) continue;
-    if (!isRunGlobalSessionKey(step.keySource, runGlobalOnlyByKeySource)) continue;
+    if (!sessionKeyClassification(step.keySource, classificationByKeySource).sameJob) continue;
     const group = groups.get(step.keySource) ?? [];
     if (group.length === 0) groups.set(step.keySource, group);
     group.push(step);
@@ -1675,8 +1862,12 @@ function reportParallelResumeConflict(
   issues: WorkflowModelValidationIssue[],
   state: SessionSharingValidationState,
 ): void {
-  if (prior.jobName === later.jobName || prior.mode !== 'resume' || later.mode !== 'resume') return;
   if (state.parallelResumeReportedKeys.has(keySource)) return;
+  if (prior.jobName === later.jobName) {
+    reportSameJobOverlap(keySource, prior, later, issues, state);
+    return;
+  }
+  if (prior.mode !== 'resume' || later.mode !== 'resume') return;
   const priorAncestors = transitiveNeedsAncestors(
     document,
     prior.jobName,
@@ -1693,10 +1884,38 @@ function reportParallelResumeConflict(
     issue({
       code: 'agent-session-parallel-resume',
       message: `Agent steps ${sessionSharingStepLabel(prior)} (job "${prior.jobName}") and ${sessionSharingStepLabel(later)} (job "${later.jobName}") both resume session key "${keySource}", but their jobs have no transitive "needs" ancestry, so they can run in parallel and would conflict on the session. Add a "needs" edge between the jobs, fork the session on one step, or use distinct session keys.`,
-      path: ['jobs', later.jobName, 'steps', later.stepIndex, 'session'],
+      path: ['jobs', later.jobName, ...later.stepPath, 'session'],
       details: {
         key: keySource,
         jobs: [prior.jobName, later.jobName],
+        stepIndexes: [prior.stepIndex, later.stepIndex],
+      },
+    }),
+  );
+}
+
+// Two steps of one job share a session only when one ends before the other starts. A background
+// step runs until the wait that joins it or the cancel that stops it, and every step that starts
+// in that window runs next to it. Two forks of one session are the exception: a fork reads the
+// session and writes a new one, so forks do not conflict with each other.
+function reportSameJobOverlap(
+  keySource: string,
+  prior: SessionSharingStep,
+  later: SessionSharingStep,
+  issues: WorkflowModelValidationIssue[],
+  state: SessionSharingValidationState,
+): void {
+  if (later.stepIndex >= prior.windowEnd) return;
+  if (prior.mode === 'fork' && later.mode === 'fork') return;
+  state.parallelResumeReportedKeys.add(keySource);
+  issues.push(
+    issue({
+      code: 'agent-session-parallel-resume',
+      message: `Agent steps ${sessionSharingStepLabel(prior)} and ${sessionSharingStepLabel(later)} of job "${later.jobName}" both use session key "${keySource}", but they can run at the same time and would conflict on the session. Wait for the first step before the second starts, fork the session on both steps, or use distinct session keys.`,
+      path: ['jobs', later.jobName, ...later.stepPath, 'session'],
+      details: {
+        key: keySource,
+        jobs: [later.jobName],
         stepIndexes: [prior.stepIndex, later.stepIndex],
       },
     }),
@@ -1723,7 +1942,7 @@ function reportHarnessMismatch(
     issue({
       code: 'agent-session-harness-mismatch',
       message: `Agent steps ${sessionSharingStepLabel(prior)} (job "${prior.jobName}") and ${sessionSharingStepLabel(later)} (job "${later.jobName}") share session key "${keySource}" but resolve to different harnesses: "${prior.harness}" and "${later.harness}". A session is pinned to the harness that created it. Ensure every step that shares the session key resolves to the same harness.`,
-      path: ['jobs', later.jobName, 'steps', later.stepIndex, 'session'],
+      path: ['jobs', later.jobName, ...later.stepPath, 'session'],
       details: {
         key: keySource,
         jobs: [prior.jobName, later.jobName],
@@ -1749,6 +1968,8 @@ function evaluatePriorSessionPairs(
     state.evaluatedPairs += 1;
     const prior = group[priorIndex];
     if (prior === undefined) continue;
+    // A key that depends on the job names a different session in each job.
+    if (prior.jobName !== later.jobName && !(prior.runGlobal && later.runGlobal)) continue;
     reportParallelResumeConflict(document, keySource, prior, later, issues, state);
     reportHarnessMismatch(keySource, prior, later, issues, state);
   }
@@ -1801,10 +2022,11 @@ function validateSessionSharingGroups(
 // long serial runs cannot hide sharing conflicts.
 function validateAgentSessionSharing(
   document: WorkflowDocument,
+  plansBySourceName: ReadonlyMap<string, JobConcurrencyPlan>,
   issues: WorkflowModelValidationIssue[],
   defaultHarnessId: string,
 ): void {
-  const steps = collectSessionSharingSteps(document, defaultHarnessId);
+  const steps = collectSessionSharingSteps(document, plansBySourceName, defaultHarnessId);
 
   // Steps whose session field already produced an issue in the per-step pass
   // can never name a session; stacking sharing issues on them would double-
@@ -1827,7 +2049,7 @@ function validateAgentSessionSharing(
 }
 
 function sessionStepPathKey(step: SessionSharingStep): string {
-  return `${step.jobName}\u0000${step.stepIndex}`;
+  return `${step.jobName}\u0000${step.stepPath.join('.')}`;
 }
 
 // Cuts a session-key group to the fixed step window while always retaining
@@ -1877,9 +2099,9 @@ function selectSessionSharingWindow(steps: readonly SessionSharingStep[]): Sessi
   return window;
 }
 
-// Only templates built from run-global context (or pure literals) resolve
-// identically in every job, so only they can be compared by exact text.
-function referencesRunGlobalOnlySessionKey(keySource: string): boolean {
+// Only templates built from the given roots (or pure literals) resolve identically wherever they
+// are compared, so only they can be compared by exact text.
+function referencesOnlySessionKeyRoots(keySource: string, roots: ReadonlySet<string>): boolean {
   if (!keySource.includes('${{')) return true;
 
   let segments: WorkflowTemplateSegment[];
@@ -1892,7 +2114,7 @@ function referencesRunGlobalOnlySessionKey(keySource: string): boolean {
 
   for (const segment of segments) {
     if (segment.kind !== 'expr') continue;
-    if (segment.contextRoots.some((root) => !RUN_GLOBAL_SESSION_KEY_CONTEXT_ROOTS.has(root))) {
+    if (segment.contextRoots.some((root) => !roots.has(root))) {
       return false;
     }
   }
@@ -1900,7 +2122,9 @@ function referencesRunGlobalOnlySessionKey(keySource: string): boolean {
 }
 
 function sessionSharingStepLabel(step: SessionSharingStep): string {
-  return step.stepKey === undefined ? String(step.stepIndex) : `"${step.stepKey}"`;
+  if (step.stepKey !== undefined) return `"${step.stepKey}"`;
+  const [, topIndex, , member] = step.stepPath;
+  return member === undefined ? String(topIndex) : `${topIndex}.${member}`;
 }
 
 function transitiveNeedsAncestors(
@@ -2203,6 +2427,8 @@ export type WorkflowModelStepBaseFields = Pick<
   | 'key'
   | 'runAfter'
   | 'continueOnError'
+  | 'background'
+  | 'parallelGroup'
   | 'name'
   | 'workingDirectory'
   | 'outputs'

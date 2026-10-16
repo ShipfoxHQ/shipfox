@@ -42,6 +42,18 @@ Code that turns a checked workflow document into the model used by definitions.
   inner steps. An issue inside a composite names its manifest file and line,
   points at the calling step, and is reported once per file and line. A job
   runs at most 200 steps once composites are expanded.
+- **Concurrent steps**: `planJobConcurrency` expands each `parallel` block into
+  background steps followed by a `wait` that names exactly those steps, then
+  walks the job once. The walk resolves each `wait`, `wait_all`, and `cancel` to
+  step ids, records on each background step the position of the wait that joins
+  it (`joinedAt`), adds a closing `wait` when background steps are still
+  running, and reports the rules that depend on order: a background step needs a
+  `key` and takes no gate, a `checkout` cannot run next to a background step, a
+  gate cannot restart past a background step that may still run, and two
+  steps that can run at the same time cannot share an agent session. A step
+  reads a background step only after the wait that joins it. Issue paths point
+  at the document, including steps inside a `parallel` block. A model with a
+  concurrent step is stored as snapshot version 8.
 - **Step exports**: Expand each step `export` into a job output
   `steps.<key>.outputs.<name>`, typed through the single-expression path and
   recorded in the job's `exportedOutputs`. An unknown name is an error. A clash

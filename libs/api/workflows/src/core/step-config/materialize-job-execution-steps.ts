@@ -38,6 +38,9 @@ export interface MaterializedWorkflowStep {
   readonly condition?: WorkflowExpression;
   readonly runAfter: StepRunAfter;
   readonly continueOnError: boolean;
+  readonly background: boolean;
+  readonly parallelGroup: string | null;
+  readonly joinedAt: number | null;
   readonly configPlan?: StepConfigDispatchPlan;
   readonly authoredConfig: Readonly<Record<string, unknown>> | null;
   readonly diagnostics?: readonly WorkflowStepTemplateDiagnostic[];
@@ -71,6 +74,9 @@ const SETUP_STEP: Omit<MaterializedWorkflowStep, 'config'> = {
   parentPosition: null,
   runAfter: 'success',
   continueOnError: false,
+  background: false,
+  parallelGroup: null,
+  joinedAt: null,
   authoredConfig: null,
   position: 0,
 };
@@ -89,8 +95,10 @@ export async function materializeJobExecutionSteps(
     agentToolSnapshot,
   } = params;
 
+  const scoped = scopedJobSteps(job);
+  const scopedById = new Map(scoped.map((entry) => [entry.step.id, entry] as const));
   const authored = await Promise.all(
-    scopedJobSteps(job).map(async ({step, position, parentPosition, composites}) => {
+    scoped.map(async ({step, position, parentPosition, composites}) => {
       const stepContext = {
         ...context.values,
         job: {key: job.key, name: job.name ?? job.key},
@@ -133,13 +141,13 @@ export async function materializeJobExecutionSteps(
       });
       return {
         key: step.key ?? null,
-        name: resolved.name ?? stepDisplayName(step, resolved.config),
+        name: resolved.name ?? stepDisplayName(step, resolved.config, scopedById),
         sourceLocation: step.sourceLocation ?? null,
         status: 'pending' as const,
         type: step.kind,
         parentPosition,
         config: scopedStepConfig({
-          config: materializedStepConfig({config: resolved.config, step, position}),
+          config: materializedStepConfig({config: resolved.config, step, position, scopedById}),
           step,
           composites,
         }),
@@ -147,6 +155,9 @@ export async function materializeJobExecutionSteps(
         // Models stored before `run_after` keep their old gate: an `if` replaced it.
         runAfter: step.runAfter ?? (step.if === undefined ? 'success' : 'always'),
         continueOnError: step.continueOnError === true,
+        background: step.background === true,
+        parallelGroup: step.parallelGroup ?? null,
+        joinedAt: step.joinedAt ?? null,
         authoredConfig: resolved.authoredConfig,
         ...materializedConfigPlan(resolved.configPlan, resolved.trace),
         ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
@@ -287,6 +298,9 @@ function postStepForAction(params: {
     },
     runAfter: 'always',
     continueOnError: false,
+    background: false,
+    parallelGroup: null,
+    joinedAt: null,
     authoredConfig: null,
     position,
   };
@@ -347,7 +361,11 @@ function materializedStepConfig(params: {
   readonly config: Readonly<Record<string, unknown>>;
   readonly step: WorkflowModelStep;
   readonly position: number;
+  readonly scopedById: ReadonlyMap<string, ScopedModelStep>;
 }): Readonly<Record<string, unknown>> {
+  if (params.step.kind === 'wait' || params.step.kind === 'cancel') {
+    return controlStepConfig(params.step, params.scopedById);
+  }
   if (
     params.step.kind !== 'checkout' ||
     params.position !== 1 ||
@@ -372,9 +390,36 @@ function materializedConfigPlan(
   return {configPlan: {...(configPlan ?? {}), ...(trace.length === 0 ? {} : {trace})}};
 }
 
+// A wait or cancel row names its targets by row position, because a step without a key has no
+// other name the scheduler could match.
+function controlStepConfig(
+  step: Extract<WorkflowModelStep, {kind: 'wait' | 'cancel'}>,
+  scopedById: ReadonlyMap<string, ScopedModelStep>,
+): Readonly<Record<string, unknown>> {
+  const targets = step.targets.map((id) => {
+    const target = scopedById.get(id);
+    if (target === undefined) throw new Error(`Step "${step.id}" names unknown step "${id}"`);
+    return target.position;
+  });
+  return step.kind === 'wait' ? {targets, origin: step.origin} : {targets};
+}
+
+function targetLabels(
+  step: Extract<WorkflowModelStep, {kind: 'wait' | 'cancel'}>,
+  scopedById: ReadonlyMap<string, ScopedModelStep>,
+): string {
+  return step.targets
+    .map((id) => {
+      const target = scopedById.get(id);
+      return target?.step.key ?? target?.step.id ?? id;
+    })
+    .join(', ');
+}
+
 function stepDisplayName(
   step: WorkflowModelStep,
   config: Readonly<Record<string, unknown>>,
+  scopedById: ReadonlyMap<string, ScopedModelStep>,
 ): string {
   const {kind} = step;
   switch (kind) {
@@ -400,6 +445,14 @@ function stepDisplayName(
       return step.action.name;
     case 'composite':
       return step.composite.name;
+    case 'wait':
+      if (step.origin === 'parallel') return 'Wait for parallel steps';
+      if (step.origin === 'end-of-job' || step.targets.length === 0) {
+        return 'Wait for background steps';
+      }
+      return `Wait for ${targetLabels(step, scopedById)}`;
+    case 'cancel':
+      return `Cancel ${targetLabels(step, scopedById)}`;
     default:
       return assertNever(step);
   }

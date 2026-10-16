@@ -11,6 +11,7 @@ import {
 } from './invalid-workflow-model-error.js';
 import {mapJobIds} from './map-job-ids.js';
 import {normalizeWorkflowConcurrency} from './normalize-concurrency.js';
+import {type JobConcurrencyPlan, remapExpandedIssuePath} from './normalize-concurrent-steps.js';
 import {normalizeDependencies, validateCycles} from './normalize-dependencies.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeJobs} from './normalize-jobs.js';
@@ -52,12 +53,14 @@ export function normalizeWorkflowDocument(
   });
   const jobIdBySourceName = mapJobIds(document, issues);
   const triggers = normalizeTriggers(document, issues, context.integrationValidationContext);
+  const plansBySourceName = new Map<string, JobConcurrencyPlan>();
   const jobs = normalizeJobs(
     document,
     jobIdBySourceName,
     issues,
     options.stepSourceLocations,
     context,
+    plansBySourceName,
   );
   const dependencies = normalizeDependencies(document.jobs, jobIdBySourceName, issues);
   const concurrency = normalizeWorkflowConcurrency({
@@ -92,7 +95,15 @@ export function normalizeWorkflowDocument(
     dependencies,
     ...(outputs === undefined ? {} : {outputs: outputs.templates, outputTypes: outputs.types}),
   };
-  issues.push(...historicalEventPayloadDependencyIssues(model));
+  // The scan reads the model, whose steps are indexed after the `parallel` blocks expand.
+  issues.push(
+    ...historicalEventPayloadDependencyIssues(model).map((historical) => {
+      const sourceName = historical.path[1];
+      const plan = typeof sourceName === 'string' ? plansBySourceName.get(sourceName) : undefined;
+      if (plan === undefined || typeof sourceName !== 'string') return historical;
+      return remapExpandedIssuePath({issue: historical, sourceName, entries: plan.entries});
+    }),
+  );
 
   const diagnostics = issues.filter(
     (issue) => !(issue.severity === 'error' && issue.scope === 'definition'),

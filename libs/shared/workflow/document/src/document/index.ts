@@ -29,6 +29,11 @@ export {
   checkoutTargetValidationIssues,
 } from './checkout-target-validation.js';
 export {
+  jobSteps,
+  type WorkflowDocumentJobStepEntry,
+} from './job-steps.js';
+export {type RawJobStep, rawJobSteps} from './raw-job-steps.js';
+export {
   type AgentThinking,
   type AgentToolSurface,
   agentThinkingByHarness,
@@ -44,7 +49,9 @@ export {
   thinkingLevelsForHarness,
 } from './step-enums.js';
 export {
+  concurrentWorkflowDocumentSchema,
   isValidWorkflowSessionKeyTemplateLiteralParts,
+  isWorkflowDocumentParallelBlock,
   triggerSourceConfigSchemas,
   WORKFLOW_AGENT_MCP_SERVER_NAME_MAX_LENGTH,
   WORKFLOW_AGENT_MCP_SERVER_NAME_PATTERN,
@@ -70,6 +77,8 @@ export {
   type WorkflowDocumentGateFailureRule,
   type WorkflowDocumentJob,
   type WorkflowDocumentJobCheckout,
+  type WorkflowDocumentJobStep,
+  type WorkflowDocumentParallelBlock,
   type WorkflowDocumentRepositoryContext,
   type WorkflowDocumentRunStepGate,
   type WorkflowDocumentStep,
@@ -89,6 +98,7 @@ export {
   workflowDocumentContainerSchema,
   workflowDocumentEnvSchema,
   workflowDocumentJobSchema,
+  workflowDocumentParallelBlockSchema,
   workflowDocumentRepositoryContextSchema,
   workflowDocumentSchema,
   workflowDocumentSessionSchema,

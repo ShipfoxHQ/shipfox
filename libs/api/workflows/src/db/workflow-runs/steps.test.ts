@@ -28,6 +28,7 @@ import {
   getStepAttempts,
   getStepsByJobId,
   insertRunningStepAttempt,
+  listStepEnvSources,
   markStepRunning,
 } from '../workflow-runs.js';
 
@@ -74,6 +75,76 @@ describe('workflow run queries', () => {
       expect(jobSteps[1]?.position).toBe(1);
       expect(jobSteps[2]?.position).toBe(2);
       expect(jobSteps[3]?.position).toBe(3);
+    });
+  });
+
+  describe('listStepEnvSources', () => {
+    async function arrangeBackgroundJob() {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [
+                {key: 'joined', run: 'a', background: true, joinedAt: 3},
+                {key: 'stopped', run: 'b', background: true},
+                {wait: ['build-joined']},
+                {key: 'late', run: 'c', background: true, joinedAt: 6},
+                {run: 'd'},
+                {wait: ['build-late']},
+                {run: 'e'},
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Expected a workflow job');
+      const rows = await getStepsByJobId(job.id);
+      const jobExecutionId = rows[0]?.jobExecutionId as string;
+      // Every row before the last one has finished, the wait rows included.
+      for (const row of rows.slice(1, -1)) {
+        await db().update(stepsTable).set({status: 'succeeded'}).where(eq(stepsTable.id, row.id));
+        await db().insert(stepAttemptsTable).values({
+          stepId: row.id,
+          jobExecutionId,
+          attempt: 1,
+          executionOrder: row.position,
+          status: 'succeeded',
+        });
+      }
+      return jobExecutionId;
+    }
+
+    test('lists a background step only after the wait that joins it', async () => {
+      const jobExecutionId = await arrangeBackgroundJob();
+
+      expect(await listStepEnvSources({jobExecutionId, beforePosition: 5})).toEqual([
+        {position: 1, attempt: 1},
+      ]);
+      expect(await listStepEnvSources({jobExecutionId, beforePosition: 7})).toEqual([
+        {position: 1, attempt: 1},
+        {position: 4, attempt: 1},
+        {position: 5, attempt: 1},
+      ]);
+    });
+
+    test('never lists a cancelled background step or a wait row', async () => {
+      const jobExecutionId = await arrangeBackgroundJob();
+
+      const sources = await listStepEnvSources({jobExecutionId, beforePosition: 8});
+
+      expect(sources.map((source) => source.position)).not.toContain(2);
+      expect(sources.map((source) => source.position)).not.toContain(3);
+      expect(sources.map((source) => source.position)).not.toContain(6);
     });
   });
 

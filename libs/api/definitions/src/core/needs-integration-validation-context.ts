@@ -1,4 +1,4 @@
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {jobSteps, type WorkflowDocument} from '@shipfox/workflow-document';
 import type {ResolvedActions} from './entities/action-snapshot.js';
 import {hasIntegrationToolReferences} from './has-integration-tool-references.js';
 
@@ -37,7 +37,7 @@ function usesActionWithIntegrations(
 ): boolean {
   if (actionManifests === undefined) return false;
   return Object.values(document.jobs).some((job) =>
-    job.steps.some((step) => {
+    [...jobSteps(job)].some(({step}) => {
       if (step.uses === undefined) return false;
       const integrations = actionManifests.get(step.uses)?.manifest.integrations;
       return integrations !== undefined && Object.keys(integrations).length > 0;

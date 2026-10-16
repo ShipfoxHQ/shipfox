@@ -1,6 +1,8 @@
 import {z} from 'zod';
 import {parseWorkflowActionRef, REMOTE_ACTIONS_UNSUPPORTED_MESSAGE} from './action-ref.js';
+import {rawJobSteps} from './raw-job-steps.js';
 import {
+  concurrentWorkflowDocumentSchema,
   WORKFLOW_LITERAL_NAME_PATTERN,
   type WorkflowDocument,
   workflowDocumentSchema,
@@ -29,6 +31,11 @@ export interface ParseWorkflowDocumentOptions {
   registryActions?: boolean;
   /** Accepts the job `container` field. Defaults to `true`. */
   jobContainers?: boolean;
+  /**
+   * Accepts concurrent steps: `background`, `wait`, `wait_all`, `cancel`, and
+   * `parallel`. Defaults to `false`.
+   */
+  concurrentSteps?: boolean;
 }
 
 export function parseWorkflowDocument(
@@ -37,6 +44,7 @@ export function parseWorkflowDocument(
     actions = false,
     registryActions = false,
     jobContainers = true,
+    concurrentSteps = false,
   }: ParseWorkflowDocumentOptions = {},
 ): WorkflowDocument {
   try {
@@ -56,7 +64,9 @@ export function parseWorkflowDocument(
       );
     }
 
-    const result = workflowDocumentSchema.safeParse(input);
+    const result = (
+      concurrentSteps ? concurrentWorkflowDocumentSchema : workflowDocumentSchema
+    ).safeParse(input);
     if (result.success) return result.data;
 
     throw new InvalidWorkflowDocumentError(result.error as z.ZodError<WorkflowDocument>);
@@ -110,15 +120,9 @@ function jobContainerIssues(input: unknown): z.core.$ZodIssue[] {
 }
 
 function actionStepUses(input: unknown): {path: PropertyKey[]; uses: unknown}[] {
-  if (!isRecord(input) || !isRecord(input.jobs)) return [];
-
   const entries: {path: PropertyKey[]; uses: unknown}[] = [];
-  for (const [jobName, job] of Object.entries(input.jobs)) {
-    if (!isRecord(job) || !Array.isArray(job.steps)) continue;
-    for (const [index, step] of job.steps.entries()) {
-      if (!isRecord(step) || step.uses === undefined) continue;
-      entries.push({path: ['jobs', jobName, 'steps', index, 'uses'], uses: step.uses});
-    }
+  for (const {path, step} of rawJobSteps(input)) {
+    if (step.uses !== undefined) entries.push({path: [...path, 'uses'], uses: step.uses});
   }
   return entries;
 }

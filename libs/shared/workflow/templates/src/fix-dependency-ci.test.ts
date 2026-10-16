@@ -4,7 +4,11 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createWorkflowEnvironment} from '@shipfox/expression';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
-import {parseWorkflowDocument} from '@shipfox/workflow-document';
+import {
+  jobSteps,
+  parseWorkflowDocument,
+  type WorkflowDocumentJob,
+} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import {composeTemplate} from './composer.js';
 import {loadShippedTemplates} from './loader.js';
@@ -82,8 +86,12 @@ function failedRun(overrides: YamlRecord = {}): YamlRecord {
   };
 }
 
+function stepsOf(job: WorkflowDocumentJob | undefined) {
+  return job === undefined ? [] : [...jobSteps(job)].map(({step}) => step);
+}
+
 function script(key: string, mode: 'push_fix' | 'comment_only' = 'comment_only') {
-  const step = workflow(mode).jobs.fix?.steps?.find((entry) => entry.key === key);
+  const step = stepsOf(workflow(mode).jobs.fix).find((entry) => entry.key === key);
   if (step === undefined || !('run' in step) || typeof step.run !== 'string') {
     throw new Error(`Missing run step ${key}`);
   }

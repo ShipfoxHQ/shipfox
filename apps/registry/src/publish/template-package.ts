@@ -1,5 +1,9 @@
 import {formatRegistryReference} from '@shipfox/registry-format';
-import {type ActionBundleFile, parseWorkflowActionRef} from '@shipfox/workflow-document';
+import {
+  type ActionBundleFile,
+  parseWorkflowActionRef,
+  rawJobSteps,
+} from '@shipfox/workflow-document';
 import {
   composeTemplate,
   templateRoleBindings,
@@ -157,14 +161,7 @@ function parseYamlFile({
 }
 
 function usesOf(workflow: unknown): string[] {
-  const jobs = (workflow as {jobs?: unknown} | null)?.jobs;
-  if (typeof jobs !== 'object' || jobs === null) return [];
-  return Object.values(jobs).flatMap((job) => {
-    const steps = (job as {steps?: unknown} | null)?.steps;
-    if (!Array.isArray(steps)) return [];
-    return steps.flatMap((step) => {
-      const uses = (step as {uses?: unknown} | null)?.uses;
-      return typeof uses === 'string' ? [uses] : [];
-    });
-  });
+  return [...rawJobSteps(workflow)].flatMap(({step}) =>
+    typeof step.uses === 'string' ? [step.uses] : [],
+  );
 }

@@ -461,6 +461,9 @@ function materializedRerunStep(params: {
     condition: params.step.condition ?? null,
     runAfter: params.step.runAfter,
     continueOnError: params.step.continueOnError,
+    background: params.step.background,
+    parallelGroup: params.step.parallelGroup,
+    joinedAt: params.step.joinedAt,
     configPlan:
       params.rematerialized === undefined
         ? params.step.configPlan

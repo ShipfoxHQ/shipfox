@@ -14,6 +14,10 @@ Input shape for Shipfox workflow authoring.
   step** (`prompt`), a **checkout step** (`checkout`), a **tool step**
   (`tool`), or an **action step** (`uses`). A step carries one kind, never
   multiple kinds.
+- A job's `steps` hold steps and `parallel` blocks. `jobSteps(job)` yields every
+  step, the members of a block included, each with its document path, such as
+  `['steps', 2, 'parallel', 1]`. Walk a job with it, never with `job.steps`,
+  which a block would hide members from.
 - `parseWorkflowActionRef` classifies an action step's `uses` as a repository
   path or a registry reference.
 - `actionManifestSchema` defines the `action.yml` manifest of an action: a
@@ -271,6 +275,18 @@ result.success && isCompositeActionManifest(result.data); // true
 Without `{compositeActions: true}`, `safeParseActionManifest` fails a
 manifest with `steps` with "Composite actions (`steps`) are not supported
 yet." `actionManifestSchema` itself always accepts both forms.
+
+A step takes the concurrency fields `background`, `wait`, `wait_all`, and
+`cancel`, and a job's `steps` can hold a `parallel` block of at least two
+steps. A `wait` or `cancel` step accepts only `name` and its own key. A
+`parallel` member cannot be a `checkout`, `wait`, or `cancel` step, and cannot
+set `background` or `gate`. `workflowDocumentSchema` and `parseWorkflowDocument`
+reject all five keys with "Concurrent steps (`...`) are not supported yet."
+unless you pass `{concurrentSteps: true}` (or use
+`concurrentWorkflowDocumentSchema`), and `buildWorkflowJsonSchema()` leaves them
+out unless you pass `{concurrentSteps: true}`. Composite actions never accept
+them. `rawJobSteps(input)` yields the steps of a document that is not parsed yet,
+`parallel` members included.
 
 A job may name a Docker image with `container`. The value is an image string,
 or an object with `image`, `credentials` (`username` and `password`), `env`,

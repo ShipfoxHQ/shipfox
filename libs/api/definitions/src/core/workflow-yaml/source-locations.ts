@@ -51,10 +51,23 @@ function addJobStepLocations(
   const steps = getMapValue(value, 'steps');
   if (!isSeq(steps)) return;
 
+  // A `parallel` block is expanded into its members, then a wait for them, so the locations
+  // are keyed by the index in the expanded list, as the normalizer indexes steps.
   const stepLocations = new Map<number, WorkflowSourceLocation>();
-  for (const [index, step] of steps.items.entries()) {
-    const location = sourceLocationFor(step, lineCounter);
-    if (location) stepLocations.set(index, location);
+  let expandedIndex = 0;
+  const add = (node: unknown) => {
+    const location = sourceLocationFor(node, lineCounter);
+    if (location) stepLocations.set(expandedIndex, location);
+    expandedIndex += 1;
+  };
+  for (const step of steps.items) {
+    const members = isMap(step) ? getMapValue(step, 'parallel') : undefined;
+    if (!isSeq(members)) {
+      add(step);
+      continue;
+    }
+    for (const member of members.items) add(member);
+    add(step);
   }
   if (stepLocations.size > 0) locations.set(jobName, stepLocations);
 }

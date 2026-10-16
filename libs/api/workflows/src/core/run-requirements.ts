@@ -158,7 +158,9 @@ function stepScopeFor(jobScope: Scope, step: WorkflowModelStep, index: number): 
 function collectStepReferences(step: WorkflowModelStep, scope: Scope): void {
   collectFieldReferences(step.templates?.name, scope, {field: 'step.name'});
   collectFieldReferences(
-    step.kind === 'tool' ? undefined : step.templates?.workingDirectory,
+    step.kind === 'tool' || step.kind === 'wait' || step.kind === 'cancel'
+      ? undefined
+      : step.templates?.workingDirectory,
     scope,
     {field: 'step.working_directory'},
   );

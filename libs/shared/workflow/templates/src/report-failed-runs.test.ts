@@ -1,6 +1,10 @@
 import {createWorkflowExpression, evaluateWorkflowExpression} from '@shipfox/expression';
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {parseWorkflowDocument} from '@shipfox/workflow-document';
+import {
+  jobSteps,
+  parseWorkflowDocument,
+  type WorkflowDocumentJob,
+} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import {composeTemplate} from './composer.js';
 import {loadShippedTemplates} from './loader.js';
@@ -86,8 +90,12 @@ function matches(event: ReturnType<typeof completedEvent>, selections?: Partial<
   return evaluate(filter, {event});
 }
 
+function stepsOf(job: WorkflowDocumentJob | undefined) {
+  return job === undefined ? [] : [...jobSteps(job)].map(({step}) => step);
+}
+
 function reportStep(key: string, provider: keyof typeof composed = 'slack') {
-  const step = workflow({}, provider).jobs.report?.steps.find((entry) => entry.key === key);
+  const step = stepsOf(workflow({}, provider).jobs.report).find((entry) => entry.key === key);
   if (step === undefined) throw new Error(`Missing ${key} step`);
   return step as {outputs?: Record<string, string>; with?: Record<string, string>};
 }
@@ -192,8 +200,8 @@ describe('failed run report', () => {
     const diagnose = workflow(selections).jobs.diagnose;
 
     expect(diagnose).toMatchObject({needs: 'report'});
-    expect(diagnose?.steps.map((step) => step.key)).toEqual(['diagnose', 'reply']);
-    expect(diagnose?.steps[1]).toMatchObject({
+    expect(stepsOf(diagnose).map((step) => step.key)).toEqual(['diagnose', 'reply']);
+    expect(stepsOf(diagnose)[1]).toMatchObject({
       with: {
         thread_ts: '${{ jobs.report.outputs.message_id }}',
         message: expect.stringContaining('steps.diagnose.outputs.diagnosis'),
@@ -291,12 +299,12 @@ describe('failed run report on Discord', () => {
     const jobs = workflow(selections, 'discord').jobs;
 
     expect(jobs.report?.outputs).toBeUndefined();
-    expect(jobs.report?.steps.find((step) => step.key === 'notify')?.export).toEqual([
+    expect(stepsOf(jobs.report).find((step) => step.key === 'notify')?.export).toEqual([
       'message_id',
       'channel',
     ]);
-    expect(jobs.diagnose?.steps.map((step) => step.key)).toEqual(['diagnose', 'reply']);
-    expect(jobs.diagnose?.steps[1]).toMatchObject({
+    expect(stepsOf(jobs.diagnose).map((step) => step.key)).toEqual(['diagnose', 'reply']);
+    expect(stepsOf(jobs.diagnose)[1]).toMatchObject({
       tool: 'send_message',
       with: {
         channel_id: '${{ jobs.report.outputs.channel }}',

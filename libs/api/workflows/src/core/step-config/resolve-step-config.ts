@@ -90,7 +90,7 @@ export async function resolveStepConfig(
   params: ResolveStepConfigParams,
 ): Promise<ResolvedStepConfig> {
   const context = evaluationContext(params);
-  const effective = await buildStepConfig({...params, context, mode: 'effective'});
+  const effective = await buildStepConfigOfKind({...params, context, mode: 'effective'});
   const authoredConfig = effective.hasTemplates
     ? (await buildStepConfig({...params, context, mode: 'authored'})).config
     : null;
@@ -104,6 +104,23 @@ export async function resolveStepConfig(
     diagnostics: [...effective.diagnostics, ...name.diagnostics],
     trace: capTraceEntries([...effective.trace, ...name.trace]),
   };
+}
+
+// A wait or cancel step has no config of its own. Materialization fills in its targets, which are
+// positions that only the whole job can resolve.
+function buildStepConfigOfKind(
+  params: Omit<BuildStepConfigParams, 'context'> & {readonly context: WorkflowEvaluationContext},
+): Promise<BuiltStepConfig> {
+  if (params.step.kind === 'wait' || params.step.kind === 'cancel') {
+    return Promise.resolve({
+      config: {},
+      configPlan: null,
+      diagnostics: [],
+      trace: [],
+      hasTemplates: false,
+    });
+  }
+  return buildStepConfig(params);
 }
 
 async function buildStepConfig(
@@ -192,10 +209,12 @@ function resolveWorkingDirectoryConfig(
   params: Omit<BuildStepConfigParams, 'context'> & {readonly context: WorkflowEvaluationContext},
 ): WorkingDirectoryConfig {
   const value = params.step.workingDirectory;
-  // Tool steps have no working tree, so they never carry a working-directory
+  // Tool, wait, and cancel steps have no working tree, so they never carry a working-directory
   // template; the union narrows the remaining kinds to those that can.
   const template =
-    params.step.kind === 'tool' ? undefined : params.step.templates?.workingDirectory;
+    params.step.kind === 'tool' || params.step.kind === 'wait' || params.step.kind === 'cancel'
+      ? undefined
+      : params.step.templates?.workingDirectory;
   if (value === undefined) {
     return {
       config: {},

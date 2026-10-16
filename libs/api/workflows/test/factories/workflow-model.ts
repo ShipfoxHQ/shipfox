@@ -31,6 +31,20 @@ interface TestWorkflowStepBase {
   readonly if?: ModelStep['if'] | undefined;
   readonly runAfter?: ModelStep['runAfter'] | undefined;
   readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
+  readonly background?: true | undefined;
+  readonly parallelGroup?: string | undefined;
+  readonly joinedAt?: number | undefined;
+}
+
+interface TestWaitStep extends TestWorkflowStepBase {
+  /** The ids of the background steps to wait for, such as `build-db`. */
+  readonly wait: readonly string[];
+  readonly origin?: Extract<ModelStep, {kind: 'wait'}>['origin'] | undefined;
+}
+
+interface TestCancelStep extends TestWorkflowStepBase {
+  /** The ids of the background steps to stop, such as `build-db`. */
+  readonly cancel: readonly string[];
 }
 
 interface TestRunStep extends TestWorkflowStepBase {
@@ -111,7 +125,9 @@ export type TestWorkflowStep =
   | TestCheckoutStep
   | TestToolStep
   | TestActionStep
-  | TestCompositeStep;
+  | TestCompositeStep
+  | TestWaitStep
+  | TestCancelStep;
 
 export const TEST_COMPOSITE_DIGEST = `sha256:${'c'.repeat(64)}`;
 
@@ -321,6 +337,9 @@ function normalizeStep(
 ): ModelStep {
   const base = stepBase(step, jobId, stepIndex, parentId);
   if ('steps' in step) return normalizeCompositeStep(step, jobId, base);
+  if ('wait' in step)
+    return {...base, kind: 'wait', targets: step.wait, origin: step.origin ?? 'authored'};
+  if ('cancel' in step) return {...base, kind: 'cancel', targets: step.cancel};
   if ('run' in step) return normalizeRunStep(step, base);
   if ('prompt' in step) return normalizeAgentStep(step, base);
   if ('tool' in step) return normalizeToolStep(step, base);
@@ -523,6 +542,9 @@ function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number, pare
     ...(step.if === undefined ? {} : {if: step.if}),
     ...(step.runAfter === undefined ? {} : {runAfter: step.runAfter}),
     ...(step.gate === undefined ? {} : {gate: step.gate}),
+    ...(step.background === undefined ? {} : {background: step.background}),
+    ...(step.parallelGroup === undefined ? {} : {parallelGroup: step.parallelGroup}),
+    ...(step.joinedAt === undefined ? {} : {joinedAt: step.joinedAt}),
   };
 }
 

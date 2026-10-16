@@ -1290,6 +1290,11 @@ const runAfterSchema = z.enum(['success', 'failure', 'always']);
  */
 type WorkflowDocumentStepMode = 'workflow' | 'composite';
 
+const workflowDocumentControlTargetsSchema = z.union([
+  z.string().min(1),
+  z.array(z.string().min(1)).min(1),
+]);
+
 const workflowDocumentStepBaseSchema = z.strictObject({
   key: z
     .string()
@@ -1307,6 +1312,25 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   continue_on_error: z.boolean().optional().meta({
     description:
       'Lets the job go on as if this step succeeded when it fails. The step still ends `failed`, but its failure does not count for `run_after` or for the job result. Gate restarts run first. It does not cover a step that cannot start or a job that times out.',
+  }),
+  background: z.boolean().optional().meta({
+    description:
+      'Starts the step and moves on to the next step without waiting. The step needs a `key`. Later steps read its results after a `wait` that joins it.',
+  }),
+  wait: workflowDocumentControlTargetsSchema.optional().meta({
+    description:
+      'Blocks until the listed background steps finish. Give one step `key` or a list. A wait step accepts only `name`.',
+  }),
+  wait_all: z
+    .union([z.null(), z.literal(true)])
+    .optional()
+    .meta({
+      description:
+        'Blocks until every background step that is still running finishes. Write `wait_all:` or `wait_all: true`. A wait step accepts only `name`.',
+    }),
+  cancel: workflowDocumentControlTargetsSchema.optional().meta({
+    description:
+      'Stops the listed background steps without waiting for them to finish. Give one step `key` or a list. A cancel step accepts only `name`.',
   }),
   name: z.string().min(1).optional().meta({description: 'Sets the name shown for the step.'}),
   working_directory: z.string().min(1).optional().meta({
@@ -1410,21 +1434,35 @@ type WorkflowDocumentStepSchemaOutput =
 type WorkflowDocumentStepInput = z.infer<typeof workflowDocumentStepBaseSchema>;
 
 const workflowDocumentActionStepFields = ['uses', 'connections'] as const;
+// A wait or cancel step is its own kind: it accepts only `name`, so no other
+// kind may carry its keys.
+export const workflowDocumentControlStepFields = ['wait', 'wait_all', 'cancel'] as const;
 
 export const workflowDocumentStepKindInvalidFields = {
   run: [
     ...workflowDocumentAgentStepFields,
     ...workflowDocumentActionStepFields,
+    ...workflowDocumentControlStepFields,
     'checkout',
     'tool',
     'connection',
     'with',
   ],
-  agent: ['run', ...workflowDocumentActionStepFields, 'checkout', 'tool', 'connection', 'with'],
+  agent: [
+    'run',
+    ...workflowDocumentActionStepFields,
+    ...workflowDocumentControlStepFields,
+    'checkout',
+    'tool',
+    'connection',
+    'with',
+  ],
   checkout: [
     'run',
     ...workflowDocumentAgentStepFields,
     ...workflowDocumentActionStepFields,
+    ...workflowDocumentControlStepFields,
+    'background',
     'env',
     'export',
     'tool',
@@ -1435,11 +1473,20 @@ export const workflowDocumentStepKindInvalidFields = {
     'run',
     ...workflowDocumentAgentStepFields,
     ...workflowDocumentActionStepFields,
+    ...workflowDocumentControlStepFields,
     'checkout',
     'env',
     'working_directory',
   ],
-  action: ['run', ...workflowDocumentAgentStepFields, 'checkout', 'tool', 'connection', 'outputs'],
+  action: [
+    'run',
+    ...workflowDocumentAgentStepFields,
+    ...workflowDocumentControlStepFields,
+    'checkout',
+    'tool',
+    'connection',
+    'outputs',
+  ],
 } as const;
 
 type WorkflowDocumentStepKind = keyof typeof workflowDocumentStepKindInvalidFields;
@@ -1503,6 +1550,14 @@ export const workflowDocumentCompositeStepSchema = workflowDocumentStepBaseSchem
   .transform<WorkflowDocumentStepSchemaOutput>(toStepSchemaOutput);
 
 function validateCompositeStep(step: WorkflowDocumentStepInput, ctx: z.RefinementCtx): void {
+  for (const field of ['background', ...workflowDocumentControlStepFields] as const) {
+    if (step[field] === undefined) continue;
+    ctx.addIssue({
+      code: 'custom',
+      path: [field],
+      message: `\`${field}\` is not supported inside a composite action.`,
+    });
+  }
   if (step.checkout !== undefined) {
     ctx.addIssue({
       code: 'custom',
@@ -1529,6 +1584,7 @@ function validateCompositeStep(step: WorkflowDocumentStepInput, ctx: z.Refinemen
 }
 
 function validateWorkflowDocumentStep(step: WorkflowDocumentStepInput, ctx: z.RefinementCtx): void {
+  if (validateWorkflowDocumentControlStep(step, ctx)) return;
   validateWorkflowDocumentStepExport(step, ctx);
   if (step.agent !== undefined) {
     ctx.addIssue({
@@ -1559,6 +1615,42 @@ function validateWorkflowDocumentStep(step: WorkflowDocumentStepInput, ctx: z.Re
   }
   validateWorkflowDocumentStepOutputs(step, ctx, 'agent');
   validateWorkflowDocumentAgentStep(step, ctx);
+}
+
+const workflowDocumentStepFieldNames = Object.keys(
+  workflowDocumentStepBaseSchema.shape,
+) as (keyof WorkflowDocumentStepInput)[];
+
+/**
+ * A `wait`, `wait_all`, or `cancel` step runs no work of its own. It accepts
+ * its one control key and `name`, and nothing else. Returns whether the step is
+ * a control step, so the caller skips the rules of the other kinds.
+ */
+function validateWorkflowDocumentControlStep(
+  step: WorkflowDocumentStepInput,
+  ctx: z.RefinementCtx,
+): boolean {
+  const present = workflowDocumentControlStepFields.filter((field) => step[field] !== undefined);
+  const [first] = present;
+  if (first === undefined) return false;
+  for (const field of present.slice(1)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [field],
+      message: `"${field}" cannot be combined with "${first}" in one step.`,
+    });
+  }
+  const label = first === 'cancel' ? 'cancel' : 'wait';
+  for (const key of workflowDocumentStepFieldNames) {
+    if (key === 'name' || step[key] === undefined) continue;
+    if ((workflowDocumentControlStepFields as readonly string[]).includes(key)) continue;
+    ctx.addIssue({
+      code: 'custom',
+      path: [key],
+      message: `"${key}" is not valid on a ${label} step. A ${label} step accepts only "name".`,
+    });
+  }
+  return true;
 }
 
 function validateWorkflowDocumentStepExport(
@@ -1882,76 +1974,194 @@ export const workflowDocumentContainerSchema = z
       'Runs this job in a Docker container. Set a string for the image, or an object for the image and its settings.',
   });
 
-export const workflowDocumentJobSchema = z.strictObject({
-  needs: stringOrStringArraySchema.optional().meta({
-    description: 'Lists the jobs that must finish before this job starts.',
-  }),
-  if: z.string().min(1).optional().meta({
-    description:
-      'Runs this job only when the condition is true. See [Conditionals](/reference/expressions#syntax).',
-  }),
-  run_after: runAfterSchema.optional().meta({
-    description:
-      'Picks when this job runs relative to the jobs in `needs`: `success` (default) needs every job to succeed, `failure` needs at least one job to fail, `always` runs whatever their status. The `if` is checked after `run_after` passes.',
-  }),
-  runner: stringOrStringArraySchema.optional().meta({
-    description:
-      'Selects the runner for this job. List labels in fallback order. See [Runners and execution environments](/understand/runners-and-execution-environments).',
-  }),
-  success: z.string().min(1).optional().meta({
-    description:
-      'Marks the job as successful when the condition returns `true`. See [Expressions](/reference/expressions#functions-and-macros) and [Contexts](/reference/contexts#context-availability).',
-  }),
-  outputs: workflowDocumentJobOutputsSchema.optional().meta({
-    description:
-      "Creates named outputs from values produced by this job's steps. A later job must list this job in `needs` before it can use them.",
-  }),
-  execution_timeout: z.string().min(1).optional().meta({
-    description: 'Stops one job execution after this duration.',
-  }),
-  checkout: workflowDocumentJobCheckoutSchema.optional(),
-  container: workflowDocumentContainerSchema.optional(),
-  listening: workflowDocumentListeningSchema.optional().meta({
-    description:
-      'Keeps the job open for matching events. Set `until`, `timeout`, or `max_executions` to end it. See [Listening jobs](/understand/listening-jobs).',
-  }),
-  name: jobNameSchema.optional(),
-  execution_name: z.string().min(1).optional().meta({
-    description: 'Sets the name of each job execution. Supports workflow expressions.',
-  }),
-  env: workflowDocumentEnvSchema.optional().meta({
-    description: 'Sets environment variables for every run step in this job.',
-  }),
-  steps: z.array(workflowDocumentStepSchema).min(1).meta({
-    description: 'Lists the steps that this job runs in order.',
-  }),
-});
+/** Why a step cannot be a member of a `parallel` block, by the field that says so. */
+const workflowDocumentParallelMemberIssues = [
+  ['checkout', 'A checkout step cannot be in a `parallel` block.'],
+  ['wait', 'A wait step cannot be in a `parallel` block.'],
+  ['wait_all', 'A wait step cannot be in a `parallel` block.'],
+  ['cancel', 'A cancel step cannot be in a `parallel` block.'],
+  [
+    'background',
+    '`background` is not valid on a step in a `parallel` block. The block already runs its steps in the background.',
+  ],
+  ['gate', 'A gate cannot be used on a step in a `parallel` block.'],
+] as const;
 
-export const workflowDocumentSchema = z.strictObject({
-  name: workflowNameSchema,
-  run_name: z.string().min(1).optional().meta({
-    description: 'Names each workflow run. Supports workflow expressions.',
-  }),
-  runner: stringOrStringArraySchema.optional().meta({
-    description:
-      'Selects the default runner for jobs in this workflow. List labels in fallback order. See [Runners and execution environments](/understand/runners-and-execution-environments).',
-  }),
-  env: workflowDocumentEnvSchema.optional().meta({
-    description: 'Sets environment variables for run steps in every job.',
-  }),
-  concurrency: workflowDocumentConcurrencySchema.optional(),
-  triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional().meta({
-    description:
-      'Defines the events that start the workflow. Add no more than one `manual` trigger.',
-  }),
-  jobs: nonEmptyRecordSchema(workflowDocumentJobSchema).meta({
-    description: 'Defines the jobs that the workflow runs. Add at least one job.',
-  }),
-  outputs: outputsMappingSchema('Workflow').optional().meta({
-    description:
-      'Creates named outputs from job outputs when a run succeeds. An output that cannot be evaluated fails the run.',
-  }),
-});
+export const workflowDocumentParallelBlockSchema = z
+  .strictObject({
+    parallel: z.array(workflowDocumentStepSchema).min(2).meta({
+      description:
+        'Runs the listed steps at the same time, then waits for all of them. It is shorthand for marking each step `background: true` and adding a `wait` that names exactly those steps. A step needs no `key`, but without one its outputs are not readable.',
+    }),
+  })
+  .superRefine((block, ctx) => {
+    for (const [index, member] of block.parallel.entries()) {
+      for (const [field, message] of workflowDocumentParallelMemberIssues) {
+        if (member[field] === undefined) continue;
+        ctx.addIssue({code: 'custom', path: ['parallel', index, field], message});
+      }
+    }
+  });
+
+export type WorkflowDocumentParallelBlock = z.infer<typeof workflowDocumentParallelBlockSchema>;
+/** One entry of a job's `steps`: a step, or a `parallel` block of steps. */
+export type WorkflowDocumentJobStep = WorkflowDocumentStep | WorkflowDocumentParallelBlock;
+
+export function isWorkflowDocumentParallelBlock(
+  step: WorkflowDocumentJobStep,
+): step is WorkflowDocumentParallelBlock {
+  return 'parallel' in step;
+}
+
+function isParallelBlockInput(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && Object.hasOwn(value, 'parallel');
+}
+
+// A union would report any step error as one `invalid_union` issue at the entry.
+// Dispatching on the `parallel` key keeps each error at the field that caused it.
+// The JSON Schema for the entry is built by `buildWorkflowJsonSchema`.
+//
+// Without `concurrentSteps`, an entry that names a concurrency key fails with "not supported yet",
+// whoever parses it, so the schema itself keeps the feature off.
+function createWorkflowDocumentJobStepSchema(concurrentSteps: boolean) {
+  return z.unknown().transform((value, ctx): WorkflowDocumentJobStep => {
+    if (!concurrentSteps && addUnsupportedConcurrencyIssues(value, ctx)) return z.NEVER;
+    const isBlock = isParallelBlockInput(value);
+    // The nested block reports once, instead of also failing the strict member schema.
+    if (isBlock && addNestedParallelIssues(value, ctx)) return z.NEVER;
+    const result = (
+      isBlock ? workflowDocumentParallelBlockSchema : workflowDocumentStepSchema
+    ).safeParse(value);
+    if (result.success) return result.data;
+    for (const issue of result.error.issues) {
+      ctx.issues.push({...issue, input: value} as z.core.$ZodRawIssue);
+    }
+    return z.NEVER;
+  });
+}
+
+const workflowDocumentConcurrentStepKeys = [
+  'background',
+  ...workflowDocumentControlStepFields,
+  'parallel',
+] as const;
+
+function addUnsupportedConcurrencyIssues(value: unknown, ctx: z.core.$RefinementCtx): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  let found = false;
+  for (const key of workflowDocumentConcurrentStepKeys) {
+    const field = (value as Record<string, unknown>)[key];
+    if (field === undefined) continue;
+    found = true;
+    ctx.issues.push({
+      code: 'custom',
+      input: field,
+      path: [key],
+      message: `Concurrent steps (\`${key}\`) are not supported yet.`,
+    });
+  }
+  return found;
+}
+
+function addNestedParallelIssues(value: unknown, ctx: z.core.$RefinementCtx): boolean {
+  const members = (value as {parallel?: unknown}).parallel;
+  if (!Array.isArray(members)) return false;
+  let found = false;
+  for (const [index, member] of members.entries()) {
+    if (!isParallelBlockInput(member)) continue;
+    found = true;
+    ctx.issues.push({
+      code: 'custom',
+      input: member,
+      path: ['parallel', index],
+      message: 'A `parallel` block cannot be nested in another `parallel` block.',
+    });
+  }
+  return found;
+}
+
+function createWorkflowDocumentJobSchema(concurrentSteps: boolean) {
+  return z.strictObject({
+    needs: stringOrStringArraySchema.optional().meta({
+      description: 'Lists the jobs that must finish before this job starts.',
+    }),
+    if: z.string().min(1).optional().meta({
+      description:
+        'Runs this job only when the condition is true. See [Conditionals](/reference/expressions#syntax).',
+    }),
+    run_after: runAfterSchema.optional().meta({
+      description:
+        'Picks when this job runs relative to the jobs in `needs`: `success` (default) needs every job to succeed, `failure` needs at least one job to fail, `always` runs whatever their status. The `if` is checked after `run_after` passes.',
+    }),
+    runner: stringOrStringArraySchema.optional().meta({
+      description:
+        'Selects the runner for this job. List labels in fallback order. See [Runners and execution environments](/understand/runners-and-execution-environments).',
+    }),
+    success: z.string().min(1).optional().meta({
+      description:
+        'Marks the job as successful when the condition returns `true`. See [Expressions](/reference/expressions#functions-and-macros) and [Contexts](/reference/contexts#context-availability).',
+    }),
+    outputs: workflowDocumentJobOutputsSchema.optional().meta({
+      description:
+        "Creates named outputs from values produced by this job's steps. A later job must list this job in `needs` before it can use them.",
+    }),
+    execution_timeout: z.string().min(1).optional().meta({
+      description: 'Stops one job execution after this duration.',
+    }),
+    checkout: workflowDocumentJobCheckoutSchema.optional(),
+    container: workflowDocumentContainerSchema.optional(),
+    listening: workflowDocumentListeningSchema.optional().meta({
+      description:
+        'Keeps the job open for matching events. Set `until`, `timeout`, or `max_executions` to end it. See [Listening jobs](/understand/listening-jobs).',
+    }),
+    name: jobNameSchema.optional(),
+    execution_name: z.string().min(1).optional().meta({
+      description: 'Sets the name of each job execution. Supports workflow expressions.',
+    }),
+    env: workflowDocumentEnvSchema.optional().meta({
+      description: 'Sets environment variables for every run step in this job.',
+    }),
+    steps: z.array(createWorkflowDocumentJobStepSchema(concurrentSteps)).min(1).meta({
+      description: 'Lists the steps that this job runs in order.',
+    }),
+  });
+}
+
+export const workflowDocumentJobSchema = createWorkflowDocumentJobSchema(false);
+
+function createWorkflowDocumentSchema(concurrentSteps: boolean) {
+  const jobSchema = createWorkflowDocumentJobSchema(concurrentSteps);
+  return z.strictObject({
+    name: workflowNameSchema,
+    run_name: z.string().min(1).optional().meta({
+      description: 'Names each workflow run. Supports workflow expressions.',
+    }),
+    runner: stringOrStringArraySchema.optional().meta({
+      description:
+        'Selects the default runner for jobs in this workflow. List labels in fallback order. See [Runners and execution environments](/understand/runners-and-execution-environments).',
+    }),
+    env: workflowDocumentEnvSchema.optional().meta({
+      description: 'Sets environment variables for run steps in every job.',
+    }),
+    concurrency: workflowDocumentConcurrencySchema.optional(),
+    triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional().meta({
+      description:
+        'Defines the events that start the workflow. Add no more than one `manual` trigger.',
+    }),
+    jobs: nonEmptyRecordSchema(jobSchema).meta({
+      description: 'Defines the jobs that the workflow runs. Add at least one job.',
+    }),
+    outputs: outputsMappingSchema('Workflow').optional().meta({
+      description:
+        'Creates named outputs from job outputs when a run succeeds. An output that cannot be evaluated fails the run.',
+    }),
+  });
+}
+
+/** Rejects `background`, `wait`, `wait_all`, `cancel`, and `parallel` with "not supported yet". */
+export const workflowDocumentSchema = createWorkflowDocumentSchema(false);
+/** Accepts concurrent steps. `parseWorkflowDocument` picks it with `{concurrentSteps: true}`. */
+export const concurrentWorkflowDocumentSchema = createWorkflowDocumentSchema(true);
 
 export type WorkflowDocumentStep = z.infer<typeof workflowDocumentStepSchema>;
 export type WorkflowDocumentGateFailureRule = z.infer<typeof workflowDocumentGateFailureRuleSchema>;

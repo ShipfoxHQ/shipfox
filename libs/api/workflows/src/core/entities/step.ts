@@ -27,6 +27,8 @@ export const STEP_TYPES = [
   'tool',
   'action',
   'composite',
+  'wait',
+  'cancel',
   'post',
 ] as const;
 
@@ -179,6 +181,12 @@ export interface Step {
   runAfter: StepRunAfter;
   // A failure of this step does not count for `run_after` or the job result.
   continueOnError: boolean;
+  // The job moves on without waiting for this step. Later steps read its results after a wait joins it.
+  background: boolean;
+  // Groups the members of a `parallel` block and the wait that joins them.
+  parallelGroup: string | null;
+  // Background steps only: the position of the wait that joins this step.
+  joinedAt: number | null;
   configPlan: StepConfigDispatchPlan | null;
   authoredConfig: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
@@ -212,6 +220,8 @@ export interface StepAttempt {
   restartFeedback: string | null;
   // A failure of this attempt left `run_after` and the job result unchanged (`continue_on_error`).
   failureIgnored: boolean;
+  // A cancel step stopped the step. Until the runner confirms the process has exited, the attempt is stopping.
+  cancelRequestedAt: Date | null;
   logOutcome: StepAttemptLogOutcome | null;
   invocations: readonly StepAttemptInvocation[];
   startedAt: Date;

@@ -1,6 +1,7 @@
 import {
   type ActionManifestInput,
   actionManifestSchema,
+  parseWorkflowDocument,
   type WorkflowDocument,
   type WorkflowDocumentStep,
 } from '@shipfox/workflow-document';
@@ -347,6 +348,43 @@ describe('normalizeWorkflowDocument composite steps', () => {
         at: undefined,
       },
     ]);
+  });
+
+  test('rejects background on the step that uses a composite', () => {
+    const setup = composite(SETUP, {steps: [{run: 'npm ci'}]});
+
+    const issues = issuesFor(document({key: 'setup', uses: SETUP, background: true}), [setup]);
+
+    expect(summarize(issues)).toEqual([
+      {
+        code: 'composite-background-unsupported',
+        path: 'jobs.build.steps.0.background',
+        at: undefined,
+      },
+    ]);
+  });
+
+  test('rejects a composite action as a step of a parallel block', () => {
+    const setup = composite(SETUP, {steps: [{run: 'npm ci'}]});
+    const workflow = parseWorkflowDocument(
+      {
+        name: 'composites',
+        runner: 'ubuntu-latest',
+        jobs: {build: {steps: [{parallel: [{run: 'echo'}, {uses: SETUP}]}]}},
+      },
+      {concurrentSteps: true, actions: true},
+    );
+
+    const issues = issuesFor(workflow, [setup]);
+
+    expect(summarize(issues)).toEqual([
+      {
+        code: 'composite-background-unsupported',
+        path: 'jobs.build.steps.0.parallel.1',
+        at: undefined,
+      },
+    ]);
+    expect(issues[0]?.message).toBe('A composite action cannot be a step of a `parallel` block.');
   });
 
   test('carries continue_on_error on a step inside a composite', () => {

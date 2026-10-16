@@ -5,9 +5,12 @@ import {
   WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES,
   WORKFLOW_INTERPOLATION_MARKER_PATTERN,
   WORKFLOW_LITERAL_NAME_PATTERN,
+  workflowDocumentControlStepFields,
+  workflowDocumentParallelBlockSchema,
   workflowDocumentSchema,
   workflowDocumentStepKindInvalidFields,
   workflowDocumentStepOutputDeclarationSchema,
+  workflowDocumentStepSchema,
   workflowDocumentToolStepOutputsSchema,
 } from './workflow-document.js';
 
@@ -17,16 +20,31 @@ export interface BuildWorkflowJsonSchemaOptions {
   id?: string;
   /** Includes action step fields (`uses`, `connections`). Defaults to `false`. */
   actions?: boolean;
+  /**
+   * Includes concurrent steps: the `background`, `wait`, `wait_all`, and
+   * `cancel` fields, and the `parallel` block. Defaults to `false`.
+   */
+  concurrentSteps?: boolean;
 }
+
+const CONCURRENT_STEP_FIELDS: readonly string[] = [
+  'background',
+  ...workflowDocumentControlStepFields,
+];
+const STEPS_ITEMS_POINTER = '#/properties/jobs/additionalProperties/properties/steps/items';
 
 export function buildWorkflowJsonSchema({
   id = 'https://www.shipfox.io/docs/workflow.schema.json',
   actions = false,
+  concurrentSteps = false,
 }: BuildWorkflowJsonSchemaOptions = {}): JsonSchema {
   const schema = z.toJSONSchema(workflowDocumentSchema, {
     io: 'input',
     unrepresentable: 'any',
   }) as JsonSchema;
+  // A job step is a step or a `parallel` block, which the document schema checks
+  // by hand. The step schema replaces the empty `items` it leaves.
+  installStepSchema(schema);
   const stepSchema = stepSchemaFor(schema);
   const stepProperties = propertiesOf(stepSchema);
   const thinkingSchema = object(stepProperties.thinking);
@@ -43,7 +61,10 @@ export function buildWorkflowJsonSchema({
     delete stepProperties.uses;
     delete stepProperties.connections;
   }
-  projectWorkflowValidation(schema, stepSchema, actions);
+  if (!concurrentSteps) {
+    for (const field of CONCURRENT_STEP_FIELDS) delete stepProperties[field];
+  }
+  projectWorkflowValidation(schema, stepSchema, {actions, concurrentSteps});
   projectAgentMcpServerValidation(stepProperties.mcp_servers);
   const thinkingConditionals = (['pi', 'claude'] as const).map((harness) => {
     const conditional: JsonSchema = {
@@ -74,6 +95,7 @@ export function buildWorkflowJsonSchema({
     return conditional;
   });
   stepSchema.allOf = [...objects(stepSchema.allOf), ...thinkingConditionals];
+  if (concurrentSteps) addParallelBlockSchema(schema);
   schema.$schema = 'https://json-schema.org/draft/2020-12/schema';
   schema.$id = id;
   schema.title = 'Shipfox Workflow';
@@ -81,11 +103,54 @@ export function buildWorkflowJsonSchema({
   return schema;
 }
 
-function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema, actions: boolean) {
-  // Without actions, the other kinds must not name the omitted action fields.
+function installStepSchema(schema: JsonSchema) {
+  const job = object(object(propertiesOf(schema).jobs).additionalProperties);
+  const stepSchema = z.toJSONSchema(workflowDocumentStepSchema, {
+    io: 'input',
+    unrepresentable: 'any',
+  }) as JsonSchema;
+  delete stepSchema.$schema;
+  object(propertiesOf(job).steps).items = stepSchema;
+}
+
+function addParallelBlockSchema(schema: JsonSchema) {
+  const steps = object(
+    propertiesOf(object(object(propertiesOf(schema).jobs).additionalProperties)).steps,
+  );
+  const stepSchema = object(steps.items);
+  const member: JsonSchema = {
+    allOf: [
+      {$ref: `${STEPS_ITEMS_POINTER}/anyOf/0`},
+      {
+        not: {
+          anyOf: ['checkout', 'wait', 'wait_all', 'cancel', 'background', 'gate'].map((field) => ({
+            required: [field],
+          })),
+        },
+      },
+    ],
+  };
+  const parallel = z.toJSONSchema(workflowDocumentParallelBlockSchema, {
+    io: 'input',
+    unrepresentable: 'any',
+  }) as JsonSchema;
+  delete parallel.$schema;
+  object(propertiesOf(parallel).parallel).items = member;
+  steps.items = {anyOf: [stepSchema, parallel]};
+}
+
+function projectWorkflowValidation(
+  schema: JsonSchema,
+  stepSchema: JsonSchema,
+  {actions, concurrentSteps}: {actions: boolean; concurrentSteps: boolean},
+) {
+  // Without actions, the other kinds must not name the omitted action fields,
+  // and without concurrent steps, the omitted concurrent step fields.
   const invalidFields = (kind: keyof typeof workflowDocumentStepKindInvalidFields) =>
     workflowDocumentStepKindInvalidFields[kind].filter(
-      (field) => actions || (field !== 'uses' && field !== 'connections'),
+      (field) =>
+        (actions || (field !== 'uses' && field !== 'connections')) &&
+        (concurrentSteps || !CONCURRENT_STEP_FIELDS.includes(field)),
     );
   const rootProperties = propertiesOf(schema);
   const jobs = object(rootProperties.jobs);
@@ -126,6 +191,16 @@ function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema, a
             anyOf: invalidFields('tool').map((field) => ({required: [field]})),
           },
         },
+        ...(concurrentSteps
+          ? workflowDocumentControlStepFields.map((field) => ({
+              required: [field],
+              not: {
+                anyOf: Object.keys(propertiesOf(stepSchema))
+                  .filter((other) => other !== field && other !== 'name')
+                  .map((other) => ({required: [other]})),
+              },
+            }))
+          : []),
         ...(actions
           ? [
               {

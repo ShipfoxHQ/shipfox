@@ -320,6 +320,129 @@ describe('materializeJobExecutionSteps', () => {
     expect(steps[1]?.runAfter).toBe(expected);
   });
 
+  it('materializes background steps, waits, and cancels with their targets as positions', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {key: 'db', run: 'docker run postgres', background: true, joinedAt: 4},
+            {run: 'npm ci', background: true, parallelGroup: 'parallel-2', joinedAt: 4},
+            {run: 'npm test', background: true, parallelGroup: 'parallel-2', joinedAt: 4},
+            {
+              wait: ['build-step-2', 'build-step-3'],
+              origin: 'parallel',
+              parallelGroup: 'parallel-2',
+            },
+            {cancel: ['build-db']},
+            {wait: ['build-db'], key: undefined, name: 'Settle'},
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(
+      steps.slice(1).map(({position, type, name, config, background, parallelGroup, joinedAt}) => ({
+        position,
+        type,
+        name,
+        background,
+        parallelGroup,
+        joinedAt,
+        targets: (config as {targets?: unknown}).targets,
+        origin: (config as {origin?: unknown}).origin,
+      })),
+    ).toEqual([
+      {
+        position: 1,
+        type: 'run',
+        name: 'docker run postgres',
+        background: true,
+        parallelGroup: null,
+        joinedAt: 4,
+        targets: undefined,
+        origin: undefined,
+      },
+      {
+        position: 2,
+        type: 'run',
+        name: 'npm ci',
+        background: true,
+        parallelGroup: 'parallel-2',
+        joinedAt: 4,
+        targets: undefined,
+        origin: undefined,
+      },
+      {
+        position: 3,
+        type: 'run',
+        name: 'npm test',
+        background: true,
+        parallelGroup: 'parallel-2',
+        joinedAt: 4,
+        targets: undefined,
+        origin: undefined,
+      },
+      {
+        position: 4,
+        type: 'wait',
+        name: 'Wait for parallel steps',
+        background: false,
+        parallelGroup: 'parallel-2',
+        joinedAt: null,
+        targets: [2, 3],
+        origin: 'parallel',
+      },
+      {
+        position: 5,
+        type: 'cancel',
+        name: 'Cancel db',
+        background: false,
+        parallelGroup: null,
+        joinedAt: null,
+        targets: [1],
+        origin: undefined,
+      },
+      {
+        position: 6,
+        type: 'wait',
+        name: 'Settle',
+        background: false,
+        parallelGroup: null,
+        joinedAt: null,
+        targets: [1],
+        origin: 'authored',
+      },
+    ]);
+  });
+
+  it('names the wait that closes a job after the background steps it joins', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {key: 'upload', run: './upload.sh', background: true, joinedAt: 2},
+            {wait: ['build-upload'], origin: 'end-of-job', runAfter: 'always'},
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(steps[2]).toMatchObject({
+      type: 'wait',
+      name: 'Wait for background steps',
+      runAfter: 'always',
+      config: {targets: [1], origin: 'end-of-job'},
+    });
+  });
+
   it('materializes checkout steps with their resolved config and default name', async () => {
     const model = workflowModel({
       jobs: {
@@ -369,6 +492,9 @@ describe('materializeJobExecutionSteps', () => {
       },
       runAfter: 'success',
       continueOnError: false,
+      background: false,
+      parallelGroup: null,
+      joinedAt: null,
       authoredConfig: null,
       position: 1,
     });
@@ -631,6 +757,9 @@ describe('materializeJobExecutionSteps', () => {
         },
         runAfter: 'success',
         continueOnError: false,
+        background: false,
+        parallelGroup: null,
+        joinedAt: null,
         authoredConfig: null,
         position: 0,
       },
@@ -650,6 +779,9 @@ describe('materializeJobExecutionSteps', () => {
         },
         runAfter: 'success',
         continueOnError: false,
+        background: false,
+        parallelGroup: null,
+        joinedAt: null,
         authoredConfig: {
           run: `echo "${template('executions[0].name')}"`,
           env: {BODY: template('execution.events[0].data.body')},

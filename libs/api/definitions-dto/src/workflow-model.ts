@@ -193,7 +193,9 @@ export type WorkflowModelStep =
   | WorkflowModelCheckoutStep
   | WorkflowModelToolStep
   | WorkflowModelActionStep
-  | WorkflowModelCompositeStep;
+  | WorkflowModelCompositeStep
+  | WorkflowModelWaitStep
+  | WorkflowModelCancelStep;
 interface WorkflowModelStepBase {
   readonly id: string;
   readonly key?: string;
@@ -202,11 +204,39 @@ interface WorkflowModelStepBase {
   readonly runAfter?: WorkflowModelRunAfter;
   /** Set when a failure of this step does not count for `run_after` or the job result. */
   readonly continueOnError?: true;
+  /** Set when the job moves on without waiting for this step. Such a step has a `key`. */
+  readonly background?: true;
+  /** Set on the members of a `parallel` block and on the wait that joins them. */
+  readonly parallelGroup?: string;
+  /**
+   * Background steps only: the position of the wait step that joins this step. Later steps read
+   * its results. Cancelled steps never have one.
+   */
+  readonly joinedAt?: number;
   readonly name?: string;
   readonly workingDirectory?: string;
   readonly outputs?: OutputDeclarations;
   readonly gate?: WorkflowModelStepGate;
   readonly sourceLocation?: WorkflowSourceLocation;
+}
+/**
+ * Blocks until every target is terminal. `wait_all` is resolved to the targets that are still
+ * outstanding at its position, so the scheduler never interprets "all".
+ */
+export interface WorkflowModelWaitStep extends WorkflowModelStepBase {
+  readonly kind: 'wait';
+  /** Step ids of background steps. */
+  readonly targets: readonly string[];
+  /** Where the wait came from: authored, the end of a `parallel` block, or the end of the job. */
+  readonly origin: 'authored' | 'parallel' | 'end-of-job';
+  readonly templates?: {readonly name?: WorkflowFieldTemplate};
+}
+/** Stops background steps without waiting for them to finish. */
+export interface WorkflowModelCancelStep extends WorkflowModelStepBase {
+  readonly kind: 'cancel';
+  /** Step ids of background steps. */
+  readonly targets: readonly string[];
+  readonly templates?: {readonly name?: WorkflowFieldTemplate};
 }
 export interface WorkflowModelRunStep extends WorkflowModelStepBase {
   readonly kind: 'run';
@@ -473,10 +503,12 @@ const workflowModelSchema = z.custom<WorkflowModel>(
 export const workflowModelSnapshotSchema = z.object({
   // v2 snapshots predate tool steps, v3 snapshots predate concurrency, v4
   // snapshots predate job containers, v5 snapshots predate composite actions,
-  // and v6 snapshots predate `continue_on_error`. Historical versions stay
-  // readable while snapshots containing a `continue_on_error` step use v7, then
-  // a composite step v6, then a job container v5, then concurrency v4.
+  // v6 snapshots predate `continue_on_error`, and v7 snapshots predate
+  // concurrent steps. Historical versions stay readable while snapshots
+  // containing a concurrent step use v8, then a `continue_on_error` step v7,
+  // then a composite step v6, then a job container v5, then concurrency v4.
   version: z.union([
+    z.literal(8),
     z.literal(7),
     z.literal(6),
     z.literal(5),
@@ -489,6 +521,9 @@ export const workflowModelSnapshotSchema = z.object({
 export type WorkflowModelSnapshot = z.infer<typeof workflowModelSnapshotSchema>;
 
 export function createWorkflowModelSnapshot(model: WorkflowModel): WorkflowModelSnapshot {
+  if (model.jobs.some((job) => flattenJobSteps(job).some(isConcurrentStep))) {
+    return {version: 8, model};
+  }
   if (model.jobs.some((job) => flattenJobSteps(job).some((step) => step.continueOnError))) {
     return {version: 7, model};
   }
@@ -497,6 +532,10 @@ export function createWorkflowModelSnapshot(model: WorkflowModel): WorkflowModel
   }
   if (model.jobs.some((job) => job.container !== undefined)) return {version: 5, model};
   return {version: model.concurrency === undefined ? 3 : 4, model};
+}
+
+function isConcurrentStep(step: WorkflowModelStep): boolean {
+  return step.background === true || step.kind === 'wait' || step.kind === 'cancel';
 }
 
 /**
@@ -531,6 +570,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
     case 5:
     case 6:
     case 7:
+    case 8:
       return snapshot.model;
     default:
       // Callers that bypass the zod boundary (or a future version) get a
@@ -538,7 +578,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
       throw new Error(
         `Unsupported workflow model snapshot version ${String(
           snapshot.version,
-        )}; supported versions are 2, 3, 4, 5, 6, and 7.`,
+        )}; supported versions are 2, 3, 4, 5, 6, 7, and 8.`,
       );
   }
 }

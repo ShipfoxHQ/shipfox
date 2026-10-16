@@ -21,6 +21,7 @@ import {
   lt,
   ne,
   notInArray,
+  or,
   sql,
 } from 'drizzle-orm';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
@@ -527,7 +528,8 @@ export interface ListStepEnvSourcesParams {
 
 // The earlier steps whose CURRENT attempt the runner executed. A skipped step
 // has no attempt row; a pending or rewound step's current attempt has none yet.
-// Tool steps and composite rows run on the server, so a runner never carried env from them.
+// Tool steps, composite rows, and wait and cancel rows run on the server, so a runner never carried
+// env from them.
 export async function listStepEnvSources(
   params: ListStepEnvSourcesParams,
 ): Promise<StepEnvSourceDto[]> {
@@ -542,7 +544,9 @@ export async function listStepEnvSources(
       and(
         eq(steps.jobExecutionId, params.jobExecutionId),
         lt(steps.position, params.beforePosition),
-        notInArray(steps.type, ['tool', 'composite']),
+        // A background step's env is readable once a wait has joined it.
+        or(eq(steps.background, false), lt(steps.joinedAt, params.beforePosition)),
+        notInArray(steps.type, ['tool', 'composite', 'wait', 'cancel']),
         inArray(steps.status, ['succeeded', 'failed', 'cancelled']),
       ),
     )

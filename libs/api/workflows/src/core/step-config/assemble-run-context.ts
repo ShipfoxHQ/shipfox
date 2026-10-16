@@ -955,6 +955,8 @@ function buildStepAttemptContext(params: {
   readonly attempts: readonly StepAttempt[];
   /** The composite whose inner steps `steps` names. Null for the job steps. */
   readonly scopeParentStepId?: string | null | undefined;
+  /** The position of the step that reads. Unset for a read after the last step. */
+  readonly readerPosition?: number | undefined;
 }): {
   readonly stepsContext: Record<string, Record<string, unknown>>;
   readonly stepsFailed: boolean;
@@ -985,7 +987,7 @@ function buildStepAttemptContext(params: {
   const stepsContext: Record<string, Record<string, unknown>> = {};
 
   for (const step of scopedSteps) {
-    if (step.key === null) continue;
+    if (step.key === null || !isReadableStep(step, params.readerPosition)) continue;
     const attempts = terminalAttemptsByStepId.get(step.id) ?? [];
     const latestAttempt = attempts.at(-1);
     // A rewound step that the rerun skips has no attempt for its current pass, so
@@ -1011,6 +1013,14 @@ function buildStepAttemptContext(params: {
     stepsByKey,
     terminalAttemptsByStepId,
   };
+}
+
+// A background step is readable after the wait that joins it, and never when a cancel stopped it,
+// so a sibling that finished first is no more readable than one still running.
+function isReadableStep(step: Step, readerPosition: number | undefined): boolean {
+  if (!step.background) return true;
+  if (step.joinedAt === null) return false;
+  return readerPosition === undefined || step.joinedAt < readerPosition;
 }
 
 export function assembleStepDispatchContext(params: {
@@ -1043,6 +1053,7 @@ export function assembleStepDispatchContext(params: {
     steps: params.steps,
     attempts: params.attempts,
     scopeParentStepId: dispatchScope(params.scopeParentStepId, targetStep),
+    readerPosition: targetStep?.position,
   });
   const restart =
     targetStep === undefined || targetStep.currentAttempt <= 1

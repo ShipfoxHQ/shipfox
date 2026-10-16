@@ -1,5 +1,7 @@
+import {jobSteps} from './job-steps.js';
 import type {
   WorkflowDocument,
+  WorkflowDocumentJob,
   WorkflowDocumentJobCheckout,
   WorkflowDocumentStep,
 } from './workflow-document.js';
@@ -19,6 +21,13 @@ import {
 
 const interpolationOpen = '$' + '{{';
 const interpolationClose = '}' + '}';
+
+function stepAt(
+  job: WorkflowDocumentJob | undefined,
+  index: number,
+): WorkflowDocumentStep | undefined {
+  return job === undefined ? undefined : [...jobSteps(job)][index]?.step;
+}
 
 function interpolation(source: string): string {
   return `${interpolationOpen} ${source} ${interpolationClose}`;
@@ -322,7 +331,7 @@ describe('workflowDocumentSchema', () => {
 
     const result = workflowDocumentSchema.parse(workflowDocument);
 
-    expect(result.jobs.build?.steps[0]?.outputs).toEqual({
+    expect(stepAt(result.jobs.build, 0)?.outputs).toEqual({
       sha: {type: 'string'},
       count: {type: 'number'},
       ready: {type: 'boolean'},
@@ -357,7 +366,7 @@ describe('workflowDocumentSchema', () => {
       },
     });
 
-    expect(result.jobs.build?.steps[0]?.outputs).toEqual({
+    expect(stepAt(result.jobs.build, 0)?.outputs).toEqual({
       outcome: {type: 'string', default: 'none'},
       meta: {type: 'json', default: null},
     });
@@ -378,7 +387,7 @@ describe('workflowDocumentSchema', () => {
       },
     });
 
-    expect(result.jobs.notify?.steps[0]?.outputs).toEqual({
+    expect(stepAt(result.jobs.notify, 0)?.outputs).toEqual({
       message_id: interpolation('result.id'),
     });
   });
@@ -2205,7 +2214,7 @@ describe('workflowDocumentSchema', () => {
       outputs: {message_id: interpolation('result.id')},
     });
 
-    expect(document.jobs.build?.steps[0]?.outputs).toEqual({status: {type: 'string'}});
+    expect(stepAt(document.jobs.build, 0)?.outputs).toEqual({status: {type: 'string'}});
     expect(step.run).toBe('npm run build');
     expect(toolStep.tool).toBe('send_message');
     expect(toolStep.outputs).toEqual({message_id: interpolation('result.id')});

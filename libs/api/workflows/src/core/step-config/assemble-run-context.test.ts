@@ -2006,6 +2006,101 @@ describe('assembleStepDispatchContext', () => {
     expect(context.values.runner).toEqual({os: 'linux', arch: 'arm64'});
   });
 
+  describe('background steps', () => {
+    const background = (id: string, key: string, joinedAt: number | null, position: number) =>
+      step({id, key, position, status: 'succeeded', background: true, joinedAt});
+    const output = (stepId: string) =>
+      attempt({id: `attempt-${stepId}`, stepId, output: {v: stepId}});
+
+    it('reads a background step only at a position after the wait that joins it', () => {
+      const steps = [
+        background('early', 'early', 4, 1),
+        background('late', 'late', 6, 2),
+        step({id: 'plain', key: 'plain', position: 3, status: 'succeeded'}),
+        step({id: 'reader', key: 'reader', position: 5}),
+      ];
+      const attempts = [output('early'), output('late'), output('plain')];
+
+      const context = assembleStepDispatchContext({
+        steps,
+        attempts,
+        targetStepId: 'reader',
+      });
+
+      expect(Object.keys(context.values.steps as object).sort()).toEqual([
+        'early',
+        'plain',
+        'reader',
+      ]);
+      expect(context.values.steps).toMatchObject({early: {outputs: {v: 'early'}}});
+    });
+
+    it('does not read a finished background step that no wait has joined', () => {
+      const steps = [
+        background('sibling', 'sibling', 3, 1),
+        step({id: 'member', key: 'member', position: 2}),
+      ];
+
+      const context = assembleStepDispatchContext({
+        steps,
+        attempts: [output('sibling')],
+        targetStepId: 'member',
+      });
+
+      expect(context.values.steps).not.toHaveProperty('sibling');
+    });
+
+    it('never reads a cancelled background step', () => {
+      const steps = [
+        background('db', 'db', null, 1),
+        step({id: 'reader', key: 'reader', position: 5}),
+      ];
+
+      const context = assembleStepDispatchContext({
+        steps,
+        attempts: [output('db')],
+        targetStepId: 'reader',
+      });
+
+      expect(context.values.steps).not.toHaveProperty('db');
+    });
+
+    it('reads every joined background step once the job has resolved', () => {
+      const steps = [
+        background('joined', 'joined', 4, 1),
+        background('stopped', 'stopped', null, 2),
+      ];
+      const execution = jobExecution();
+
+      const context = assembleExecutionResolutionContext({
+        run: {
+          id: 'run-1',
+          number: 1,
+          currentAttempt: 1,
+          name: 'Build',
+          workflowName: 'Build',
+          definitionId: 'def-1',
+          projectId: 'proj-1',
+          workspaceId: 'workspace-1',
+          createdAt: date,
+        },
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: 'sub-1',
+          userId: 'user-1',
+        },
+        job: {key: 'build'},
+        jobExecution: execution,
+        executions: [execution],
+        steps,
+        attempts: [output('joined'), output('stopped')],
+      });
+
+      expect(Object.keys(context.values.steps as object)).toEqual(['joined']);
+    });
+  });
+
   it('wraps coherent step entities, the step self-root, and the current execution', () => {
     const targetStep = step({id: 'step-2', key: 'test', currentAttempt: 2});
     const steps = [
@@ -2823,6 +2918,9 @@ function step(overrides: Partial<Step> = {}): Step {
     condition: null,
     runAfter: 'success',
     continueOnError: false,
+    background: false,
+    parallelGroup: null,
+    joinedAt: null,
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -2852,6 +2950,7 @@ function attempt(overrides: Partial<StepAttempt> = {}): StepAttempt {
     gateResult: null,
     restartFeedback: null,
     failureIgnored: false,
+    cancelRequestedAt: null,
     logOutcome: null,
     invocations: [],
     startedAt: date,

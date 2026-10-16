@@ -1,5 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import type {ScriptedManagedProviderEntry} from '@shipfox/e2e-setup-agent';
+import {rawJobSteps} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import {z} from 'zod';
 import {CaseValidationError, formatValidationIssues} from './schema.js';
@@ -59,12 +60,7 @@ export async function loadScriptedEntries(
 
 /** The keys of the steps that call a model, which a scripted case must have replies for. */
 export function agentStepKeys(yaml: string): string[] {
-  const document = parseYaml(yaml) as {
-    jobs?: Record<string, {steps?: Array<{key?: string; prompt?: unknown}>}>;
-  };
-  return Object.values(document.jobs ?? {}).flatMap((job) =>
-    (job.steps ?? []).flatMap((step) =>
-      step.prompt === undefined ? [] : [step.key ?? '<unnamed step>'],
-    ),
+  return [...rawJobSteps(parseYaml(yaml))].flatMap(({step}) =>
+    step.prompt === undefined ? [] : [typeof step.key === 'string' ? step.key : '<unnamed step>'],
   );
 }

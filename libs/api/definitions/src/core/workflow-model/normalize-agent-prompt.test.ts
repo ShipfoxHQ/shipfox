@@ -1,4 +1,4 @@
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {WorkflowDocumentStep} from '@shipfox/workflow-document';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {InvalidWorkflowModelError} from './invalid-workflow-model-error.js';
 import {normalizeWorkflowDocument} from './normalize-workflow-document.js';
@@ -8,7 +8,7 @@ function interpolation(source: string): string {
 }
 
 function normalizePrompt(
-  prompt: NonNullable<WorkflowDocument['jobs'][string]['steps'][number]['prompt']>,
+  prompt: NonNullable<WorkflowDocumentStep['prompt']>,
   promptFiles?: ReadonlyMap<string, string>,
 ) {
   return normalizeWorkflowDocument(

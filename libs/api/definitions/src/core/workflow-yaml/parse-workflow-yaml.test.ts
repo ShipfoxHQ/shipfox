@@ -78,11 +78,9 @@ describe('parseWorkflowYaml', () => {
         prompt('          - Review the change.\n          - *rules\n          - Done.'),
       );
 
-      expect(document.jobs.review?.steps[0]?.prompt).toEqual([
-        'Review the change.',
-        'Be brief.',
-        'Done.',
-      ]);
+      expect(document.jobs.review?.steps[0]).toMatchObject({
+        prompt: ['Review the change.', 'Be brief.', 'Done.'],
+      });
     });
 
     it('rejects an anchored list spliced into a prompt list as an invalid item', () => {

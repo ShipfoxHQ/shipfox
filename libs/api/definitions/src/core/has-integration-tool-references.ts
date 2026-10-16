@@ -1,4 +1,4 @@
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {jobSteps, type WorkflowDocument} from '@shipfox/workflow-document';
 
 /**
  * Whether the document references integration tools: agent-step
@@ -12,6 +12,6 @@ import type {WorkflowDocument} from '@shipfox/workflow-document';
  */
 export function hasIntegrationToolReferences(document: WorkflowDocument): boolean {
   return Object.values(document.jobs).some((job) =>
-    job.steps.some((step) => step.tool !== undefined || step.integrations !== undefined),
+    [...jobSteps(job)].some(({step}) => step.tool !== undefined || step.integrations !== undefined),
   );
 }

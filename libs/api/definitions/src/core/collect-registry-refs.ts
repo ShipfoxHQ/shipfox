@@ -1,4 +1,4 @@
-import {parseWorkflowActionRef, type WorkflowDocument} from '@shipfox/workflow-document';
+import {jobSteps, parseWorkflowActionRef, type WorkflowDocument} from '@shipfox/workflow-document';
 import {parseTemplateHeader} from '@shipfox/workflow-templates/header';
 import type {RegistryActionRef, RegistryRef} from './entities/registry-ref.js';
 
@@ -36,7 +36,7 @@ export function collectRegistryRefs(params: {
 function collectActionRefs(document: WorkflowDocument): RegistryActionRef[] {
   const refs = new Map<string, RegistryActionRef>();
   for (const [jobKey, job] of Object.entries(document.jobs)) {
-    for (const [index, step] of job.steps.entries()) {
+    for (const {step, index, member} of jobSteps(job)) {
       if (step.uses === undefined) continue;
       const parsed = parseWorkflowActionRef(step.uses);
       if (!(parsed.ok && parsed.ref.kind === 'registry')) continue;
@@ -49,7 +49,9 @@ function collectActionRefs(document: WorkflowDocument): RegistryActionRef[] {
         version,
         steps: [],
       };
-      ref.steps.push(`${jobKey}.${step.key ?? index}`);
+      ref.steps.push(
+        `${jobKey}.${step.key ?? (member === undefined ? index : `${index}.${member}`)}`,
+      );
       refs.set(id, ref);
     }
   }

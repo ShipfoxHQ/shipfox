@@ -16,6 +16,7 @@ import type {
   WorkflowModelValidationIssue,
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
+import type {ExpandedStep} from './normalize-concurrent-steps.js';
 import {parseInterpolationField} from './parse-interpolation-field.js';
 import {issue} from './validation-issue.js';
 
@@ -69,19 +70,20 @@ function isRootPath(path: string | undefined): boolean {
 // checkout without its own `path` would land on the same root.
 export function validateCheckoutPathsRequired(params: {
   job: WorkflowDocumentJob;
+  entries: readonly ExpandedStep[];
   sourceName: string;
   issues: WorkflowModelValidationIssue[];
 }): void {
-  const {job, sourceName, issues} = params;
-  const first = job.steps[0];
+  const {job, entries, sourceName, issues} = params;
+  const first = entries[0]?.step;
   const projectOwnsRoot =
     job.checkout !== false && !(first?.checkout !== undefined && isRootPath(first.checkout.path));
   let owner = projectOwnsRoot ? 'the project checkout' : undefined;
 
-  job.steps.forEach((step, index) => {
+  entries.forEach(({step, topIndex}, index) => {
     if (step.checkout === undefined || !isRootPath(step.checkout.path)) return;
     if (owner === undefined) {
-      owner = `step ${index + 1}`;
+      owner = `step ${topIndex + 1}`;
       return;
     }
     issues.push(

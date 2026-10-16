@@ -50,6 +50,7 @@ export const stepAttempts = pgTable(
     restartFeedback: text('restart_feedback'),
     // A failed attempt of a `continue_on_error` step whose failure left the job result unchanged.
     failureIgnored: boolean('failure_ignored').notNull().default(false),
+    cancelRequestedAt: timestamp('cancel_requested_at', {withTimezone: true}),
     invocations: jsonb('invocations')
       .notNull()
       .default([])
@@ -109,6 +110,7 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
     gateResult: (row.gateResult as Record<string, unknown>) ?? null,
     restartFeedback: row.restartFeedback ?? null,
     failureIgnored: row.failureIgnored,
+    cancelRequestedAt: row.cancelRequestedAt ?? null,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt ?? null,
     createdAt: row.createdAt,

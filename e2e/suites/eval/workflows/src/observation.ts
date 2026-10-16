@@ -1,10 +1,10 @@
 import {observeRun, type WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
+import {rawJobSteps} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 
 function stepKeysOf(yaml: string): string[] {
-  const document = parseYaml(yaml) as {jobs?: Record<string, {steps?: Array<{key?: string}>}>};
-  return Object.values(document.jobs ?? {}).flatMap((job) =>
-    (job.steps ?? []).flatMap((step) => (step.key === undefined ? [] : [step.key])),
+  return [...rawJobSteps(parseYaml(yaml))].flatMap(({step}) =>
+    typeof step.key === 'string' ? [step.key] : [],
   );
 }
 

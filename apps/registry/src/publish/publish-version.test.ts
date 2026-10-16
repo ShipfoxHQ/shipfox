@@ -209,6 +209,27 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
       expect(pkg).toMatchObject({title: 'Ticket digest', integrations: ['github']});
     });
 
+    it('lists a registry action that a parallel block uses', async () => {
+      await publishAction();
+      const content = await bundleOf(
+        templateFiles({
+          steps: [
+            '- parallel:',
+            '    - run: echo left',
+            '    - key: digest',
+            '      uses: shipfox/slack-thread-digest@1.0.0',
+          ],
+        }),
+      );
+
+      const response = await publishTemplate({content});
+
+      expect(response.statusCode).toBe(201);
+      expect(documentOf(envelopeOf(response))).toMatchObject({
+        actions: ['shipfox/slack-thread-digest@1.0.0'],
+      });
+    });
+
     it('refuses a template that uses an action the registry does not hold', async () => {
       await publishAction();
       const content = await bundleOf(

@@ -101,4 +101,35 @@ describe('createWorkflowModelSnapshot', () => {
 
     expect(readPersistedWorkflowModel({version: 7, model: value})).toEqual(value);
   });
+
+  test('uses version 8 for a model with a background step', () => {
+    const step = {...run('a'), key: 'a', background: true as const, joinedAt: 2};
+    const wait: WorkflowModelStep = {id: 'wait', kind: 'wait', targets: ['a'], origin: 'authored'};
+
+    expect(createWorkflowModelSnapshot(model([step, wait])).version).toBe(8);
+  });
+
+  test('uses version 8 for a cancel step', () => {
+    const cancel: WorkflowModelStep = {id: 'cancel', kind: 'cancel', targets: ['a']};
+
+    expect(createWorkflowModelSnapshot(model([cancel])).version).toBe(8);
+  });
+
+  test('uses version 8 for a background step inside a composite', () => {
+    const inner = {...run('setup.a'), background: true as const};
+
+    expect(createWorkflowModelSnapshot(model([composite('setup', [inner])])).version).toBe(8);
+  });
+
+  test('prefers version 8 over version 7 when both features are used', () => {
+    const step = {...run('a'), continueOnError: true as const, background: true as const};
+
+    expect(createWorkflowModelSnapshot(model([step])).version).toBe(8);
+  });
+
+  test('reads a version 8 snapshot', () => {
+    const value = model([{...run('a'), background: true}]);
+
+    expect(readPersistedWorkflowModel({version: 8, model: value})).toEqual(value);
+  });
 });

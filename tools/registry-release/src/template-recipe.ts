@@ -4,6 +4,7 @@ import {formatRegistryReference, type RegistryReference} from '@shipfox/registry
 import {
   type ActionBundleFile,
   InvalidWorkflowDocumentError,
+  jobSteps,
   parseWorkflowActionRef,
   parseWorkflowDocument,
 } from '@shipfox/workflow-document';
@@ -158,8 +159,8 @@ function usesOf({label, yaml}: TemplateVariant): string[] {
     });
   }
   return Object.values(document.jobs)
-    .flatMap((job) => job.steps)
-    .flatMap((step) => (step.uses === undefined ? [] : [step.uses]));
+    .flatMap((job) => [...jobSteps(job)])
+    .flatMap(({step}) => (step.uses === undefined ? [] : [step.uses]));
 }
 
 function registryReferenceOf({variant, uses}: {variant: TemplateVariant; uses: string}): string {

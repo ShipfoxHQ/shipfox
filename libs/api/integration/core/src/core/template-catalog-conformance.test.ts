@@ -14,6 +14,7 @@ import {slackAgentToolSelectionCatalog} from '@shipfox/api-integration-slack';
 import {slackEventCatalog} from '@shipfox/api-integration-slack-dto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {
+  jobSteps,
   parseWorkflowDocument,
   type WorkflowDocument,
   type WorkflowDocumentJob,
@@ -483,10 +484,12 @@ function workflowJobIssues(
   const issues = needs
     .filter((need) => !jobIds.has(need))
     .map((need) => `${jobPrefix}: needs unknown job ${need}`);
-  const stepIds = new Set(job.steps.flatMap((step) => (step.key === undefined ? [] : [step.key])));
+  const stepIds = new Set(
+    [...jobSteps(job)].flatMap(({step}) => (step.key === undefined ? [] : [step.key])),
+  );
 
   issues.push(...outputReferenceIssues(job, stepIds, jobIds, needs, jobPrefix));
-  for (const step of job.steps) {
+  for (const {step} of jobSteps(job)) {
     const onFailure = step.gate?.on_failure ?? [];
     for (const rule of Array.isArray(onFailure) ? onFailure : [onFailure]) {
       if (!stepIds.has(rule.restart_from)) {
@@ -547,7 +550,7 @@ function orphanedWriteToolIssues(
 function collectToolStepIds(document: WorkflowDocument): ReadonlySet<string> {
   return new Set(
     Object.values(document.jobs).flatMap((job) =>
-      job.steps.flatMap((step) => (step.tool === undefined ? [] : [step.tool])),
+      [...jobSteps(job)].flatMap(({step}) => (step.tool === undefined ? [] : [step.tool])),
     ),
   );
 }
@@ -555,7 +558,7 @@ function collectToolStepIds(document: WorkflowDocument): ReadonlySet<string> {
 function collectIntegrationTools(document: WorkflowDocument): ReadonlySet<string> {
   return new Set(
     Object.values(document.jobs).flatMap((job) =>
-      job.steps.flatMap((step) =>
+      [...jobSteps(job)].flatMap(({step}) =>
         (step.integrations ?? []).flatMap((integration) => integration.include),
       ),
     ),

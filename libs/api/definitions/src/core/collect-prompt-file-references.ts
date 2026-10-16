@@ -2,6 +2,7 @@ import {
   type ActionManifest,
   actionPathRelativePart,
   isCompositeActionManifest,
+  jobSteps,
   type WorkflowDocument,
   type WorkflowDocumentStep,
 } from '@shipfox/workflow-document';
@@ -9,7 +10,7 @@ import {
 export interface PromptFileReference {
   /** The `file` path as written in the YAML. */
   file: string;
-  /** Where the part sits, for example `jobs.review.steps.4.prompt.2`. */
+  /** Where the part sits, for example `jobs.review.steps.4.prompt.2`, or `jobs.review.steps.4.parallel.1.prompt.2` in a `parallel` block. */
   path: string;
 }
 
@@ -19,7 +20,9 @@ export interface PromptFileReference {
  */
 export function collectPromptFileReferences(document: WorkflowDocument): PromptFileReference[] {
   return Object.entries(document.jobs).flatMap(([jobName, job]) =>
-    stepPromptFileReferences(job.steps, `jobs.${jobName}.steps`),
+    stepPromptFileReferences(
+      [...jobSteps(job)].map(({step, path}) => ({step, path: `jobs.${jobName}.${path.join('.')}`})),
+    ),
   );
 }
 
@@ -32,21 +35,20 @@ export function collectCompositePromptFileReferences(
   manifest: ActionManifest,
 ): PromptFileReference[] {
   if (!isCompositeActionManifest(manifest)) return [];
-  return stepPromptFileReferences(manifest.steps, 'steps').filter(
-    (reference) => actionPathRelativePart(reference.file) === undefined,
-  );
+  return stepPromptFileReferences(
+    manifest.steps.map((step, index) => ({step, path: `steps.${index}`})),
+  ).filter((reference) => actionPathRelativePart(reference.file) === undefined);
 }
 
 function stepPromptFileReferences(
-  steps: readonly WorkflowDocumentStep[],
-  stepsPath: string,
+  steps: readonly {step: WorkflowDocumentStep; path: string}[],
 ): PromptFileReference[] {
   const references: PromptFileReference[] = [];
-  for (const [stepIndex, step] of steps.entries()) {
+  for (const {step, path} of steps) {
     if (!Array.isArray(step.prompt)) continue;
     for (const [partIndex, part] of step.prompt.entries()) {
       if (typeof part === 'string') continue;
-      references.push({file: part.file, path: `${stepsPath}.${stepIndex}.prompt.${partIndex}`});
+      references.push({file: part.file, path: `${path}.prompt.${partIndex}`});
     }
   }
   return references;
