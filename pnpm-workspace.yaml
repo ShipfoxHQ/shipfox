@@ -144,7 +144,7 @@ catalog:
   "fishery": "^2.4.0"
   "framer-motion": "^12.23.24"
   "fumadocs-core": "16.16.2"
-  "fumadocs-mdx": "15.4.6"
+  "fumadocs-mdx": "15.4.0"
   "fumadocs-ui": "16.16.2"
   "github-slugger": "^2.0.0"
   "handlebars": "^4.7.8"
@@ -196,7 +196,7 @@ catalog:
   "vitest": "^4.1.5"
   "ws": "^8.21.0"
   "yaml": "^2.8.3"
-  "zod": "^4.6.7"
+  "zod": "^4.4.3"
 
 catalogs:
   dependency-cruiser-compatibility:
