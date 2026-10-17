@@ -82,6 +82,7 @@ await connection.close();
 - Setting `TEMPORAL_API_KEY` for a `tmprl.cloud` address enables TLS for clients and workers.
 - A `tmprl.cloud` address without `TEMPORAL_API_KEY` stops startup with a configuration error.
 - A non-Cloud address with `TEMPORAL_API_KEY` also stops startup so the key cannot be sent to it.
+- The client, its connection, and the runtime install flag live in `@shipfox/node-process-state` slots. Two installed copies of this package share one Temporal client and install the runtime once.
 - This package does not configure mutual TLS (mTLS) client certificates.
 - Production packages run `shipfox-temporal-bundle` after SWC emits a workflow entrypoint. The command writes sibling `*.bundle.js` and `*.bundle.meta.json` files.
 - Production workers load the bundle instead of compiling it. Startup fails when an artifact is missing. It also fails when the `@temporalio/worker` version differs from the runtime version.

@@ -60,6 +60,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/config": "workspace:*",
     "@shipfox/feature-flags": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
@@ -67,6 +68,7 @@
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-outbox": "workspace:*",
+    "@shipfox/node-process-state": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
     "@temporalio/activity": "catalog:",
     "drizzle-orm": "catalog:",

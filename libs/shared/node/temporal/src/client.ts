@@ -1,23 +1,32 @@
 import {logger} from '@shipfox/node-opentelemetry';
+import {processState} from '@shipfox/node-process-state';
 import {Client, Connection} from '@temporalio/client';
 import {config} from './config.js';
 import {getTemporalConnectionOptions, temporalConnectionError} from './connection-options.js';
 import {getClientInterceptors} from './interceptors.js';
 import {installTemporalRuntime} from './runtime.js';
 
-let _connection: Connection | undefined;
-let _client: Client | undefined;
+interface TemporalClientState {
+  connection?: Connection | undefined;
+  client?: Client | undefined;
+}
+
+const state = processState<TemporalClientState>(
+  '@shipfox/node-temporal/client/v1',
+  () => ({}),
+  import.meta.url,
+);
 
 export async function createTemporalClient(): Promise<Client> {
   installTemporalRuntime();
   try {
-    _connection = await Connection.connect(getTemporalConnectionOptions());
+    state.connection = await Connection.connect(getTemporalConnectionOptions());
   } catch (error) {
     throw temporalConnectionError(error);
   }
 
-  _client = new Client({
-    connection: _connection,
+  state.client = new Client({
+    connection: state.connection,
     namespace: config.TEMPORAL_NAMESPACE,
     interceptors: getClientInterceptors(),
   });
@@ -27,26 +36,26 @@ export async function createTemporalClient(): Promise<Client> {
     'Temporal client connected',
   );
 
-  return _client;
+  return state.client;
 }
 
 export function temporalClient(): Client {
-  if (!_client) {
+  if (!state.client) {
     throw new Error('Temporal client has not been created');
   }
-  return _client;
+  return state.client;
 }
 
 export async function closeTemporalClient(): Promise<void> {
-  await _connection?.close();
-  _connection = undefined;
-  _client = undefined;
+  await state.connection?.close();
+  state.connection = undefined;
+  state.client = undefined;
 }
 
 export async function isTemporalHealthy(): Promise<boolean> {
-  if (!_connection) return false;
+  if (!state.connection) return false;
   try {
-    await _connection.healthService.check({});
+    await state.connection.healthService.check({});
     return true;
   } catch {
     return false;

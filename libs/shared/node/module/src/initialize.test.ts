@@ -45,6 +45,13 @@ const mocks = vi.hoisted(() => ({
   },
   metricAdd: vi.fn(),
   metricRecord: vi.fn(),
+  reportDuplicatePackageCopies: vi.fn(),
+  config: {SHIPFOX_STRICT_PACKAGE_COPIES: false},
+}));
+
+vi.mock('./config.js', () => ({config: mocks.config}));
+vi.mock('./package-copies.js', () => ({
+  reportDuplicatePackageCopies: mocks.reportDuplicatePackageCopies,
 }));
 
 vi.mock('@shipfox/node-drizzle', () => ({
@@ -93,6 +100,39 @@ function migrationModule(
     ],
   };
 }
+
+describe('initializeModules duplicate package copies', () => {
+  afterEach(() => {
+    mocks.config.SHIPFOX_STRICT_PACKAGE_COPIES = false;
+    mocks.reportDuplicatePackageCopies.mockReset();
+  });
+
+  it('reports duplicate copies after every module is initialized', async () => {
+    await initializeModules({modules: [migrationModule('auth', 'auth')]});
+
+    expect(mocks.reportDuplicatePackageCopies).toHaveBeenCalledOnce();
+    expect(mocks.reportDuplicatePackageCopies).toHaveBeenCalledWith({strict: false});
+    expect(mocks.reportDuplicatePackageCopies.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mocks.runMigrations.mock.invocationCallOrder.at(-1) ?? 0,
+    );
+  });
+
+  it('passes strict mode from the environment setting', async () => {
+    mocks.config.SHIPFOX_STRICT_PACKAGE_COPIES = true;
+
+    await initializeModules({modules: []});
+
+    expect(mocks.reportDuplicatePackageCopies).toHaveBeenCalledWith({strict: true});
+  });
+
+  it('fails initialization when the report throws', async () => {
+    mocks.reportDuplicatePackageCopies.mockImplementation(() => {
+      throw new Error('copies diverge');
+    });
+
+    await expect(initializeModules({modules: []})).rejects.toThrow('copies diverge');
+  });
+});
 
 describe('initializeModules database namespaces', () => {
   beforeEach(() => {

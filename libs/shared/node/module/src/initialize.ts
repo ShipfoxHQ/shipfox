@@ -12,7 +12,9 @@ import {
   temporalClient,
   type Worker,
 } from '@shipfox/node-temporal';
+import {config} from './config.js';
 import {instrumentModuleActivities} from './metrics.js';
+import {reportDuplicatePackageCopies} from './package-copies.js';
 import {createOutboxRegistry, registerPublisher, subscribe} from './publisher-registry.js';
 import type {
   ModuleDatabase,
@@ -93,6 +95,8 @@ export async function initializeModules(
   for (const mod of options.modules) {
     await initializeModule(mod, {auth, routes, e2eRoutes, workers, services, outboxRegistry});
   }
+
+  reportDuplicatePackageCopies({strict: config.SHIPFOX_STRICT_PACKAGE_COPIES});
 
   return {auth, routes, e2eRoutes, workers, services, outboxRegistry};
 }
