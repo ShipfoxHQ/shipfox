@@ -41,6 +41,7 @@ function createWorkspaces(params: {
     getWorkspaceCreator: async () => ({creatorUserId: null}),
     getWorkspaceOperatingState: async () => ({status: 'active'}),
     getWorkspaceSummary: async () => undefined,
+    listAdminWorkspaces: async () => ({workspaces: [], nextCursor: null}),
     preflightInvitationAcceptance: async () => ({}),
     acceptInvitation: async () => ({
       membership: {id: crypto.randomUUID(), userId: params.userId, workspaceId: params.workspaceId},

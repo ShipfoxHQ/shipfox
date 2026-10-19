@@ -10,6 +10,7 @@ const workspaces = {
   requireActiveMembership: vi.fn(),
   getWorkspaceOperatingState: vi.fn(),
   getWorkspaceSummary: vi.fn(),
+  listAdminWorkspaces: vi.fn(),
 };
 
 const disabledPasswordPaths = [

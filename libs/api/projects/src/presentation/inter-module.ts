@@ -11,6 +11,7 @@ import {
   getProjectById,
   getProjectBySource,
   getWorkspaceProjectCounts,
+  listAdminProjects,
   listProjects,
   listProjectsBySourceConnection,
   type ProjectRepositoryListCursor,
@@ -61,6 +62,23 @@ export function createProjectsInterModulePresentation(): InterModulePresentation
       const result = await listProjectPage({workspaceId, limit, cursor});
       return {
         projects: result.projects.map(toProjectCatalogInterModule),
+        nextCursor: toProjectCursor(result.nextCursor),
+      };
+    },
+    listAdminProjects: async ({cursor, ...input}) => {
+      const result = await listAdminProjects({
+        ...input,
+        ...(cursor ? {cursor: createTimestampIdCursor(cursor)} : {}),
+      });
+      return {
+        projects: result.projects.map((project) => ({
+          id: project.id,
+          workspaceId: project.workspaceId,
+          name: project.name,
+          slug: project.slug,
+          createdAt: project.createdAt.toISOString(),
+          updatedAt: project.updatedAt.toISOString(),
+        })),
         nextCursor: toProjectCursor(result.nextCursor),
       };
     },

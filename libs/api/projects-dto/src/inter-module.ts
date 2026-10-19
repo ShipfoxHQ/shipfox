@@ -22,6 +22,14 @@ const workspaceProjectCountSchema = z.object({
   workspaceId: idSchema,
   count: z.number().int().nonnegative(),
 });
+const adminProjectSchema = z.object({
+  id: idSchema,
+  workspaceId: idSchema,
+  name: z.string(),
+  slug: slugSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
 const projectCursorSchema = z.object({
   createdAt: z.string().datetime(),
   id: idSchema,
@@ -113,6 +121,22 @@ export const projectsInterModuleContract = defineInterModuleContract({
       }),
       output: z.object({
         projects: z.array(projectCatalogSchema),
+        nextCursor: projectCursorSchema.nullable(),
+      }),
+    },
+    /**
+     * Lists projects across every workspace for administrator surfaces, newest
+     * first. Callers check the administrator role before calling.
+     */
+    listAdminProjects: {
+      input: z.object({
+        projectId: idSchema.optional(),
+        search: z.string().min(1).max(100).optional(),
+        limit: z.number().int().min(1).max(100),
+        cursor: projectCursorSchema.optional(),
+      }),
+      output: z.object({
+        projects: z.array(adminProjectSchema),
         nextCursor: projectCursorSchema.nullable(),
       }),
     },

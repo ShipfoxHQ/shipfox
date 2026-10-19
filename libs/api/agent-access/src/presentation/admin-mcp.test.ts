@@ -163,20 +163,77 @@ function createActionTool(): AgentAccessTool {
   };
 }
 
-const workspaces = {
-  listMembershipsForTokenClaims: vi.fn(() =>
-    Promise.resolve({
-      memberships: [
-        {
-          workspaceId: WORKSPACE_ID,
-          workspaceSlug: 'acme',
-          role: 'admin' as const,
-          workspaceStatus: 'active' as const,
-        },
-      ],
-    }),
-  ),
-} as unknown as WorkspacesInterModuleClient;
+const PROJECT_ID = '66666666-6666-4666-8666-666666666666';
+
+function createWorkspacesClient() {
+  return {
+    listMembershipsForTokenClaims: vi.fn(() =>
+      Promise.resolve({
+        memberships: [
+          {
+            workspaceId: WORKSPACE_ID,
+            workspaceSlug: 'acme',
+            role: 'admin' as const,
+            workspaceStatus: 'active' as const,
+          },
+        ],
+      }),
+    ),
+    listAdminWorkspaces: vi.fn(() =>
+      Promise.resolve({
+        workspaces: [
+          {
+            id: WORKSPACE_ID,
+            name: 'Acme',
+            slug: 'acme',
+            status: 'active' as const,
+            memberCount: 3,
+            createdAt: STARTED_AT,
+            updatedAt: DEADLINE_AT,
+          },
+        ],
+        nextCursor: {value: 'Acme', id: WORKSPACE_ID},
+      }),
+    ),
+    getWorkspaceSummary: vi.fn(({workspaceId}: {workspaceId: string}) =>
+      Promise.resolve(
+        workspaceId === WORKSPACE_ID ? {id: WORKSPACE_ID, name: 'Acme', slug: 'acme'} : undefined,
+      ),
+    ),
+  };
+}
+
+function createProjectsClient() {
+  return {
+    listAdminProjects: vi.fn(() =>
+      Promise.resolve({
+        projects: [
+          {
+            id: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            name: 'Checkout API',
+            slug: 'checkout-api',
+            createdAt: STARTED_AT,
+            updatedAt: DEADLINE_AT,
+          },
+          {
+            id: USER_ID,
+            workspaceId: OTHER_WORKSPACE_ID,
+            name: 'Checkout web',
+            slug: 'checkout-web',
+            createdAt: STARTED_AT,
+            updatedAt: DEADLINE_AT,
+          },
+        ],
+        nextCursor: {createdAt: STARTED_AT, id: USER_ID},
+      }),
+    ),
+  };
+}
+
+const projects = createProjectsClient() as unknown as ProjectsModuleClient;
+
+const workspaces = createWorkspacesClient() as unknown as WorkspacesInterModuleClient;
 
 describe('admin MCP endpoint', () => {
   beforeEach(async () => {
@@ -213,10 +270,14 @@ describe('admin MCP endpoint', () => {
     expect(response.statusCode).toBe(404);
   });
 
-  test('refuses to start without the auth and workspaces clients', () => {
-    expect(() => createTestRoutes({adminMcpEnabled: true})).toThrow(
-      'The admin MCP endpoint requires the auth and workspaces clients',
-    );
+  test('refuses to start without the auth, workspaces, and projects clients', () => {
+    expect(() =>
+      createTestRoutes({
+        adminMcpEnabled: true,
+        auth: createAuthClient('admin-owner') as unknown as AuthInterModuleClient,
+        workspaces,
+      }),
+    ).toThrow('The admin MCP endpoint requires the auth, workspaces, and projects clients');
   });
 
   test('rejects duplicate additional admin tools at startup', () => {
@@ -227,6 +288,8 @@ describe('admin MCP endpoint', () => {
         adminMcpEnabled: true,
         auth: createAuthClient('admin-owner') as unknown as AuthInterModuleClient,
         workspaces,
+        projects,
+        tools: [],
         additionalAdminTools: [duplicate],
       }),
     ).toThrow('Duplicate agent-access tool: find_users');
@@ -316,7 +379,9 @@ describe('admin MCP endpoint', () => {
     await close();
 
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+      'find_projects',
       'find_users',
+      'find_workspaces',
       'search_docs',
       'start_impersonation',
       'stop_impersonation',
@@ -352,6 +417,112 @@ describe('admin MCP endpoint', () => {
     expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenCalledWith({
       search: 'customer',
       limit: 5,
+    });
+  });
+
+  test('finds workspaces by name or slug and pages with an opaque cursor', async () => {
+    const workspacesClient = createWorkspacesClient();
+    const {client, close} = await connect({
+      auth: createAuthClient('admin-observer'),
+      workspaces: workspacesClient,
+    });
+
+    const first = await callTool(client, 'find_workspaces', {search: 'acme', status: 'active'});
+    const nextCursor = (first.structuredContent as {result: {next_cursor: string}}).result
+      .next_cursor;
+    await callTool(client, 'find_workspaces', {cursor: nextCursor});
+    await close();
+
+    expect(first.structuredContent).toEqual({
+      ok: true,
+      result: {
+        workspaces: [
+          {
+            id: WORKSPACE_ID,
+            name: 'Acme',
+            slug: 'acme',
+            status: 'active',
+            member_count: 3,
+            created_at: STARTED_AT,
+          },
+        ],
+        next_cursor: expect.any(String),
+      },
+    });
+    expect(workspacesClient.listAdminWorkspaces).toHaveBeenNthCalledWith(1, {
+      search: 'acme',
+      status: 'active',
+      limit: 10,
+    });
+    expect(workspacesClient.listAdminWorkspaces).toHaveBeenNthCalledWith(2, {
+      limit: 10,
+      cursor: {value: 'Acme', id: WORKSPACE_ID},
+    });
+  });
+
+  test('looks a workspace up by id when the search is a UUID', async () => {
+    const workspacesClient = createWorkspacesClient();
+    const {client, close} = await connect({
+      auth: createAuthClient('admin-observer'),
+      workspaces: workspacesClient,
+    });
+
+    await callTool(client, 'find_workspaces', {search: WORKSPACE_ID});
+    const badCursor = await callTool(client, 'find_workspaces', {cursor: 'not-a-cursor'});
+    await close();
+
+    expect(workspacesClient.listAdminWorkspaces).toHaveBeenCalledTimes(1);
+    expect(workspacesClient.listAdminWorkspaces).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      limit: 10,
+    });
+    expect(badCursor.structuredContent).toEqual({ok: false, error: {code: 'invalid-request'}});
+  });
+
+  test('finds projects across workspaces with their workspace slug', async () => {
+    const workspacesClient = createWorkspacesClient();
+    const projectsClient = createProjectsClient();
+    const {client, close} = await connect({
+      auth: createAuthClient('admin-observer'),
+      workspaces: workspacesClient,
+      projects: projectsClient,
+    });
+
+    const result = await callTool(client, 'find_projects', {search: 'checkout', limit: 2});
+    await callTool(client, 'find_projects', {search: PROJECT_ID});
+    await close();
+
+    expect(result.structuredContent).toEqual({
+      ok: true,
+      result: {
+        projects: [
+          {
+            id: PROJECT_ID,
+            name: 'Checkout API',
+            slug: 'checkout-api',
+            workspace_id: WORKSPACE_ID,
+            workspace_slug: 'acme',
+            created_at: STARTED_AT,
+          },
+          {
+            id: USER_ID,
+            name: 'Checkout web',
+            slug: 'checkout-web',
+            workspace_id: OTHER_WORKSPACE_ID,
+            workspace_slug: null,
+            created_at: STARTED_AT,
+          },
+        ],
+        next_cursor: expect.any(String),
+      },
+    });
+    expect(projectsClient.listAdminProjects).toHaveBeenNthCalledWith(1, {
+      search: 'checkout',
+      limit: 2,
+    });
+    expect(projectsClient.listAdminProjects).toHaveBeenNthCalledWith(2, {
+      projectId: PROJECT_ID,
+      limit: 10,
     });
   });
 
@@ -480,7 +651,9 @@ describe('admin MCP endpoint', () => {
       await close();
 
       expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
+        'find_projects',
         'find_users',
+        'find_workspaces',
         'search_docs',
         'start_impersonation',
         'stop_impersonation',
@@ -669,6 +842,7 @@ describe('admin MCP endpoint', () => {
           adminMcpEnabled: true,
           auth: createAuthClient('admin-owner') as unknown as AuthInterModuleClient,
           workspaces,
+          projects,
           tools: [
             {
               ...tool,
@@ -688,6 +862,7 @@ describe('admin MCP endpoint', () => {
     const stub = <T>() => ({}) as unknown as T;
     const app = await createTestApp({
       auth: createAuthClient('admin-operator'),
+      tools: undefined,
       projects: stub<ProjectsModuleClient>(),
       definitions: stub<DefinitionsInterModuleClient>(),
       workflows: stub<WorkflowsModuleClient>(),
@@ -716,7 +891,9 @@ describe('admin MCP endpoint', () => {
       [
         "check_workflow",
         "diff_registry_action",
+        "find_projects",
         "find_users",
+        "find_workspaces",
         "get_execution_trigger_event",
         "get_integration_connection_tools",
         "get_registry_package",
@@ -789,8 +966,14 @@ async function connect(options: {
   recordCall?: CreateAgentAccessRoutesOptions['recordCall'];
   rateLimiter?: CreateAgentAccessRoutesOptions['rateLimiter'];
   additionalAdminTools?: CreateAgentAccessRoutesOptions['additionalAdminTools'];
+  workspaces?: ReturnType<typeof createWorkspacesClient>;
+  projects?: ReturnType<typeof createProjectsClient>;
 }) {
-  const app = await createTestApp(options);
+  const app = await createTestApp({
+    ...options,
+    workspaces: (options.workspaces ?? workspaces) as unknown as WorkspacesInterModuleClient,
+    projects: (options.projects ?? projects) as unknown as ProjectsModuleClient,
+  });
   const address = await app.listen({port: 0, host: '127.0.0.1'});
   const client = new Client({name: 'test-http-client', version: '0.0.0'});
   const transport = new StreamableHTTPClientTransport(new URL('/mcp/admin', address), {
@@ -818,6 +1001,9 @@ async function createTestApp(
           origin === undefined || origin === 'https://allowed.example.test',
         adminMcpEnabled: options.auth !== undefined,
         workspaces,
+        projects,
+        // A projects client alone would make the routes require every core producer client.
+        tools: [createAgentAccessFixtureTool()],
         ...options,
         auth: options.auth as unknown as AuthInterModuleClient | undefined,
       }),

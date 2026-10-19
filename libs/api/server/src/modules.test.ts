@@ -268,6 +268,7 @@ describe('defaultModules', () => {
           listProjectsBySourceConnection: () => ({projects: [], nextCursor: null}),
           listProjectsByWorkspace: () => ({projects: [], nextCursor: null}),
           listProjectCatalogByWorkspace: () => ({projects: [], nextCursor: null}),
+          listAdminProjects: () => ({projects: [], nextCursor: null}),
           getWorkspaceProjectCounts: () => ({counts: []}),
           requireProjectForWorkspace: () => ({
             project: {
@@ -439,6 +440,7 @@ describe('defaultModules', () => {
             getWorkspaceCreator: mocks.getWorkspaceCreator,
             getWorkspaceOperatingState: mocks.getWorkspaceOperatingState,
             getWorkspaceSummary: mocks.getWorkspaceSummary,
+            listAdminWorkspaces: vi.fn(),
             preflightInvitationAcceptance: vi.fn(),
             acceptInvitation: vi.fn(),
             requireActiveMembership: vi.fn(),

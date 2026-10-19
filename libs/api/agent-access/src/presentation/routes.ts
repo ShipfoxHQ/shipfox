@@ -237,11 +237,19 @@ function createAdminTools(
   customerTools: readonly AgentAccessTool[],
 ): readonly AgentAccessTool[] | undefined {
   if (!(options.adminMcpEnabled ?? config.AGENT_ACCESS_ADMIN_MCP_ENABLED)) return undefined;
-  if (options.auth === undefined || options.workspaces === undefined) {
-    throw new Error('The admin MCP endpoint requires the auth and workspaces clients');
+  if (
+    options.auth === undefined ||
+    options.workspaces === undefined ||
+    options.projects === undefined
+  ) {
+    throw new Error('The admin MCP endpoint requires the auth, workspaces, and projects clients');
   }
   const tools = [
-    ...createAgentAccessAdminTools({auth: options.auth, workspaces: options.workspaces}),
+    ...createAgentAccessAdminTools({
+      auth: options.auth,
+      workspaces: options.workspaces,
+      projects: options.projects,
+    }),
     ...createAgentAccessAdminWorkspaceTools(customerTools),
     ...(options.additionalAdminTools ?? []),
   ];

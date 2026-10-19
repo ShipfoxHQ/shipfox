@@ -99,6 +99,49 @@ describe('Projects checkout target inter-module presentation', () => {
     expect(projectIds).toEqual([first.projectId, second.projectId].sort());
   });
 
+  test('lists projects across workspaces for administrators by name', async () => {
+    const client = createClient();
+    const token = `admin${crypto.randomUUID().slice(0, 8)}`;
+    const firstWorkspaceId = crypto.randomUUID();
+    const first = await insertProject({
+      workspaceId: firstWorkspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: `${token}-first`,
+    });
+    const second = await insertProject({
+      workspaceId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: `${token}-second`,
+    });
+
+    const firstPage = await client.listAdminProjects({search: token, limit: 1});
+    if (!firstPage.nextCursor) expect.fail('Expected a second project page');
+    const secondPage = await client.listAdminProjects({
+      search: token,
+      limit: 1,
+      cursor: firstPage.nextCursor,
+    });
+    const exact = await client.listAdminProjects({projectId: first.projectId, limit: 10});
+
+    expect([...firstPage.projects, ...secondPage.projects].map((project) => project.id)).toEqual([
+      second.projectId,
+      first.projectId,
+    ]);
+    expect(secondPage.nextCursor).toBeNull();
+    expect(exact.projects).toEqual([
+      {
+        id: first.projectId,
+        workspaceId: firstWorkspaceId,
+        name: `${token}-first`,
+        slug: first.projectSlug,
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      },
+    ]);
+  });
+
   test('lists project repositories by source connection through the producer contract', async () => {
     const client = createClient();
     const workspaceId = crypto.randomUUID();

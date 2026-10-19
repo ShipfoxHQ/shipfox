@@ -10,6 +10,16 @@ const workspaceSummaryInterModuleSchema = z.object({
   name: z.string(),
   slug: slugSchema,
 });
+const adminWorkspaceSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  slug: slugSchema,
+  status: workspaceStatusSchema,
+  memberCount: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+const adminWorkspaceCursorSchema = z.object({value: z.string().min(1), id: idSchema});
 
 export const workspacesInterModuleContract = defineInterModuleContract({
   module: 'workspaces',
@@ -25,6 +35,24 @@ export const workspacesInterModuleContract = defineInterModuleContract({
             workspaceStatus: workspaceStatusSchema.default('active'),
           }),
         ),
+      }),
+    },
+    /**
+     * Lists workspaces across the platform for administrator surfaces, ordered
+     * by name. Callers check the administrator role before calling.
+     */
+    listAdminWorkspaces: {
+      input: z.object({
+        workspaceId: idSchema.optional(),
+        workspaceSlug: slugSchema.optional(),
+        search: z.string().min(1).max(100).optional(),
+        status: workspaceStatusSchema.optional(),
+        limit: z.number().int().min(1).max(100),
+        cursor: adminWorkspaceCursorSchema.optional(),
+      }),
+      output: z.object({
+        workspaces: z.array(adminWorkspaceSchema),
+        nextCursor: adminWorkspaceCursorSchema.nullable(),
       }),
     },
     /** Resolves the user id that created the workspace, or null when no creator was recorded. */

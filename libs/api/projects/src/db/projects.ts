@@ -81,7 +81,7 @@ export interface ListProjectsResult {
 
 export type AdminProjectSummary = Pick<
   Project,
-  'id' | 'workspaceId' | 'name' | 'createdAt' | 'updatedAt'
+  'id' | 'workspaceId' | 'name' | 'slug' | 'createdAt' | 'updatedAt'
 >;
 
 export interface ListAdminProjectsParams {
@@ -525,7 +525,10 @@ export async function listAdminProjects(
   if (cursorCondition) conditions.push(cursorCondition);
   if (params.projectId) conditions.push(eq(projects.id, params.projectId));
   if (params.search) {
-    conditions.push(ilike(projects.name, `%${escapeIlikePattern(params.search)}%`));
+    const searchPattern = `%${escapeIlikePattern(params.search)}%`;
+    conditions.push(
+      or(ilike(projects.name, searchPattern), ilike(projects.slug, searchPattern)) as SQL,
+    );
   }
 
   const rows = await db()
@@ -533,6 +536,7 @@ export async function listAdminProjects(
       id: projects.id,
       workspaceId: projects.workspaceId,
       name: projects.name,
+      slug: projects.slug,
       createdAt: projects.createdAt,
       cursorCreatedAt: timestampIdCursorColumn(projects.createdAt),
       updatedAt: projects.updatedAt,

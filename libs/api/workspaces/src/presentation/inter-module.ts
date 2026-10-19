@@ -22,6 +22,7 @@ import {
   requireWorkspaceMembership,
 } from '#core/workspaces.js';
 import {listMembershipsByUser} from '#db/memberships.js';
+import {listAdminWorkspaces} from '#db/workspaces.js';
 
 export function createWorkspacesInterModulePresentation(): InterModulePresentation<
   typeof workspacesInterModuleContract
@@ -37,6 +38,21 @@ export function createWorkspacesInterModulePresentation(): InterModulePresentati
         }),
       ),
     }),
+    listAdminWorkspaces: async (input) => {
+      const result = await listAdminWorkspaces(input);
+      return {
+        workspaces: result.workspaces.map((workspace) => ({
+          id: workspace.id,
+          name: workspace.name,
+          slug: workspace.slug,
+          status: workspace.status,
+          memberCount: workspace.memberCount,
+          createdAt: workspace.createdAt.toISOString(),
+          updatedAt: workspace.updatedAt.toISOString(),
+        })),
+        nextCursor: result.nextCursor,
+      };
+    },
     getWorkspaceSummary: async ({workspaceId}) => await getWorkspaceSummary({workspaceId}),
     getWorkspaceCreator: async (input) => {
       try {

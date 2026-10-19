@@ -69,6 +69,7 @@ describe('authModule', () => {
       requireActiveMembership: vi.fn(),
       getWorkspaceOperatingState: vi.fn(),
       getWorkspaceSummary: vi.fn(),
+      listAdminWorkspaces: vi.fn(),
     },
     signupPolicy,
   });
@@ -89,6 +90,7 @@ describe('authModule', () => {
         requireActiveMembership: vi.fn(),
         getWorkspaceOperatingState: vi.fn(),
         getWorkspaceSummary: vi.fn(),
+        listAdminWorkspaces: vi.fn(),
       },
     });
     expect(module.routes).toHaveLength(9);

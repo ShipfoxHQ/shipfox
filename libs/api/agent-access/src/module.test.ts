@@ -12,13 +12,13 @@ describe('agent-access module', () => {
     expect(module.createAgentAccessModule).toBeTypeOf('function');
   });
 
-  it('refuses to compose with the admin MCP flag on and no auth or workspaces client', async () => {
+  it('refuses to compose with the admin MCP flag on and no auth, workspaces, or projects client', async () => {
     vi.resetModules();
     vi.stubEnv('AGENT_ACCESS_ADMIN_MCP_ENABLED', 'true');
     const {createAgentAccessModule} = await import('./index.js');
 
     expect(() => createAgentAccessModule()).toThrow(
-      'The admin MCP endpoint requires the auth and workspaces clients',
+      'The admin MCP endpoint requires the auth, workspaces, and projects clients',
     );
   });
 });

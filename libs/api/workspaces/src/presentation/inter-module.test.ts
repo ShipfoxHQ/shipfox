@@ -28,6 +28,44 @@ describe('Workspaces inter-module presentation', () => {
     });
   });
 
+  test('lists workspaces for administrators by name with member counts', async () => {
+    const client = createClient();
+    const prefix = `Admin ${crypto.randomUUID().slice(0, 8)}`;
+    const first = await createWorkspace({
+      name: `${prefix} A`,
+      slug: `admin-a-${crypto.randomUUID().slice(0, 8)}`,
+    });
+    const second = await createWorkspace({
+      name: `${prefix} B`,
+      slug: `admin-b-${crypto.randomUUID().slice(0, 8)}`,
+    });
+    await createMembership({workspaceId: first.id, userId: crypto.randomUUID()});
+
+    const firstPage = await client.listAdminWorkspaces({search: prefix, limit: 1});
+    if (!firstPage.nextCursor) expect.fail('Expected a second workspace page');
+    const secondPage = await client.listAdminWorkspaces({
+      search: prefix,
+      limit: 1,
+      cursor: firstPage.nextCursor,
+    });
+    const bySlug = await client.listAdminWorkspaces({search: second.slug, limit: 10});
+
+    expect(firstPage.workspaces).toEqual([
+      {
+        id: first.id,
+        name: `${prefix} A`,
+        slug: first.slug,
+        status: 'active',
+        memberCount: 1,
+        createdAt: first.createdAt.toISOString(),
+        updatedAt: first.updatedAt.toISOString(),
+      },
+    ]);
+    expect(secondPage.workspaces.map((workspace) => workspace.id)).toEqual([second.id]);
+    expect(secondPage.nextCursor).toBeNull();
+    expect(bySlug.workspaces.map((workspace) => workspace.id)).toEqual([second.id]);
+  });
+
   test('returns undefined for a missing workspace summary', async () => {
     const client = createClient();
 

@@ -84,6 +84,7 @@ const workspaceTestDoubles = vi.hoisted(() => {
     ),
     preflightInvitationAcceptance: vi.fn(),
     listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
+    listAdminWorkspaces: vi.fn(),
     requireActiveMembership: vi.fn(),
   };
 }) as {

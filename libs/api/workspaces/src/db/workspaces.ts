@@ -122,7 +122,10 @@ export async function listAdminWorkspaces(
   if (params.workspaceId) conditions.push(eq(workspaces.id, params.workspaceId));
   if (params.workspaceSlug) conditions.push(eq(workspaces.slug, params.workspaceSlug));
   if (params.search) {
-    conditions.push(ilike(workspaces.name, `%${escapeIlikePattern(params.search)}%`));
+    const searchPattern = `%${escapeIlikePattern(params.search)}%`;
+    conditions.push(
+      or(ilike(workspaces.name, searchPattern), ilike(workspaces.slug, searchPattern)) as SQL,
+    );
   }
   if (params.status) conditions.push(eq(workspaces.status, params.status));
   const cursor = adminWorkspaceCursorWhere(params.cursor);

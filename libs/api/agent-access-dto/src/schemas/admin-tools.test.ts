@@ -1,5 +1,7 @@
 import {
+  findProjectsInputSchema,
   findUsersInputSchema,
+  findWorkspacesInputSchema,
   startImpersonationInputSchema,
   stopImpersonationInputSchema,
 } from './admin-tools.js';
@@ -20,6 +22,40 @@ describe('admin tool inputs', () => {
     {},
   ])('find_users rejects %j', (input) => {
     expect(findUsersInputSchema.safeParse(input).success).toBe(false);
+  });
+
+  test('find_workspaces and find_projects list everything when no search is given', () => {
+    expect(findWorkspacesInputSchema.parse({})).toEqual({limit: 10});
+    expect(findProjectsInputSchema.parse({})).toEqual({limit: 10});
+  });
+
+  test('find_workspaces trims the search and accepts a status filter', () => {
+    expect(findWorkspacesInputSchema.parse({search: ' acme ', status: 'suspended'})).toEqual({
+      search: 'acme',
+      status: 'suspended',
+      limit: 10,
+    });
+  });
+
+  test.each([
+    {search: ''},
+    {search: '   '},
+    {search: 'x'.repeat(101)},
+    {search: 'acme\u0000'},
+    {limit: 26},
+    {status: 'archived'},
+    {extra: true},
+  ])('find_workspaces rejects %j', (input) => {
+    expect(findWorkspacesInputSchema.safeParse(input).success).toBe(false);
+  });
+
+  test.each([
+    {search: ''},
+    {search: 'x'.repeat(101)},
+    {limit: 0},
+    {status: 'active'},
+  ])('find_projects rejects %j', (input) => {
+    expect(findProjectsInputSchema.safeParse(input).success).toBe(false);
   });
 
   test.each([

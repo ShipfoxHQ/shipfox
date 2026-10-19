@@ -580,6 +580,7 @@ function clients() {
       listProjectsByWorkspace: vi.fn(),
       listProjectCatalogByWorkspace: (input) =>
         projectHandlers.listProjectCatalogByWorkspace(input),
+      listAdminProjects: vi.fn(),
       requireProjectForWorkspace: (input) => projectHandlers.requireProjectForWorkspace(input),
       getWorkspaceProjectCounts: vi.fn(),
       resolveCheckoutTarget: vi.fn(),
