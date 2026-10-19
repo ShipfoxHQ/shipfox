@@ -34,13 +34,17 @@ export function WorkflowRunListView({
   isFetchingNextPage = false,
   isFetchNextPageError = false,
   onLoadMore,
+  defaultOrigin = 'synced',
+  leading,
+  notice,
+  emptyState,
 }: WorkflowRunListViewProps) {
   const headingId = useId();
   const [localSearch, setLocalSearch] = useState<WorkflowRunsSearch>(search);
   const rawSearch = onFiltersChange ? search : localSearch;
   const currentSearch = useMemo<WorkflowRunsSearch>(
-    () => ({...rawSearch, origin: rawSearch.origin ?? 'synced'}),
-    [rawSearch],
+    () => ({...rawSearch, origin: rawSearch.origin ?? defaultOrigin}),
+    [rawSearch, defaultOrigin],
   );
 
   const filteredRuns = useMemo(
@@ -52,7 +56,7 @@ export function WorkflowRunListView({
     [runs, currentSearch, workflowOptions],
   );
   // The default origin is presentation state, not an explicitly selected filter. This keeps
-  // Clear filters useful while still making the list show synced runs when the URL is absent.
+  // Clear filters useful while still making the list show the default origin when the URL is absent.
   const hasActiveFilters = hasWorkflowRunFilters(rawSearch);
 
   function handleFiltersChange(patch: WorkflowRunFilterPatch) {
@@ -72,7 +76,11 @@ export function WorkflowRunListView({
     <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
       <section
         aria-labelledby={headingId}
-        className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}
+        className={cn(
+          'flex min-h-0 min-w-0 flex-1 flex-col',
+          leading ? 'gap-section overflow-y-auto' : null,
+          className,
+        )}
       >
         {/* The tab strip above already reads "Runs", so the page heading is for structure and
             assistive tech rather than a second visible title competing with it. */}
@@ -80,7 +88,10 @@ export function WorkflowRunListView({
           Workflow runs
         </Header>
 
-        <Panel className="min-h-0 flex-1">
+        {leading}
+        {/* With panels above it the list keeps its natural height and the page scrolls, rather
+            than squeezing the rows into what the panels leave. */}
+        <Panel className={leading ? 'shrink-0' : 'min-h-0 flex-1'}>
           <PanelHeader className="flex-wrap">
             <WorkflowRunFilters
               search={currentSearch}
@@ -88,12 +99,13 @@ export function WorkflowRunListView({
               onChange={handleFiltersChange}
               onClear={handleClearFilters}
               hasActiveFilters={hasActiveFilters}
+              defaultOrigin={defaultOrigin}
               workflowOptionsStatus={workflowOptionsStatus}
               {...(onOpenWorkflowOptions ? {onOpenWorkflowOptions} : {})}
               {...(onRetryWorkflowOptions ? {onRetryWorkflowOptions} : {})}
             />
           </PanelHeader>
-          <PanelBody className="min-h-0 flex-1 overflow-y-auto">
+          <PanelBody className={leading ? undefined : 'min-h-0 flex-1 overflow-y-auto'}>
             <WorkflowRunListContent
               query={query}
               totalRuns={runs.length}
@@ -102,6 +114,8 @@ export function WorkflowRunListView({
               projectSlug={projectSlug}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={handleClearFilters}
+              notice={notice}
+              emptyState={emptyState}
               hasNextPage={hasNextPage}
               isFetchingNextPage={isFetchingNextPage}
               isFetchNextPageError={isFetchNextPageError}

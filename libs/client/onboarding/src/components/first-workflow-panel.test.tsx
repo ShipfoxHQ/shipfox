@@ -30,7 +30,7 @@ import type {WorkspaceReference} from './setup-checklist-types.js';
 const WORKSPACE: WorkspaceReference = {id: 'test-workspace', slug: 'acme'};
 const CONNECTED_RE = /^Connected:/u;
 const TEMPLATES_FAILED_RE = /Suggested workflows could not load/u;
-const TASK_PULL_REQUEST_RE = /Merging the task pull request does not turn/u;
+const TASK_PULL_REQUEST_RE = /Pull requests opened by the run itself/u;
 const now = new Date().toISOString();
 
 function grant(workspaceId: string, clientName: string) {
@@ -267,8 +267,8 @@ describe('FirstWorkflowPanel in finish mode', () => {
       progress: {state: 'test_run_succeeded', testRunId: 'run-1'},
     });
 
-    expect(await screen.findByRole('heading', {name: 'Finish your first workflow'})).toBeVisible();
-    expect(screen.getByText('A test run succeeded.')).toBeVisible();
+    expect(await screen.findByRole('heading', {name: 'Make your workflow live'})).toBeVisible();
+    expect(screen.getByText('A dev run passed.')).toBeVisible();
     expect(screen.getByRole('link', {name: 'View run'})).toHaveAttribute('href', '/runs/run-1');
     expect(screen.getByText(TASK_PULL_REQUEST_RE)).toBeVisible();
     expect(screen.queryByRole('tab', {name: 'Claude Code'})).not.toBeInTheDocument();

@@ -44,8 +44,8 @@ const RUN_SCOPE_OPTIONS: readonly {
   value: WorkflowRunListOrigin;
   label: string;
 }[] = [
-  {value: 'synced', label: 'Synced runs'},
-  {value: 'dev', label: 'Development runs'},
+  {value: 'synced', label: 'Live runs'},
+  {value: 'dev', label: 'Dev runs'},
   {value: 'all', label: 'All runs'},
 ];
 const STATUS_OPTIONS: WorkflowRunFilterOption[] = WORKFLOW_RUN_LIST_STATUSES.map((status) => ({
@@ -59,6 +59,8 @@ export interface WorkflowRunFiltersProps {
   onChange: (patch: WorkflowRunFilterPatch) => void;
   onClear: () => void;
   hasActiveFilters: boolean;
+  /** The origin the list shows when the URL names none, which the sheet does not count. */
+  defaultOrigin: WorkflowRunListOrigin;
   workflowOptionsStatus: WorkflowOptionsStatus;
   onOpenWorkflowOptions?: () => void;
   onRetryWorkflowOptions?: () => void;
@@ -77,6 +79,7 @@ export function WorkflowRunFilters({
   onChange,
   onClear,
   hasActiveFilters,
+  defaultOrigin,
   workflowOptionsStatus,
   onOpenWorkflowOptions,
   onRetryWorkflowOptions,
@@ -84,7 +87,7 @@ export function WorkflowRunFilters({
   const [sheetOpen, setSheetOpen] = useState(false);
   const {origin, ...searchWithoutOrigin} = search;
   const activeSheetFilterCount = countWorkflowRunFilters(
-    origin === 'synced' ? searchWithoutOrigin : search,
+    origin === defaultOrigin ? searchWithoutOrigin : search,
     {includeSearch: false},
   );
 

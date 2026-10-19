@@ -78,6 +78,10 @@ function SyncBadge({
   if (isPending) return <StatusBadge variant="neutral">Loading</StatusBadge>;
   if (sync === undefined) return <StatusBadge variant="neutral">Unavailable</StatusBadge>;
   if (sync === null) return <StatusBadge variant="neutral">No sync</StatusBadge>;
+  // Every project starts without workflow files, so that sync outcome is not an error.
+  if (sync.status === 'failed' && sync.lastErrorCode === 'no-workflow-files') {
+    return <StatusBadge variant="neutral">No workflows yet</StatusBadge>;
+  }
 
   const variantByStatus = {
     pending: 'neutral',

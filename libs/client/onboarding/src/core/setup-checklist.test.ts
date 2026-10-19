@@ -383,10 +383,10 @@ describe('deriveSetupChecklist', () => {
 
     expect(checklist.items.find((item) => item.id === 'first-workflow')).toEqual({
       id: 'first-workflow',
-      title: 'A test run succeeded',
+      title: 'A dev run passed',
       status: 'open',
       tracked: true,
-      purpose: 'Merge the workflow pull request from your coding agent to turn the workflow on',
+      purpose: 'Merge the pull request that adds the workflow to make it live',
       action: {label: 'View run', href: '/runs/$workflowRunId', workflowRunId: 'run-1'},
     });
     expect(checklist.openCount).toBe(1);

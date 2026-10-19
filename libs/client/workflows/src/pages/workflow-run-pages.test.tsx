@@ -53,6 +53,7 @@ const DEPLOY_PRODUCTION_RE = /deploy-production/u;
 const CI_RUN_RE = /ci-run/u;
 const OLDER_RUN_RE = /older-run/u;
 const TRIAGE_SENTRY_RE = /triage-sentry/u;
+const NO_LIVE_RUNS_RE = /^No live runs yet\./u;
 const INTEGRATION_TESTS_RE = /integration-tests/u;
 const BUILD_IMAGE_RE = /build-image/u;
 const STATUS_FILTER_RE = /^Status\b.*filter$/u;
@@ -178,7 +179,7 @@ describe('WorkflowRunPages', () => {
     ).toBe(true);
 
     expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
-      'Development runs',
+      'Dev runs',
     );
 
     await user.click(screen.getByRole('button', {name: 'Clear filters'}));
@@ -316,6 +317,56 @@ describe('WorkflowRunPages', () => {
         return url.searchParams.get('cursor') === 'cursor-2';
       }),
     ).toBe(true);
+  });
+
+  test('lists dev runs by default until the project has a live run', async () => {
+    const fetchImpl = createDevRunsOnlyFetch();
+    configureApiClient({fetchImpl});
+
+    const {router} = renderRunsPath();
+
+    expect(await screen.findByRole('link', {name: TRIAGE_SENTRY_RE})).toBeInTheDocument();
+    expect(screen.getByText(NO_LIVE_RUNS_RE)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
+      'All runs',
+    );
+    expect(screen.queryByRole('button', {name: 'Clear filters'})).not.toBeInTheDocument();
+    expect(router.state.location.searchStr).toBe('');
+    expect(
+      fetchImpl.mock.calls.some((call) => {
+        const url = new URL(requestInputUrl(call[0]));
+        return url.pathname === '/workflows/runs' && url.searchParams.get('origin') === null;
+      }),
+    ).toBe(true);
+  });
+
+  test('keeps the live default for a project with a live run', async () => {
+    const fetchImpl = createMixedOriginRunsFetch();
+    configureApiClient({fetchImpl});
+
+    renderRunsPath();
+
+    expect(await screen.findByRole('link', {name: DEPLOY_WEB_RE})).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: TRIAGE_SENTRY_RE})).not.toBeInTheDocument();
+    expect(screen.queryByText(NO_LIVE_RUNS_RE)).not.toBeInTheDocument();
+    expect(
+      fetchImpl.mock.calls.some(
+        (call) => new URL(requestInputUrl(call[0])).pathname === '/definitions',
+      ),
+    ).toBe(false);
+  });
+
+  test('shows the merged workflows still waiting for a trigger', async () => {
+    configureApiClient({
+      fetchImpl: createDevRunsOnlyFetch({
+        definitions: [definitionDto(DEFINITION_ID, 'Deploy production')],
+      }),
+    });
+
+    renderRunsPath();
+
+    expect(await screen.findByText('Live, waiting for a trigger')).toBeInTheDocument();
+    expect(screen.getByText('Deploy production')).toBeInTheDocument();
   });
 
   test('shows the list empty state without mounting run detail', async () => {
@@ -806,7 +857,7 @@ function createPaginatedWorkflowDefinitionsFetch() {
     }
 
     if (url.pathname === '/workflows/runs') {
-      return Promise.resolve(jsonResponse({runs: [], next_cursor: null, filtered_total_count: 0}));
+      return Promise.resolve(liveRunsResponse());
     }
 
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
@@ -834,11 +885,74 @@ function createRecoveringWorkflowDefinitionsFetch() {
     }
 
     if (url.pathname === '/workflows/runs') {
-      return Promise.resolve(jsonResponse({runs: [], next_cursor: null, filtered_total_count: 0}));
+      return Promise.resolve(liveRunsResponse());
     }
 
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
   });
+}
+
+function liveRunsResponse() {
+  return jsonResponse({
+    runs: [workflowRunDto(RUN_OVERRIDES)],
+    next_cursor: null,
+    filtered_total_count: 1,
+  });
+}
+
+function createDevRunsOnlyFetch({definitions = []}: {definitions?: unknown[]} = {}) {
+  const devRun = workflowRunDto({
+    id: '66666666-6666-4666-8666-000000000009',
+    name: 'triage-sentry',
+    workflow_name: 'triage-sentry',
+    origin: 'dev',
+    trigger_reference: null,
+    dev_source: {
+      ref: 'fix-triage-prompt',
+      commit: 'abcdef1234567890abcdef1234567890abcdef12',
+      definition_source: 'ref',
+      local_actions: [],
+      config_path: '.shipfox/workflows/triage-sentry.yml',
+      initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
+      replay_of_event_id: null,
+    },
+  });
+
+  return vi.fn((input: RequestInfo | URL) => {
+    const url = new URL(requestInputUrl(input));
+
+    if (url.pathname === '/workflows/runs') {
+      const runs = url.searchParams.get('origin') === 'synced' ? [] : [devRun];
+      return Promise.resolve(
+        jsonResponse({runs, next_cursor: null, filtered_total_count: runs.length}),
+      );
+    }
+
+    if (url.pathname === '/definitions') {
+      return Promise.resolve(
+        jsonResponse({
+          definitions,
+          next_cursor: null,
+          sync: syncSummaryDto(definitions.length > 0),
+        }),
+      );
+    }
+
+    return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
+  });
+}
+
+function syncSummaryDto(foundWorkflows: boolean) {
+  return {
+    ref: 'main',
+    status: foundWorkflows ? 'succeeded' : 'failed',
+    last_sync_at: '2026-05-07T01:00:00.000Z',
+    started_at: '2026-05-07T00:59:58.000Z',
+    finished_at: '2026-05-07T01:00:00.000Z',
+    last_error_code: foundWorkflows ? null : 'no-workflow-files',
+    last_error_message: foundWorkflows ? null : 'No workflow files found',
+    diagnostics: [],
+  };
 }
 
 function definitionDto(id: string, name: string) {

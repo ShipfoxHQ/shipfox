@@ -48,11 +48,12 @@ export interface ChromeSlots {
    */
   WorkspaceSetupChecklist?: ComponentType;
   /**
-   * Optional component the project workflows page renders in place of its
-   * empty definitions list, once the project has no definitions and sync is
-   * not in progress. The component should render content in that state, since
-   * the page shows nothing else there. The page keeps its empty list when the
-   * slot is absent.
+   * Optional component for a project with no workflow definitions. The project
+   * workflows page renders it in place of its empty definitions list once sync
+   * is not in progress, and the runs page renders it above the run list while
+   * the project has no live run. The component should render content in that
+   * state, since the workflows page shows nothing else there. Both pages keep
+   * their own content when the slot is absent.
    */
   FirstWorkflowPanel?: ComponentType<{projectId: string}>;
   /**

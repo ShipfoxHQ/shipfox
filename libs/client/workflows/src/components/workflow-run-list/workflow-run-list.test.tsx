@@ -121,7 +121,7 @@ describe('WorkflowRunList', () => {
       ),
     ).toBe(true);
     expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
-      'Synced runs',
+      'Live runs',
     );
   });
 });

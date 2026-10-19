@@ -876,11 +876,9 @@ describe('first workflow row', () => {
       seedFirstWorkflow(queryClient, {state: 'test_run_succeeded', testRunId: 'run-1'});
     });
 
-    expect(await screen.findByText('A test run succeeded')).toBeInTheDocument();
+    expect(await screen.findByText('A dev run passed')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Merge the workflow pull request from your coding agent to turn the workflow on',
-      ),
+      screen.getByText('Merge the pull request that adds the workflow to make it live'),
     ).toBeInTheDocument();
     expect(checklist.getByRole('link', {name: 'View run'})).toHaveAttribute('href', '/runs/run-1');
     expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'panel'});
@@ -1030,7 +1028,7 @@ describe('first workflow row', () => {
     expect(captured(capture, 'first_workflow_test_run_shown')).toHaveLength(0);
     fireEvent.click(trigger);
 
-    expect(await screen.findByText('A test run succeeded')).toBeInTheDocument();
+    expect(await screen.findByText('A dev run passed')).toBeInTheDocument();
     expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'popover'});
   });
 });
@@ -1132,7 +1130,7 @@ describe('home panel', () => {
   function expectNoFirstWorkflowPanel() {
     expect(screen.queryByRole('heading', FIRST_WORKFLOW_HEADING)).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', {name: 'Finish your first workflow'}),
+      screen.queryByRole('heading', {name: 'Make your workflow live'}),
     ).not.toBeInTheDocument();
   }
 
@@ -1326,7 +1324,7 @@ describe('home panel', () => {
 
     renderHome(queryClient);
 
-    expect(await screen.findByRole('heading', {name: 'Finish your first workflow'})).toBeVisible();
+    expect(await screen.findByRole('heading', {name: 'Make your workflow live'})).toBeVisible();
     expectNoToolsPanel();
   });
 
@@ -1340,7 +1338,7 @@ describe('home panel', () => {
 
     renderHome(queryClient, capture);
 
-    expect(await screen.findByRole('heading', {name: 'Finish your first workflow'})).toBeVisible();
+    expect(await screen.findByRole('heading', {name: 'Make your workflow live'})).toBeVisible();
     await waitFor(() =>
       expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'panel'}),
     );

@@ -1,6 +1,11 @@
 import type {QueryLoadErrorQuery} from '@shipfox/client-ui';
+import type {ReactNode} from 'react';
 import type {WorkflowRunListItem} from '#core/workflow-run.js';
-import type {WorkflowRunFilterPatch, WorkflowRunsSearch} from '#routes/inputs.js';
+import type {
+  WorkflowRunFilterPatch,
+  WorkflowRunListOrigin,
+  WorkflowRunsSearch,
+} from '#routes/inputs.js';
 import type {WorkflowRunWorkflowFacet} from './run-display.js';
 
 export type WorkflowRunListQuery = QueryLoadErrorQuery & {isPending: boolean};
@@ -36,4 +41,12 @@ export interface WorkflowRunListProps extends WorkflowRunListCommonProps {
 export interface WorkflowRunListViewProps extends WorkflowRunListCommonProps {
   runs: WorkflowRunListItem[];
   query: WorkflowRunListQuery;
+  /** The origin shown when the URL names none. Defaults to live runs. */
+  defaultOrigin?: WorkflowRunListOrigin;
+  /** Panels above the run list. The page scrolls as a whole when present. */
+  leading?: ReactNode;
+  /** A notice above the rows, shown only while there are rows. */
+  notice?: ReactNode;
+  /** Replaces the default empty state of an unfiltered list. */
+  emptyState?: ReactNode;
 }

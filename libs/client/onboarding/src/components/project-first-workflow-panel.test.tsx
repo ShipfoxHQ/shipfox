@@ -110,7 +110,7 @@ describe('ProjectFirstWorkflowPanel', () => {
       ],
     ]);
 
-    expect(await screen.findByRole('heading', {name: 'Finish your first workflow'})).toBeVisible();
+    expect(await screen.findByRole('heading', {name: 'Make your workflow live'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'View run'})).toHaveAttribute('href', '/runs/run-b');
   });
 

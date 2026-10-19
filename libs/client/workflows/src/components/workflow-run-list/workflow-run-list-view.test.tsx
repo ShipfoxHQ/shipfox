@@ -70,7 +70,7 @@ describe('WorkflowRunListView', () => {
       ).toBeInTheDocument();
       expect(
         within(header as HTMLElement).getByRole('combobox', {name: 'Filter runs by type'}),
-      ).toHaveTextContent('Synced runs');
+      ).toHaveTextContent('Live runs');
       expect(
         within(header as HTMLElement).getByLabelText('Filter runs by creation date'),
       ).toBeInTheDocument();
@@ -190,7 +190,7 @@ describe('WorkflowRunListView', () => {
       expect(await screen.findByText('deploy-web')).toBeInTheDocument();
       expect(screen.queryByText('triage-sentry')).not.toBeInTheDocument();
 
-      await selectRunScope(user, 'Development runs');
+      await selectRunScope(user, 'Dev runs');
 
       expect(screen.queryByText('deploy-web')).not.toBeInTheDocument();
       expect(screen.getByText('triage-sentry')).toBeInTheDocument();

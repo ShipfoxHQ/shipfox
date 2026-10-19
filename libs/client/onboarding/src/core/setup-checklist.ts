@@ -80,9 +80,8 @@ const RUNNER_PURPOSE = 'Jobs wait in `pending` until a runner is online';
 const MODEL_PROVIDER_PURPOSE = 'Agent steps need a model provider to run';
 const FIRST_WORKFLOW_TITLE = 'Create your first workflow';
 const FIRST_WORKFLOW_PURPOSE = 'Your coding agent sets it up from a template';
-const TEST_RUN_SUCCEEDED_TITLE = 'A test run succeeded';
-const TEST_RUN_SUCCEEDED_PURPOSE =
-  'Merge the workflow pull request from your coding agent to turn the workflow on';
+const TEST_RUN_SUCCEEDED_TITLE = 'A dev run passed';
+const TEST_RUN_SUCCEEDED_PURPOSE = 'Merge the pull request that adds the workflow to make it live';
 const TEAMMATES_PURPOSE = 'Everyone in the workspace can edit workflows and see runs';
 
 /**

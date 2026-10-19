@@ -82,7 +82,7 @@ export function FirstWorkflowPanel({
         <PanelHeader className="items-start">
           <div className="flex min-w-0 flex-col gap-tight">
             <PanelTitle id={titleId} tabIndex={-1} variant="h2">
-              {mode === 'choose' ? 'Create your first workflow' : 'Finish your first workflow'}
+              {mode === 'choose' ? 'Create your first workflow' : 'Make your workflow live'}
             </PanelTitle>
             {mode === 'choose' ? (
               <Text size="sm" className="text-foreground-neutral-muted">
@@ -183,7 +183,7 @@ function FinishSteps({testRunId, children}: {testRunId: string; children: ReactN
               className="size-16 text-foreground-highlight-interactive"
               aria-hidden="true"
             />
-            A test run succeeded.
+            A dev run passed.
           </Text>
           <Button asChild size="sm" variant="secondary">
             <Link to="/runs/$workflowRunId" params={{workflowRunId: testRunId}}>
@@ -192,9 +192,9 @@ function FinishSteps({testRunId, children}: {testRunId: string; children: ReactN
           </Button>
         </div>
         <Text size="sm" className="text-foreground-neutral-muted">
-          Merge the workflow pull request your coding agent opens. It adds the file under{' '}
-          <InlineCode>.shipfox/workflows/</InlineCode>. Merging the task pull request does not turn
-          the workflow on.
+          Merge the pull request that adds the workflow under{' '}
+          <InlineCode>.shipfox/workflows/</InlineCode>. Pull requests opened by the run itself don't
+          count.
         </Text>
       </PanelStep>
       <Collapsible open={pickerOpen} onOpenChange={setPickerOpen}>

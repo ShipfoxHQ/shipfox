@@ -1,4 +1,5 @@
 import {QueryLoadError} from '@shipfox/client-ui';
+import type {ReactNode} from 'react';
 import type {WorkflowRunListItem} from '#core/workflow-run.js';
 import type {WorkflowRunListQuery} from './types.js';
 import {
@@ -18,6 +19,8 @@ interface WorkflowRunListContentProps {
   projectSlug?: string | undefined;
   hasActiveFilters: boolean;
   onClearFilters: () => void;
+  notice?: ReactNode;
+  emptyState?: ReactNode;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
@@ -32,6 +35,8 @@ export function WorkflowRunListContent({
   projectSlug,
   hasActiveFilters,
   onClearFilters,
+  notice,
+  emptyState,
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
@@ -59,7 +64,11 @@ export function WorkflowRunListContent({
       ) : null}
       {!isPending && refreshFailed ? <WorkflowRunListStaleError query={query} /> : null}
       {showEmptyState ? (
-        <WorkflowRunListEmpty workspaceSlug={workspaceSlug} projectSlug={projectSlug} />
+        <EmptyList
+          emptyState={emptyState}
+          workspaceSlug={workspaceSlug}
+          projectSlug={projectSlug}
+        />
       ) : null}
       {showNoMatches ? (
         <WorkflowRunListNoMatches
@@ -72,6 +81,7 @@ export function WorkflowRunListContent({
       ) : null}
       {!isPending && runs.length > 0 ? (
         <>
+          {notice}
           <WorkflowRunRowList runs={runs} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />
           <WorkflowRunListLoadMore
             hasNextPage={hasNextPage}
@@ -83,6 +93,19 @@ export function WorkflowRunListContent({
       ) : null}
     </>
   );
+}
+
+function EmptyList({
+  emptyState,
+  workspaceSlug,
+  projectSlug,
+}: {
+  emptyState: ReactNode;
+  workspaceSlug?: string | undefined;
+  projectSlug?: string | undefined;
+}) {
+  if (emptyState) return emptyState;
+  return <WorkflowRunListEmpty workspaceSlug={workspaceSlug} projectSlug={projectSlug} />;
 }
 
 function hasStaleQueryError(query: WorkflowRunListQuery): boolean {

@@ -44,12 +44,13 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   its integration icons and a copyable prompt. Each title links to the
   template's example page in the docs. Templates that need a connection the workspace lacks are
   not shown. In finish mode it links
-  the latest succeeded test run and explains which pull request turns the
-  workflow on. The template cards move behind a disclosure.
+  the latest succeeded dev run and explains which pull request makes the
+  workflow live. The template cards move behind a disclosure.
   `WorkspaceSetupChecklist` mounts it on the home once the tools step is
   finished, with a close button that hides the setup guide.
 - **`ProjectFirstWorkflowPanel`**: slot-ready host that renders
-  `FirstWorkflowPanel` for one project, in place of the project workflows
+  `FirstWorkflowPanel` for one project, above the run list of a project with
+  no live run, and in place of the project workflows
   page's empty list.
 
 The derivations are pure functions. They test without React and decide what
@@ -158,8 +159,8 @@ The caller maps its own query results to the derivation inputs:
   pointer, and runner and model-provider when those rows exist. The teammates
   pointer never counts.
 - The first-workflow row is open with "Create your first workflow" and a link
-  to the workspace home until a dev run succeeds. It then reads "A test run
-  succeeded" and links to that run. It is done once the workspace has a
+  to the workspace home until a dev run succeeds. It then reads "A dev run
+  passed" and links to that run. It is done once the workspace has a
   definition. A succeeded dev run is the only fact behind the middle state.
 - The hosts read the first-workflow state per project: definitions and
   succeeded dev runs, one of each, stopping at the first definition. The read
@@ -208,7 +209,7 @@ The caller maps its own query results to the derivation inputs:
   `first_workflow_activated` and plays a burst above the next step. When the
   same transition completes the checklist, only the completion burst plays.
 - Both hosts capture `first_workflow_test_run_shown` once per mount, the first
-  time they show the row as "A test run succeeded". The home also captures it
+  time they show the row as "A dev run passed". The home also captures it
   when the first-workflow panel shows its finish mode.
 - `ProjectFirstWorkflowPanel` reads the definitions and succeeded dev runs of
   its project only, so a definition or a test run in another project never
