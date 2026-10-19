@@ -37,6 +37,12 @@ describe('admin tool inputs', () => {
     });
   });
 
+  test('find_workspaces accepts a cursor longer than the fixed-size cursors', () => {
+    const cursor = 'x'.repeat(2000);
+
+    expect(findWorkspacesInputSchema.parse({cursor})).toEqual({cursor, limit: 10});
+  });
+
   test.each([
     {search: ''},
     {search: '   '},

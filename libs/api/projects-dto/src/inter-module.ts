@@ -22,13 +22,13 @@ const workspaceProjectCountSchema = z.object({
   workspaceId: idSchema,
   count: z.number().int().nonnegative(),
 });
-const adminProjectSchema = z.object({
-  id: idSchema,
-  workspaceId: idSchema,
-  name: z.string(),
-  slug: slugSchema,
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+const adminProjectSchema = projectCatalogSchema.pick({
+  id: true,
+  workspaceId: true,
+  name: true,
+  slug: true,
+  createdAt: true,
+  updatedAt: true,
 });
 const projectCursorSchema = z.object({
   createdAt: z.string().datetime(),

@@ -479,6 +479,50 @@ describe('admin MCP endpoint', () => {
     expect(badCursor.structuredContent).toEqual({ok: false, error: {code: 'invalid-request'}});
   });
 
+  test('accepts back the cursor of a page that ends on a long multibyte name', async () => {
+    const longName = '工作区'.repeat(85);
+    const workspacesClient = createWorkspacesClient();
+    workspacesClient.listAdminWorkspaces.mockResolvedValueOnce({
+      workspaces: [],
+      nextCursor: {value: longName, id: WORKSPACE_ID},
+    });
+    const {client, close} = await connect({
+      auth: createAuthClient('admin-observer'),
+      workspaces: workspacesClient,
+    });
+
+    const first = await callTool(client, 'find_workspaces', {});
+    const nextCursor = (first.structuredContent as {result: {next_cursor: string}}).result
+      .next_cursor;
+    const second = await callTool(client, 'find_workspaces', {cursor: nextCursor});
+    await close();
+
+    expect(nextCursor.length).toBeGreaterThan(512);
+    expect(second.isError).toBeUndefined();
+    expect(workspacesClient.listAdminWorkspaces).toHaveBeenLastCalledWith({
+      limit: 10,
+      cursor: {value: longName, id: WORKSPACE_ID},
+    });
+  });
+
+  test('returns projects with a null workspace slug when a workspace lookup fails', async () => {
+    const workspacesClient = createWorkspacesClient();
+    workspacesClient.getWorkspaceSummary.mockRejectedValueOnce(new Error('workspaces down'));
+    const {client, close} = await connect({
+      auth: createAuthClient('admin-observer'),
+      workspaces: workspacesClient,
+    });
+
+    const result = await callTool(client, 'find_projects', {});
+    await close();
+
+    expect(result.isError).toBeUndefined();
+    expect(
+      (result.structuredContent as {result: {projects: {workspace_slug: string | null}[]}}).result
+        .projects[0]?.workspace_slug,
+    ).toBeNull();
+  });
+
   test('finds projects across workspaces with their workspace slug', async () => {
     const workspacesClient = createWorkspacesClient();
     const projectsClient = createProjectsClient();

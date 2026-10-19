@@ -91,14 +91,13 @@ const resourceLimitSchema = z
   .min(1)
   .max(AGENT_ACCESS_FIND_RESOURCES_LIMIT_MAX)
   .default(AGENT_ACCESS_FIND_RESOURCES_DEFAULT_LIMIT);
-const workspaceStatusSchema = z.enum(['active', 'suspended', 'deleted']);
-
 export const findWorkspacesInputSchema = z
   .object({
     search: resourceSearchSchema.optional(),
-    status: workspaceStatusSchema.optional(),
+    status: z.enum(['active', 'suspended', 'deleted']).optional(),
     limit: resourceLimitSchema,
-    cursor: z.string().min(1).max(CURSOR_MAX_LENGTH).optional(),
+    // Carries the last workspace name, so its length follows the name's.
+    cursor: z.string().min(1).optional(),
   })
   .strict();
 export type FindWorkspacesInputDto = z.output<typeof findWorkspacesInputSchema>;
@@ -108,7 +107,7 @@ const foundWorkspaceSchema = z
     id: idSchema,
     name: z.string(),
     slug: z.string().min(1),
-    status: workspaceStatusSchema,
+    status: z.string().min(1),
     member_count: z.number().int().nonnegative(),
     created_at: dateTimeSchema,
   })
@@ -238,6 +237,7 @@ const resourceSearchJsonSchema = {
   type: 'string',
   minLength: 1,
   maxLength: RESOURCE_SEARCH_MAX_LENGTH,
+  pattern: '\\S',
 } as const;
 const resourceLimitJsonSchema = {
   type: 'integer',
@@ -246,18 +246,14 @@ const resourceLimitJsonSchema = {
   default: AGENT_ACCESS_FIND_RESOURCES_DEFAULT_LIMIT,
 } as const;
 const cursorJsonSchema = {type: 'string', minLength: 1, maxLength: CURSOR_MAX_LENGTH} as const;
-const workspaceStatusJsonSchema = {
-  type: 'string',
-  enum: ['active', 'suspended', 'deleted'],
-} as const;
 
 export const findWorkspacesInputJsonSchema = {
   type: 'object',
   properties: {
     search: resourceSearchJsonSchema,
-    status: workspaceStatusJsonSchema,
+    status: {type: 'string', enum: ['active', 'suspended', 'deleted']},
     limit: resourceLimitJsonSchema,
-    cursor: cursorJsonSchema,
+    cursor: {type: 'string', minLength: 1},
   },
   additionalProperties: false,
 } as const satisfies AgentAccessObjectSchema;
@@ -274,7 +270,7 @@ export const findWorkspacesResultJsonSchema = {
           id: uuid,
           name: {type: 'string'},
           slug: {type: 'string', minLength: 1},
-          status: workspaceStatusJsonSchema,
+          status: {type: 'string', minLength: 1},
           member_count: {type: 'integer', minimum: 0},
           created_at: dateTime,
         },

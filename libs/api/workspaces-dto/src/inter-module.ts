@@ -44,7 +44,6 @@ export const workspacesInterModuleContract = defineInterModuleContract({
     listAdminWorkspaces: {
       input: z.object({
         workspaceId: idSchema.optional(),
-        workspaceSlug: slugSchema.optional(),
         search: z.string().min(1).max(100).optional(),
         status: workspaceStatusSchema.optional(),
         limit: z.number().int().min(1).max(100),
