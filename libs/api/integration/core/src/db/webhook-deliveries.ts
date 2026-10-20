@@ -293,8 +293,10 @@ async function claimDelivery(params: RecordDeliveryOnlyParams): Promise<{claimed
   return {claimed: inserted.length > 0};
 }
 
-export async function recordDeliveryOnly(params: RecordDeliveryOnlyParams): Promise<void> {
-  await claimDelivery(params);
+export async function recordDeliveryOnly(
+  params: RecordDeliveryOnlyParams,
+): Promise<{claimed: boolean}> {
+  return await claimDelivery(params);
 }
 
 export interface PruneWebhookDeliveriesParams {

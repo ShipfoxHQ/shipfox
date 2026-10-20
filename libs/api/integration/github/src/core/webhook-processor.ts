@@ -8,10 +8,12 @@ import {
   type PublishSourceRepositoryUpdatedFn,
   type RecordDeliveryOnlyFn,
   type StoredWebhookRequest,
+  type UpdateIntegrationConnectionLifecycleStatusFn,
   type WebhookProcessingResult,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import type {GithubApiClient} from '#api/client.js';
 import {config} from '#config.js';
 import {handleGithubEvent} from '#core/webhook.js';
 
@@ -26,6 +28,9 @@ export interface CreateGithubWebhookProcessorOptions {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
+  /** Reads the authoritative installation state for suspend and unsuspend. */
+  github: Pick<GithubApiClient, 'getInstallation'>;
   /** Invalidates local repository authorization decisions after the delivery transaction commits. */
   invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
   deleteInstallationTokenSecret?:
@@ -89,6 +94,8 @@ async function processGithubWebhookRequest(
       publishSourcePush: options.publishSourcePush,
       recordDeliveryOnly: options.recordDeliveryOnly,
       getIntegrationConnectionById: options.getIntegrationConnectionById,
+      updateConnectionLifecycleStatus: options.updateConnectionLifecycleStatus,
+      github: options.github,
     }),
   );
 

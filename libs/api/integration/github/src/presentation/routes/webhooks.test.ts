@@ -46,7 +46,7 @@ async function createTestApp(options: {connection?: IntegrationConnection} = {})
   const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
   const publishSourceRepositoryUpdated = vi.fn(() => Promise.resolve({published: true}));
   const publishSourcePush = vi.fn(() => Promise.resolve({published: true}));
-  const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+  const recordDeliveryOnly = vi.fn(() => Promise.resolve({claimed: true}));
   const getIntegrationConnectionById = vi.fn(() =>
     Promise.resolve(options.connection ?? fakeConnection()),
   );
@@ -57,6 +57,8 @@ async function createTestApp(options: {connection?: IntegrationConnection} = {})
     publishSourcePush,
     recordDeliveryOnly,
     getIntegrationConnectionById,
+    updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+    github: {getInstallation: vi.fn()},
   });
   const app = await createApp({routes: [routes], swagger: false});
   await app.ready();

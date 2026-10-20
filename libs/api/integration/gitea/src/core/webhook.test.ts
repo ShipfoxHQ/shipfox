@@ -33,7 +33,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
 function deps(options: {connection?: IntegrationConnection} = {}) {
   return {
     publishSourcePush: vi.fn<PublishSourcePushFn>(() => Promise.resolve({published: true})),
-    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve()),
+    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById: vi.fn<GetIntegrationConnectionByIdFn>(() =>
       Promise.resolve(options.connection ?? fakeConnection()),
     ),

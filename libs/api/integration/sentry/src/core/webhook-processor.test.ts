@@ -68,7 +68,7 @@ describe('Sentry webhook processor', () => {
       sentry: sentryClient(),
       coreDb: db,
       publishIntegrationEventReceived,
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
       updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
     });
@@ -94,7 +94,7 @@ describe('Sentry webhook processor', () => {
       sentry: sentryClient(),
       coreDb: db,
       publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(fakeConnection())),
       updateConnectionLifecycleStatus,
     });
@@ -125,7 +125,7 @@ describe('Sentry webhook processor', () => {
       sentry: sentryClient(),
       coreDb: db,
       publishIntegrationEventReceived,
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(fakeConnection())),
       updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
     });
@@ -219,7 +219,7 @@ describe('Sentry webhook processor', () => {
       sentry: sentryClient({exchangeAuthorizationCode}),
       coreDb: db,
       publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(fakeConnection())),
       updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
     });
@@ -265,7 +265,7 @@ describe('Sentry webhook processor', () => {
       sentry: sentryClient({exchangeAuthorizationCode}),
       coreDb: db,
       publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(fakeConnection())),
       updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
     });

@@ -109,7 +109,7 @@ function createHarness(
     deliveryIds.add(event.deliveryId);
     return Promise.resolve({published: true});
   });
-  const recordDeliveryOnly = vi.fn(async () => undefined);
+  const recordDeliveryOnly = vi.fn(async () => ({claimed: true}));
   const coreDb = vi.fn(() => ({
     transaction: async (callback: (tx: unknown) => Promise<unknown>) => await callback({}),
   }));

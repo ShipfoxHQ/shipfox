@@ -67,7 +67,7 @@ async function createTestApp(
   options: {connection?: IntegrationConnection; sentry?: SentryApiClient} = {},
 ): Promise<TestApp> {
   const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
-  const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+  const recordDeliveryOnly = vi.fn(() => Promise.resolve({claimed: true}));
   const getIntegrationConnectionById = vi.fn(() =>
     Promise.resolve(options.connection ?? fakeConnection()),
   );

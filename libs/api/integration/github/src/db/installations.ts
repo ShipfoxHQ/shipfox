@@ -1,4 +1,4 @@
-import {eq} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import {GithubInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {githubInstallations, toGithubInstallation} from './schema/installations.js';
@@ -122,4 +122,45 @@ export async function getGithubInstallationByInstallationId(
   const row = rows[0];
   if (!row) return undefined;
   return toGithubInstallation(row);
+}
+
+/** Serializes lifecycle webhooks per installation. Returns the row as committed at lock time. */
+export async function lockGithubInstallationByInstallationId(
+  installationId: string,
+  options: {tx: unknown},
+): Promise<GithubInstallation | undefined> {
+  const executor = options.tx as GithubDb | GithubTx;
+  const [row] = await executor
+    .select()
+    .from(githubInstallations)
+    .where(eq(githubInstallations.installationId, installationId))
+    .limit(1)
+    .for('update');
+  return row ? toGithubInstallation(row) : undefined;
+}
+
+/** Keeps the first `deleted_at`: a redelivered or reordered `deleted` never moves it. */
+export async function markGithubInstallationDeleted(
+  installationId: string,
+  options: {tx: unknown},
+): Promise<void> {
+  const executor = options.tx as GithubDb | GithubTx;
+  await executor
+    .update(githubInstallations)
+    .set({
+      deletedAt: sql`coalesce(${githubInstallations.deletedAt}, now())`,
+      updatedAt: new Date(),
+    })
+    .where(eq(githubInstallations.installationId, installationId));
+}
+
+export async function setGithubInstallationSuspendedAt(
+  params: {installationId: string; suspendedAt: Date | null},
+  options: {tx: unknown},
+): Promise<void> {
+  const executor = options.tx as GithubDb | GithubTx;
+  await executor
+    .update(githubInstallations)
+    .set({suspendedAt: params.suspendedAt, updatedAt: new Date()})
+    .where(eq(githubInstallations.installationId, params.installationId));
 }

@@ -37,9 +37,11 @@ import {
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY,
   GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
+  getGithubInstallationByInstallationId,
   githubInstallationTokenGenerationNamespace,
   githubInstallationTokenKey,
   githubInstallationTokenNamespace,
+  upsertGithubInstallation,
 } from '@shipfox/api-integration-github';
 import {githubProviderModule} from '#providers/github.js';
 import {createTestApp, useIntegrationRouteTest} from '#test/route-utils.js';
@@ -106,6 +108,87 @@ describe('githubProviderModule', () => {
       url: `/integration-connections/${secondConnection.id}`,
       headers: {authorization: 'Bearer user'},
     });
+  });
+
+  it.each([
+    ['suspended', new Date('2026-10-20T09:00:00.000Z'), 'error'],
+    ['not suspended', null, 'active'],
+  ] as const)('connects an installation that is %s with status %s', async (_label, suspendedAt, status) => {
+    const part = await githubProviderModule.load();
+    await createTestApp([part.provider]);
+    const providerOptions = captured.integrationProviderOptions as {
+      connectGithubInstallation: (
+        input: ConnectGithubInstallationInput,
+      ) => Promise<{lifecycleStatus: string}>;
+    };
+    const installerUserId = crypto.randomUUID();
+    const installationId = String(randomInt(1_000_000, 9_999_999));
+
+    const connection = await providerOptions.connectGithubInstallation({
+      workspaceId: context.workspaceId,
+      installationId,
+      displayName: 'GitHub shipfox',
+      installerUserId,
+      installation: {
+        installationId,
+        accountLogin: 'shipfox',
+        accountType: 'Organization',
+        repositorySelection: 'all',
+        suspendedAt,
+        deletedAt: null,
+        latestEvent: {id: 'installation-created'},
+        installerUserId,
+      },
+    });
+
+    expect(connection.lifecycleStatus).toBe(status);
+  });
+
+  it.each([
+    ['before', -60_000, 'error'],
+    ['after', 60_000, 'active'],
+  ] as const)('keeps a lifecycle write newer than a GitHub read observed %s it', async (_label, offsetMs, status) => {
+    const part = await githubProviderModule.load();
+    await createTestApp([part.provider]);
+    const providerOptions = captured.integrationProviderOptions as {
+      connectGithubInstallation: (
+        input: ConnectGithubInstallationInput,
+      ) => Promise<{id: string; lifecycleStatus: string}>;
+    };
+    const installerUserId = crypto.randomUUID();
+    const installationId = String(randomInt(1_000_000, 9_999_999));
+    const installation: ConnectGithubInstallationInput['installation'] = {
+      installationId,
+      accountLogin: 'shipfox',
+      accountType: 'Organization',
+      repositorySelection: 'all',
+      suspendedAt: null,
+      deletedAt: null,
+      latestEvent: {id: 'installation-created'},
+      installerUserId,
+    };
+    const input = {
+      workspaceId: context.workspaceId,
+      installationId,
+      displayName: 'GitHub shipfox',
+      installerUserId,
+    };
+    const first = await providerOptions.connectGithubInstallation({...input, installation});
+    // A suspend webhook commits after the reconnect's GitHub read began.
+    await upsertGithubInstallation({
+      connectionId: first.id,
+      ...installation,
+      suspendedAt: new Date(),
+    });
+
+    const second = await providerOptions.connectGithubInstallation({
+      ...input,
+      installation: {...installation, observedAt: new Date(Date.now() + offsetMs)},
+    });
+
+    expect(second.lifecycleStatus).toBe(status);
+    const stored = await getGithubInstallationByInstallationId(installationId);
+    expect(stored?.suspendedAt === null).toBe(status === 'active');
   });
 
   it('uses the GitHub package contract for the shared installation-token envelope', async () => {

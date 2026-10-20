@@ -16,9 +16,18 @@ import {
   type RecordDeliveryOnlyFn,
   type SourcePushPayload,
   type SourceRepositoryIdentity,
+  type UpdateIntegrationConnectionLifecycleStatusFn,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
-import {getGithubInstallationByInstallationId} from '#db/installations.js';
+import type {GithubApiClient} from '#api/client.js';
+import {GithubIntegrationProviderError} from '#core/errors.js';
+import {
+  type GithubInstallation,
+  getGithubInstallationByInstallationId,
+  lockGithubInstallationByInstallationId,
+  markGithubInstallationDeleted,
+  setGithubInstallationSuspendedAt,
+} from '#db/installations.js';
 import {
   deleteGithubUnlinkedInstallationByInstallationId,
   upsertGithubUnlinkedInstallation,
@@ -39,6 +48,9 @@ export interface HandleGithubEventParams {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  /** Claims the `provider:github` delivery row that `publishIntegrationEventReceived` also claims. */
+  updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
+  github: Pick<GithubApiClient, 'getInstallation'>;
 }
 
 export type HandleGithubEventOutcome =
@@ -48,6 +60,8 @@ export type HandleGithubEventOutcome =
   | 'duplicate-envelope'
   | 'published-push-envelope-only'
   | 'duplicate-push-envelope-only'
+  | 'installation-lifecycle'
+  | 'duplicate-installation-lifecycle'
   | 'fork-pull-request'
   | 'unknown-installation'
   | 'missing-connection'
@@ -191,6 +205,40 @@ async function dispatchGithubEvent(
   );
 }
 
+async function dropInactiveConnectionEvent(args: {
+  params: HandleGithubEventParams;
+  connection: GithubConnection;
+  installationId: number;
+  action: string | undefined;
+}): Promise<HandleGithubEventResult> {
+  const {params, connection, installationId, action} = args;
+  const logContext = {
+    deliveryId: params.deliveryId,
+    installationId,
+    connectionId: connection.id,
+    workspaceId: connection.workspaceId,
+    lifecycleStatus: connection.lifecycleStatus,
+  };
+  // `disabled` is an expected steady state; only `error` is anomalous.
+  if (connection.lifecycleStatus === 'error') {
+    logger().warn(logContext, 'github webhook: connection in error state, dropping');
+  } else {
+    logger().info(logContext, 'github webhook: connection disabled, dropping');
+  }
+  await params.recordDeliveryOnly({
+    tx: params.tx,
+    provider: GITHUB_SOURCE,
+    deliveryId: params.deliveryId,
+  });
+  return withInstallationTokenCleanup(
+    {outcome: 'inactive-connection'},
+    params.event,
+    action,
+    connection.workspaceId,
+    installationId,
+  );
+}
+
 export async function handleGithubEvent(
   params: HandleGithubEventParams,
 ): Promise<HandleGithubEventResult> {
@@ -245,9 +293,12 @@ export async function handleGithubEvent(
     installationId,
   });
 
-  const installation = await getGithubInstallationByInstallationId(String(installationId), {
-    tx: params.tx,
-  });
+  // Lifecycle events take the installation lock first, before any connection row, to match the
+  // connect path's lock order. The connection is then read after the lock, so it is current.
+  const lifecycleAction = installationLifecycleAction(params.event, action);
+  const installation = lifecycleAction
+    ? await lockGithubInstallationByInstallationId(String(installationId), {tx: params.tx})
+    : await getGithubInstallationByInstallationId(String(installationId), {tx: params.tx});
   if (!installation) {
     logUnknownGithubInstallation({
       deliveryId: params.deliveryId,
@@ -287,35 +338,154 @@ export async function handleGithubEvent(
     return {outcome: 'missing-connection'};
   }
 
-  if (connection.lifecycleStatus !== 'active') {
-    const logContext = {
-      deliveryId: params.deliveryId,
-      installationId,
-      connectionId: connection.id,
-      workspaceId: connection.workspaceId,
-      lifecycleStatus: connection.lifecycleStatus,
-    };
-    // `disabled` is an expected steady state; only `error` is anomalous.
-    if (connection.lifecycleStatus === 'error') {
-      logger().warn(logContext, 'github webhook: connection in error state, dropping');
-    } else {
-      logger().info(logContext, 'github webhook: connection disabled, dropping');
-    }
-    await params.recordDeliveryOnly({
-      tx: params.tx,
-      provider: GITHUB_SOURCE,
-      deliveryId: params.deliveryId,
+  if (lifecycleAction) {
+    return await applyGithubInstallationLifecycle({
+      params,
+      connection,
+      installation,
+      action: lifecycleAction,
     });
-    return withInstallationTokenCleanup(
-      {outcome: 'inactive-connection'},
-      params.event,
-      action,
-      connection.workspaceId,
-      installationId,
-    );
+  }
+
+  if (connection.lifecycleStatus !== 'active') {
+    return await dropInactiveConnectionEvent({params, connection, installationId, action});
   }
 
   return dispatchGithubEvent(params, connection, installationId, action);
+}
+
+type InstallationLifecycleAction = 'deleted' | 'suspend' | 'unsuspend';
+
+function installationLifecycleAction(
+  event: string,
+  action: string | undefined,
+): InstallationLifecycleAction | undefined {
+  if (event !== 'installation') return undefined;
+  return action === 'deleted' || action === 'suspend' || action === 'unsuspend'
+    ? action
+    : undefined;
+}
+
+// Runs before the active-connection gate: `unsuspend` arrives while the connection is `error`.
+// The caller holds the installation row lock, which serializes lifecycle events for one
+// installation, so GitHub is read after any earlier handler committed and the last commit holds
+// GitHub's latest state.
+async function applyGithubInstallationLifecycle(args: {
+  params: HandleGithubEventParams;
+  connection: GithubConnection;
+  installation: GithubInstallation;
+  action: InstallationLifecycleAction;
+}): Promise<HandleGithubEventResult> {
+  const {params, connection, installation, action} = args;
+  const {tx} = params;
+  const installationKey = installation.installationId;
+  const installationId = Number(installationKey);
+
+  const claim = await claimInstallationLifecycleDelivery({params, connection, action});
+  // Cleanup is idempotent and runs for a duplicate too, so a retry repeats a failed one.
+  const result = withInstallationTokenCleanup(
+    {outcome: claim.outcome},
+    params.event,
+    action,
+    connection.workspaceId,
+    installationId,
+  );
+
+  // A duplicate skips the write; the claim and the write share this transaction.
+  if (!claim.claimed) return result;
+
+  // `deleted_at` is terminal for an installation ID.
+  if (action !== 'deleted' && installation.deletedAt) return result;
+
+  if (action === 'deleted') {
+    await applyInstallationDeleted({params, connection, installationKey});
+    return result;
+  }
+
+  // Never fall back to the event payload: a delayed payload is the stale state this read rejects.
+  const read = await readGithubInstallationState(params.github, installationId);
+  if (read === 'not-found') {
+    await applyInstallationDeleted({params, connection, installationKey});
+    return result;
+  }
+
+  await setGithubInstallationSuspendedAt(
+    {installationId: installationKey, suspendedAt: read.suspendedAt},
+    {tx},
+  );
+  await params.updateConnectionLifecycleStatus(
+    read.suspendedAt
+      ? {id: connection.id, lifecycleStatus: 'error', expectedStatuses: ['active']}
+      : {id: connection.id, lifecycleStatus: 'active', expectedStatuses: ['error']},
+    {tx},
+  );
+  return result;
+}
+
+const INSTALLATION_READ_RETRY_DELAYS_MS = [200, 500];
+
+// A failed read throws and rolls the transaction back, and a lost webhook is not redelivered on
+// every deployment, so ride out a brief GitHub outage before giving up.
+async function readGithubInstallationState(
+  github: HandleGithubEventParams['github'],
+  installationId: number,
+): Promise<{suspendedAt: Date | null} | 'not-found'> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const {suspendedAt} = await github.getInstallation(installationId);
+      return {suspendedAt};
+    } catch (error) {
+      if (!(error instanceof GithubIntegrationProviderError)) throw error;
+      if (error.reason === 'installation-not-found') return 'not-found';
+      const delay = INSTALLATION_READ_RETRY_DELAYS_MS[attempt];
+      const transient = error.reason === 'provider-unavailable' || error.reason === 'timeout';
+      if (!transient || delay === undefined) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+async function applyInstallationDeleted(args: {
+  params: HandleGithubEventParams;
+  connection: GithubConnection;
+  installationKey: string;
+}): Promise<void> {
+  await markGithubInstallationDeleted(args.installationKey, {tx: args.params.tx});
+  await args.params.updateConnectionLifecycleStatus(
+    {id: args.connection.id, lifecycleStatus: 'error', expectedStatuses: ['active']},
+    {tx: args.params.tx},
+  );
+}
+
+// Publishes the envelope so `installation.*` triggers fire, unless the user disabled the
+// connection. Not only `active`: an `unsuspend` or a later `deleted` arrives while a suspend left
+// the connection in `error`, and those events must still reach their triggers.
+async function claimInstallationLifecycleDelivery(args: {
+  params: HandleGithubEventParams;
+  connection: GithubConnection;
+  action: InstallationLifecycleAction;
+}): Promise<{claimed: boolean; outcome: HandleGithubEventOutcome}> {
+  const {params, connection, action} = args;
+  if (connection.lifecycleStatus !== 'disabled') {
+    const result = await publishGithubEnvelopeOnly({
+      tx: params.tx,
+      deliveryId: params.deliveryId,
+      payload: params.payload,
+      publishIntegrationEventReceived: params.publishIntegrationEventReceived,
+      connection,
+      event: `installation.${action}`,
+    });
+    return {claimed: result.outcome === 'published-envelope', outcome: result.outcome};
+  }
+  const {claimed} = await params.recordDeliveryOnly({
+    tx: params.tx,
+    provider: GITHUB_SOURCE,
+    deliveryId: params.deliveryId,
+  });
+  return {
+    claimed,
+    outcome: claimed ? 'installation-lifecycle' : 'duplicate-installation-lifecycle',
+  };
 }
 
 const UNLINKED_INSTALLATION_ACTIONS = new Set(['created', 'new_permissions_accepted', 'unsuspend']);

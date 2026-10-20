@@ -57,7 +57,7 @@ export type RecordDeliveryOnlyFn = (params: {
   provider: string;
   deliveryId: string;
   connectionId?: string | undefined;
-}) => Promise<void>;
+}) => Promise<{claimed: boolean}>;
 
 export type ClaimWebhookDeliveryFn = (params: {
   tx: IntegrationTx;
@@ -71,7 +71,12 @@ export type GetIntegrationConnectionByIdFn = (
 ) => Promise<IntegrationConnection | undefined>;
 
 export type UpdateIntegrationConnectionLifecycleStatusFn = (
-  params: {id: string; lifecycleStatus: IntegrationConnectionLifecycleStatus},
+  params: {
+    id: string;
+    lifecycleStatus: IntegrationConnectionLifecycleStatus;
+    /** Applies the write only when the locked row's current status is listed. */
+    expectedStatuses?: readonly IntegrationConnectionLifecycleStatus[] | undefined;
+  },
   options?: {tx?: IntegrationTx},
 ) => Promise<IntegrationConnection | undefined>;
 

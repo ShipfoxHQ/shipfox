@@ -7,6 +7,7 @@ import type {
   PublishSourcePushFn,
   PublishSourceRepositoryUpdatedFn,
   RecordDeliveryOnlyFn,
+  UpdateIntegrationConnectionLifecycleStatusFn,
 } from '@shipfox/api-integration-spi';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
@@ -121,6 +122,7 @@ export {
   deleteGithubInstallationByConnectionId,
   getGithubInstallationByConnectionId,
   getGithubInstallationByInstallationId,
+  lockGithubInstallationByInstallationId,
   upsertGithubInstallation,
 } from '#db/installations.js';
 export {
@@ -141,6 +143,7 @@ export interface CreateGithubIntegrationProviderOptions
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
   /** The composed integrations module controls when repository authorization is live. */
   repositoryAuthorization?: AgentToolRepositoryAuthorizationState | undefined;
   /** Invalidates local repository authorization decisions after a committed webhook mutation. */
@@ -251,6 +254,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     : undefined;
   const webhookProcessor = createGithubWebhookProcessor({
     ...options,
+    github,
     deleteInstallationTokenSecret,
   });
 
@@ -294,6 +298,8 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
         publishSourcePush: options.publishSourcePush,
         recordDeliveryOnly: options.recordDeliveryOnly,
         getIntegrationConnectionById: options.getIntegrationConnectionById,
+        updateConnectionLifecycleStatus: options.updateConnectionLifecycleStatus,
+        github,
         deleteInstallationTokenSecret,
         processor: webhookProcessor,
       }),

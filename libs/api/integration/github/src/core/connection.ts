@@ -23,6 +23,11 @@ export interface ConnectGithubInstallationInput {
     accountType: string;
     repositorySelection: string;
     suspendedAt: Date | null;
+    /**
+     * When GitHub was read. A lifecycle write that committed after it is newer than `suspendedAt`
+     * and wins.
+     */
+    observedAt?: Date | undefined;
     deletedAt: Date | null;
     latestEvent: Record<string, unknown>;
     installerUserId: string;
@@ -129,6 +134,7 @@ function toConnectionInstallationInput(
     accountType: installation.account.type,
     repositorySelection: installation.repositorySelection,
     suspendedAt: installation.suspendedAt,
+    observedAt: installation.observedAt,
     deletedAt: null,
     latestEvent: installation.raw,
     installerUserId,

@@ -6,13 +6,16 @@ import type {
   PublishSourcePushFn,
   PublishSourceRepositoryUpdatedFn,
   RecordDeliveryOnlyFn,
+  UpdateIntegrationConnectionLifecycleStatusFn,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';
+import type {GithubApiClient} from '#api/client.js';
 import {db} from '#db/db.js';
 import {githubInstallations} from '#db/schema/installations.js';
 import {githubUnlinkedInstallations} from '#db/schema/unlinked-installations.js';
 import {githubInstallationFactory, githubPushPayload} from '#test/index.js';
+import {GithubIntegrationProviderError} from './errors.js';
 import {handleGithubEvent} from './webhook.js';
 
 function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {
@@ -49,10 +52,14 @@ function deps(
     publishSourcePush: vi.fn<PublishSourcePushFn>(() =>
       Promise.resolve(options.publishSourcePushResult ?? {published: true}),
     ),
-    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve()),
+    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById: vi.fn<GetIntegrationConnectionByIdFn>(() =>
       Promise.resolve(options.connection ?? fakeConnection()),
     ),
+    updateConnectionLifecycleStatus: vi.fn<UpdateIntegrationConnectionLifecycleStatusFn>(() =>
+      Promise.resolve(undefined),
+    ),
+    github: {getInstallation: vi.fn<GithubApiClient['getInstallation']>()},
   };
 }
 
@@ -676,7 +683,7 @@ describe('handleGithubEvent', () => {
     });
 
     expect(result).toEqual({
-      outcome: 'inactive-connection',
+      outcome: 'installation-lifecycle',
       installationTokenCleanup: {
         workspaceId: connection.workspaceId,
         installationId,
@@ -1094,5 +1101,325 @@ describe('handleGithubEvent', () => {
     expect(result.outcome).toBe('inactive-connection');
     expect(handlers.publishSourcePush).not.toHaveBeenCalled();
     expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('handleGithubEvent installation lifecycle', () => {
+  beforeEach(async () => {
+    await db().delete(githubInstallations);
+  });
+
+  function installationDetails(suspendedAt: Date | null) {
+    return {
+      id: 1,
+      account: {login: 'shipfox', type: 'Organization'},
+      repositorySelection: 'all',
+      suspendedAt,
+      htmlUrl: 'https://github.com/settings/installations/1',
+      raw: {},
+    };
+  }
+
+  async function readInstallation(installationId: number) {
+    const [row] = await db()
+      .select()
+      .from(githubInstallations)
+      .where(eq(githubInstallations.installationId, String(installationId)));
+    if (!row) throw new Error('Expected installation row');
+    return row;
+  }
+
+  function lifecycleEvent(
+    action: 'deleted' | 'suspend' | 'unsuspend',
+    installationId: number,
+    handlers: ReturnType<typeof deps>,
+    deliveryId = randomUUID(),
+  ) {
+    return db().transaction((tx) =>
+      handleGithubEvent({
+        tx,
+        deliveryId,
+        event: 'installation',
+        payload: {action, installation: {id: installationId}},
+        ...handlers,
+      }),
+    );
+  }
+
+  it('records a deletion on the installation and moves the connection to error', async () => {
+    const installationId = 8101;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+
+    const result = await lifecycleEvent('deleted', installationId, handlers);
+
+    expect(result).toEqual({
+      outcome: 'published-envelope',
+      installationTokenCleanup: {workspaceId: connection.workspaceId, installationId},
+    });
+    expect((await readInstallation(installationId)).deletedAt).toBeInstanceOf(Date);
+    expect(handlers.publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    expect(handlers.updateConnectionLifecycleStatus).toHaveBeenCalledWith(
+      {id: connection.id, lifecycleStatus: 'error', expectedStatuses: ['active']},
+      expect.anything(),
+    );
+  });
+
+  it('keeps the first deletion time and skips the write for a redelivered deletion', async () => {
+    const installationId = 8102;
+    const connection = fakeConnection();
+    const deletedAt = new Date('2026-10-18T10:00:00.000Z');
+    await githubInstallationFactory.create({
+      installationId: String(installationId),
+      connectionId: connection.id,
+      deletedAt,
+    });
+    const handlers = deps({connection, publishIntegrationEventReceivedResult: {published: false}});
+
+    const result = await lifecycleEvent('deleted', installationId, handlers);
+
+    expect(result.outcome).toBe('duplicate-envelope');
+    expect(result.installationTokenCleanup).toEqual({
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
+    expect((await readInstallation(installationId)).deletedAt).toEqual(deletedAt);
+    expect(handlers.updateConnectionLifecycleStatus).not.toHaveBeenCalled();
+  });
+
+  it('keeps the first deletion time when a new delivery arrives for a deleted installation', async () => {
+    const installationId = 8103;
+    const connection = fakeConnection({lifecycleStatus: 'error'});
+    const deletedAt = new Date('2026-10-18T10:00:00.000Z');
+    await githubInstallationFactory.create({
+      installationId: String(installationId),
+      connectionId: connection.id,
+      deletedAt,
+    });
+    const handlers = deps({connection});
+
+    await lifecycleEvent('deleted', installationId, handlers);
+
+    expect((await readInstallation(installationId)).deletedAt).toEqual(deletedAt);
+  });
+
+  it('writes GitHub state on suspend and moves an active connection to error', async () => {
+    const installationId = 8104;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const suspendedAt = new Date('2026-10-20T09:00:00.000Z');
+    const handlers = deps({connection});
+    handlers.github.getInstallation.mockResolvedValue(installationDetails(suspendedAt));
+
+    const result = await lifecycleEvent('suspend', installationId, handlers);
+
+    expect(handlers.github.getInstallation).toHaveBeenCalledWith(installationId);
+    expect((await readInstallation(installationId)).suspendedAt).toEqual(suspendedAt);
+    expect(handlers.updateConnectionLifecycleStatus).toHaveBeenCalledWith(
+      {id: connection.id, lifecycleStatus: 'error', expectedStatuses: ['active']},
+      expect.anything(),
+    );
+    expect(result.installationTokenCleanup).toEqual({
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
+  });
+
+  it('reactivates an errored connection on unsuspend and still publishes the unsuspend event', async () => {
+    const installationId = 8105;
+    const connection = fakeConnection({lifecycleStatus: 'error'});
+    await githubInstallationFactory.create({
+      installationId: String(installationId),
+      connectionId: connection.id,
+      suspendedAt: new Date('2026-10-20T09:00:00.000Z'),
+    });
+    const handlers = deps({connection});
+    handlers.github.getInstallation.mockResolvedValue(installationDetails(null));
+
+    const result = await lifecycleEvent('unsuspend', installationId, handlers);
+
+    expect(result).toEqual({outcome: 'published-envelope'});
+    expect(handlers.publishIntegrationEventReceived).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({event: 'installation.unsuspend'}),
+      }),
+    );
+    expect((await readInstallation(installationId)).suspendedAt).toBeNull();
+    expect(handlers.updateConnectionLifecycleStatus).toHaveBeenCalledWith(
+      {id: connection.id, lifecycleStatus: 'active', expectedStatuses: ['error']},
+      expect.anything(),
+    );
+  });
+
+  it('follows the GitHub read instead of the event action', async () => {
+    const installationId = 8106;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    handlers.github.getInstallation.mockResolvedValue(installationDetails(null));
+
+    await lifecycleEvent('suspend', installationId, handlers);
+
+    expect((await readInstallation(installationId)).suspendedAt).toBeNull();
+    expect(handlers.updateConnectionLifecycleStatus).toHaveBeenCalledWith(
+      {id: connection.id, lifecycleStatus: 'active', expectedStatuses: ['error']},
+      expect.anything(),
+    );
+  });
+
+  it('does not let a stale suspend commit after a later unsuspend', async () => {
+    const installationId = 8107;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const suspendedAt = new Date('2026-10-20T09:00:00.000Z');
+    const readOrder: string[] = [];
+
+    let releaseSuspendRead: () => void = () => undefined;
+    let markSuspendReadStarted: () => void = () => undefined;
+    const suspendReadStarted = new Promise<void>((resolve) => {
+      markSuspendReadStarted = resolve;
+    });
+    const handlersA = deps({connection});
+    handlersA.github.getInstallation.mockImplementation(async () => {
+      readOrder.push('a-read');
+      markSuspendReadStarted();
+      await new Promise<void>((resolve) => {
+        releaseSuspendRead = resolve;
+      });
+      return installationDetails(suspendedAt);
+    });
+    const handlersB = deps({connection});
+    handlersB.github.getInstallation.mockImplementation(() => {
+      readOrder.push('b-read');
+      return Promise.resolve(installationDetails(null));
+    });
+
+    const handlerA = lifecycleEvent('suspend', installationId, handlersA);
+    await suspendReadStarted;
+    const handlerB = lifecycleEvent('unsuspend', installationId, handlersB);
+    // B must be parked on the row lock while A still holds it.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(handlersB.github.getInstallation).not.toHaveBeenCalled();
+    releaseSuspendRead();
+    await Promise.all([handlerA, handlerB]);
+
+    // B read only after A released the lock, so B's state is the last commit.
+    expect(readOrder).toEqual(['a-read', 'b-read']);
+    expect((await readInstallation(installationId)).suspendedAt).toBeNull();
+  });
+
+  it('applies the deletion when the suspend read returns 404', async () => {
+    const installationId = 8108;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    handlers.github.getInstallation.mockRejectedValue(
+      new GithubIntegrationProviderError('installation-not-found', 'not found', undefined, 404),
+    );
+
+    await lifecycleEvent('suspend', installationId, handlers);
+
+    expect((await readInstallation(installationId)).deletedAt).toBeInstanceOf(Date);
+    expect(handlers.updateConnectionLifecycleStatus).toHaveBeenCalledWith(
+      {id: connection.id, lifecycleStatus: 'error', expectedStatuses: ['active']},
+      expect.anything(),
+    );
+  });
+
+  it('retries a transient GitHub read failure and then applies the state', async () => {
+    const installationId = 8109;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const suspendedAt = new Date('2026-10-20T09:00:00.000Z');
+    const handlers = deps({connection});
+    handlers.github.getInstallation
+      .mockRejectedValueOnce(
+        new GithubIntegrationProviderError('provider-unavailable', 'down', undefined, 503),
+      )
+      .mockRejectedValueOnce(new GithubIntegrationProviderError('timeout', 'slow'))
+      .mockResolvedValue(installationDetails(suspendedAt));
+
+    await lifecycleEvent('suspend', installationId, handlers);
+
+    expect(handlers.github.getInstallation).toHaveBeenCalledTimes(3);
+    expect((await readInstallation(installationId)).suspendedAt).toEqual(suspendedAt);
+  });
+
+  it('writes nothing and throws when the GitHub read keeps failing', async () => {
+    const installationId = 8114;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    handlers.github.getInstallation.mockRejectedValue(
+      new GithubIntegrationProviderError('provider-unavailable', 'down', undefined, 503),
+    );
+
+    await expect(lifecycleEvent('suspend', installationId, handlers)).rejects.toThrow('down');
+
+    expect(handlers.github.getInstallation).toHaveBeenCalledTimes(3);
+    const row = await readInstallation(installationId);
+    expect(row.suspendedAt).toBeNull();
+    expect(row.deletedAt).toBeNull();
+    expect(handlers.updateConnectionLifecycleStatus).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a GitHub read failure that cannot clear', async () => {
+    const installationId = 8115;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    handlers.github.getInstallation.mockRejectedValue(
+      new GithubIntegrationProviderError('access-denied', 'denied', undefined, 401),
+    );
+
+    await expect(lifecycleEvent('suspend', installationId, handlers)).rejects.toThrow('denied');
+
+    expect(handlers.github.getInstallation).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    'suspend',
+    'unsuspend',
+  ] as const)('ignores %s for a deleted installation', async (action) => {
+    const installationId = action === 'suspend' ? 8110 : 8111;
+    const connection = fakeConnection({lifecycleStatus: 'error'});
+    const deletedAt = new Date('2026-10-18T10:00:00.000Z');
+    await githubInstallationFactory.create({
+      installationId: String(installationId),
+      connectionId: connection.id,
+      deletedAt,
+    });
+    const handlers = deps({connection});
+
+    await lifecycleEvent(action, installationId, handlers);
+
+    expect(handlers.github.getInstallation).not.toHaveBeenCalled();
+    expect(handlers.updateConnectionLifecycleStatus).not.toHaveBeenCalled();
+    const row = await readInstallation(installationId);
+    expect(row.suspendedAt).toBeNull();
+    expect(row.deletedAt).toEqual(deletedAt);
+  });
+
+  it.each([
+    ['deleted', ['active']],
+    ['suspend', ['active']],
+  ] as const)('only lets %s change a connection that is %j so a disabled one stays disabled', async (action, expectedStatuses) => {
+    const installationId = action === 'deleted' ? 8112 : 8113;
+    const connection = fakeConnection({lifecycleStatus: 'disabled'});
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    handlers.github.getInstallation.mockResolvedValue(
+      installationDetails(new Date('2026-10-20T09:00:00.000Z')),
+    );
+
+    await lifecycleEvent(action, installationId, handlers);
+
+    expect(handlers.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(handlers.updateConnectionLifecycleStatus).toHaveBeenCalledWith(
+      expect.objectContaining({id: connection.id, expectedStatuses}),
+      expect.anything(),
+    );
   });
 });

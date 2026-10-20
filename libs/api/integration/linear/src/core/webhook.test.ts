@@ -62,7 +62,7 @@ function deps(
     publishIntegrationEventReceived: vi.fn<PublishIntegrationEventReceivedFn>(() =>
       Promise.resolve(options.publishIntegrationEventReceivedResult ?? {published: true}),
     ),
-    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve()),
+    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById: vi.fn<GetIntegrationConnectionByIdFn>(() =>
       Promise.resolve(options.connection ?? fakeConnection()),
     ),

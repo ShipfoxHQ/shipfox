@@ -72,6 +72,8 @@ describe('GitHub webhook processor', () => {
       publishSourcePush: vi.fn(),
       recordDeliveryOnly: vi.fn(),
       getIntegrationConnectionById: vi.fn(),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+      github: {getInstallation: vi.fn()},
     });
     const request = createStoredWebhookRequest({
       requestId: randomUUID(),
@@ -100,6 +102,8 @@ describe('GitHub webhook processor', () => {
       publishSourcePush: vi.fn(),
       recordDeliveryOnly: vi.fn(),
       getIntegrationConnectionById: vi.fn(),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+      github: {getInstallation: vi.fn()},
     });
     const request = createStoredWebhookRequest({
       requestId: randomUUID(),
@@ -137,6 +141,8 @@ describe('GitHub webhook processor', () => {
       publishSourcePush: vi.fn(),
       recordDeliveryOnly: vi.fn(),
       getIntegrationConnectionById: vi.fn(),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+      github: {getInstallation: vi.fn()},
     });
 
     const result = await processor.process(request);
@@ -169,6 +175,8 @@ describe('GitHub webhook processor', () => {
       publishSourcePush: vi.fn(),
       recordDeliveryOnly: vi.fn(),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+      github: {getInstallation: vi.fn()},
       deleteInstallationTokenSecret,
     });
     const request = signedInstallationRequest(deliveryId, installationId);
@@ -206,6 +214,8 @@ describe('GitHub webhook processor', () => {
       publishSourcePush: vi.fn(),
       recordDeliveryOnly: vi.fn(),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+      github: {getInstallation: vi.fn()},
       deleteInstallationTokenSecret,
     });
     const request = signedInstallationRequest(
@@ -252,6 +262,8 @@ describe('GitHub webhook processor', () => {
       publishSourcePush: vi.fn(),
       recordDeliveryOnly: vi.fn(),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+      github: {getInstallation: vi.fn()},
       invalidateRepositoryAuthorizationCache,
     });
 

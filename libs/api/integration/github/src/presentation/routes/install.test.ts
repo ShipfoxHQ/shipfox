@@ -117,8 +117,9 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
     publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
     publishSourceRepositoryUpdated: vi.fn(() => Promise.resolve({published: false})),
     publishSourcePush: vi.fn(() => Promise.resolve({published: false})),
-    recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+    recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById: vi.fn(() => Promise.resolve(undefined)),
+    updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
     requireActiveWorkspaceMembership: requireWorkspaceMembershipMock,
   });
   const app = await createApp({

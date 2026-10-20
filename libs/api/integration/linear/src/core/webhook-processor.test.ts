@@ -74,7 +74,7 @@ describe('Linear webhook processor', () => {
     const processor = createLinearWebhookProcessor({
       coreDb: db,
       publishIntegrationEventReceived,
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
     });
     await seedInstallation({connectionId: connection.id, organizationId: 'org-delayed'});
@@ -101,7 +101,7 @@ describe('Linear webhook processor', () => {
     const processor = createLinearWebhookProcessor({
       coreDb: db,
       publishIntegrationEventReceived,
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(),
     });
     const request = signedRequest({
@@ -125,7 +125,7 @@ describe('Linear webhook processor', () => {
     const connection = fakeConnection();
     const receivedAt = new Date().toISOString();
     const deliveryId = randomUUID();
-    const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+    const recordDeliveryOnly = vi.fn(() => Promise.resolve({claimed: true}));
     const processor = createLinearWebhookProcessor({
       coreDb: db,
       publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),

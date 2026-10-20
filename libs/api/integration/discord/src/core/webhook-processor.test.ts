@@ -51,7 +51,7 @@ async function arrange(
   const publishIntegrationEventReceived = vi.fn(() =>
     Promise.resolve({published: options.published ?? true}),
   );
-  const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+  const recordDeliveryOnly = vi.fn(() => Promise.resolve({claimed: true}));
   const processor = createDiscordWebhookProcessor({
     coreDb: db,
     publicKey: signer.publicKey,
