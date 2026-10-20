@@ -150,6 +150,33 @@ describe('importBuildOutputs', () => {
     ]);
   });
 
+  it('imports a lower version first even when it waits for the action it uses', async () => {
+    const writeBrief = async (version: string, actions: string[]) =>
+      writeBuild({
+        name: 'aaa-thread-brief',
+        version,
+        kind: 'action',
+        draft: ACTION_DRAFT,
+        content: await bundleOf(
+          compositeActionFiles({
+            uses: actions.length === 0 ? [] : ['shipfox/slack-thread-digest@1.0.0'],
+          }),
+        ),
+        actions,
+      });
+    await writeBrief('1.0.0', ['shipfox/slack-thread-digest@1.0.0']);
+    await writeBrief('1.0.1', []);
+    await writeAction('1.0.0');
+
+    const imported = await importBuildOutputs({directory: buildsDirectory(), importVersion});
+
+    expect(imported.map(({name, version}) => `${name}@${version}`)).toEqual([
+      'slack-thread-digest@1.0.0',
+      'aaa-thread-brief@1.0.0',
+      'aaa-thread-brief@1.0.1',
+    ]);
+  });
+
   it('keeps a version that was already imported with the same content', async () => {
     await writeAction('1.0.0');
     await importBuildOutputs({directory: buildsDirectory(), importVersion});

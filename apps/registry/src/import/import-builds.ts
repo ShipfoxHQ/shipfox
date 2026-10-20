@@ -81,18 +81,25 @@ export async function findBuildOutputs(directory: string): Promise<BuildOutput[]
   );
 }
 
-/** Keeps the order, except that a version moves after the versions of the batch it uses. */
+/**
+ * Keeps the order, except that a version moves after the versions of the batch it uses. A version
+ * also waits for the lower versions of its package, so each one is checked against the one below.
+ */
 function orderByUse(outputs: BuildOutput[]): BuildOutput[] {
-  const referenceOf = (output: BuildOutput) =>
-    `${output.namespace}/${output.name}@${output.version}`;
+  const packageOf = (output: BuildOutput) => `${output.namespace}/${output.name}`;
+  const referenceOf = (output: BuildOutput) => `${packageOf(output)}@${output.version}`;
   const pending = [...outputs];
   const unimported = new Set(pending.map(referenceOf));
   const ordered: BuildOutput[] = [];
   while (pending.length > 0) {
-    // Exact versions cannot use each other in a cycle, so a ready version always exists.
+    // When nothing is ready, the first version goes, and the registry refuses what it lacks.
     const index = Math.max(
       0,
-      pending.findIndex((output) => output.actions.every((action) => !unimported.has(action))),
+      pending.findIndex(
+        (output, position) =>
+          output.actions.every((action) => !unimported.has(action)) &&
+          !pending.slice(0, position).some((earlier) => packageOf(earlier) === packageOf(output)),
+      ),
     );
     const [next] = pending.splice(index, 1);
     if (next === undefined) break;
