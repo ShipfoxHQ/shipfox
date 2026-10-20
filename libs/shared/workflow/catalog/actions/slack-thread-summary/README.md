@@ -9,7 +9,7 @@ The action runs two steps in the job of the step that uses it:
 
 1. **Read the thread.** `shipfox/slack-thread-digest` writes every message of the thread to a Markdown file, with authors and permalinks.
 2. **Summarize the thread.** An agent step reads that file with the prompt in
-   `prompts/summarize.md` and writes the summary.
+   [`prompts/summarize.md`](prompts/summarize.md) and writes the summary.
 
 The summary has four sections: context, decisions, open questions, and next steps. Each
 decision links to the message that made it. The action only reads from Slack. It never posts,
