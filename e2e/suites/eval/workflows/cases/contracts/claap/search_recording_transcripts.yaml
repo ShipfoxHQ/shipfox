@@ -1,5 +1,7 @@
 provider: claap
-modes: [real, fake]
+# Fake only: transcript search returns nothing on the free-plan sandbox, even for a recording whose
+# transcript get_recording_transcript reads, while it works on a paid workspace. Checked 2026-10-20.
+modes: [fake]
 steps:
   - tool: search_recording_transcripts
     with:
