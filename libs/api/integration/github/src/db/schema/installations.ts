@@ -1,5 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {index, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {GithubInstallation} from '#db/installations.js';
 import {pgTable} from './common.js';
 
@@ -11,6 +11,7 @@ export const githubInstallations = pgTable(
     installationId: text('installation_id').notNull(),
     accountLogin: text('account_login').notNull(),
     accountType: text('account_type').notNull(),
+    accountId: text('account_id'),
     repositorySelection: text('repository_selection').notNull(),
     suspendedAt: timestamp('suspended_at', {withTimezone: true}),
     deletedAt: timestamp('deleted_at', {withTimezone: true}),
@@ -22,6 +23,7 @@ export const githubInstallations = pgTable(
   (table) => [
     uniqueIndex('integrations_github_installations_connection_unique').on(table.connectionId),
     uniqueIndex('integrations_github_installations_installation_unique').on(table.installationId),
+    index('integrations_github_installations_account_idx').on(table.accountType, table.accountId),
   ],
 );
 
@@ -35,6 +37,7 @@ export function toGithubInstallation(row: GithubInstallationDb): GithubInstallat
     installationId: row.installationId,
     accountLogin: row.accountLogin,
     accountType: row.accountType,
+    accountId: row.accountId,
     repositorySelection: row.repositorySelection,
     suspendedAt: row.suspendedAt,
     deletedAt: row.deletedAt,

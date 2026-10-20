@@ -23,6 +23,7 @@ function installation(overrides: Partial<GithubInstallation> = {}): GithubInstal
     installationId: '123',
     accountLogin: 'shipfox',
     accountType: 'Organization',
+    accountId: null,
     repositorySelection: 'all',
     suspendedAt: null,
     deletedAt: null,

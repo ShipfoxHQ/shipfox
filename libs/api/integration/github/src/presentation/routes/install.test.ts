@@ -52,7 +52,7 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     getInstallation: vi.fn(() =>
       Promise.resolve({
         id: 123,
-        account: {login: 'shipfox', type: 'Organization'},
+        account: {id: 1, login: 'shipfox', type: 'Organization'},
         repositorySelection: 'all',
         suspendedAt: null,
         htmlUrl: 'https://github.com/apps/shipfox/installations/123',
@@ -327,7 +327,7 @@ describe('GitHub integration routes', () => {
         getInstallation: vi.fn(() =>
           Promise.resolve({
             id: 123,
-            account: {login: 'shipfox', type: 'Organization'},
+            account: {id: 1, login: 'shipfox', type: 'Organization'},
             repositorySelection: 'all',
             suspendedAt: new Date(),
             htmlUrl: 'https://github.com/apps/shipfox/installations/123',

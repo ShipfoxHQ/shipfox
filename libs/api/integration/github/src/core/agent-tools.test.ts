@@ -5019,6 +5019,7 @@ function installation() {
     installationId: '1',
     accountLogin: 'shipfox',
     accountType: 'Organization',
+    accountId: null,
     repositorySelection: 'all',
     suspendedAt: null,
     deletedAt: null,

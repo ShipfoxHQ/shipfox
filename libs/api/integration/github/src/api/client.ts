@@ -26,6 +26,7 @@ const GITHUB_REVIEW_THREAD_NOT_FOUND_MESSAGE =
 const GITHUB_GRAPHQL_NODE_NOT_FOUND_PATTERN = /Could not resolve to a node with global id\b/iu;
 
 export interface GithubAccount {
+  id: number;
   login: string;
   type: string;
 }
@@ -887,7 +888,11 @@ function nextCursorFromLink(link: string | undefined): string | null {
 }
 
 function toGithubAccount(
-  account: {login: string; type: string} | {slug: string} | null | undefined,
+  account:
+    | {id: number; login: string; type: string}
+    | {id: number; slug: string}
+    | null
+    | undefined,
 ): GithubAccount {
   if (!account) {
     throw new GithubIntegrationProviderError(
@@ -895,8 +900,8 @@ function toGithubAccount(
       'GitHub installation response did not include an account',
     );
   }
-  if ('login' in account) return {login: account.login, type: account.type};
-  return {login: account.slug, type: 'Enterprise'};
+  if ('login' in account) return {id: account.id, login: account.login, type: account.type};
+  return {id: account.id, login: account.slug, type: 'Enterprise'};
 }
 
 function toGithubRepository(repository: {

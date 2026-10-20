@@ -132,6 +132,8 @@ export interface CreateGithubConnectionParams {
   workspaceId: string;
   installationId: number;
   accountLogin: string;
+  /** Reinstalling reuses the account ID with a new installation ID. Defaults to the installation ID. */
+  accountId?: number | undefined;
   displayName: string;
   installerUserId: string;
   lifecycleStatus?: 'active' | 'disabled' | undefined;
@@ -144,6 +146,7 @@ function githubConnectionBody(
     workspace_id: params.workspaceId,
     installation_id: params.installationId,
     account_login: params.accountLogin,
+    ...(params.accountId === undefined ? {} : {account_id: params.accountId}),
     display_name: params.displayName,
     installer_user_id: params.installerUserId,
     ...(params.lifecycleStatus === undefined ? {} : {lifecycle_status: params.lifecycleStatus}),

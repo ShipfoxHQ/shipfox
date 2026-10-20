@@ -382,6 +382,39 @@ export async function updateIntegrationConnectionLifecycleStatus(
 export type UpdateIntegrationConnectionLifecycleStatusFn =
   typeof updateIntegrationConnectionLifecycleStatus;
 
+export interface UpdateIntegrationConnectionExternalAccountParams {
+  id: string;
+  externalAccountId: string;
+  displayName: string;
+}
+
+/**
+ * Points a connection at a new provider account ID, for a provider that re-issues the ID when an
+ * app is reinstalled. The slug stays, so bindings and trigger subscriptions keep matching.
+ */
+export async function updateIntegrationConnectionExternalAccount(
+  params: UpdateIntegrationConnectionExternalAccountParams,
+  options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
+): Promise<IntegrationConnection | undefined> {
+  if (options.tx === undefined) {
+    return await db().transaction((tx) => updateIntegrationConnectionExternalAccount(params, {tx}));
+  }
+
+  const [row] = await options.tx
+    .update(integrationConnections)
+    .set({
+      externalAccountId: params.externalAccountId,
+      displayName: params.displayName,
+      updatedAt: new Date(),
+    })
+    .where(eq(integrationConnections.id, params.id))
+    .returning();
+  return row ? toIntegrationConnection(row) : undefined;
+}
+
+export type UpdateIntegrationConnectionExternalAccountFn =
+  typeof updateIntegrationConnectionExternalAccount;
+
 export interface UpdateIntegrationConnectionRepositoryAccessModeParams {
   id: string;
   repositoryAccessMode: IntegrationConnectionRepositoryAccessMode;

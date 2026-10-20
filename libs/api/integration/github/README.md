@@ -60,6 +60,8 @@ The provider reads the GitHub App credentials, webhook secret, API base URL, and
 
 The link flow carries its S256 PKCE verifier inside authenticated encrypted state. It requires the completing Shipfox actor's JWT and workspace membership. Existing installations are never repointed.
 
+Both flows reattach on reinstall. GitHub allows one installation per account, so a new installation ID for the same account type and account ID in the same workspace moves the existing connection to it. The connection keeps its ID and slug, so projects and workflows keep working, and it becomes `active` again, or `error` if GitHub reports the installation suspended. It matches on GitHub's numeric account ID, which survives a login rename. Other workspaces never match.
+
 With 2 to 20 linkable installations, `/link/complete` returns their account names and a selection token. More than 20 return the `github-too-many-linkable-installations` conflict. The token is HMAC-signed with the install-state secret under its own signing domain. It binds the actor, the workspace, the allowed installation IDs, its purpose and version, and a five-minute expiry. It holds no GitHub token, and its payload is readable.
 
 `/link/select` checks the current actor, workspace membership, the token, and that it allows the selected ID. It then fetches the installation with the app JWT and rejects suspended or deleted installations. It does not recheck the user's GitHub access: a revocation after the token was issued takes effect only when the token expires, at most five minutes later. The token is not single-use. Selecting an installation that is already linked to the workspace returns the existing connection.

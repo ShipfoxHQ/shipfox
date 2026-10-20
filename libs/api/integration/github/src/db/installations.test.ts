@@ -5,6 +5,8 @@ import {db} from './db.js';
 import {
   deleteGithubInstallationByConnectionId,
   getGithubInstallationByInstallationId,
+  lockGithubInstallationsByAccount,
+  reattachGithubInstallation,
   type UpsertGithubInstallationParams,
   upsertGithubInstallation,
 } from './installations.js';
@@ -185,5 +187,91 @@ describe('github installations persistence', () => {
     const result = await getGithubInstallationByInstallationId('missing');
 
     expect(result).toBeUndefined();
+  });
+
+  describe('reattach', () => {
+    test('lockGithubInstallationsByAccount returns sibling installations of the same account only', async () => {
+      const accountId = `${Math.floor(Math.random() * 1_000_000_000)}`;
+      const previous = await upsertGithubInstallation(installationParams({accountId}));
+      await upsertGithubInstallation(installationParams({accountId, accountType: 'User'}));
+      await upsertGithubInstallation(installationParams({accountId: `${accountId}1`}));
+      const current = await upsertGithubInstallation(installationParams({accountId}));
+
+      const siblings = await db().transaction((tx) =>
+        lockGithubInstallationsByAccount(
+          {
+            accountType: 'Organization',
+            accountId,
+            excludeInstallationId: current.installationId,
+          },
+          {tx},
+        ),
+      );
+
+      expect(siblings.map((row) => row.installationId)).toEqual([previous.installationId]);
+    });
+
+    test('reattachGithubInstallation moves the row to the new installation and clears deletion', async () => {
+      const installation = await upsertGithubInstallation(
+        installationParams({accountId: '5', deletedAt: new Date(), suspendedAt: new Date()}),
+      );
+
+      const moved = await db().transaction((tx) =>
+        reattachGithubInstallation(
+          {
+            connectionId: installation.connectionId,
+            fromInstallationId: installation.installationId,
+            installationId: 'reinstalled-1',
+            accountLogin: 'renamed',
+            accountType: 'Organization',
+            accountId: '5',
+            repositorySelection: 'selected',
+            suspendedAt: null,
+            latestEvent: {id: 2},
+            installerUserId: null,
+          },
+          {tx},
+        ),
+      );
+
+      expect(moved).toMatchObject({
+        id: installation.id,
+        installationId: 'reinstalled-1',
+        accountLogin: 'renamed',
+        repositorySelection: 'selected',
+        deletedAt: null,
+        suspendedAt: null,
+      });
+      await expect(
+        getGithubInstallationByInstallationId(installation.installationId),
+      ).resolves.toBeUndefined();
+    });
+
+    test('reattachGithubInstallation changes nothing when the old installation ID no longer matches', async () => {
+      const installation = await upsertGithubInstallation(installationParams({accountId: '6'}));
+
+      const moved = await db().transaction((tx) =>
+        reattachGithubInstallation(
+          {
+            connectionId: installation.connectionId,
+            fromInstallationId: 'someone-else',
+            installationId: 'reinstalled-2',
+            accountLogin: 'shipfox',
+            accountType: 'Organization',
+            accountId: '6',
+            repositorySelection: 'all',
+            suspendedAt: null,
+            latestEvent: {id: 3},
+            installerUserId: null,
+          },
+          {tx},
+        ),
+      );
+
+      expect(moved).toBeUndefined();
+      await expect(
+        getGithubInstallationByInstallationId(installation.installationId),
+      ).resolves.toMatchObject({connectionId: installation.connectionId});
+    });
   });
 });

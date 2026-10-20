@@ -619,7 +619,7 @@ describe('handleGithubEvent', () => {
       event: 'installation',
       payload: {
         action: 'deleted',
-        installation: {id: installationId, account: {login: 'acme', type: 'Organization'}},
+        installation: {id: installationId, account: {id: 1, login: 'acme', type: 'Organization'}},
         sender: {login: 'octocat'},
         requester: null,
       },
@@ -872,7 +872,7 @@ describe('handleGithubEvent', () => {
         action: 'created',
         installation: {
           id: 999999,
-          account: {login: 'opsmill', type: 'Organization'},
+          account: {id: 1, login: 'opsmill', type: 'Organization'},
           repository_selection: 'selected',
         },
         sender: {login: 'octocat'},
@@ -890,7 +890,7 @@ describe('handleGithubEvent', () => {
       expect.objectContaining({
         event: 'installation',
         action: 'created',
-        account: {login: 'opsmill', type: 'Organization'},
+        account: {id: 1, login: 'opsmill', type: 'Organization'},
         sender: {login: 'octocat'},
         requester: {login: 'member'},
       }),
@@ -913,7 +913,7 @@ describe('handleGithubEvent', () => {
         action,
         installation: {
           id: 999996,
-          account: {login: 'opsmill', type: 'Organization'},
+          account: {id: 1, login: 'opsmill', type: 'Organization'},
           repository_selection: 'selected',
         },
         sender: {login: 'octocat'},
@@ -1112,7 +1112,7 @@ describe('handleGithubEvent installation lifecycle', () => {
   function installationDetails(suspendedAt: Date | null) {
     return {
       id: 1,
-      account: {login: 'shipfox', type: 'Organization'},
+      account: {id: 1, login: 'shipfox', type: 'Organization'},
       repositorySelection: 'all',
       suspendedAt,
       htmlUrl: 'https://github.com/settings/installations/1',

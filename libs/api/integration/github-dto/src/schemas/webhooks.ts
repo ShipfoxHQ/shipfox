@@ -17,6 +17,8 @@ export const githubWebhookActionSchema = z.object({
 export type GithubWebhookActionDto = z.infer<typeof githubWebhookActionSchema>;
 
 const githubWebhookAccountSchema = z.object({
+  // Optional: a required id that fails to parse would drop every event as `no-installation-id`.
+  id: z.number().int().positive().optional(),
   login: z.string().min(1),
   type: z.string().min(1),
 });

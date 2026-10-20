@@ -94,6 +94,7 @@ export {
   GithubLinkStateActorMismatchError,
   GithubLinkStateError,
   GithubNoLinkableInstallationError,
+  GithubReattachConflictError,
   GithubTooManyLinkableInstallationsError,
 } from '#core/errors.js';
 export {handleGithubCallback} from '#core/install.js';
@@ -117,12 +118,18 @@ export type {
   GithubWebhookProcessor,
 } from '#core/webhook-processor.js';
 export {createGithubWebhookProcessor} from '#core/webhook-processor.js';
-export type {GithubInstallation, UpsertGithubInstallationParams} from '#db/installations.js';
+export type {
+  GithubInstallation,
+  ReattachGithubInstallationParams,
+  UpsertGithubInstallationParams,
+} from '#db/installations.js';
 export {
   deleteGithubInstallationByConnectionId,
   getGithubInstallationByConnectionId,
   getGithubInstallationByInstallationId,
   lockGithubInstallationByInstallationId,
+  lockGithubInstallationsByAccount,
+  reattachGithubInstallation,
   upsertGithubInstallation,
 } from '#db/installations.js';
 export {

@@ -1,4 +1,4 @@
-import {eq, sql} from 'drizzle-orm';
+import {and, desc, eq, ne, sql} from 'drizzle-orm';
 import {GithubInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {githubInstallations, toGithubInstallation} from './schema/installations.js';
@@ -10,6 +10,8 @@ export interface GithubInstallation {
   installationId: string;
   accountLogin: string;
   accountType: string;
+  /** GitHub's numeric account ID. Null for rows written before it was recorded. */
+  accountId: string | null;
   repositorySelection: string;
   suspendedAt: Date | null;
   deletedAt: Date | null;
@@ -24,6 +26,7 @@ export interface UpsertGithubInstallationParams {
   installationId: string;
   accountLogin: string;
   accountType: string;
+  accountId?: string | null | undefined;
   repositorySelection: string;
   suspendedAt?: Date | null | undefined;
   deletedAt?: Date | null | undefined;
@@ -51,6 +54,7 @@ export async function upsertGithubInstallation(
       installationId: params.installationId,
       accountLogin: params.accountLogin,
       accountType: params.accountType,
+      accountId: params.accountId ?? null,
       repositorySelection: params.repositorySelection,
       suspendedAt: params.suspendedAt ?? null,
       deletedAt: params.deletedAt ?? null,
@@ -70,6 +74,7 @@ export async function upsertGithubInstallation(
         connectionId: params.connectionId,
         accountLogin: params.accountLogin,
         accountType: params.accountType,
+        accountId: params.accountId ?? null,
         repositorySelection: params.repositorySelection,
         suspendedAt: params.suspendedAt ?? null,
         deletedAt: params.deletedAt ?? null,
@@ -163,4 +168,75 @@ export async function setGithubInstallationSuspendedAt(
     .update(githubInstallations)
     .set({suspendedAt: params.suspendedAt, updatedAt: new Date()})
     .where(eq(githubInstallations.installationId, params.installationId));
+}
+
+/**
+ * Locks the other installations of one GitHub account, most recently created first. GitHub allows
+ * one installation per account, so any sibling is a previous install that a new one replaces.
+ */
+export async function lockGithubInstallationsByAccount(
+  params: {accountType: string; accountId: string; excludeInstallationId: string},
+  options: {tx: unknown},
+): Promise<GithubInstallation[]> {
+  const executor = options.tx as GithubDb | GithubTx;
+  const rows = await executor
+    .select()
+    .from(githubInstallations)
+    .where(
+      and(
+        eq(githubInstallations.accountType, params.accountType),
+        eq(githubInstallations.accountId, params.accountId),
+        ne(githubInstallations.installationId, params.excludeInstallationId),
+      ),
+    )
+    .orderBy(desc(githubInstallations.createdAt), desc(githubInstallations.id))
+    .for('update');
+  return rows.map(toGithubInstallation);
+}
+
+export interface ReattachGithubInstallationParams {
+  connectionId: string;
+  /** The installation ID the row holds now. The update applies only while it still does. */
+  fromInstallationId: string;
+  installationId: string;
+  accountLogin: string;
+  accountType: string;
+  accountId: string | null;
+  repositorySelection: string;
+  suspendedAt: Date | null;
+  latestEvent: Record<string, unknown>;
+  installerUserId: string | null;
+}
+
+/**
+ * Points the connection's installation row at a new installation ID and clears `deleted_at`.
+ * Returns undefined when the row no longer matches the connection and the old installation ID.
+ */
+export async function reattachGithubInstallation(
+  params: ReattachGithubInstallationParams,
+  options: {tx: unknown},
+): Promise<GithubInstallation | undefined> {
+  const executor = options.tx as GithubDb | GithubTx;
+  const [row] = await executor
+    .update(githubInstallations)
+    .set({
+      installationId: params.installationId,
+      accountLogin: params.accountLogin,
+      accountType: params.accountType,
+      accountId: params.accountId,
+      repositorySelection: params.repositorySelection,
+      suspendedAt: params.suspendedAt,
+      deletedAt: null,
+      latestEvent: params.latestEvent,
+      installerUserId: params.installerUserId,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(githubInstallations.connectionId, params.connectionId),
+        eq(githubInstallations.installationId, params.fromInstallationId),
+      ),
+    )
+    .returning();
+  return row ? toGithubInstallation(row) : undefined;
 }
