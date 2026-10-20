@@ -484,6 +484,8 @@ export function toStepAttemptDetailResponseDto(
     job_id: ancestry.jobId,
     job_execution_id: ancestry.jobExecutionId,
     step_id: step.id,
+    parent_step_id: step.parentStepId,
+    step_path: step.path,
     step_attempt_id: attempt.id,
     attempt: attempt.attempt,
     authored_config: authoredConfig.value,

@@ -9,13 +9,16 @@ import type {Step, StepAttempt} from '#core/entities/step.js';
 import {decideStepTransition} from '#core/step-transition/decide-step-transition.js';
 import {fromStepErrorDto, toStepAttemptDetailResponseDto, toStepDto} from './step.js';
 
-function step(overrides: Partial<Step> & {type: string}): Step {
+function step(
+  overrides: Partial<Step & {path: string[]}> & {type: string},
+): Step & {path: string[]} {
   return {
     id: '00000000-0000-0000-0000-000000000001',
     jobExecutionId: '00000000-0000-0000-0000-0000000000bb',
     parentStepId: null,
     key: null,
     name: 'step',
+    path: ['step'],
     sourceLocation: null,
     status: 'failed',
     statusReason: null,
@@ -686,6 +689,8 @@ describe('toStepAttemptDetailResponseDto', () => {
       job_id: '44444444-4444-4444-8444-444444444444',
       job_execution_id: stepData.jobExecutionId,
       step_id: stepData.id,
+      parent_step_id: null,
+      step_path: ['step'],
       step_attempt_id: attempt.id,
       attempt: 1,
       authored_config: {run: 'echo $' + '{{ inputs.message }}'},

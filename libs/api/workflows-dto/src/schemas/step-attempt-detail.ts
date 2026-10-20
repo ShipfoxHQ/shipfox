@@ -15,6 +15,9 @@ export const stepAttemptDetailResponseSchema = z.object({
   job_id: z.string().uuid().optional(),
   job_execution_id: z.string().uuid().optional(),
   step_id: z.string().uuid(),
+  parent_step_id: stepDtoSchema.shape.parent_step_id,
+  // Labels from the outermost composite down to this step, such as `["setup", "lint"]`.
+  step_path: z.array(z.string()).optional(),
   step_attempt_id: z.string().uuid().optional(),
   attempt: stepAttemptDetailDtoSchema.shape.attempt,
   authored_config: z.record(z.string(), z.unknown()).nullable(),

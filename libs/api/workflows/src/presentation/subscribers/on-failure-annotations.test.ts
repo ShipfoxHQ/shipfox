@@ -405,6 +405,38 @@ describe('failure annotations', () => {
     );
   });
 
+  it('names an inner step of a composite by its key path when its if condition cannot be evaluated', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      parentStepId: '88888888-8888-4888-8888-888888888888',
+      key: 'deploy',
+      path: ['release', 'deploy'],
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      error: {reason: 'condition_errored', summary: 'No such key: sha'},
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: expect.objectContaining({
+          body: expect.stringContaining("The `if` of step `release › deploy` can't be evaluated"),
+        }),
+      }),
+    );
+  });
+
   it('names the step and the cause when its if condition cannot be evaluated', async () => {
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({
@@ -1346,6 +1378,7 @@ describe('failure annotations', () => {
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
       stepName: 'Run tests',
+      stepPath: ['Run tests'],
       stepStatus: 'failed',
       stepAttempt: 2,
       stepError: {reason: 'agent_invocation_failed', message: 'internal step detail'},
@@ -1390,6 +1423,7 @@ describe('failure annotations', () => {
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
       stepName: 'Run tests',
+      stepPath: ['Run tests'],
       stepStatus: 'failed',
       stepAttempt: 2,
       stepError: {reason: 'agent_invocation_failed', message: 'Provider returned 500'},
@@ -1428,6 +1462,38 @@ describe('failure annotations', () => {
     );
   });
 
+  it('names an inner step of a composite by its key path in a job failure', async () => {
+    const payload = jobTerminatedPayload({status: 'failed', statusReason: 'output_too_large'});
+    dbMocks.getJobScope.mockResolvedValue({
+      workspaceId: '44444444-4444-4444-8444-444444444444',
+      projectId: '55555555-5555-4555-8555-555555555555',
+      triggerReference: null,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 3});
+    dbMocks.getJobExecutionFailureOrigin.mockResolvedValue({
+      jobExecutionId: payload.jobExecutionId,
+      stepId: '77777777-7777-4777-8777-777777777777',
+      stepName: 'Lint files',
+      stepPath: ['setup', 'lint'],
+      stepStatus: 'failed',
+      stepAttempt: 1,
+      stepError: null,
+      attemptStatus: 'failed',
+      attemptError: null,
+      attemptExitCode: 1,
+    });
+
+    await onJobTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: expect.objectContaining({
+          body: expect.stringContaining('The job stopped while processing **setup › lint**.'),
+        }),
+      }),
+    );
+  });
+
   it('explains an invalid job output without exposing its status message', async () => {
     const payload = jobTerminatedPayload({
       statusReason: 'output_invalid',
@@ -1443,6 +1509,7 @@ describe('failure annotations', () => {
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
       stepName: 'Run tests',
+      stepPath: ['Run tests'],
       stepStatus: 'succeeded',
       stepAttempt: 1,
       stepError: null,
@@ -1480,6 +1547,7 @@ describe('failure annotations', () => {
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
       stepName: 'Run tests',
+      stepPath: ['Run tests'],
       stepStatus: 'skipped',
       stepAttempt: 1,
       stepError: null,
@@ -1510,6 +1578,7 @@ describe('failure annotations', () => {
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
       stepName: 'Checkout',
+      stepPath: ['Checkout'],
       stepStatus: 'pending',
       stepAttempt: 1,
       stepError: null,
@@ -1688,13 +1757,14 @@ function jobTerminatedPayload(
   };
 }
 
-function stepEntity(overrides: Partial<Step> = {}): Step {
+function stepEntity(overrides: Partial<Step & {path: string[]}> = {}): Step & {path: string[]} {
   return {
     id: '77777777-7777-4777-8777-777777777777',
     jobExecutionId: JOB_EXECUTION_ID,
     parentStepId: null,
     key: 'run',
     name: 'Run tests',
+    path: ['run'],
     sourceLocation: null,
     status: 'failed',
     statusReason: null,

@@ -509,12 +509,14 @@ function jobFailureBody(
   reason: JobStatusReason | null,
   origin: {
     stepName: string;
+    stepPath: readonly string[];
     attemptStatus: string | null;
   },
 ): string {
+  const step = stepLabel(origin.stepPath, origin.stepName);
   const progress = origin.attemptStatus
-    ? `The job stopped while processing **${origin.stepName}**.`
-    : `The job stopped before **${origin.stepName}** started.`;
+    ? `The job stopped while processing **${step}**.`
+    : `The job stopped before **${step}** started.`;
   const copyReason =
     reason !== null && RUNNER_LOSS_COPY_REASONS.has(reason) ? 'runner_lost' : reason;
   const copy =
@@ -524,6 +526,11 @@ function jobFailureBody(
       description: 'Rerun the job. If it fails again, contact your workspace admin.',
     } satisfies FailureCopy);
   return [`**${copy.title}**`, '', progress, '', copy.description].join('\n');
+}
+
+// An inner step of a composite reads as its key path, such as `setup › lint`, like on the run page.
+function stepLabel(path: readonly string[], jobStepLabel: string): string {
+  return path.length > 1 ? path.map(boundedStepName).join(' › ') : jobStepLabel;
 }
 
 function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): FailureCopy {
@@ -611,7 +618,7 @@ function conditionErroredFailureCopy(
 
   return {
     title: 'A step condition has an error',
-    description: `The \`if\` of step \`${boundedStepName(step.key ?? step.name)}\` can't be evaluated: ${summary.replace(TRAILING_PERIOD, '')}. Fix the condition, then start a new run.`,
+    description: `The \`if\` of step \`${stepLabel(step.path, boundedStepName(step.key ?? step.name))}\` can't be evaluated: ${summary.replace(TRAILING_PERIOD, '')}. Fix the condition, then start a new run.`,
   };
 }
 

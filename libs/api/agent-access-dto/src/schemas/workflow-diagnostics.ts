@@ -368,6 +368,8 @@ export const getStepAttemptResultSchema = z
     job_id: idSchema,
     job_execution_id: idSchema,
     step_id: idSchema,
+    parent_step_id: idSchema.nullable(),
+    step_path: z.array(textSchema).max(AGENT_ACCESS_PAGE_LIMIT_MAX),
     step_attempt_id: idSchema,
     attempt: attemptSchema,
     authored_config: z.unknown().nullable(),

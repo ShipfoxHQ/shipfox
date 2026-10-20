@@ -173,8 +173,11 @@ export interface StepAttemptDetail {
  */
 export interface StepAttemptDetailStep {
   id: string;
+  parentStepId: string | null;
   key: string | null;
   name: string;
+  /** Labels from the outermost composite down to this step. A job step has only its own. */
+  path: string[];
   jobExecutionId: string;
   status: StepStatus;
   type: StepType;
@@ -188,6 +191,7 @@ export interface JobExecutionFailureOrigin {
   jobExecutionId: string;
   stepId: string;
   stepName: string;
+  stepPath: string[];
   stepStatus: StepStatus;
   stepAttempt: number;
   stepError: Record<string, unknown> | null;
@@ -209,6 +213,8 @@ export async function getJobExecutionFailureOrigin(
     .select({
       jobExecutionId: jobExecutions.id,
       stepId: steps.id,
+      stepParentId: steps.parentStepId,
+      stepKey: steps.key,
       stepName: steps.name,
       stepStatus: steps.status,
       stepAttempt: steps.currentAttempt,
@@ -238,9 +244,16 @@ export async function getJobExecutionFailureOrigin(
 
   const row = rows[0];
   if (!row) return undefined;
+  const {stepParentId, stepKey, ...origin} = row;
 
   return {
-    ...row,
+    ...origin,
+    stepPath: await readStepPath({
+      jobExecutionId: row.jobExecutionId,
+      parentStepId: stepParentId,
+      key: stepKey,
+      name: row.stepName,
+    }),
     stepError: (row.stepError as Record<string, unknown> | null) ?? null,
     attemptError: (row.attemptError as Record<string, unknown> | null) ?? null,
     attemptStatus: row.attemptStatus === null ? null : (row.attemptStatus as StepAttemptStatus),
@@ -267,6 +280,7 @@ export async function getStepAttemptDetail(params: {
       jobExecutionId: jobExecutions.id,
       step: {
         id: steps.id,
+        parentStepId: steps.parentStepId,
         key: steps.key,
         name: steps.name,
         jobExecutionId: steps.jobExecutionId,
@@ -361,7 +375,7 @@ export async function getStepAttemptDetail(params: {
     workflowRunAttempt: row.workflowRunAttempt,
     jobId: row.jobId,
     jobExecutionId: row.jobExecutionId,
-    step: row.step,
+    step: {...row.step, path: await readStepPath(row.step)},
     attempt: toStepAttempt(row.stepAttempt),
     sessionDescriptor: row.stepAttemptSessionDescriptor,
     diagnosticBytes: {
@@ -371,6 +385,33 @@ export async function getStepAttemptDetail(params: {
       evaluationTrace: row.stepAttemptEvaluationTraceBytes ?? null,
     },
   };
+}
+
+// Segments read like the run page's key path, such as `setup › lint`: the key when the step has one.
+async function readStepPath(step: {
+  jobExecutionId: string;
+  parentStepId: string | null;
+  key: string | null;
+  name: string;
+}): Promise<string[]> {
+  const path = [stepPathSegment(step)];
+  if (step.parentStepId === null) return path;
+
+  const composites = await db()
+    .select({id: steps.id, parentStepId: steps.parentStepId, key: steps.key, name: steps.name})
+    .from(steps)
+    .where(and(eq(steps.jobExecutionId, step.jobExecutionId), eq(steps.type, 'composite')));
+  const compositeById = new Map(composites.map((composite) => [composite.id, composite]));
+  let parent = compositeById.get(step.parentStepId);
+  while (parent !== undefined && path.length <= composites.length) {
+    path.unshift(stepPathSegment(parent));
+    parent = parent.parentStepId === null ? undefined : compositeById.get(parent.parentStepId);
+  }
+  return path;
+}
+
+function stepPathSegment(step: {key: string | null; name: string}): string {
+  return step.key?.trim() || step.name;
 }
 
 export async function getLatestStepAttempt(params: {

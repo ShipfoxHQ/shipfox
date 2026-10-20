@@ -321,6 +321,8 @@ function stepResult() {
     job_id: jobId,
     job_execution_id: executionId,
     step_id: stepId,
+    parent_step_id: null,
+    step_path: ['test'],
     step_attempt_id: stepAttemptId,
     attempt: 1,
     authored_config: {prompt: 'external data'},

@@ -77,6 +77,8 @@ describe('GET /api/workflows/runs/steps/:stepId/attempts/:attempt', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       step_id: STEP_ID,
+      parent_step_id: null,
+      step_path: ['test'],
       attempt: 1,
       authored_config: {run: 'pnpm test'},
       config: {run: 'pnpm test'},
@@ -118,13 +120,14 @@ describe('GET /api/workflows/runs/steps/:stepId/attempts/:attempt', () => {
   });
 });
 
-function stepEntity(): Step {
+function stepEntity(): Step & {path: string[]} {
   return {
     id: STEP_ID,
     jobExecutionId: crypto.randomUUID(),
     parentStepId: null,
     key: 'test',
     name: 'Run tests',
+    path: ['test'],
     sourceLocation: null,
     status: 'failed',
     statusReason: null,
