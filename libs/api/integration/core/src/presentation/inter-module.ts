@@ -714,6 +714,7 @@ function mapConnectionError(
   if (error instanceof IntegrationConnectionInactiveError)
     return createInterModuleKnownError(method, 'connection-inactive', {
       connectionId: input.connectionId,
+      ...(error.providerAccess === undefined ? {} : {providerAccess: error.providerAccess}),
     });
   if (error instanceof IntegrationConnectionWorkspaceMismatchError)
     return createInterModuleKnownError(method, 'connection-workspace-mismatch', {

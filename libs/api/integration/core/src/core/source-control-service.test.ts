@@ -3,6 +3,7 @@ import type {recordIntegrationCheckoutRepositoryAuthorization} from '#metrics/in
 import type {IntegrationConnection} from './entities/connection.js';
 import {
   IntegrationCheckoutUnsupportedError,
+  IntegrationConnectionInactiveError,
   IntegrationProviderError,
   IntegrationRepositoryAuthorizationError,
 } from './errors.js';
@@ -55,6 +56,7 @@ describe('integration source-control service', () => {
       recordRepositoryAuthorizationMetric?: typeof recordIntegrationCheckoutRepositoryAuthorization;
       getRepositoryAuthorizationMode?: () => 'selected' | 'all';
       connection?: IntegrationConnection;
+      connectionProviderAccess?: () => Promise<'removed' | 'suspended' | undefined>;
     } = {},
   ) {
     const sourceControl: SourceControlProvider = {
@@ -98,6 +100,9 @@ describe('integration source-control service', () => {
           provider: 'gitea',
           displayName: 'Gitea',
           repositoryAuthorization: options.providerRepositoryAuthorization ?? 'enforced',
+          ...(options.connectionProviderAccess
+            ? {connectionProviderAccess: options.connectionProviderAccess}
+            : {}),
           adapters: {
             source_control: sourceControl,
           },
@@ -125,6 +130,34 @@ describe('integration source-control service', () => {
 
     expect(result.connection.id).toBe(connection.id);
     expect(result.repository.externalRepositoryId).toBe('gitea:gitea-owner/platform');
+  });
+
+  it('reports why an inactive connection lost provider access', async () => {
+    const service = createService(
+      {},
+      {
+        connection: {...connection, lifecycleStatus: 'error'},
+        connectionProviderAccess: () => Promise.resolve('suspended'),
+      },
+    );
+
+    await expect(service.getConnection(connection.id)).rejects.toMatchObject({
+      providerAccess: 'suspended',
+    });
+  });
+
+  it('still rejects an inactive connection when the provider access lookup fails', async () => {
+    const service = createService(
+      {},
+      {
+        connection: {...connection, lifecycleStatus: 'error'},
+        connectionProviderAccess: () => Promise.reject(new Error('boom')),
+      },
+    );
+
+    await expect(service.getConnection(connection.id)).rejects.toBeInstanceOf(
+      IntegrationConnectionInactiveError,
+    );
   });
 
   it('resolves a normalized trigger reference through an active source-control connection', async () => {

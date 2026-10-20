@@ -1,4 +1,7 @@
-import type {IntegrationConnectionRepositoryAccessRepositoryDto} from '@shipfox/api-integration-spi';
+import type {
+  IntegrationConnectionProviderAccess,
+  IntegrationConnectionRepositoryAccessRepositoryDto,
+} from '@shipfox/api-integration-spi';
 import type {IntegrationConnection} from '#core/entities/connection.js';
 import type {
   IntegrationCapability,
@@ -20,15 +23,23 @@ export function toIntegrationConnectionDto(
   options: {
     capabilities: IntegrationCapability[];
     externalUrl?: string | undefined;
+    providerAccess?: IntegrationConnectionProviderAccess | undefined;
   },
 ) {
-  return mapIntegrationConnection(connection, options.capabilities, options.externalUrl);
+  return mapIntegrationConnection(connection, options);
 }
 
 function mapIntegrationConnection(
   connection: IntegrationConnection,
-  capabilities: IntegrationCapability[],
-  externalUrl?: string,
+  {
+    capabilities,
+    externalUrl,
+    providerAccess,
+  }: {
+    capabilities: IntegrationCapability[];
+    externalUrl?: string | undefined;
+    providerAccess?: IntegrationConnectionProviderAccess | undefined;
+  },
 ) {
   return {
     id: connection.id,
@@ -40,6 +51,7 @@ function mapIntegrationConnection(
     lifecycle_status: connection.lifecycleStatus,
     capabilities,
     ...(externalUrl ? {external_url: externalUrl} : {}),
+    ...(providerAccess ? {provider_access: providerAccess} : {}),
     created_at: connection.createdAt.toISOString(),
     updated_at: connection.updatedAt.toISOString(),
   };

@@ -1,4 +1,7 @@
-import {normalizeCheckoutTarget} from '@shipfox/api-integration-spi';
+import {
+  type IntegrationConnectionProviderAccess,
+  normalizeCheckoutTarget,
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   type IntegrationCheckoutRepositoryAuthorizationDecision,
@@ -133,11 +136,25 @@ export function createSourceControlIntegrationService({
   recordRepositoryAuthorizationMetric = recordIntegrationCheckoutRepositoryAuthorization,
   getRepositoryAuthorizationMode = (connection) => connection.repositoryAccessMode,
 }: CreateIntegrationSourceControlServiceOptions): IntegrationSourceControlService {
+  // Best-effort: the hint refines an error that is already being thrown.
+  async function resolveProviderAccess(
+    connection: IntegrationConnection,
+  ): Promise<IntegrationConnectionProviderAccess | undefined> {
+    try {
+      return await registry.get(connection.provider).connectionProviderAccess?.(connection);
+    } catch {
+      return undefined;
+    }
+  }
+
   async function getConnection(connectionId: string): Promise<IntegrationConnection> {
     const connection = await getIntegrationConnectionById(connectionId);
     if (!connection) throw new IntegrationConnectionNotFoundError(connectionId);
     if (connection.lifecycleStatus !== 'active') {
-      throw new IntegrationConnectionInactiveError(connection.id);
+      throw new IntegrationConnectionInactiveError(
+        connection.id,
+        await resolveProviderAccess(connection),
+      );
     }
 
     return connection;

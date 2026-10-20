@@ -56,6 +56,11 @@ export type ListIntegrationProvidersResponseDto = z.infer<
   typeof listIntegrationProvidersResponseSchema
 >;
 
+export const integrationConnectionProviderAccessSchema = z.enum(['removed', 'suspended']);
+export type IntegrationConnectionProviderAccess = z.infer<
+  typeof integrationConnectionProviderAccessSchema
+>;
+
 export const integrationConnectionDtoSchema = z.object({
   id: z.string().uuid(),
   workspace_id: z.string().uuid(),
@@ -66,6 +71,7 @@ export const integrationConnectionDtoSchema = z.object({
   lifecycle_status: integrationConnectionLifecycleStatusSchema,
   capabilities: z.array(integrationCapabilitySchema),
   external_url: z.string().url().optional(),
+  provider_access: integrationConnectionProviderAccessSchema.optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });

@@ -591,6 +591,30 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(renewal.json().code).toBe('integration-connection-inactive');
   });
 
+  test('maps an inactive connection with lost provider access to the installation hint', async () => {
+    const {project, step, token} = await createPromotedCheckout(app);
+    createCheckoutCredentials.mockRejectedValue(
+      createInterModuleKnownError(
+        integrationsInterModuleContract.methods.createCheckoutCredentials,
+        'connection-inactive',
+        {connectionId: project.sourceConnectionId, providerAccess: 'removed'},
+      ),
+    );
+
+    const renewal = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: {rejected_generation: 'generation-1'},
+    });
+
+    expect(renewal.statusCode).toBe(422);
+    expect(renewal.json().code).toBe('installation-inactive');
+  });
+
   test('maps a generic provider failure from credential renewal', async () => {
     const {step, token} = await createPromotedCheckout(app);
     createCheckoutCredentials.mockRejectedValue(

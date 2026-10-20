@@ -274,13 +274,21 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     ...(deleteConnectionSecrets ? {deleteConnectionSecrets} : {}),
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);
-      if (!installation) return undefined;
+      if (!installation || installation.deletedAt) return undefined;
       const installationId = encodeURIComponent(installation.installationId);
       if (installation.accountType === 'Organization') {
         const login = encodeURIComponent(installation.accountLogin);
         return `https://github.com/organizations/${login}/settings/installations/${installationId}`;
       }
       return `https://github.com/settings/installations/${installationId}`;
+    },
+    async connectionProviderAccess(connection: {
+      id: string;
+    }): Promise<'removed' | 'suspended' | undefined> {
+      const installation = await getInstallationByConnectionId(connection.id);
+      if (installation?.deletedAt) return 'removed';
+      if (installation?.suspendedAt) return 'suspended';
+      return undefined;
     },
     routes: [
       createGithubIntegrationRoutes({

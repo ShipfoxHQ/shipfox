@@ -422,6 +422,12 @@ export interface IntegrationProvider<
   adapters?: IntegrationProviderAdapters<Connection> | undefined;
   routes?: Route[] | undefined;
   connectionExternalUrl?(connection: Connection): Promise<string | undefined>;
+  /** Called only for a connection that isn't active. Undefined when the provider reports nothing. */
+  connectionProviderAccess?(
+    connection: Connection,
+  ): Promise<
+    import('@shipfox/api-integration-core-dto').IntegrationConnectionProviderAccess | undefined
+  >;
   /** Prepares provider-owned remote cleanup and returns a callback for after local deletion commits. */
   deleteConnectionRemoteResources?(
     connection: Connection,

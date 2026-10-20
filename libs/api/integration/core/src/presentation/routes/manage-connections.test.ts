@@ -71,6 +71,82 @@ describe('PATCH /integration-connections/:connectionId', () => {
     });
   });
 
+  it('rejects reactivating a connection whose provider access is gone', async () => {
+    const app = await createTestApp([
+      sourceProvider({connectionProviderAccess: () => Promise.resolve('suspended')}),
+    ]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+      lifecycleStatus: 'error',
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+      payload: {lifecycle_status: 'active'},
+    });
+
+    const reloaded = await getIntegrationConnectionById(connection.id);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('connection-provider-access-unavailable');
+    expect(res.json().details).toEqual({provider_access: 'suspended'});
+    expect(reloaded?.lifecycleStatus).toBe('error');
+  });
+
+  it('still disables a connection whose provider access is gone', async () => {
+    const connectionProviderAccess = vi.fn(() => Promise.resolve('removed' as const));
+    const app = await createTestApp([sourceProvider({connectionProviderAccess})]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+      payload: {lifecycle_status: 'disabled'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(connectionProviderAccess).not.toHaveBeenCalled();
+  });
+
+  it('reactivates a disabled connection whose provider access is healthy', async () => {
+    const app = await createTestApp([
+      sourceProvider({connectionProviderAccess: () => Promise.resolve(undefined)}),
+    ]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+      lifecycleStatus: 'disabled',
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+      payload: {lifecycle_status: 'active'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().lifecycle_status).toBe('active');
+  });
+
   it('returns not-found for a missing connection', async () => {
     const app = await createTestApp([sourceProvider()]);
 

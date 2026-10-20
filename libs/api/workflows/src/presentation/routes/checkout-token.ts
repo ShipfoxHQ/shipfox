@@ -351,6 +351,13 @@ function integrationCheckoutError(
         {status: 404},
       );
     case 'connection-inactive':
+      // The provider reports why access is gone, which the runner hints on instead of "enable it".
+      if ((error.details as {providerAccess?: string} | undefined)?.providerAccess) {
+        return providerFailureError(
+          {reason: 'installation-inactive'},
+          {repository, connection, targetDetails},
+        );
+      }
       return new ClientError(
         target.connection === undefined
           ? 'Integration connection is not active'
