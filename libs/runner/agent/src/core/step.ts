@@ -1,3 +1,4 @@
+import {homedir} from 'node:os';
 import {
   AGENT_TOOLS_MCP_SERVER_ID,
   type AgentIntegrationMcpServerConfigDto,
@@ -295,6 +296,12 @@ function agentPlacement(
   return container === undefined ? {host} : {host, container};
 }
 
+// A container job's agent reads files inside the container, where the runner's home directory
+// does not exist.
+function runnerHomeDirectory(placement: Pick<HarnessInvocation, 'container'>): string | undefined {
+  return placement.container === undefined ? homedir() : undefined;
+}
+
 async function runSelectedHarness(params: {
   jobExecutionId: string;
   stepId: string;
@@ -358,6 +365,7 @@ async function runSelectedHarness(params: {
   try {
     const repositoryContext = await resolveRepositoryContext({
       cwd,
+      homeDirectory: runnerHomeDirectory(placement),
       harness,
       config: params.repositoryContext,
     });

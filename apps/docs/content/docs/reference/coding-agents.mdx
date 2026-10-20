@@ -19,9 +19,16 @@ Shipfox looks in each directory from the repository root to the working
 directory. The repository root is the nearest directory that contains `.git`.
 If there is no `.git`, Shipfox looks only in the working directory.
 
+Shipfox also reads one instruction file and the skills in the home directory of
+the runner. Put them there to apply them to every agent step on the runner, or
+write them in an earlier `run` step of the job. In a job that runs in a
+container, Shipfox does not read the home directory.
+
 ### Instructions
 
 - In each directory, Shipfox reads the first file that is not empty.
+- The instructions from the home directory come before the instructions from
+  the repository.
 - Shipfox adds the files after the step prompt. The step prompt has priority.
 - Shipfox does not expand `@path` imports.
 - Shipfox does not read files below the working directory. The agent reads them
@@ -34,34 +41,57 @@ If there is no `.git`, Shipfox looks only in the working directory.
 - If `name` is missing, Shipfox uses the directory name.
 - If `description` is missing, Shipfox skips the skill.
 - If two skills have the same name, Shipfox uses the skill nearest to the
-  working directory. In the same directory, `.agents/skills` has priority over
-  `.claude/skills`.
+  working directory. A skill in the repository has priority over a skill in the
+  home directory. In the same directory, the skill directories have priority in
+  the order of the table above.
+- Shipfox does not look in nested directories, such as
+  `.agents/skills/<group>/<name>/SKILL.md`.
 - A skill that two paths link to loads one time.
-- If a skill listed in `repository_context` does not exist, the step fails.
+- If a skill listed in `repository_context` does not exist, the step fails. List
+  the skills that the prompt names, so a missing skill stops the step.
+- The `Repository context` row of the agent session shows each skill and the
+  directory that it came from.
 
 ## Files that agent steps ignore
 
 Shipfox does not read files that run code, change permissions, or replace the
-system prompt. Shipfox does not read the home directory of the runner.
+system prompt. In the home directory of the runner, Shipfox reads only the files
+in the table above.
 
 | Files | Belongs to |
 | --- | --- |
 | `.claude/settings.json`, `.claude/settings.local.json`, hooks, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `.claude/rules/` | Claude Code |
 | `.mcp.json` | Claude Code and other MCP clients |
-| `.pi/settings.json`, `.pi/extensions/`, `.pi/skills/`, `.pi/prompts/`, `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md` | pi |
+| `.pi/settings.json`, `.pi/extensions/`, `.pi/prompts/`, `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md` | pi |
 | `AGENTS.override.md`, `.codex/` | Codex |
-| `opencode.json`, `.opencode/` | OpenCode |
-| `.cursor/rules/`, `.cursor/skills/` | Cursor |
-| `~/.claude/`, `~/.pi/`, `~/.agents/`, `~/.codex/` | The runner's home directory |
+| `opencode.json`, everything in `.opencode/` except `.opencode/skills/` | OpenCode |
+| `.cursor/rules/`, everything in `.cursor/` except `.cursor/skills/` | Cursor |
+| Everything else in `~/.claude/`, `~/.pi/`, `~/.agents/`, `~/.codex/`, `~/.config/opencode/`, `~/.cursor/` | The runner's home directory |
 
 ## Compatibility with coding agents
+
+In the repository:
 
 | Coding agent | Instruction files | Skill directories | Agent steps also read |
 | --- | --- | --- | --- |
 | Claude Code | `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`. `AGENTS.md` if there is no `CLAUDE.md`. | `.claude/skills` | `CLAUDE.md`, `AGENTS.md`, `.claude/skills` |
 | Codex | `AGENTS.override.md`, then `AGENTS.md` | `.agents/skills` | `AGENTS.md`, `.agents/skills` |
-| OpenCode | `AGENTS.md`. `CLAUDE.md` if there is no `AGENTS.md`. | `.opencode/skills`, `.claude/skills`, `.agents/skills` | `AGENTS.md`, `CLAUDE.md`, `.claude/skills`, `.agents/skills` |
-| Cursor | `.cursor/rules/`, `AGENTS.md` | `.cursor/skills`, `.agents/skills`, `.claude/skills`, `.codex/skills` | `AGENTS.md`, `.agents/skills`, `.claude/skills` |
+| OpenCode | `AGENTS.md`. `CLAUDE.md` if there is no `AGENTS.md`. | `.opencode/skills`, `.claude/skills`, `.agents/skills` | `AGENTS.md`, `CLAUDE.md`, `.opencode/skills`, `.claude/skills`, `.agents/skills` |
+| Cursor | `.cursor/rules/`, `AGENTS.md` | `.cursor/skills`, `.agents/skills`, `.claude/skills`, `.codex/skills` | `AGENTS.md`, `.cursor/skills`, `.agents/skills`, `.claude/skills` |
+| pi | `AGENTS.md`, then `CLAUDE.md` | `.pi/skills`, `.agents/skills` | `AGENTS.md`, `CLAUDE.md`, `.pi/skills`, `.agents/skills` |
+
+In the home directory of the runner:
+
+| Coding agent | Instruction files | Skill directories | Agent steps also read |
+| --- | --- | --- | --- |
+| Claude Code | `~/.claude/CLAUDE.md` | `~/.claude/skills` | All |
+| Codex | `~/.codex/AGENTS.override.md`, then `~/.codex/AGENTS.md` | `~/.agents/skills`, `~/.codex/skills` | `~/.codex/AGENTS.md`, `~/.agents/skills`, `~/.codex/skills` |
+| OpenCode | `~/.config/opencode/AGENTS.md`. `~/.claude/CLAUDE.md` if there is no `AGENTS.md`. | `~/.config/opencode/skills`, `~/.claude/skills`, `~/.agents/skills` | All |
+| Cursor | User rules in the Cursor settings | `~/.cursor/skills`, `~/.agents/skills`, `~/.claude/skills`, `~/.codex/skills` | All skill directories |
+| pi | `~/.pi/agent/AGENTS.md` | `~/.pi/agent/skills`, `~/.agents/skills` | All |
+
+Shipfox reads one instruction file from the home directory, so keep the same
+instructions in each file or link the files to one another.
 
 ## Shipfox system prompt
 

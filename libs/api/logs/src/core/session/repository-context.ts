@@ -9,7 +9,7 @@ interface RepositoryContextEntry {
   readonly instructionsEnabled: boolean;
   readonly skillsEnabled: boolean;
   readonly instructions: readonly {readonly path: string; readonly truncated: boolean}[];
-  readonly skills: readonly string[];
+  readonly skills: readonly {readonly name: string; readonly path: string | undefined}[];
 }
 
 /** Rows for a repository context entry, or `undefined` when the record is another entry. */
@@ -37,10 +37,26 @@ function instructionsDetail(entry: RepositoryContextEntry): string {
     .join(', ');
 }
 
+// Skills are grouped by the directory they came from, so a missing skill can be traced to the
+// checkout that should have held it.
 function skillsDetail(entry: RepositoryContextEntry): string {
   if (!entry.skillsEnabled) return 'off';
   if (entry.skills.length === 0) return 'none found';
-  return entry.skills.join(', ');
+  const groups = new Map<string | undefined, string[]>();
+  for (const skill of entry.skills) {
+    const source = skill.path === undefined ? undefined : skillSource(skill.path);
+    groups.set(source, [...(groups.get(source) ?? []), skill.name]);
+  }
+  return [...groups]
+    .map(([source, names]) =>
+      source === undefined ? names.join(', ') : `${names.join(', ')} (${source})`,
+    )
+    .join('; ');
+}
+
+function skillSource(path: string): string | undefined {
+  const separator = path.lastIndexOf('/');
+  return separator === -1 ? undefined : path.slice(0, separator);
 }
 
 // The runner serializes the entry with `type` first, so other entries skip the second parse.
@@ -62,7 +78,9 @@ function parseRepositoryContextEntry(data: string): RepositoryContextEntry | und
       typeof file.path === 'string' ? [{path: file.path, truncated: file.truncated === true}] : [],
     ),
     skills: arrayField(value.skills).flatMap((skill) =>
-      typeof skill.name === 'string' ? [skill.name] : [],
+      typeof skill.name === 'string'
+        ? [{name: skill.name, path: typeof skill.path === 'string' ? skill.path : undefined}]
+        : [],
     ),
   };
 }
