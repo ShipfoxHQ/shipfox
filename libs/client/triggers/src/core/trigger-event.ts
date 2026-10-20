@@ -54,6 +54,7 @@ export type TriggerEventDecisionDiagnostic =
         | 'workspace-deleted'
         | 'definition-not-found'
         | 'project-mismatch'
+        | 'source-connection-unavailable'
         | 'agent-config-unresolvable'
         | 'agent-integration-materialization-failed';
     }

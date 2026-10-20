@@ -30,7 +30,8 @@ export type TriggerDecisionDiagnostic =
         | 'workspace-suspended'
         | 'workspace-deleted'
         | 'definition-not-found'
-        | 'project-mismatch';
+        | 'project-mismatch'
+        | 'source-connection-unavailable';
     }
   | {
       version: 1;

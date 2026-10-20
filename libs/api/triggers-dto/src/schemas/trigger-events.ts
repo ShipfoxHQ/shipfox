@@ -94,6 +94,10 @@ export const triggerDecisionDiagnosticDtoSchema = z.discriminatedUnion('code', [
   z.strictObject({version: diagnosticVersionSchema, code: z.literal('project-mismatch')}),
   z.strictObject({
     version: diagnosticVersionSchema,
+    code: z.literal('source-connection-unavailable'),
+  }),
+  z.strictObject({
+    version: diagnosticVersionSchema,
     code: z.literal('agent-config-unresolvable'),
     reason: agentConfigInvalidReasonSchema.optional(),
     model: diagnosticFieldSchema.optional(),

@@ -346,6 +346,31 @@ function setupCheckoutPolicy(job: WorkflowModelJob) {
   };
 }
 
+/**
+ * Whether materializing the job checks out the project's own source: the job-level checkout the
+ * setup step carries, or any checkout step, including inside composites, that targets the
+ * project. A checkout of another project or connection does not count. A target filled in by an
+ * expression is not known before the run, so it is not counted either.
+ */
+export function jobChecksOutProjectSource(params: {
+  readonly job: WorkflowModelJob;
+  readonly projectId: string;
+}): boolean {
+  if (setupCheckoutPolicy(params.job) !== null) return true;
+  return flattenJobSteps(params.job).some(
+    (step) => step.kind === 'checkout' && checkoutTargetsProject(step.checkout, params.projectId),
+  );
+}
+
+function checkoutTargetsProject(
+  checkout: Extract<WorkflowModelStep, {kind: 'checkout'}>['checkout'],
+  projectId: string,
+): boolean {
+  if (checkout.project !== undefined) return checkout.project === projectId;
+  // A repository without a connection resolves on the project's source connection.
+  return checkout.connection === undefined;
+}
+
 // A leading checkout replaces the project checkout only when it lands at the job root.
 // With its own `path` the project keeps the root, so later steps still find the repository.
 function firstStepOwnsJobRoot(job: WorkflowModelJob): boolean {

@@ -54,6 +54,11 @@ const startRunErrorDetailsSchema = z.union([
   z.object({labels: z.array(z.string())}),
   z.object({key: z.string()}),
   z.object({limit_bytes: z.number().int().positive(), measured_bytes: z.number().int().positive()}),
+  z.object({
+    project_id: z.string(),
+    connection_id: z.string().nullable(),
+    lifecycle_status: z.enum(['disabled', 'error', 'missing']),
+  }),
   // All fields are optional, so this member must stay last or it would absorb the others.
   z.object({
     reason: agentIntegrationMaterializationReasonSchema.optional(),

@@ -24,7 +24,8 @@ const PUBLIC_LEGACY_DECISION_REASONS = new Set([
 const PUBLIC_LEGACY_WORKFLOW_REASON = new RegExp(
   '^workflows\\.(?:startRunFromTrigger|startDevRun|deliverEventToJobListener): ' +
     '(?:workspace-not-found|workspace-suspended|workspace-deleted|definition-not-found|' +
-    'project-mismatch|agent-config-unresolvable|agent-integration-materialization-failed)$',
+    'project-mismatch|source-connection-unavailable|agent-config-unresolvable|' +
+    'agent-integration-materialization-failed)$',
 );
 
 export function toTriggerEventListItemDto(

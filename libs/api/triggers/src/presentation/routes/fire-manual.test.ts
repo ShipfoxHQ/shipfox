@@ -315,6 +315,38 @@ describe('POST /:definitionId/fire-manual', () => {
     expect(res.json()).toMatchObject({code: 'workspace-suspended'});
   });
 
+  test('maps an unavailable project source to 422', async () => {
+    const definitionId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      workflowDefinitionId: definitionId,
+    });
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'source-connection-unavailable',
+        {projectId: subscription.projectId, connectionId, lifecycleStatus: 'error'},
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'source-connection-unavailable',
+      details: {
+        project_id: subscription.projectId,
+        connection_id: connectionId,
+        lifecycle_status: 'error',
+      },
+    });
+  });
+
   test('maps admission denial to 409 with required action details', async () => {
     const definitionId = crypto.randomUUID();
     const reason = 'billing-payment-method-required';

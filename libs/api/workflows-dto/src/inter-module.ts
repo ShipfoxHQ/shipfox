@@ -70,6 +70,11 @@ const admissionDeniedDetailsSchema = z.object({
   reason: z.string(),
   requiredAction: requiredActionSchema.optional(),
 });
+const sourceConnectionUnavailableDetailsSchema = z.object({
+  projectId: idSchema,
+  connectionId: idSchema.nullable(),
+  lifecycleStatus: z.enum(['disabled', 'error', 'missing']),
+});
 const workflowRunTriggerReferenceSchema = z.object({
   project: z.object({id: idSchema}).nullable(),
   repository: z.string().nullable(),
@@ -391,6 +396,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'admission-denied': admissionDeniedDetailsSchema,
         'definition-not-found': z.object({definitionId: idSchema}),
         'project-mismatch': z.object({}),
+        'source-connection-unavailable': sourceConnectionUnavailableDetailsSchema,
         'parent-run-not-found': z.object({}),
         'run-depth-exceeded': z.object({}),
         'run-tree-limit-exceeded': z.object({}),
@@ -542,6 +548,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'workspace-suspended': z.object({workspaceId: idSchema}),
         'workspace-deleted': z.object({workspaceId: idSchema}),
         'admission-denied': admissionDeniedDetailsSchema,
+        'source-connection-unavailable': sourceConnectionUnavailableDetailsSchema,
       },
     },
     getStepLogContext: {

@@ -25,6 +25,21 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
         cause: error,
       });
     }
+    if (error.code === 'source-connection-unavailable') {
+      return new ClientError(
+        "The project's source connection is unavailable",
+        'source-connection-unavailable',
+        {
+          status: 422,
+          details: {
+            project_id: error.details.projectId,
+            connection_id: error.details.connectionId,
+            lifecycle_status: error.details.lifecycleStatus,
+          },
+          cause: error,
+        },
+      );
+    }
   }
   if (!isInterModuleKnownError(method, error)) return undefined;
 

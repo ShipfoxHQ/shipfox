@@ -35,6 +35,18 @@ export class WorkspaceSuspendedError extends Error {
   }
 }
 
+export class SourceConnectionUnavailableError extends Error {
+  constructor(
+    readonly projectId: string,
+    /** Null when the project itself no longer exists. */
+    readonly connectionId: string | null,
+    readonly lifecycleStatus: 'disabled' | 'error' | 'missing',
+  ) {
+    super(`Source connection of project ${projectId} is unavailable: ${lifecycleStatus}`);
+    this.name = 'SourceConnectionUnavailableError';
+  }
+}
+
 export class WorkspaceDeletedError extends Error {
   constructor(readonly workspaceId: string) {
     super(`Workspace is deleted: ${workspaceId}`);

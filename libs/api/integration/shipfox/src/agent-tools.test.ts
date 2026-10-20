@@ -550,6 +550,35 @@ describe('Shipfox agent tools', () => {
     });
   });
 
+  it('tells the agent that the project source connection is unavailable', async () => {
+    const {triggers, provider} = createProvider();
+    triggers.fireManualTrigger.mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'source-connection-unavailable',
+        {
+          projectId: crypto.randomUUID(),
+          connectionId: crypto.randomUUID(),
+          lifecycleStatus: 'disabled',
+        },
+      ),
+    );
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    expect(
+      await session.call({toolId: 'start_workflow_run', arguments: {workflow: 'child.yml'}}),
+    ).toMatchObject({
+      isError: true,
+      content: [{text: expect.stringContaining('source connection is unavailable')}],
+      structuredContent: {code: 'source-connection-unavailable', lifecycleStatus: 'disabled'},
+    });
+  });
+
   it.each([
     'definition-not-found',
     'parent-run-not-found',

@@ -1123,6 +1123,34 @@ describe('agent-access action tools', () => {
     });
   });
 
+  test('explains that the project source connection is unavailable', async () => {
+    const {triggers, tools} = clients();
+    const projectId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    vi.mocked(triggers.fireManualTrigger).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'source-connection-unavailable',
+        {projectId, connectionId, lifecycleStatus: 'error'},
+      ),
+    );
+
+    const response = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: {
+        code: 'source-connection-unavailable',
+        message: expect.stringContaining('source connection is unavailable'),
+        details: {project_id: projectId, connection_id: connectionId, lifecycle_status: 'error'},
+      },
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
   test('keeps the runner-label error inside the details limit', async () => {
     const {triggers, tools} = clients();
     vi.mocked(triggers.fireManualTrigger).mockRejectedValue(

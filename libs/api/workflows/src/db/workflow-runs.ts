@@ -86,6 +86,7 @@ export {
   evaluateJobSuccess,
   getDirectDependencyJobContexts,
   getJobById,
+  getJobModelScope,
   getJobScope,
   getJobsByWorkflowRunAttemptId,
   getJobsByWorkflowRunId,
@@ -176,6 +177,7 @@ export {
   failWorkflowRunAsTimedOut,
   loadReferencedVariables,
   updateWorkflowRunStatus,
+  workflowRunExistsForIdempotencyKey,
 } from './workflow-runs/runs.js';
 export {getStepDispatchRunContext, getWorkflowContextForJob} from './workflow-runs/shared.js';
 export type {WorkflowRunSourceRead} from './workflow-runs/source.js';

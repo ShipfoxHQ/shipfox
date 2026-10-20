@@ -159,6 +159,19 @@ export async function createWorkflowRun(
   return result.created ? result.run : {...result.run, deduplicated: true};
 }
 
+/**
+ * Whether a run already holds the trigger idempotency key, so the start would return it. A plain
+ * read: the run created in the transaction still settles any race.
+ */
+export async function workflowRunExistsForIdempotencyKey(idempotencyKey: string): Promise<boolean> {
+  const [existing] = await db()
+    .select({id: workflowRuns.id})
+    .from(workflowRuns)
+    .where(eq(workflowRuns.triggerIdempotencyKey, idempotencyKey))
+    .limit(1);
+  return existing !== undefined;
+}
+
 interface CreateWorkflowRunTransactionContext {
   readonly params: CreateWorkflowRunParams;
   readonly staticName: string;

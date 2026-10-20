@@ -403,6 +403,8 @@ function mapStartRunFailure(
         details: {labels},
       };
     }
+    case 'source-connection-unavailable':
+      return mapSourceConnectionUnavailable(details);
     case 'source-snapshot-too-large':
       return mapSizeFailure('Workflow file is too large', undefined, details);
     case 'diagnostic-too-large':
@@ -413,6 +415,25 @@ function mapStartRunFailure(
     default:
       return undefined;
   }
+}
+
+function mapSourceConnectionUnavailable(
+  details: Record<string, unknown>,
+): MappedFailure | undefined {
+  if (typeof details.projectId !== 'string' || typeof details.lifecycleStatus !== 'string') {
+    return undefined;
+  }
+  return {
+    message:
+      "The project's source connection is unavailable, so no run started. Restore the connection in Shipfox, then start the run again.",
+    details: {
+      project_id: boundErrorDetail(details.projectId),
+      ...(typeof details.connectionId === 'string'
+        ? {connection_id: boundErrorDetail(details.connectionId)}
+        : {}),
+      lifecycle_status: boundErrorDetail(details.lifecycleStatus),
+    },
+  };
 }
 
 function mapInterpolationUnresolvable(details: Record<string, unknown>): MappedFailure | undefined {

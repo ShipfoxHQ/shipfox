@@ -161,6 +161,19 @@ function decisionIssue(decision: TriggerEventMatchedWorkflowResult): MappableTri
   return diagnosticIssue(decision, diagnostic);
 }
 
+function sourceUnavailableIssue(decision: TriggerEventMatchedWorkflowResult, targetName: string) {
+  if (decision.subscriptionKind !== 'listener') {
+    return issue(decision, 'Project source is unavailable', [
+      text("The project's source connection is unavailable. No run started."),
+    ]);
+  }
+  return issue(decision, 'Listener delivery was blocked', [
+    text(
+      `The project's source connection is unavailable. Shipfox did not deliver this event to ${targetName}.`,
+    ),
+  ]);
+}
+
 function diagnosticIssue(
   decision: TriggerEventMatchedWorkflowResult,
   diagnostic: TriggerEventDecisionDiagnostic,
@@ -253,6 +266,8 @@ function diagnosticIssue(
       return issue(decision, 'Workflow configuration is inconsistent', [
         text(`The ${targetName} trigger points to a definition in another project.`),
       ]);
+    case 'source-connection-unavailable':
+      return sourceUnavailableIssue(decision, targetName);
     case 'agent-config-unresolvable':
       return issue(decision, 'Agent configuration could not be resolved', [
         text(`Shipfox could not resolve the agent configuration for ${targetName}.`),

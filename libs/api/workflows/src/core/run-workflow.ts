@@ -4,7 +4,7 @@ import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/in
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
-import {createWorkflowRun} from '#db/workflow-runs.js';
+import {createWorkflowRun, workflowRunExistsForIdempotencyKey} from '#db/workflow-runs.js';
 import {createAgentDefaultsResolver} from './agent-defaults.js';
 import type {
   SecretInputReference,
@@ -15,6 +15,7 @@ import type {
   WorkflowSourceSnapshot,
 } from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
+import {assertProjectSourceAdmits} from './project-source-admission.js';
 import {modelHasAgentStep} from './step-config/materialize-workflow-model.js';
 
 export interface RunWorkflowParams {
@@ -45,6 +46,18 @@ export async function runWorkflow(
     throw new ProjectMismatchError(definition.projectId, params.projectId);
   }
   const model = workflowModelFromSnapshot(definition.model);
+  // A start that matches an existing run returns it, so only a new run needs the source.
+  const startsNewRun =
+    params.triggerIdempotencyKey === undefined ||
+    !(await workflowRunExistsForIdempotencyKey(params.triggerIdempotencyKey));
+  if (startsNewRun && params.projects !== undefined && params.integrations !== undefined) {
+    await assertProjectSourceAdmits({
+      model,
+      projectId: params.projectId,
+      projects: params.projects,
+      integrations: params.integrations,
+    });
+  }
   const resolveAgentDefaults = createAgentDefaultsResolver(
     params.agent,
     modelHasAgentStep(model) ? params.workspaceId : null,

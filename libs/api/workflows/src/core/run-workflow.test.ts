@@ -7,7 +7,11 @@ import {
 } from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import type {TriggerPayload, WorkflowRunDevSource} from './entities/workflow-run.js';
-import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
+import {
+  DefinitionNotFoundError,
+  ProjectMismatchError,
+  SourceConnectionUnavailableError,
+} from './errors.js';
 import {runDevWorkflow, runWorkflow} from './run-workflow.js';
 
 const mockResolveAgentConfig = vi.hoisted(() =>
@@ -138,6 +142,98 @@ describe('runWorkflow', () => {
 
     expect(run.id).toBeDefined();
     expect(mockResolveAgentConfig).toHaveBeenCalledWith({workspaceId, config: {}});
+  });
+
+  describe('project source admission', () => {
+    const connectionId = crypto.randomUUID();
+
+    function sourceClients(lifecycleStatus: 'active' | 'error' | 'disabled') {
+      return {
+        projects: {
+          getProjectById: async () => ({
+            project: {id: projectId, sourceConnectionId: connectionId},
+          }),
+        } as never,
+        integrations: {
+          resolveConnectionById: async () => ({id: connectionId, lifecycleStatus}),
+        } as never,
+      };
+    }
+
+    test.each([
+      'error',
+      'disabled',
+    ] as const)('refuses a run that checks out a %s source', async (lifecycleStatus) => {
+      const definition = buildDefinition({projectId});
+      definitionResponse = definition;
+
+      await expect(
+        runWorkflow(definitions, {
+          workspaceId,
+          projectId,
+          definitionId: definition.id,
+          triggerPayload: manualPayload(),
+          agent,
+          ...sourceClients(lifecycleStatus),
+        }),
+      ).rejects.toEqual(
+        new SourceConnectionUnavailableError(projectId, connectionId, lifecycleStatus),
+      );
+    });
+
+    test('starts a run whose jobs do not check out the source', async () => {
+      const model = workflowModel({jobs: {build: {checkout: false, steps: [{run: 'make'}]}}});
+      const definition = buildDefinition({projectId, model});
+      definitionResponse = definition;
+
+      const run = await runWorkflow(definitions, {
+        workspaceId,
+        projectId,
+        definitionId: definition.id,
+        triggerPayload: manualPayload(),
+        agent,
+        ...sourceClients('error'),
+      });
+
+      expect(run.status).toBe('pending');
+    });
+
+    test('returns the existing run for a repeated start while the source is down', async () => {
+      const definition = buildDefinition({projectId});
+      definitionResponse = definition;
+      const triggerIdempotencyKey = crypto.randomUUID();
+      const start = (lifecycleStatus: 'active' | 'error') =>
+        runWorkflow(definitions, {
+          workspaceId,
+          projectId,
+          definitionId: definition.id,
+          triggerPayload: manualPayload(),
+          triggerIdempotencyKey,
+          agent,
+          ...sourceClients(lifecycleStatus),
+        });
+
+      const first = await start('active');
+      const repeated = await start('error');
+
+      expect(repeated).toMatchObject({id: first.id, deduplicated: true});
+    });
+
+    test('keeps the project mismatch error ahead of the source check', async () => {
+      const definition = buildDefinition();
+      definitionResponse = definition;
+
+      await expect(
+        runWorkflow(definitions, {
+          workspaceId,
+          projectId,
+          definitionId: definition.id,
+          triggerPayload: manualPayload(),
+          agent,
+          ...sourceClients('error'),
+        }),
+      ).rejects.toBeInstanceOf(ProjectMismatchError);
+    });
   });
 
   test('persists an integration trigger payload intact', async () => {

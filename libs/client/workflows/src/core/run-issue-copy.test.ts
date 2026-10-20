@@ -385,6 +385,20 @@ describe('runStartErrorCopy', () => {
     expect(copy.action).toBeUndefined();
   });
 
+  test('explains that the project source connection is unavailable', () => {
+    const copy = runStartErrorCopy(
+      startError('source-connection-unavailable', {
+        project_id: crypto.randomUUID(),
+        connection_id: crypto.randomUUID(),
+        lifecycle_status: 'disabled',
+      }),
+    );
+
+    expect(copy.title).toBe('Project source is unavailable');
+    expect(plain(copy.message)).toContain("project's source connection is unavailable");
+    expect(copy.action).toMatchObject({kind: 'link', label: 'Open integrations'});
+  });
+
   test.each([
     'manual-trigger-not-found',
     'definition-not-found',
