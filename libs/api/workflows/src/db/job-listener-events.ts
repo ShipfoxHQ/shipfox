@@ -125,6 +125,32 @@ export async function deliverEventToListener(
   return result;
 }
 
+/**
+ * Whether delivering the event would change nothing: the job is gone or finished, or the event
+ * is already recorded. A plain read; the delivery transaction still settles any race.
+ */
+export async function isListenerDeliveryRedundant(
+  params: Pick<DeliverEventToListenerParams, 'jobId' | 'eventRef'>,
+): Promise<boolean> {
+  const [job] = await db()
+    .select({status: jobs.status})
+    .from(jobs)
+    .where(eq(jobs.id, params.jobId))
+    .limit(1);
+  if (!job || isJobTerminal(job.status)) return true;
+  const [existing] = await db()
+    .select({id: jobListenerEvents.id})
+    .from(jobListenerEvents)
+    .where(
+      and(
+        eq(jobListenerEvents.jobId, params.jobId),
+        eq(jobListenerEvents.eventRef, params.eventRef),
+      ),
+    )
+    .limit(1);
+  return existing !== undefined;
+}
+
 async function persistListenerEvent(
   tx: Tx,
   params: DeliverEventToListenerParams,

@@ -23,6 +23,7 @@ import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/te
 import type {WorkflowRun} from '#core/entities/workflow-run.js';
 import {
   InvalidJobRunnerLabelsError,
+  SourceConnectionUnavailableError,
   WorkflowAdmissionDeniedError,
   WorkflowDiagnosticTooLargeError,
   WorkflowExecutionPayloadTooLargeError,
@@ -48,6 +49,8 @@ import {
 
 const mocks = vi.hoisted(() => ({
   deliverEventToListener: vi.fn(),
+  isListenerDeliveryRedundant: vi.fn().mockResolvedValue(false),
+  getJobModelScope: vi.fn(),
   getJobScope: vi.fn(),
   getLatestRunAttempt: vi.fn(),
   getLatestStepAttempt: vi.fn(),
@@ -91,6 +94,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#db/index.js', () => mocks);
 vi.mock('#db/job-listener-events.js', () => ({
   deliverEventToListener: mocks.deliverEventToListener,
+  isListenerDeliveryRedundant: mocks.isListenerDeliveryRedundant,
 }));
 
 const input = {
@@ -494,6 +498,7 @@ describe('Workflows inter-module presentation', () => {
   });
 
   beforeEach(() => {
+    mocks.getJobModelScope.mockReset();
     mocks.getJobScope.mockReset();
     mocks.getLatestRunAttempt.mockReset();
     mocks.getLatestStepAttempt.mockReset();
@@ -1818,6 +1823,10 @@ describe('Workflows inter-module presentation', () => {
         }),
     ],
     ['project-mismatch', () => new ProjectMismatchError(input.projectId, input.definitionId)],
+    [
+      'source-connection-unavailable',
+      () => new SourceConnectionUnavailableError(input.projectId, crypto.randomUUID(), 'error'),
+    ],
     ['parent-run-not-found', () => new WorkflowRunNotFoundError(crypto.randomUUID())],
     ['run-depth-exceeded', () => new WorkflowRunDepthExceededError()],
     ['run-tree-limit-exceeded', () => new WorkflowRunTreeLimitExceededError()],
@@ -2278,6 +2287,117 @@ describe('Workflows inter-module presentation', () => {
         error,
       ) && error.code,
     ).toBe('workspace-not-found');
+  });
+
+  describe('listener delivery on an unavailable project source', () => {
+    const jobId = '00000000-0000-4000-8000-000000000006';
+    const workspaceId = '00000000-0000-4000-8000-000000000007';
+    const definitionId = '00000000-0000-4000-8000-000000000008';
+    const connectionId = '00000000-0000-4000-8000-000000000009';
+
+    function deliver(params: {
+      lifecycleStatus: 'active' | 'error' | 'disabled';
+      listenerCheckout: boolean;
+      disposition?: 'fire' | 'resolve';
+    }) {
+      mocks.getJobScope.mockResolvedValue({workspaceId, projectId: input.projectId, definitionId});
+      mocks.getJobModelScope.mockResolvedValue({
+        jobKey: 'listen',
+        model: workflowModel({
+          jobs: {
+            listen: {checkout: params.listenerCheckout ? undefined : false, steps: [{run: 'make'}]},
+            other: {steps: [{run: 'make'}]},
+          },
+        }),
+      });
+      const presentation = createWorkflowsInterModulePresentation({
+        agent: {} as never,
+        definitions: {} as never,
+        integrations: {
+          resolveConnectionById: vi
+            .fn()
+            .mockResolvedValue({id: connectionId, lifecycleStatus: params.lifecycleStatus}),
+        } as never,
+        projects: {
+          getProjectById: vi
+            .fn()
+            .mockResolvedValue({project: {id: input.projectId, sourceConnectionId: connectionId}}),
+        } as never,
+        runners: {} as never,
+        secrets: {} as never,
+        workspaces: {
+          getWorkspaceOperatingState: vi.fn().mockResolvedValue({status: 'active'}),
+        } as never,
+      });
+      return Promise.resolve(
+        presentation.handlers.deliverEventToJobListener(
+          {
+            jobId,
+            disposition: params.disposition ?? 'fire',
+            eventRef: 'event-1',
+            deliveryId: 'delivery-1',
+            source: 'github',
+            event: 'push',
+            provider: 'github',
+            triggerReference: null,
+            payload: {},
+            receivedAt: '2026-07-20T12:00:00.000Z',
+          },
+          {signal: new AbortController().signal},
+        ),
+      ).catch((caught: unknown) => caught);
+    }
+
+    beforeEach(() => {
+      mocks.deliverEventToListener.mockReset().mockResolvedValue({buffered: true, skipped: false});
+    });
+
+    test('rejects a fire delivery to a job that checks out an unavailable source', async () => {
+      const error = await deliver({lifecycleStatus: 'error', listenerCheckout: true});
+
+      expect(
+        isInterModuleKnownError(
+          workflowsInterModuleContract.methods.deliverEventToJobListener,
+          error,
+        ) && [error.code, error.details],
+      ).toEqual([
+        'source-connection-unavailable',
+        {projectId: input.projectId, connectionId, lifecycleStatus: 'error'},
+      ]);
+      expect(mocks.deliverEventToListener).not.toHaveBeenCalled();
+    });
+
+    test('delivers when the listening job does not check out, even if another job does', async () => {
+      const result = await deliver({lifecycleStatus: 'error', listenerCheckout: false});
+
+      expect(result).toEqual({buffered: true, skipped: false});
+    });
+
+    test('skips the source check for a delivery that changes nothing', async () => {
+      mocks.isListenerDeliveryRedundant.mockResolvedValueOnce(true);
+
+      const result = await deliver({lifecycleStatus: 'error', listenerCheckout: true});
+
+      expect(result).toEqual({buffered: true, skipped: false});
+      expect(mocks.getJobModelScope).not.toHaveBeenCalled();
+    });
+
+    test('delivers to an available source', async () => {
+      const result = await deliver({lifecycleStatus: 'active', listenerCheckout: true});
+
+      expect(result).toEqual({buffered: true, skipped: false});
+    });
+
+    test('does not check the source for a resolve delivery', async () => {
+      const result = await deliver({
+        lifecycleStatus: 'error',
+        listenerCheckout: true,
+        disposition: 'resolve',
+      });
+
+      expect(result).toEqual({buffered: true, skipped: false});
+      expect(mocks.getJobModelScope).not.toHaveBeenCalled();
+    });
   });
 
   test('denies fire listener deliveries before materialization', async () => {

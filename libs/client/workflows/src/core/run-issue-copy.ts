@@ -447,6 +447,16 @@ function startErrorCopyByCode(error: StartError): IssueCopy {
         title: 'Workspace unavailable',
         message: [text('This workspace no longer exists.')],
       };
+    case 'source-connection-unavailable':
+      return {
+        title: 'Project source is unavailable',
+        message: [
+          text(
+            "The project's source connection is unavailable, so this workflow can't check out code. Restore the connection, then run it again.",
+          ),
+        ],
+        action: {kind: 'link', label: 'Open integrations', to: INTEGRATIONS_PATH},
+      };
     case 'project-mismatch':
       return {
         title: 'Workflow configuration is inconsistent',

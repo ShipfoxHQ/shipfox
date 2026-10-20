@@ -217,6 +217,20 @@ describe('WorkflowsModuleClient consumer parity', () => {
     await runConsumerSuite(serializedWorkflowsClient(local));
   });
 
+  test('treats an unavailable source on listener delivery as permanent', () => {
+    const error = createInterModuleKnownError(
+      workflowsInterModuleContract.methods.deliverEventToJobListener,
+      'source-connection-unavailable',
+      {projectId: crypto.randomUUID(), connectionId: crypto.randomUUID(), lifecycleStatus: 'error'},
+    );
+
+    expect(isPermanentDeliverEventToJobListenerError(error)).toBe(true);
+    expect(listenerDeliveryDiagnostic(error)).toEqual({
+      version: 1,
+      code: 'source-connection-unavailable',
+    });
+  });
+
   test.each([
     'workspace-not-found',
     'workspace-suspended',

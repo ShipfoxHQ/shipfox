@@ -1480,6 +1480,8 @@ function describeStartRunFailure(code: string, details: unknown): string | undef
       return Array.isArray(details.labels)
         ? `Runner labels are not valid: ${details.labels.map((label) => `\`${String(label)}\``).join(', ')}. Use lowercase letters, digits, ".", "_" and "-".`
         : undefined;
+    case 'source-connection-unavailable':
+      return "The project's source connection is unavailable, so no run started. Restore the connection, then start the run again.";
     case 'source-snapshot-too-large':
       return describeSizeFailure('Workflow file is too large', details);
     case 'diagnostic-too-large':

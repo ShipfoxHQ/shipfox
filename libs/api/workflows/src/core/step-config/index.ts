@@ -25,6 +25,7 @@ export {
 } from './assemble-run-context.js';
 export {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
 export {
+  jobChecksOutProjectSource,
   type MaterializedWorkflowStep,
   type MaterializeJobExecutionStepsParams,
   materializeJobExecutionSteps,

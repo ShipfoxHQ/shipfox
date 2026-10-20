@@ -153,6 +153,7 @@ export {
   getJobExecutionFailureOrigin,
   getJobExecutionsByJobId,
   getJobExecutionsByWorkflowRunAttemptId,
+  getJobModelScope,
   getJobScope,
   getJobsByWorkflowRunAttemptId,
   getJobsByWorkflowRunId,

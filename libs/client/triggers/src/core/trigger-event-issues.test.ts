@@ -279,6 +279,44 @@ describe('getTriggerEventIssueCallout', () => {
     expect(JSON.stringify(callout)).not.toContain('billing-payment-method-required');
   });
 
+  test('tells the user that the project source connection is unavailable', () => {
+    const callout = getTriggerEventIssueCallout(
+      event({
+        decisions: [
+          decision({
+            decision: 'dispatch-error',
+            reason: 'workflows.startRunFromTrigger: source-connection-unavailable',
+            diagnostic: {version: 1, code: 'source-connection-unavailable'},
+          }),
+        ],
+      }),
+    );
+
+    expect(callout).toMatchObject({type: 'error', title: 'Project source is unavailable'});
+    expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toBe(
+      "The project's source connection is unavailable. No run started.",
+    );
+  });
+
+  test('says a blocked listener delivery was not delivered, not that no run started', () => {
+    const callout = getTriggerEventIssueCallout(
+      event({
+        decisions: [
+          decision({
+            decision: 'dispatch-error',
+            subscriptionKind: 'listener',
+            diagnostic: {version: 1, code: 'source-connection-unavailable'},
+          }),
+        ],
+      }),
+    );
+
+    expect(callout).toMatchObject({type: 'error', title: 'Listener delivery was blocked'});
+    const text = callout?.issues[0]?.description.map((part) => part.value).join('');
+    expect(text).toContain('did not deliver this event');
+    expect(text).not.toContain('No run started');
+  });
+
   test('identifies the missing secret for a failed workflow start', () => {
     const callout = getTriggerEventIssueCallout(
       event({

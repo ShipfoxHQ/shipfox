@@ -75,6 +75,7 @@ function knownStartDiagnostic(
     case 'workspace-deleted':
     case 'definition-not-found':
     case 'project-mismatch':
+    case 'source-connection-unavailable':
       return {version: 1, code: error.code};
     case 'parent-run-not-found':
     case 'run-depth-exceeded':

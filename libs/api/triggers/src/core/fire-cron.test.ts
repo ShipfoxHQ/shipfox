@@ -196,6 +196,42 @@ describe('fireCronSubscription', () => {
     expect(decision).toMatchObject({decision: 'dispatch-error', reason});
   });
 
+  test('records an unavailable project source as a terminal cron event', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'cron',
+      event: 'tick',
+      config: {},
+    });
+    runWorkflow.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'source-connection-unavailable',
+        {
+          projectId: subscription.projectId,
+          connectionId: crypto.randomUUID(),
+          lifecycleStatus: 'error',
+        },
+      ),
+    );
+
+    await expect(
+      fireCronSubscription({
+        workflows,
+        subscriptionId: subscription.id,
+        scheduledSlot: SLOT,
+      }),
+    ).resolves.toEqual({outcome: 'errored'});
+
+    const [event] = await eventsForWorkspace(subscription.workspaceId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    const [decision] = await decisionsForEvent(event.id);
+    expect(decision).toMatchObject({
+      decision: 'dispatch-error',
+      diagnostic: {version: 1, code: 'source-connection-unavailable'},
+    });
+  });
+
   test('omits inputs when the subscription has no configured inputs', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'cron',

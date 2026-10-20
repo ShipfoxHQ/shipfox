@@ -55,6 +55,7 @@ import {
   InvalidJobRunnerLabelsError,
   NoFailedJobsError,
   RunNotTerminalError,
+  SourceConnectionUnavailableError,
   SourceRunNotFoundError,
   WorkflowAdmissionDeniedError,
   WorkflowExecutionPayloadTooLargeError,
@@ -79,6 +80,7 @@ import {
   runDevWorkflow,
   runWorkflow,
 } from '#core/index.js';
+import {assertProjectSourceAdmits} from '#core/project-source-admission.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
 import {cancelWorkflowRun, rerunWorkflowRun} from '#core/run-actions.js';
 import {
@@ -93,6 +95,7 @@ import {
 } from '#core/workspace-admission.js';
 import {
   getExecutionTriggerEvent,
+  getJobModelScope,
   getJobScope,
   getLatestRunAttempt,
   getLatestStepAttempt,
@@ -126,7 +129,7 @@ import {
   listWorkflowStepAttemptSummaries,
   workflowRunAnnotationOriginKey,
 } from '#db/index.js';
-import {deliverEventToListener} from '#db/job-listener-events.js';
+import {deliverEventToListener, isListenerDeliveryRedundant} from '#db/job-listener-events.js';
 import {recordWorkflowChildRunStart} from '#metrics/instance.js';
 import {
   runOverviewResponseByteLimit,
@@ -506,6 +509,9 @@ export function createWorkflowsInterModulePresentation(params: {
             source: input.source,
             definitionId: scope.definitionId,
           });
+          if (!(await isListenerDeliveryRedundant(input))) {
+            await assertListenerSourceAdmits(params, input.jobId, scope.projectId);
+          }
         }
 
         let triggerReference: WorkflowRunTriggerReference | null = null;
@@ -532,9 +538,11 @@ export function createWorkflowsInterModulePresentation(params: {
           receivedAt: new Date(input.receivedAt),
         });
       } catch (error) {
-        const workspaceError = toWorkspaceAdmissionKnownError(method, error);
-        if (workspaceError !== undefined) throw workspaceError;
-        throw error;
+        throw (
+          toWorkspaceAdmissionKnownError(method, error) ??
+          toSourceConnectionUnavailableKnownError(method, error) ??
+          error
+        );
       }
     },
     getStepLogContext: async ({stepId}) => {
@@ -1238,6 +1246,8 @@ export function toStartRunKnownError(error: unknown, definitionId: string): unkn
   }
   const mapped = toRunCreationKnownError(method, error);
   if (mapped !== undefined) return mapped;
+  const sourceError = toSourceConnectionUnavailableKnownError(method, error);
+  if (sourceError !== undefined) return sourceError;
   if (error instanceof DefinitionNotFoundError) {
     return createInterModuleKnownError(method, 'definition-not-found', {definitionId});
   }
@@ -1314,6 +1324,36 @@ function toWorkflowExecutionPayloadKnownError(
     limitBytes: error.limitBytes,
     measuredBytes: error.measuredBytes,
     overshootBytes: error.overshootBytes,
+  });
+}
+
+async function assertListenerSourceAdmits(
+  params: {integrations: IntegrationsModuleClient; projects: ProjectsModuleClient},
+  jobId: string,
+  projectId: string,
+): Promise<void> {
+  const listener = await getJobModelScope(jobId);
+  if (!listener) return;
+  await assertProjectSourceAdmits({
+    model: listener.model,
+    jobKeys: [listener.jobKey],
+    projectId,
+    projects: params.projects,
+    integrations: params.integrations,
+  });
+}
+
+function toSourceConnectionUnavailableKnownError(
+  method:
+    | typeof workflowsInterModuleContract.methods.startRunFromTrigger
+    | typeof workflowsInterModuleContract.methods.deliverEventToJobListener,
+  error: unknown,
+): unknown {
+  if (!(error instanceof SourceConnectionUnavailableError)) return undefined;
+  return createInterModuleKnownError(method, 'source-connection-unavailable', {
+    projectId: error.projectId,
+    connectionId: error.connectionId,
+    lifecycleStatus: error.lifecycleStatus,
   });
 }
 

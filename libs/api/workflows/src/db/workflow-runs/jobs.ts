@@ -1,4 +1,4 @@
-import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
+import {readPersistedWorkflowModel, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import {WORKFLOWS_JOB_TERMINATED} from '@shipfox/api-workflows-dto';
 import type {ExpressionType} from '@shipfox/expression';
 import {and, asc, desc, eq, inArray, notInArray, sql} from 'drizzle-orm';
@@ -140,6 +140,24 @@ export async function getJobScope(jobId: string): Promise<JobScope | undefined> 
     secretInputs: row.secretInputs ?? null,
     run: toWorkflowRunOriginState(row),
   };
+}
+
+export interface JobModelScope {
+  jobKey: string;
+  model: WorkflowModel;
+}
+
+/** The job's key and the model of the attempt that holds it. Undefined when the attempt has no model. */
+export async function getJobModelScope(jobId: string): Promise<JobModelScope | undefined> {
+  const rows = await db()
+    .select({jobKey: jobs.key, model: workflowRunAttempts.model})
+    .from(jobs)
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .where(eq(jobs.id, jobId))
+    .limit(1);
+  const row = rows[0];
+  if (!row?.model) return undefined;
+  return {jobKey: row.jobKey, model: readPersistedWorkflowModel(row.model)};
 }
 
 type DirectDependencyRow = {
