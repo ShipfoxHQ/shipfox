@@ -14,6 +14,7 @@ triggers:
     event: fire
 jobs:
   skipped:
+    checkout: false
     if: '${'$'}{{ false }}'
     steps:
       - run: echo never-started
