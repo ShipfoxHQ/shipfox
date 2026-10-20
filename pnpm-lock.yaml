@@ -10063,6 +10063,9 @@ importers:
 
   libs/shared/node/module:
     dependencies:
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../common/config
       '@shipfox/feature-flags':
         specifier: workspace:*
         version: link:../../common/feature-flags
@@ -10084,6 +10087,9 @@ importers:
       '@shipfox/node-outbox':
         specifier: workspace:*
         version: link:../outbox
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../temporal
@@ -10300,6 +10306,24 @@ importers:
         specifier: ^8.15.5
         version: 8.20.0
 
+  libs/shared/node/process-state:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
   libs/shared/node/rate-limit:
     devDependencies:
       '@shipfox/biome':
@@ -10347,6 +10371,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../opentelemetry
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       '@temporalio/client':
         specifier: 'catalog:'
         version: 1.18.1

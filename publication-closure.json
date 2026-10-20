@@ -180,6 +180,7 @@
     "@shipfox/node-opentelemetry",
     "@shipfox/node-outbox",
     "@shipfox/node-postgres",
+    "@shipfox/node-process-state",
     "@shipfox/node-rate-limit",
     "@shipfox/node-temporal",
     "@shipfox/node-tokens",

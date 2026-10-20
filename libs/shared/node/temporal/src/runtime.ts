@@ -1,12 +1,17 @@
+import {processState} from '@shipfox/node-process-state';
 import {Runtime, type RuntimeOptions} from '@temporalio/worker';
 import {config} from './config.js';
 
-let installed = false;
+const runtime = processState(
+  '@shipfox/node-temporal/runtime/v1',
+  () => ({installed: false}),
+  import.meta.url,
+);
 
 export function installTemporalRuntime(): void {
-  if (installed || config.OTEL_SDK_DISABLED) return;
+  if (runtime.installed || config.OTEL_SDK_DISABLED) return;
   Runtime.install(temporalRuntimeOptions(config.OTEL_TEMPORAL_METRICS_PORT));
-  installed = true;
+  runtime.installed = true;
 }
 
 export function temporalRuntimeOptions(metricsPort: number): RuntimeOptions {
