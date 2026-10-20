@@ -164,6 +164,9 @@ export async function checkoutRepository(params: {
   if (!Number.isInteger(fetchDepth) || fetchDepth < 0) {
     throw new RangeError('fetchDepth must be a non-negative integer');
   }
+  if (!ref || ref.startsWith('-')) {
+    throw new Error('checkout ref is not a safe git ref');
+  }
   const secrets = secretsOf(auth);
   onSecrets?.(secrets);
 
@@ -194,6 +197,7 @@ export async function checkoutRepository(params: {
       '--prune',
       ...(fetchDepth === 0 ? [] : [`--depth=${fetchDepth}`]),
       'origin',
+      '--',
       ref,
     ];
     const fetchConfig = (fetchAuth: CheckoutTokenAuthDto | undefined) => ({

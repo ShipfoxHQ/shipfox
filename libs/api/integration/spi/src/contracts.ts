@@ -551,6 +551,16 @@ export function parseProviderRepositoryId(
   return value;
 }
 
+/**
+ * A checkout ref is a branch or tag name, so `main` is allowed.
+ * A leading dash is a git option (`git fetch origin --upload-pack=...`).
+ */
+export function isSafeCheckoutRef(ref: string): boolean {
+  if (!ref || ref.startsWith('-') || ref.startsWith('+')) return false;
+  if (ref.includes('/')) return isValidGitRefName(ref);
+  return isValidGitRefName(`refs/heads/${ref}`);
+}
+
 /** Checks the constraints enforced by `git check-ref-format`. */
 export function isValidGitRefName(ref: string): boolean {
   if (!ref || ref === '@' || ref.startsWith('-')) return false;

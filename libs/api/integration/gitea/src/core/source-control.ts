@@ -15,6 +15,7 @@ import {
   type FileSnapshot,
   type IntegrationConnection,
   isRecord,
+  isSafeCheckoutRef,
   isValidGitObjectId,
   isValidResolvableRef,
   isValidTriggerRef,
@@ -248,13 +249,26 @@ export class GiteaSourceControlProvider
   async createCheckoutSpec(
     input: CreateCheckoutSpecInput<GiteaIntegrationConnection>,
   ): Promise<CheckoutSpec> {
+    const requestedRef = input.ref?.trim();
+    if (requestedRef && !isSafeCheckoutRef(requestedRef)) {
+      throw new GiteaIntegrationProviderError(
+        'ref-invalid',
+        `Gitea checkout ref ${formatRefForMessage(requestedRef)} is not a safe git ref`,
+      );
+    }
     const target = normalizeCheckoutTarget(input);
     const {owner, repo} = parseGiteaRepositoryLocator(
       checkoutRepositoryId(target),
       input.connection.externalAccountId,
     );
     const repository = await this.gitea.getRepository({owner, repo});
-    const ref = input.ref?.trim() || repository.defaultBranch;
+    const ref = requestedRef || repository.defaultBranch;
+    if (!isSafeCheckoutRef(ref)) {
+      throw new GiteaIntegrationProviderError(
+        'ref-invalid',
+        `Gitea checkout ref ${formatRefForMessage(ref)} is not a safe git ref`,
+      );
+    }
 
     const credentials = await this.createCheckoutCredentials({
       connection: input.connection,

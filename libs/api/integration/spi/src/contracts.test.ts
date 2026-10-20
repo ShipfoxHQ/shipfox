@@ -2,6 +2,7 @@ import {
   buildProviderRepositoryId,
   decodeRepositoryFileText,
   IntegrationProviderError,
+  isSafeCheckoutRef,
   isValidGitObjectId,
   isValidGitRefName,
   isValidResolvableRef,
@@ -43,6 +44,22 @@ describe('git ref names', () => {
 
   it.each(['refs/tags/-evil', 'refs/heads/feature/-evil'])('accepts safe trigger ref %s', (ref) => {
     expect(isValidTriggerRef(ref)).toBe(true);
+  });
+});
+
+describe('checkout refs', () => {
+  it.each(['main', 'feature/x', 'refs/heads/main', 'HEAD'])('accepts %s', (ref) => {
+    expect(isSafeCheckoutRef(ref)).toBe(true);
+  });
+
+  it.each([
+    '',
+    '-main',
+    '--upload-pack=touch /tmp/x',
+    'foo..bar',
+    'foo bar',
+  ])('rejects %s', (ref) => {
+    expect(isSafeCheckoutRef(ref)).toBe(false);
   });
 });
 

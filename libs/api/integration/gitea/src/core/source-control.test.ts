@@ -593,6 +593,32 @@ describe('GiteaSourceControlProvider', () => {
     expect(gitea.getRepository).not.toHaveBeenCalled();
   });
 
+  it('rejects an unsafe default branch when no ref is passed', async () => {
+    const gitea = giteaClient({
+      getRepository: vi.fn(() => Promise.resolve({...REPOSITORY, defaultBranch: '-main'})),
+    });
+    const provider = new GiteaSourceControlProvider(gitea);
+
+    await expect(
+      provider.createCheckoutSpec({
+        connection: connection(),
+        externalRepositoryId: 'gitea:shipfox/platform',
+      }),
+    ).rejects.toMatchObject({reason: 'ref-invalid'});
+  });
+
+  it('rejects a checkout ref git would treat as an option', async () => {
+    const provider = new GiteaSourceControlProvider(giteaClient());
+
+    await expect(
+      provider.createCheckoutSpec({
+        connection: connection(),
+        externalRepositoryId: 'gitea:shipfox/platform',
+        ref: '--upload-pack=touch',
+      }),
+    ).rejects.toMatchObject({reason: 'ref-invalid'});
+  });
+
   it('creates a credential-free checkout spec carrying the service credentials', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-20T00:00:00.000Z'));

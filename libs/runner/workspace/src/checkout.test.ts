@@ -112,7 +112,7 @@ describe('checkoutRepository argv', () => {
     expect(spawnMock.mock.calls.map((call) => call[1])).toEqual([
       ['init'],
       ['remote', 'add', 'origin', 'https://github.com/acme/repo.git'],
-      ['fetch', '--progress', '--no-tags', '--prune', '--depth=1', 'origin', 'main'],
+      ['fetch', '--progress', '--no-tags', '--prune', '--depth=1', 'origin', '--', 'main'],
       ['checkout', '--progress', '--force', 'FETCH_HEAD'],
       ['rev-parse', 'HEAD'],
     ]);
@@ -129,6 +129,7 @@ describe('checkoutRepository argv', () => {
       '--prune',
       '--depth=5',
       'origin',
+      '--',
       'main',
     ]);
   });
@@ -143,8 +144,16 @@ describe('checkoutRepository argv', () => {
       '--no-tags',
       '--prune',
       'origin',
+      '--',
       'main',
     ]);
+  });
+
+  it('refuses a ref git would parse as an option before spawning git', async () => {
+    await expect(
+      checkoutRepository({...BASE, ref: '--upload-pack=touch /tmp/sf-upload-pack-marker'}),
+    ).rejects.toThrow('checkout ref is not a safe git ref');
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it.each([-1, 1.5, Number.NaN])('rejects invalid fetch depth %s', async (fetchDepth) => {
@@ -180,6 +189,7 @@ describe('checkoutRepository argv', () => {
       '--prune',
       '--depth=1',
       'origin',
+      '--',
       'main',
     ]);
     const fetchOptions = spawnMock.mock.calls[2]?.[2] as {env: Record<string, string>};

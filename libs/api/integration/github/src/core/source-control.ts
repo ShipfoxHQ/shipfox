@@ -14,6 +14,7 @@ import {
   type FileSnapshot,
   type IntegrationConnection,
   isRecord,
+  isSafeCheckoutRef,
   isValidGitObjectId,
   isValidResolvableRef,
   isValidTriggerRef,
@@ -267,9 +268,25 @@ export class GithubSourceControlProvider
   async createCheckoutSpec(
     input: CreateCheckoutSpecInput<GithubIntegrationConnection>,
   ): Promise<CheckoutSpec> {
+    const requestedRef = input.ref?.trim();
+    if (requestedRef && !isSafeCheckoutRef(requestedRef)) {
+      throw new GithubIntegrationProviderError(
+        'ref-invalid',
+        `GitHub checkout ref ${formatRefForMessage(requestedRef)} is not a safe git ref`,
+      );
+    }
     const installationId = await this.installationId(input.connection.id);
     const target = normalizeCheckoutTarget(input);
     const repository = await this.resolveCheckoutRepository(installationId, target);
+    const ref = requestedRef || repository.defaultBranch;
+    // Explicit refs were already rejected above. This is the default branch, and it
+    // has to fail before we mint an installation token.
+    if (!requestedRef && !isSafeCheckoutRef(ref)) {
+      throw new GithubIntegrationProviderError(
+        'ref-invalid',
+        `GitHub checkout ref ${formatRefForMessage(ref)} is not a safe git ref`,
+      );
+    }
     const canonicalTarget: CheckoutTarget = {
       kind: 'external-id',
       externalRepositoryId: buildProviderRepositoryId(GITHUB_PROVIDER, String(repository.id)),
@@ -281,7 +298,6 @@ export class GithubSourceControlProvider
       target: canonicalTarget,
       permissions,
     });
-    const ref = input.ref?.trim() || repository.defaultBranch;
     const botLogin = this.appBotLogin();
     const gitAuthor =
       botLogin && input.permissions?.contents === 'write'
