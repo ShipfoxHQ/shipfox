@@ -601,7 +601,7 @@ posthog:
 # workspace, and `summary_recording` is the one with a summary. The fake is seeded from these
 # fixtures: a recording's `speaker` says its `speech`, and a summary recording gets a summary.
 claap:
-  connection: claap_sandbox
+  connection: claap_shipfox_sandbox
   fixtures:
     workspace:
       id: wziEDcImI2

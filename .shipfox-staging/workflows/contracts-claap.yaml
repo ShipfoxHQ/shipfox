@@ -11,14 +11,14 @@ jobs:
     steps:
       - key: workspace
         tool: list_workspaces
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         outputs:
           value_workspaces_0_workspaceId: '${{ has(result.workspaces) && type(result.workspaces) == type([]) && size(result.workspaces) > 0 && [result.workspaces[0]].all(i0, has(i0.workspaceId)) ? result.workspaces[0].workspaceId : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_workspaces_0_workspaceId) == type("") && step.outputs.value_workspaces_0_workspaceId == "wziEDcImI2"
       - key: recording
         tool: get_recording
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         with:
           recordingId: AoADYsUkilOe
         outputs:
@@ -30,7 +30,7 @@ jobs:
     steps:
       - key: get_recording
         tool: get_recording
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         with:
           recordingId: EyTipbF5PWFN
         outputs:
@@ -50,7 +50,7 @@ jobs:
     steps:
       - key: get_recording_missing
         tool: get_recording
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         with:
           recordingId: AAAAAAAAAAAA
         gate:
@@ -60,7 +60,7 @@ jobs:
     steps:
       - key: get_recording_transcript
         tool: get_recording_transcript
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         with:
           recordingUrl: https://app.claap.io/untitled-c-wziEDcImI2-AoADYsUkilOe
         outputs:
@@ -73,7 +73,7 @@ jobs:
     steps:
       - key: get_recordings
         tool: get_recordings
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         with:
           filters:
             recordingId:
@@ -97,7 +97,7 @@ jobs:
     steps:
       - key: list_workspaces
         tool: list_workspaces
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         outputs:
           shape_workspaces_0_workspaceId: ${{ has(result.workspaces) && type(result.workspaces) == type([]) && size(result.workspaces) > 0 && [result.workspaces[0]].all(i0, has(i0.workspaceId) && type(i0.workspaceId) == type("")) }}
           shape_workspaces_0_name: ${{ has(result.workspaces) && type(result.workspaces) == type([]) && size(result.workspaces) > 0 && [result.workspaces[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
@@ -109,7 +109,7 @@ jobs:
     steps:
       - key: search_recording_transcripts
         tool: search_recording_transcripts
-        connection: claap_sandbox
+        connection: claap_shipfox_sandbox
         with:
           search:
             query: enchanté
