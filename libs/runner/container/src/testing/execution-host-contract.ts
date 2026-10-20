@@ -142,7 +142,7 @@ export function describeExecutionHostContract(
       });
 
       it('terminates a process that exits on SIGTERM without waiting for the grace period', async () => {
-        const child = run(`trap 'exit 0' TERM; sleep 60 & echo $!; wait`);
+        const child = run(`sleep 60 & pid=$!; trap 'exit 0' TERM; echo $pid; wait`);
         const output = readAll(child.stdout);
         const pid = await firstLine(child.stdout, output);
         const started = Date.now();
