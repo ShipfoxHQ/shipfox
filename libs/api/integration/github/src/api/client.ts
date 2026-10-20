@@ -35,6 +35,8 @@ export interface GithubInstallationDetails {
   account: GithubAccount;
   repositorySelection: string;
   suspendedAt: Date | null;
+  /** When the request that returned this state started. Orders it against later lifecycle writes. */
+  observedAt?: Date | undefined;
   htmlUrl: string;
   raw: Record<string, unknown>;
 }
@@ -258,6 +260,7 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
   }
 
   async getInstallation(installationId: number): Promise<GithubInstallationDetails> {
+    const observedAt = new Date();
     const response = await mapGithubError(
       () => this.getApp().octokit.rest.apps.getInstallation({installation_id: installationId}),
       'installation-not-found',
@@ -268,6 +271,7 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
       account: toGithubAccount(data.account),
       repositorySelection: data.repository_selection,
       suspendedAt: data.suspended_at ? new Date(data.suspended_at) : null,
+      observedAt,
       htmlUrl: data.html_url,
       raw: data as unknown as Record<string, unknown>,
     };

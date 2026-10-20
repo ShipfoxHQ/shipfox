@@ -7,6 +7,7 @@ import {
   getIntegrationConnectionById,
   listIntegrationConnectionsByProvider,
   resolveUniqueConnectionSlug,
+  updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
@@ -35,6 +36,7 @@ async function loadGithubModuleParts(
     GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
     createGithubIntegrationProvider,
     getGithubInstallationByInstallationId,
+    lockGithubInstallationByInstallationId,
     registerGithubServiceMetrics,
     deleteGithubInstallationByConnectionId,
     githubInstallationTokenGenerationNamespace,
@@ -129,6 +131,17 @@ async function loadGithubModuleParts(
   ): Promise<CoreIntegrationConnection<'github'>> {
     return await retryConnectionSlugCollision(() =>
       db().transaction(async (tx) => {
+        // Lock the installation row before any connection row, the order lifecycle webhooks use,
+        // and keep a lifecycle write that committed after our GitHub read: it is newer.
+        const current = await lockGithubInstallationByInstallationId(input.installationId, {tx});
+        const {observedAt, ...installation} = input.installation;
+        const lifecycle = {
+          deletedAt: current?.deletedAt ?? installation.deletedAt,
+          suspendedAt:
+            current && observedAt && current.updatedAt > observedAt
+              ? current.suspendedAt
+              : installation.suspendedAt,
+        };
         const baseSlug = slugifyConnectionSlug(`github_${input.installation.accountLogin}`, {
           fallback: 'github',
         });
@@ -148,7 +161,9 @@ async function loadGithubModuleParts(
             externalAccountId: input.installationId,
             slug,
             displayName: input.displayName,
-            lifecycleStatus: input.lifecycleStatus ?? 'active',
+            lifecycleStatus:
+              input.lifecycleStatus ??
+              (lifecycle.suspendedAt || lifecycle.deletedAt ? 'error' : 'active'),
             capabilities: providerCapabilities,
             actorUserId: input.actorUserId,
           },
@@ -158,7 +173,8 @@ async function loadGithubModuleParts(
         await upsertGithubInstallation(
           {
             connectionId: connection.id,
-            ...input.installation,
+            ...installation,
+            ...lifecycle,
           },
           {tx},
         );
@@ -179,6 +195,12 @@ async function loadGithubModuleParts(
     publishSourcePush,
     recordDeliveryOnly,
     getIntegrationConnectionById,
+    // The connection becomes available again on unsuspend, so the write needs the capabilities.
+    updateConnectionLifecycleStatus: (params, writeOptions) =>
+      updateIntegrationConnectionLifecycleStatus(
+        {...params, capabilities: providerCapabilities},
+        writeOptions,
+      ),
     repositoryAuthorization: 'enforced',
     invalidateRepositoryAuthorizationCache: options.invalidateRepositoryAuthorizationCache,
     coreDb: db,

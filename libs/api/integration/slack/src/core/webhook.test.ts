@@ -69,7 +69,7 @@ function handlers(connection = fakeConnection()) {
   return {
     connection,
     publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
-    recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+    recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
     claimWebhookDelivery: vi.fn(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById: vi.fn<GetIntegrationConnectionByIdFn>(() =>
       Promise.resolve(connection),

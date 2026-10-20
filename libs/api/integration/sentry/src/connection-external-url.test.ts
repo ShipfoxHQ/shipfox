@@ -37,7 +37,7 @@ function createProvider(lookup: (connectionId: string) => Promise<SentryInstalla
     persistVerifiedUnclaimedInstallation: vi.fn() as never,
     coreDb: vi.fn() as never,
     publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
-    recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+    recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById: vi.fn(() => Promise.resolve(undefined)),
     updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
     getSentryInstallationByConnectionId: lookup,

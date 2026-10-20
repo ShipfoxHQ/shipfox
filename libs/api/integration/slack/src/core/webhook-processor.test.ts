@@ -78,7 +78,7 @@ describe('Slack webhook processor', () => {
       coreDb: db,
       claimWebhookDelivery: vi.fn(() => Promise.resolve({claimed: true})),
       publishIntegrationEventReceived,
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
     });
 
@@ -94,7 +94,7 @@ describe('Slack webhook processor', () => {
       coreDb: db,
       claimWebhookDelivery: vi.fn(() => Promise.resolve({claimed: true})),
       publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
-      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(),
     });
 

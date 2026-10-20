@@ -461,6 +461,51 @@ describe('integration connection queries', () => {
     expect(await connectionEvents(connection.id)).toHaveLength(1);
   });
 
+  it('leaves the status unchanged when it is not one of the expected statuses', async () => {
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'github-guarded',
+      slug: 'github_guarded',
+      displayName: 'GitHub guarded',
+      lifecycleStatus: 'disabled',
+      capabilities: [],
+    });
+
+    const result = await updateIntegrationConnectionLifecycleStatus({
+      id: connection.id,
+      lifecycleStatus: 'error',
+      expectedStatuses: ['active'],
+    });
+
+    expect(result?.lifecycleStatus).toBe('disabled');
+    const reloaded = await getIntegrationConnectionById(connection.id);
+    expect(reloaded?.lifecycleStatus).toBe('disabled');
+    expect(reloaded?.updatedAt).toEqual(connection.updatedAt);
+  });
+
+  it('applies the write when the status is one of the expected statuses', async () => {
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'github-guarded-match',
+      slug: 'github_guarded_match',
+      displayName: 'GitHub guarded match',
+      lifecycleStatus: 'error',
+      capabilities: [],
+    });
+
+    const result = await updateIntegrationConnectionLifecycleStatus({
+      id: connection.id,
+      lifecycleStatus: 'active',
+      expectedStatuses: ['error'],
+      capabilities: ['source_control'],
+    });
+
+    expect(result?.lifecycleStatus).toBe('active');
+    expect(await connectionEvents(connection.id)).toHaveLength(1);
+  });
+
   it('returns undefined when updating the lifecycle status of an unknown connection', async () => {
     const result = await updateIntegrationConnectionLifecycleStatus({
       id: crypto.randomUUID(),

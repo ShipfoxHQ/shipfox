@@ -16,7 +16,7 @@ interface TestApp {
 
 async function createTestApp(): Promise<TestApp> {
   const publishSourcePush = vi.fn(() => Promise.resolve({published: true}));
-  const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+  const recordDeliveryOnly = vi.fn(() => Promise.resolve({claimed: true}));
   const getIntegrationConnectionById = vi.fn();
   const routes = createGiteaWebhookRoutes({
     coreDb: () =>

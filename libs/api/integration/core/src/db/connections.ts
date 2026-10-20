@@ -338,6 +338,11 @@ export interface UpdateIntegrationConnectionLifecycleStatusParams {
   id: string;
   lifecycleStatus: IntegrationConnectionLifecycleStatus;
   capabilities?: IntegrationCapability[] | undefined;
+  /**
+   * Applies the write only when the locked row's current status is listed. Otherwise the call
+   * returns the unchanged connection, so a provider webhook can't override a user's `disabled`.
+   */
+  expectedStatuses?: readonly IntegrationConnectionLifecycleStatus[] | undefined;
 }
 
 export async function updateIntegrationConnectionLifecycleStatus(
@@ -350,12 +355,16 @@ export async function updateIntegrationConnectionLifecycleStatus(
 
   const executor = options.tx;
   const [existing] = await executor
-    .select({lifecycleStatus: integrationConnections.lifecycleStatus})
+    .select()
     .from(integrationConnections)
     .where(eq(integrationConnections.id, params.id))
     .limit(1)
     .for('update');
   if (!existing) return undefined;
+  const current = toIntegrationConnection(existing);
+  if (params.expectedStatuses && !params.expectedStatuses.includes(current.lifecycleStatus)) {
+    return current;
+  }
 
   const [row] = await executor
     .update(integrationConnections)

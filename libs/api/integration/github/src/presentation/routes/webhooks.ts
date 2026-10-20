@@ -6,6 +6,7 @@ import type {
   PublishSourceRepositoryUpdatedFn,
   RecordDeliveryOnlyFn,
   StoredWebhookRequest,
+  UpdateIntegrationConnectionLifecycleStatusFn,
   WebhookProcessingResult,
 } from '@shipfox/api-integration-spi';
 import {createStoredWebhookRequest, WEBHOOK_MAX_RAW_BODY_BYTES} from '@shipfox/api-integration-spi';
@@ -17,6 +18,7 @@ import {
   WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import type {GithubApiClient} from '#api/client.js';
 import {
   createGithubWebhookProcessor,
   type GithubWebhookProcessor,
@@ -33,6 +35,8 @@ export interface CreateGithubWebhookRoutesOptions {
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
+  github: Pick<GithubApiClient, 'getInstallation'>;
   deleteInstallationTokenSecret?:
     | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
     | undefined;

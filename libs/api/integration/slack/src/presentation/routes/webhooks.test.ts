@@ -47,7 +47,7 @@ async function createTestApp(connection = fakeConnection()): Promise<{
   getIntegrationConnectionById: ReturnType<typeof vi.fn>;
 }> {
   const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
-  const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+  const recordDeliveryOnly = vi.fn(() => Promise.resolve({claimed: true}));
   const claimWebhookDelivery = vi.fn(() => Promise.resolve({claimed: true}));
   const getIntegrationConnectionById = vi.fn(() => Promise.resolve(connection));
   const app = await createApp({

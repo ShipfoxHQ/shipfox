@@ -33,7 +33,7 @@ async function createTestApp() {
         coreDb: db,
         publicKey: signer.publicKey,
         publishIntegrationEventReceived,
-        recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+        recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
         getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
       }),
     ],
