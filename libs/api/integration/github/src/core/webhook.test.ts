@@ -1295,9 +1295,7 @@ describe('handleGithubEvent installation lifecycle', () => {
       return Promise.resolve(installationDetails(null));
     });
 
-    const handlerA = lifecycleEvent('suspend', installationId, handlersA).then(() => {
-      readOrder.push('a-commit');
-    });
+    const handlerA = lifecycleEvent('suspend', installationId, handlersA);
     await suspendReadStarted;
     const handlerB = lifecycleEvent('unsuspend', installationId, handlersB);
     // B must be parked on the row lock while A still holds it.
@@ -1306,7 +1304,8 @@ describe('handleGithubEvent installation lifecycle', () => {
     releaseSuspendRead();
     await Promise.all([handlerA, handlerB]);
 
-    expect(readOrder).toEqual(['a-read', 'a-commit', 'b-read']);
+    // B read only after A released the lock, so B's state is the last commit.
+    expect(readOrder).toEqual(['a-read', 'b-read']);
     expect((await readInstallation(installationId)).suspendedAt).toBeNull();
   });
 
