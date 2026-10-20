@@ -19,6 +19,18 @@ describe('Markdown', () => {
     vi.mocked(codeToHtml).mockClear();
   });
 
+  test('shows raw HTML as text instead of dropping it', () => {
+    const {container} = renderMarkdown(
+      'Context:\n\n<issue>\nFix the login bug\n</issue>\n\nUse <tools> inline.',
+    );
+
+    expect(container.textContent).toContain('<issue>');
+    expect(container.textContent).toContain('Fix the login bug');
+    expect(container.textContent).toContain('</issue>');
+    expect(container.textContent).toContain('Use <tools> inline.');
+    expect(container.querySelector('issue')).toBeNull();
+  });
+
   test('sanitizes hostile input', () => {
     const {container} = renderMarkdown(`
 <script>alert(1)</script>

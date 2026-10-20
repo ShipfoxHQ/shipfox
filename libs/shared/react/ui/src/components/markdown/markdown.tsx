@@ -14,6 +14,7 @@ const CODE_FENCE_MAX_LINES = 500;
 const TRAILING_NEWLINE_PATTERN = /\n$/;
 const LANGUAGE_CLASS_PATTERN = /language-([^\s]+)/;
 const calloutCodeLanguageFallback = 'text';
+const FLOW_PARENT_TYPES = new Set(['root', 'blockquote', 'listItem', 'footnoteDefinition']);
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -23,6 +24,35 @@ const sanitizeSchema = {
     href: ['http', 'https'],
   },
 };
+
+type MarkdownTreeNode = {type: string; value?: string; children?: MarkdownTreeNode[]};
+
+// Raw HTML is never rendered. Dropping it would hide text written with XML-like tags, such as
+// `<issue>` blocks in prompts, so it is shown as the literal text the author wrote.
+function remarkHtmlAsText() {
+  return (tree: MarkdownTreeNode) => htmlToText(tree);
+}
+
+function htmlToText(parent: MarkdownTreeNode): void {
+  if (!parent.children) return;
+  parent.children = parent.children.map((child) => {
+    if (child.type !== 'html') {
+      htmlToText(child);
+      return child;
+    }
+    const value = child.value ?? '';
+    if (!FLOW_PARENT_TYPES.has(parent.type)) return {type: 'text', value};
+    const lines = value.split('\n');
+    return {
+      type: 'paragraph',
+      children: lines.flatMap((line, index) =>
+        index === 0
+          ? [{type: 'text', value: line}]
+          : [{type: 'break'}, {type: 'text', value: line}],
+      ),
+    };
+  });
+}
 
 type MarkdownHeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 type MarkdownHeadingComponent = NonNullable<Components['h1']>;
@@ -251,7 +281,7 @@ function MarkdownImpl({
     <MarkdownRenderGuard body={children}>
       <div className={cn('min-w-0 [overflow-wrap:anywhere]', className)} dir="auto">
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkHtmlAsText]}
           rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
           components={markdownComponents[tone][headingLevelOffset]}
         >

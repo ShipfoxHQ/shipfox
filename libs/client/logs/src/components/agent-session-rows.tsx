@@ -153,9 +153,16 @@ function SessionMessageRow({
             <MessageRoleLabel label={row.label} terminalFailure={row.terminalFailure} />
             <RowMetadata meta={row.meta} className="ml-auto flex-none" />
           </div>
-          <div className="block min-w-0">
-            <MarkdownPreview text={row.text} />
-          </div>
+          {/* A prompt is shown verbatim: Markdown would turn its indented lines into code blocks. */}
+          {row.role === 'system-prompt' ? (
+            <LogContent variant="code">
+              <PreviewText text={row.text} />
+            </LogContent>
+          ) : (
+            <div className="block min-w-0">
+              <MarkdownPreview text={row.text} />
+            </div>
+          )}
         </div>
       </div>
     </LogRow>

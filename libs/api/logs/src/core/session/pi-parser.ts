@@ -7,18 +7,22 @@ import {
   branchSummaryMeta,
   compactionDetail,
   compactionMeta,
+  contextEditDetail,
+  contextEditLabel,
   customEntryLabel,
   customEntryMeta,
   customEntryText,
   entryDetail,
   isProviderRetryEntry,
   labelDetail,
-  labelMeta,
   modelChangeDetail,
   providerRetryEndDetail,
   providerRetryMeta,
   providerRetryStartDetail,
   sessionDetail,
+  targetMeta,
+  usageEntryDetail,
+  usageEntryMeta,
 } from './pi/metadata.js';
 import {lifecycleRow, messageRow, rawRecordRow} from './rows.js';
 import type {AgentSessionRecord} from './session-record.js';
@@ -148,13 +152,35 @@ export function parsePiSessionRecord(record: AgentSessionRecord): readonly Sessi
           customEntryMeta(entry),
         ),
       ];
+    case 'context_edit':
+      return [
+        lifecycleRow(
+          record.ts,
+          contextEditLabel(entry),
+          contextEditDetail(entry),
+          'default',
+          false,
+          targetMeta(entry),
+        ),
+      ];
+    case 'usage':
+      return [
+        lifecycleRow(
+          record.ts,
+          'Usage recorded',
+          usageEntryDetail(entry),
+          'default',
+          false,
+          usageEntryMeta(entry),
+        ),
+      ];
     case 'auto_retry_start':
       return providerRetryStartRows(record, entry);
     case 'auto_retry_end':
       return providerRetryEndRows(record, entry);
     case 'label':
       return [
-        lifecycleRow(record.ts, 'Label', labelDetail(entry), 'default', false, labelMeta(entry)),
+        lifecycleRow(record.ts, 'Label', labelDetail(entry), 'default', false, targetMeta(entry)),
       ];
     default:
       return [rawRecordRow(record, `Unknown session entry: ${entry.type}`)];
