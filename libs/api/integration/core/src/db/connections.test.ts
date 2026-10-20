@@ -11,6 +11,7 @@ import {
   listIntegrationConnections,
   listIntegrationConnectionsByProvider,
   resolveUniqueConnectionSlug,
+  updateIntegrationConnectionExternalAccount,
   updateIntegrationConnectionLifecycleStatus,
   updateIntegrationConnectionRepositoryAccessMode,
   upsertIntegrationConnection,
@@ -703,5 +704,35 @@ describe('integration connection queries', () => {
       slug: 'stripe_capabilities',
       capabilities: [],
     });
+  });
+
+  it('moves a connection to a new external account and keeps its ID and slug', async () => {
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'installation-1',
+      slug: 'github_shipfox',
+      displayName: 'GitHub shipfox',
+    });
+
+    const moved = await updateIntegrationConnectionExternalAccount({
+      id: connection.id,
+      externalAccountId: 'installation-2',
+      displayName: 'GitHub shipfox-renamed',
+    });
+
+    expect(moved).toMatchObject({
+      id: connection.id,
+      slug: 'github_shipfox',
+      externalAccountId: 'installation-2',
+      displayName: 'GitHub shipfox-renamed',
+    });
+    await expect(
+      updateIntegrationConnectionExternalAccount({
+        id: crypto.randomUUID(),
+        externalAccountId: 'installation-3',
+        displayName: 'missing',
+      }),
+    ).resolves.toBeUndefined();
   });
 });

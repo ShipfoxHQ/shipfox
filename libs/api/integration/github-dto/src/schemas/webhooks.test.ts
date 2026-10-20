@@ -26,6 +26,19 @@ describe('githubWebhookInstallationSchema', () => {
     });
   });
 
+  it('keeps the account id when present and parses without it', () => {
+    expect(
+      githubWebhookInstallationSchema.parse({
+        installation: {id: 123, account: {id: 77, login: 'opsmill', type: 'Organization'}},
+      }).installation?.account?.id,
+    ).toBe(77);
+    expect(
+      githubWebhookInstallationSchema.parse({
+        installation: {id: 123, account: {login: 'opsmill', type: 'Organization'}},
+      }).installation?.account?.id,
+    ).toBeUndefined();
+  });
+
   it('accepts explicit null account, sender and requester', () => {
     expect(
       githubWebhookInstallationSchema.parse({

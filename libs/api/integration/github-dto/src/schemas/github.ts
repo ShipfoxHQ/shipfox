@@ -75,6 +75,7 @@ export const createE2eGithubConnectionBodySchema = z.object({
   workspace_id: z.string().uuid(),
   installation_id: z.number().int().positive(),
   account_login: z.string().min(1),
+  account_id: z.number().int().positive().optional(),
   display_name: z.string().min(1),
   installer_user_id: z.string().uuid(),
   lifecycle_status: updateIntegrationConnectionLifecycleStatusSchema.optional(),

@@ -15,6 +15,13 @@
       "when": 1790696299455,
       "tag": "0001_unique_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792526262256,
+      "tag": "0002_account_id",
+      "breakpoints": true
     }
   ]
 }

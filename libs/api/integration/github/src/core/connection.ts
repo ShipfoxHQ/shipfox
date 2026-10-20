@@ -21,6 +21,7 @@ export interface ConnectGithubInstallationInput {
     installationId: string;
     accountLogin: string;
     accountType: string;
+    accountId: string;
     repositorySelection: string;
     suspendedAt: Date | null;
     /**
@@ -132,6 +133,7 @@ function toConnectionInstallationInput(
     installationId: String(installation.id),
     accountLogin: installation.account.login,
     accountType: installation.account.type,
+    accountId: String(installation.account.id),
     repositorySelection: installation.repositorySelection,
     suspendedAt: installation.suspendedAt,
     observedAt: installation.observedAt,

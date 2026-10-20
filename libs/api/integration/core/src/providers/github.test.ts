@@ -1,5 +1,8 @@
 import {randomInt} from 'node:crypto';
 
+import {INTEGRATION_CONNECTION_AVAILABLE} from '@shipfox/api-integration-core-dto';
+import {sql} from 'drizzle-orm';
+
 const captured = vi.hoisted(() => ({
   integrationProviderOptions: undefined as unknown,
   providerOptions: undefined as unknown,
@@ -33,6 +36,7 @@ import type {
   GithubCheckoutTokenScope,
 } from '@shipfox/api-integration-github';
 import {
+  deleteGithubUnlinkedInstallationByInstallationId,
   encodeInstallationTokenEnvelope,
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY,
@@ -42,7 +46,11 @@ import {
   githubInstallationTokenKey,
   githubInstallationTokenNamespace,
   upsertGithubInstallation,
+  upsertGithubUnlinkedInstallation,
 } from '@shipfox/api-integration-github';
+import {updateIntegrationConnectionLifecycleStatus} from '#db/connections.js';
+import {db} from '#db/db.js';
+import {integrationsOutbox} from '#db/schema/outbox.js';
 import {githubProviderModule} from '#providers/github.js';
 import {createTestApp, useIntegrationRouteTest} from '#test/route-utils.js';
 
@@ -78,6 +86,7 @@ describe('githubProviderModule', () => {
       installationId: String(randomInt(1_000_000, 9_999_999)),
       accountLogin: 'shipfox',
       accountType: 'Organization',
+      accountId: '1001',
       repositorySelection: 'all',
       suspendedAt: null,
       deletedAt: null,
@@ -133,6 +142,7 @@ describe('githubProviderModule', () => {
         installationId,
         accountLogin: 'shipfox',
         accountType: 'Organization',
+        accountId: '1001',
         repositorySelection: 'all',
         suspendedAt,
         deletedAt: null,
@@ -161,6 +171,7 @@ describe('githubProviderModule', () => {
       installationId,
       accountLogin: 'shipfox',
       accountType: 'Organization',
+      accountId: '1001',
       repositorySelection: 'all',
       suspendedAt: null,
       deletedAt: null,
@@ -348,5 +359,142 @@ describe('githubProviderModule', () => {
       namespace: `system/github/checkout-token/${providerInstance}/123`,
     });
     expect(deleteSecrets).not.toHaveBeenCalled();
+  });
+
+  describe('reinstall', () => {
+    type Connect = (input: ConnectGithubInstallationInput) => Promise<{
+      id: string;
+      slug: string;
+      lifecycleStatus: string;
+      externalAccountId: string;
+    }>;
+
+    async function setup() {
+      const part = await githubProviderModule.load();
+      await createTestApp([part.provider]);
+      const options = captured.integrationProviderOptions as {connectGithubInstallation: Connect};
+      const installerUserId = crypto.randomUUID();
+      const accountId = String(randomInt(1_000_000, 9_999_999));
+
+      function input(params: {
+        installationId?: string;
+        workspaceId?: string;
+        accountType?: string;
+        accountLogin?: string;
+        accountId?: string;
+        suspendedAt?: Date | null;
+      }): ConnectGithubInstallationInput {
+        const installationId = params.installationId ?? String(randomInt(1_000_000, 9_999_999));
+        return {
+          workspaceId: params.workspaceId ?? context.workspaceId,
+          installationId,
+          displayName: `GitHub ${params.accountLogin ?? 'shipfox'}`,
+          installerUserId,
+          installation: {
+            installationId,
+            accountLogin: params.accountLogin ?? 'shipfox',
+            accountType: params.accountType ?? 'Organization',
+            accountId: params.accountId ?? accountId,
+            repositorySelection: 'selected',
+            suspendedAt: params.suspendedAt ?? null,
+            deletedAt: null,
+            latestEvent: {id: installationId},
+            installerUserId,
+          },
+        };
+      }
+
+      async function availableEvents(connectionId: string) {
+        return await db()
+          .select({payload: integrationsOutbox.payload})
+          .from(integrationsOutbox)
+          .where(
+            sql`${integrationsOutbox.eventType} = ${INTEGRATION_CONNECTION_AVAILABLE} AND ${integrationsOutbox.payload}->>'connectionId' = ${connectionId}`,
+          );
+      }
+
+      return {connect: options.connectGithubInstallation, input, availableEvents};
+    }
+
+    it('reattaches the connection to the new installation and removes the unlinked row', async () => {
+      const {connect, input, availableEvents} = await setup();
+      const first = await connect(input({accountLogin: 'shipfox'}));
+      await upsertGithubInstallation({
+        connectionId: first.id,
+        ...input({installationId: first.externalAccountId}).installation,
+        deletedAt: new Date(),
+      });
+      await updateIntegrationConnectionLifecycleStatus({id: first.id, lifecycleStatus: 'error'});
+      const newInstallationId = String(randomInt(10_000_000, 99_999_999));
+      await upsertGithubUnlinkedInstallation({
+        installationId: newInstallationId,
+        accountLogin: 'shipfox',
+        accountType: 'Organization',
+        repositorySelection: 'selected',
+        lastAction: 'created',
+      });
+
+      const second = await connect(
+        input({installationId: newInstallationId, accountLogin: 'shipfox-renamed'}),
+      );
+
+      expect(second.id).toBe(first.id);
+      expect(second.slug).toBe(first.slug);
+      expect(second.externalAccountId).toBe(newInstallationId);
+      expect(second.lifecycleStatus).toBe('active');
+      const stored = await getGithubInstallationByInstallationId(newInstallationId);
+      expect(stored).toMatchObject({
+        connectionId: first.id,
+        accountLogin: 'shipfox-renamed',
+        deletedAt: null,
+      });
+      expect(await getGithubInstallationByInstallationId(first.externalAccountId)).toBeUndefined();
+      expect(await deleteGithubUnlinkedInstallationByInstallationId(newInstallationId)).toBe(false);
+      const events = await availableEvents(first.id);
+      expect(events).toHaveLength(2);
+      expect(events.at(-1)?.payload).toMatchObject({provider: 'github', slug: first.slug});
+    });
+
+    it('reattaches when the old installation was never marked deleted and re-enables a disabled connection', async () => {
+      const {connect, input} = await setup();
+      const first = await connect(input({}));
+      await updateIntegrationConnectionLifecycleStatus({id: first.id, lifecycleStatus: 'disabled'});
+
+      const second = await connect(input({}));
+
+      expect(second.id).toBe(first.id);
+      expect(second.lifecycleStatus).toBe('active');
+    });
+
+    it('derives error when the reinstalled installation is suspended', async () => {
+      const {connect, input} = await setup();
+      const first = await connect(input({}));
+
+      const second = await connect(input({suspendedAt: new Date()}));
+
+      expect(second.id).toBe(first.id);
+      expect(second.lifecycleStatus).toBe('error');
+    });
+
+    it('creates a new connection for another workspace', async () => {
+      const {connect, input} = await setup();
+      const first = await connect(input({}));
+
+      const second = await connect(input({workspaceId: crypto.randomUUID()}));
+
+      expect(second.id).not.toBe(first.id);
+      expect(await getGithubInstallationByInstallationId(first.externalAccountId)).toMatchObject({
+        connectionId: first.id,
+      });
+    });
+
+    it('creates a new connection for another account type with the same account ID', async () => {
+      const {connect, input} = await setup();
+      const first = await connect(input({accountType: 'User'}));
+
+      const second = await connect(input({accountType: 'Organization'}));
+
+      expect(second.id).not.toBe(first.id);
+    });
   });
 });

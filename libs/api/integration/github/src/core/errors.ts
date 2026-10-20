@@ -47,6 +47,12 @@ export class GithubInstallationNotAuthorizedError extends Error {
   }
 }
 
+export class GithubReattachConflictError extends Error {
+  constructor(installationId: number | string) {
+    super(`GitHub installation changed while reconnecting, try again: ${installationId}`);
+  }
+}
+
 export class GithubInstallationAlreadyLinkedError extends Error {
   constructor(installationId: number | string) {
     super(`GitHub installation is already linked to another Shipfox workspace: ${installationId}`);

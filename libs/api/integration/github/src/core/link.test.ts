@@ -51,7 +51,7 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     getInstallation: vi.fn(() =>
       Promise.resolve({
         id: 123,
-        account: {login: 'shipfox', type: 'Organization'},
+        account: {id: 1, login: 'shipfox', type: 'Organization'},
         repositorySelection: 'all',
         suspendedAt: null,
         htmlUrl: 'https://github.com/apps/shipfox/installations/123',
@@ -209,7 +209,11 @@ describe('handleGithubLinkCallback', () => {
     const result = asSelection(await handleGithubLinkCallback(params));
 
     expect(result.candidates.map(({id}) => id)).toEqual([123, 456]);
-    expect(result.candidates[0]?.account).toEqual({login: 'account-123', type: 'Organization'});
+    expect(result.candidates[0]?.account).toEqual({
+      id: 1,
+      login: 'account-123',
+      type: 'Organization',
+    });
     expect(verifyGithubLinkSelection(result.selectionToken)).toEqual({
       workspaceId,
       userId,
@@ -360,7 +364,7 @@ describe('handleGithubLinkSelection', () => {
       getInstallation: vi.fn(() =>
         Promise.resolve({
           id: 123,
-          account: {login: 'shipfox', type: 'Organization'},
+          account: {id: 1, login: 'shipfox', type: 'Organization'},
           repositorySelection: 'all',
           suspendedAt: new Date(),
           htmlUrl: 'https://github.com/apps/shipfox/installations/123',
@@ -427,7 +431,7 @@ describe('handleGithubLinkSelection', () => {
       getInstallation: vi.fn((id: number) =>
         Promise.resolve({
           id,
-          account: {login: `account-${id}`, type: 'Organization'},
+          account: {id: 1, login: `account-${id}`, type: 'Organization'},
           repositorySelection: 'all',
           suspendedAt: null,
           htmlUrl: `https://github.com/apps/shipfox/installations/${id}`,

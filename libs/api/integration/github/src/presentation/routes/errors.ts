@@ -16,6 +16,7 @@ import {
   GithubLinkStateActorMismatchError,
   GithubLinkStateError,
   GithubNoLinkableInstallationError,
+  GithubReattachConflictError,
   GithubTooManyLinkableInstallationsError,
 } from '#core/errors.js';
 
@@ -75,6 +76,9 @@ export function githubRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof GithubInstallationAlreadyLinkedError) {
     throw new ClientError(error.message, 'github-installation-already-linked', {status: 409});
+  }
+  if (error instanceof GithubReattachConflictError) {
+    throw new ClientError(error.message, 'github-reattach-conflict', {status: 409});
   }
   if (error instanceof ConnectionSlugConflictError) {
     throw new ClientError(error.message, 'slug-conflict', {status: 409});

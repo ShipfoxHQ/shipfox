@@ -1,12 +1,14 @@
 import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-github';
 import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
+import type {IntegrationConnectionLifecycleStatus} from '#core/entities/connection.js';
 import type {IntegrationCapability} from '#core/entities/provider.js';
 import {getIntegrationProviderCapabilities} from '#core/providers/registry.js';
 import {
   getIntegrationConnectionById,
   listIntegrationConnectionsByProvider,
   resolveUniqueConnectionSlug,
+  updateIntegrationConnectionExternalAccount,
   updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from '#db/connections.js';
@@ -25,6 +27,23 @@ import type {
 } from '#providers/types.js';
 import {createGithubCheckoutTokenCacheMaintenanceWorker} from '#temporal/worker.js';
 
+type GithubConnectTx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
+
+function mergeInstallationLifecycle(params: {
+  current: {deletedAt: Date | null; suspendedAt: Date | null; updatedAt: Date} | undefined;
+  installation: {deletedAt: Date | null; suspendedAt: Date | null};
+  observedAt: Date | undefined;
+}): {deletedAt: Date | null; suspendedAt: Date | null} {
+  const {current, installation, observedAt} = params;
+  return {
+    deletedAt: current?.deletedAt ?? installation.deletedAt,
+    suspendedAt:
+      current && observedAt && current.updatedAt > observedAt
+        ? current.suspendedAt
+        : installation.suspendedAt,
+  };
+}
+
 async function loadGithubModuleParts(
   options: IntegrationProviderModuleLoadOptions = {},
 ): Promise<IntegrationModuleParts> {
@@ -39,6 +58,10 @@ async function loadGithubModuleParts(
     lockGithubInstallationByInstallationId,
     registerGithubServiceMetrics,
     deleteGithubInstallationByConnectionId,
+    deleteGithubUnlinkedInstallationByInstallationId,
+    GithubReattachConflictError,
+    lockGithubInstallationsByAccount,
+    reattachGithubInstallation,
     githubInstallationTokenGenerationNamespace,
     githubInstallationTokenNamespace,
     db: githubDb,
@@ -126,6 +149,91 @@ async function loadGithubModuleParts(
     return connection as CoreIntegrationConnection<'github'>;
   }
 
+  async function findReattachCandidate(params: {
+    input: ConnectGithubInstallationInput;
+    installation: Omit<ConnectGithubInstallationInput['installation'], 'observedAt'>;
+    tx: GithubConnectTx;
+  }): Promise<
+    {connection: CoreIntegrationConnection<'github'>; installationId: string} | undefined
+  > {
+    const {input, installation, tx} = params;
+    const siblings = await lockGithubInstallationsByAccount(
+      {
+        accountType: installation.accountType,
+        accountId: installation.accountId,
+        excludeInstallationId: input.installationId,
+      },
+      {tx},
+    );
+    for (const sibling of siblings) {
+      const connection = await getIntegrationConnectionById(sibling.connectionId, {tx});
+      if (connection?.workspaceId !== input.workspaceId) continue;
+      return {
+        connection: connection as CoreIntegrationConnection<'github'>,
+        installationId: sibling.installationId,
+      };
+    }
+    return undefined;
+  }
+
+  /**
+   * GitHub allows one installation per account, so a different installation ID for the same
+   * account in this workspace means the App was reinstalled. The existing connection moves to the
+   * new installation instead of a second connection stranding its projects and workflows.
+   */
+  async function reattachExistingConnection(params: {
+    input: ConnectGithubInstallationInput;
+    installation: Omit<ConnectGithubInstallationInput['installation'], 'observedAt'>;
+    suspendedAt: Date | null;
+    lifecycleStatus: IntegrationConnectionLifecycleStatus;
+    tx: GithubConnectTx;
+  }): Promise<CoreIntegrationConnection<'github'> | undefined> {
+    const {input, installation, tx} = params;
+    const candidate = await findReattachCandidate({input, installation, tx});
+    if (!candidate) return undefined;
+    const {connection, installationId: fromInstallationId} = candidate;
+
+    const reattached = await reattachGithubInstallation(
+      {
+        connectionId: connection.id,
+        fromInstallationId,
+        installationId: input.installationId,
+        accountLogin: installation.accountLogin,
+        accountType: installation.accountType,
+        accountId: installation.accountId,
+        repositorySelection: installation.repositorySelection,
+        suspendedAt: params.suspendedAt,
+        latestEvent: installation.latestEvent,
+        installerUserId: installation.installerUserId,
+      },
+      {tx},
+    );
+    if (!reattached) {
+      // A concurrent connect moved the row first. Never create a connection here.
+      const moved = await getGithubInstallationByInstallationId(input.installationId, {tx});
+      const movedConnection = moved
+        ? await getIntegrationConnectionById(moved.connectionId, {tx})
+        : undefined;
+      if (movedConnection) return movedConnection as CoreIntegrationConnection<'github'>;
+      throw new GithubReattachConflictError(input.installationId);
+    }
+
+    await updateIntegrationConnectionExternalAccount(
+      {id: connection.id, externalAccountId: input.installationId, displayName: input.displayName},
+      {tx},
+    );
+    const updated = await updateIntegrationConnectionLifecycleStatus(
+      {
+        id: connection.id,
+        lifecycleStatus: params.lifecycleStatus,
+        capabilities: providerCapabilities,
+      },
+      {tx},
+    );
+    await deleteGithubUnlinkedInstallationByInstallationId(input.installationId, {tx});
+    return (updated ?? connection) as CoreIntegrationConnection<'github'>;
+  }
+
   async function connectGithubInstallation(
     input: ConnectGithubInstallationInput,
   ): Promise<CoreIntegrationConnection<'github'>> {
@@ -135,13 +243,22 @@ async function loadGithubModuleParts(
         // and keep a lifecycle write that committed after our GitHub read: it is newer.
         const current = await lockGithubInstallationByInstallationId(input.installationId, {tx});
         const {observedAt, ...installation} = input.installation;
-        const lifecycle = {
-          deletedAt: current?.deletedAt ?? installation.deletedAt,
-          suspendedAt:
-            current && observedAt && current.updatedAt > observedAt
-              ? current.suspendedAt
-              : installation.suspendedAt,
-        };
+        const lifecycle = mergeInstallationLifecycle({current, installation, observedAt});
+        const connectionLifecycleStatus =
+          input.lifecycleStatus ??
+          (lifecycle.suspendedAt || lifecycle.deletedAt ? 'error' : 'active');
+
+        if (!current) {
+          const reattached = await reattachExistingConnection({
+            input,
+            installation,
+            suspendedAt: lifecycle.suspendedAt,
+            lifecycleStatus: connectionLifecycleStatus,
+            tx,
+          });
+          if (reattached) return reattached;
+        }
+
         const baseSlug = slugifyConnectionSlug(`github_${input.installation.accountLogin}`, {
           fallback: 'github',
         });
@@ -161,9 +278,7 @@ async function loadGithubModuleParts(
             externalAccountId: input.installationId,
             slug,
             displayName: input.displayName,
-            lifecycleStatus:
-              input.lifecycleStatus ??
-              (lifecycle.suspendedAt || lifecycle.deletedAt ? 'error' : 'active'),
+            lifecycleStatus: connectionLifecycleStatus,
             capabilities: providerCapabilities,
             actorUserId: input.actorUserId,
           },

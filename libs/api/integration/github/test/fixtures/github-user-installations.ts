@@ -3,7 +3,7 @@ import type {GithubUserInstallation, GithubUserInstallationPage} from '#api/clie
 export function githubUserInstallation(id: number): GithubUserInstallation {
   return {
     id,
-    account: {login: `account-${id}`, type: 'Organization'},
+    account: {id: 1, login: `account-${id}`, type: 'Organization'},
     repositorySelection: 'all',
   };
 }

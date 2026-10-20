@@ -50,12 +50,17 @@ export function createE2eGithubConnectionRoute(options: CreateE2eGithubConnectio
             installationId,
             accountLogin: body.account_login,
             accountType: 'Organization',
+            accountId: String(body.account_id ?? body.installation_id),
             repositorySelection: 'all',
             suspendedAt: null,
             deletedAt: null,
             latestEvent: {
               id: body.installation_id,
-              account: {login: body.account_login, type: 'Organization'},
+              account: {
+                id: body.account_id ?? body.installation_id,
+                login: body.account_login,
+                type: 'Organization',
+              },
               repository_selection: 'all',
             },
             installerUserId: body.installer_user_id,
