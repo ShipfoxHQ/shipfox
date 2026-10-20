@@ -28,6 +28,7 @@ import {
   getStepAttempts,
   getStepsByJobId,
   insertRunningStepAttempt,
+  listCompositeAncestors,
   listStepEnvSources,
   markStepRunning,
 } from '../workflow-runs.js';
@@ -413,6 +414,96 @@ describe('workflow run queries', () => {
           .from(stepAttemptsTable)
           .where(eq(stepAttemptsTable.id, (await getStepAttempts(job.id))[0]?.id as string)),
       ).resolves.toEqual([{status: 'running'}]);
+    });
+  });
+
+  describe('step path', () => {
+    async function arrangeNestedComposite() {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [
+                {key: 'prepare', name: 'Prepare', run: 'echo prepare'},
+                {
+                  key: 'setup',
+                  uses: './.shipfox/actions/setup',
+                  steps: [
+                    {
+                      key: 'nested',
+                      uses: './.shipfox/actions/nested',
+                      composite: {name: 'Nested', digest: `sha256:${'d'.repeat(64)}`},
+                      steps: [{key: 'lint', name: 'Lint files', run: 'echo lint'}],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Expected a workflow job');
+      const rows = await getStepsByJobId(job.id);
+      const byKey = (key: string) => {
+        const row = rows.find((candidate) => candidate.key === key);
+        if (!row) throw new Error(`Expected a step with key ${key}`);
+        return row;
+      };
+      return {jobExecutionId: byKey('lint').jobExecutionId, byKey};
+    }
+
+    async function failWithAttempt(step: {id: string; jobExecutionId: string; position: number}) {
+      await db().update(stepsTable).set({status: 'failed'}).where(eq(stepsTable.id, step.id));
+      await db().insert(stepAttemptsTable).values({
+        stepId: step.id,
+        jobExecutionId: step.jobExecutionId,
+        attempt: 1,
+        executionOrder: step.position,
+        status: 'failed',
+      });
+    }
+
+    test('lists the composites that hold a step, outermost first', async () => {
+      const {byKey} = await arrangeNestedComposite();
+
+      const ancestors = await listCompositeAncestors(byKey('lint').parentStepId);
+
+      expect(ancestors.map((ancestor) => ancestor.id)).toEqual([
+        byKey('setup').id,
+        byKey('nested').id,
+      ]);
+      expect(ancestors[0]).toMatchObject({parentStepId: null, key: 'setup'});
+    });
+
+    test('lists no composite for a job step', async () => {
+      const {byKey} = await arrangeNestedComposite();
+
+      await expect(listCompositeAncestors(byKey('prepare').parentStepId)).resolves.toEqual([]);
+    });
+
+    test('carries what names the failure origin', async () => {
+      const {jobExecutionId, byKey} = await arrangeNestedComposite();
+      for (const key of ['setup', 'nested', 'lint']) await failWithAttempt(byKey(key));
+
+      const origin = await getJobExecutionFailureOrigin(jobExecutionId);
+
+      expect(origin).toMatchObject({
+        stepId: byKey('lint').id,
+        stepParentId: byKey('nested').id,
+        stepKey: 'lint',
+        stepName: 'Lint files',
+        stepPosition: byKey('lint').position,
+      });
     });
   });
 

@@ -187,6 +187,7 @@ export {
   getWorkflowRunSelection,
   getWorkflowRunSource,
   getWorkflowStepReadScope,
+  listCompositeAncestors,
   listExecutionTriggerEvents,
   listFailedStepAttempts,
   listRunAttemptsPage,

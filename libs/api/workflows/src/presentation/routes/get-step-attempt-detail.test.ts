@@ -10,6 +10,7 @@ import {getStepAttemptDetailRoute} from './get-step-attempt-detail.js';
 
 vi.mock('#db/index.js', () => ({
   getStepAttemptDetail: vi.fn(),
+  listCompositeAncestors: vi.fn(async () => []),
   getWorkflowRunAccessScopeById: vi.fn(),
 }));
 
@@ -77,6 +78,8 @@ describe('GET /api/workflows/runs/steps/:stepId/attempts/:attempt', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       step_id: STEP_ID,
+      parent_step_id: null,
+      step_path: ['test'],
       attempt: 1,
       authored_config: {run: 'pnpm test'},
       config: {run: 'pnpm test'},

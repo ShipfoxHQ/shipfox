@@ -589,6 +589,7 @@ describe('toStepAttemptDetailResponseDto', () => {
       workflowRunAttempt: 2,
       jobId: '44444444-4444-4444-8444-444444444444',
       jobExecutionId: '55555555-5555-4555-8555-555555555555',
+      stepPath: ['step'],
     });
 
     expect(result.gate_result).toEqual({
@@ -616,6 +617,7 @@ describe('toStepAttemptDetailResponseDto', () => {
         workflowRunAttempt: 2,
         jobId: '44444444-4444-4444-8444-444444444444',
         jobExecutionId: '55555555-5555-4555-8555-555555555555',
+        stepPath: ['step'],
       },
       {
         authoredConfig: WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
@@ -644,6 +646,7 @@ describe('toStepAttemptDetailResponseDto', () => {
         workflowRunAttempt: 2,
         jobId: '44444444-4444-4444-8444-444444444444',
         jobExecutionId: '55555555-5555-4555-8555-555555555555',
+        stepPath: ['step'],
       },
       {config: WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES + 1},
       session,
@@ -679,6 +682,7 @@ describe('toStepAttemptDetailResponseDto', () => {
         workflowRunAttempt: 2,
         jobId: '44444444-4444-4444-8444-444444444444',
         jobExecutionId: stepData.jobExecutionId,
+        stepPath: ['step'],
       }),
     ).toEqual({
       workflow_run_id: '33333333-3333-4333-8333-333333333333',
@@ -686,6 +690,8 @@ describe('toStepAttemptDetailResponseDto', () => {
       job_id: '44444444-4444-4444-8444-444444444444',
       job_execution_id: stepData.jobExecutionId,
       step_id: stepData.id,
+      parent_step_id: null,
+      step_path: ['step'],
       step_attempt_id: attempt.id,
       attempt: 1,
       authored_config: {run: 'echo $' + '{{ inputs.message }}'},
@@ -737,6 +743,7 @@ describe('toStepAttemptDetailResponseDto', () => {
       workflowRunAttempt: 2,
       jobId: '44444444-4444-4444-8444-444444444444',
       jobExecutionId: '55555555-5555-4555-8555-555555555555',
+      stepPath: ['step'],
     });
 
     expect(result).toMatchObject({
@@ -777,6 +784,7 @@ describe('toStepAttemptDetailResponseDto', () => {
         workflowRunAttempt: 2,
         jobId: '44444444-4444-4444-8444-444444444444',
         jobExecutionId: '55555555-5555-4555-8555-555555555555',
+        stepPath: ['step'],
       },
       {config: WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES + 1},
     );
@@ -798,6 +806,7 @@ describe('toStepAttemptDetailResponseDto', () => {
         workflowRunAttempt: 2,
         jobId: '44444444-4444-4444-8444-444444444444',
         jobExecutionId: '55555555-5555-4555-8555-555555555555',
+        stepPath: ['step'],
       },
       {stepError: WORKFLOW_DIAGNOSTIC_ERROR_MAX_BYTES + 1},
     );
@@ -826,6 +835,7 @@ describe('toStepAttemptDetailResponseDto', () => {
         workflowRunAttempt: 2,
         jobId: '44444444-4444-4444-8444-444444444444',
         jobExecutionId: '55555555-5555-4555-8555-555555555555',
+        stepPath: ['step'],
       },
     );
 
@@ -845,6 +855,7 @@ describe('toStepAttemptDetailResponseDto', () => {
         workflowRunAttempt: 2,
         jobId: '44444444-4444-4444-8444-444444444444',
         jobExecutionId: '55555555-5555-4555-8555-555555555555',
+        stepPath: ['step'],
       },
     );
 
@@ -857,6 +868,7 @@ describe('toStepAttemptDetailResponseDto', () => {
       workflowRunAttempt: 2,
       jobId: '44444444-4444-4444-8444-444444444444',
       jobExecutionId: '55555555-5555-4555-8555-555555555555',
+      stepPath: ['step'],
     };
 
     function gateResultFor(gateResult: Record<string, unknown>, status = 'failed') {

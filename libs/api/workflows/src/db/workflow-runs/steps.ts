@@ -1,4 +1,8 @@
-import {readPersistedWorkflowModel, type WorkflowModel} from '@shipfox/api-definitions-dto';
+import {
+  MAX_ACTION_NESTING_DEPTH,
+  readPersistedWorkflowModel,
+  type WorkflowModel,
+} from '@shipfox/api-definitions-dto';
 import {
   type LogOutcomeDto,
   type StepAttemptTerminalCauseDto,
@@ -27,6 +31,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
+import type {StepPathNode} from '#core/composite-step.js';
 import {
   assertWorkflowExecutionPayloadSize,
   assertWorkflowProductOutputSize,
@@ -173,8 +178,10 @@ export interface StepAttemptDetail {
  */
 export interface StepAttemptDetailStep {
   id: string;
+  parentStepId: string | null;
   key: string | null;
   name: string;
+  position: number;
   jobExecutionId: string;
   status: StepStatus;
   type: StepType;
@@ -187,7 +194,10 @@ export interface StepAttemptDetailStep {
 export interface JobExecutionFailureOrigin {
   jobExecutionId: string;
   stepId: string;
+  stepParentId: string | null;
+  stepKey: string | null;
   stepName: string;
+  stepPosition: number;
   stepStatus: StepStatus;
   stepAttempt: number;
   stepError: Record<string, unknown> | null;
@@ -209,7 +219,10 @@ export async function getJobExecutionFailureOrigin(
     .select({
       jobExecutionId: jobExecutions.id,
       stepId: steps.id,
+      stepParentId: steps.parentStepId,
+      stepKey: steps.key,
       stepName: steps.name,
+      stepPosition: steps.position,
       stepStatus: steps.status,
       stepAttempt: steps.currentAttempt,
       stepError: steps.error,
@@ -267,8 +280,10 @@ export async function getStepAttemptDetail(params: {
       jobExecutionId: jobExecutions.id,
       step: {
         id: steps.id,
+        parentStepId: steps.parentStepId,
         key: steps.key,
         name: steps.name,
+        position: steps.position,
         jobExecutionId: steps.jobExecutionId,
         status: steps.status,
         type: steps.type,
@@ -371,6 +386,37 @@ export async function getStepAttemptDetail(params: {
       evaluationTrace: row.stepAttemptEvaluationTraceBytes ?? null,
     },
   };
+}
+
+/** The composite action steps that hold a step, outermost first. */
+export async function listCompositeAncestors(parentStepId: string | null): Promise<StepPathNode[]> {
+  if (parentStepId === null) return [];
+  const result = await db().execute<{
+    id: string;
+    parent_step_id: string | null;
+    key: string | null;
+    name: string;
+    position: number;
+  }>(sql`
+    with recursive ancestors as (
+      select id, parent_step_id, key, name, position, 1 as depth
+      from ${steps}
+      where id = ${parentStepId}
+      union all
+      select parent.id, parent.parent_step_id, parent.key, parent.name, parent.position, ancestors.depth + 1
+      from ${steps} parent
+      join ancestors on parent.id = ancestors.parent_step_id
+      where ancestors.depth < ${MAX_ACTION_NESTING_DEPTH}
+    )
+    select id, parent_step_id, key, name, position from ancestors order by depth desc
+  `);
+  return result.rows.map((row) => ({
+    id: row.id,
+    parentStepId: row.parent_step_id,
+    key: row.key,
+    name: row.name,
+    position: row.position,
+  }));
 }
 
 export async function getLatestStepAttempt(params: {

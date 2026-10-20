@@ -10,17 +10,18 @@ import type {
 } from '@shipfox/api-workflows-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
+import {type StepPathNode, stepPath, stepPathLabel} from '#core/composite-step.js';
 import type {JobStatusReason} from '#core/entities/job.js';
 import type {StepAttempt} from '#core/entities/step.js';
-import {boundedStepName} from '#core/errors.js';
 import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.js';
 import {
   getJobExecutionFailureOrigin,
   getJobScope,
   getStepAttemptDetail,
   getWorkflowRunAttemptById,
+  listCompositeAncestors,
 } from '#db/index.js';
-import type {StepAttemptDetailStep} from '#db/workflow-runs/steps.js';
+import type {JobExecutionFailureOrigin, StepAttemptDetailStep} from '#db/workflow-runs/steps.js';
 import {recordWorkflowFailureAnnotationFailed} from '#metrics/instance.js';
 
 const TRAILING_PERIOD = /\.$/u;
@@ -344,7 +345,7 @@ export function onStepAttemptTerminatedFailureAnnotation(
         context: failureContext('step', detail.step.id),
         failed: currentStepAttemptFailed(detail),
         ignored: detail.attempt.failureIgnored,
-        body: stepFailureBody(detail.step, detail.attempt),
+        body: stepFailureBody(detail.step, detail.attempt, await namedStepAncestors(detail)),
       });
     } catch (error) {
       recordFailureAnnotationFailure(error, 'lookup', {
@@ -370,6 +371,29 @@ async function getCurrentStepAttemptDetail(payload: WorkflowsStepAttemptTerminat
     stepId: initialDetail.step.id,
     attempt: initialDetail.step.currentAttempt,
   });
+}
+
+// Only the `if` copy names the step, so the composites that hold it are read for that copy alone.
+async function namedStepAncestors(detail: {
+  step: StepAttemptDetailStep;
+  attempt: StepAttempt;
+}): Promise<StepPathNode[]> {
+  const reason = errorReason(detail.attempt.error ?? detail.step.error);
+  if (reason !== 'condition_errored') return [];
+  return await listCompositeAncestors(detail.step.parentStepId);
+}
+
+// Like the run page: a job step reads as its name, an inner step as its key path (`setup › lint`).
+async function originStepLabel(origin: JobExecutionFailureOrigin): Promise<string> {
+  if (origin.stepParentId === null) return origin.stepName;
+  const step = {
+    id: origin.stepId,
+    parentStepId: origin.stepParentId,
+    key: origin.stepKey,
+    name: origin.stepName,
+    position: origin.stepPosition,
+  };
+  return stepPathLabel(stepPath(step, await listCompositeAncestors(step.parentStepId)));
 }
 
 function currentStepAttemptFailed(
@@ -418,7 +442,7 @@ export function onJobTerminatedFailureAnnotation(annotations: AnnotationsInterMo
         },
         context: failureContext('job', payload.jobId),
         failed: true,
-        body: jobFailureBody(payload.statusReason, origin),
+        body: jobFailureBody(payload.statusReason, origin, await originStepLabel(origin)),
       });
     } catch (error) {
       recordFailureAnnotationFailure(error, 'lookup', {jobId: payload.jobId});
@@ -478,8 +502,12 @@ function failureContext(kind: 'job' | 'step', id: string): string {
   return `failure:${kind}:${id}`;
 }
 
-function stepFailureBody(step: StepAttemptDetailStep, attempt: StepAttempt): string {
-  const copy = stepFailureCopy(step, attempt);
+function stepFailureBody(
+  step: StepAttemptDetailStep,
+  attempt: StepAttempt,
+  ancestors: readonly StepPathNode[],
+): string {
+  const copy = stepFailureCopy(step, attempt, ancestors);
   const details = stepFailureSizeDetails(attempt.error ?? step.error);
   return [
     `**${copy.title}**`,
@@ -507,14 +535,12 @@ function stepFailureSizeDetails(error: Record<string, unknown> | null): string |
 
 function jobFailureBody(
   reason: JobStatusReason | null,
-  origin: {
-    stepName: string;
-    attemptStatus: string | null;
-  },
+  origin: {attemptStatus: string | null},
+  step: string,
 ): string {
   const progress = origin.attemptStatus
-    ? `The job stopped while processing **${origin.stepName}**.`
-    : `The job stopped before **${origin.stepName}** started.`;
+    ? `The job stopped while processing **${step}**.`
+    : `The job stopped before **${step}** started.`;
   const copyReason =
     reason !== null && RUNNER_LOSS_COPY_REASONS.has(reason) ? 'runner_lost' : reason;
   const copy =
@@ -526,7 +552,11 @@ function jobFailureBody(
   return [`**${copy.title}**`, '', progress, '', copy.description].join('\n');
 }
 
-function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): FailureCopy {
+function stepFailureCopy(
+  step: StepAttemptDetailStep,
+  attempt: StepAttempt,
+  ancestors: readonly StepPathNode[],
+): FailureCopy {
   const error = attempt.error ?? step.error;
   const providerFailure = providerStreamFailureCopy(error);
   if (providerFailure !== undefined) return providerFailure;
@@ -538,7 +568,7 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   const configFailure = configUnresolvableFailureCopy(error, reason);
   if (configFailure !== undefined) return configFailure;
 
-  const conditionFailure = conditionErroredFailureCopy(step, error, reason);
+  const conditionFailure = conditionErroredFailureCopy(step, ancestors, error, reason);
   if (conditionFailure !== undefined) return conditionFailure;
 
   const toolFailure = toolStepFailureCopy(step, attempt, error, reason);
@@ -601,6 +631,7 @@ function configUnresolvableFailureCopy(
 
 function conditionErroredFailureCopy(
   step: StepAttemptDetailStep,
+  ancestors: readonly StepPathNode[],
   error: Record<string, unknown> | null,
   reason: string | undefined,
 ): FailureCopy | undefined {
@@ -611,7 +642,7 @@ function conditionErroredFailureCopy(
 
   return {
     title: 'A step condition has an error',
-    description: `The \`if\` of step \`${boundedStepName(step.key ?? step.name)}\` can't be evaluated: ${summary.replace(TRAILING_PERIOD, '')}. Fix the condition, then start a new run.`,
+    description: `The \`if\` of step \`${stepPathLabel(stepPath(step, ancestors))}\` can't be evaluated: ${summary.replace(TRAILING_PERIOD, '')}. Fix the condition, then start a new run.`,
   };
 }
 

@@ -66,6 +66,8 @@ export {
   DEFAULT_RUN_TIMEOUT_MS,
   flattenJobSteps,
   gateFailureRules,
+  MAX_ACTION_NESTING_DEPTH,
+  MAX_STEP_PATH_LENGTH,
   readPersistedWorkflowModel,
   WORKFLOW_MODEL_CHECKOUT_TARGET_FIELDS,
   workflowModelFromSnapshot,

@@ -1,3 +1,4 @@
+import {MAX_STEP_PATH_LENGTH} from '@shipfox/api-definitions-dto';
 import {z} from 'zod';
 import {stepAttemptDetailDtoSchema, stepAttemptDtoSchema, stepDtoSchema} from './step.js';
 import {workflowRunAttemptDtoSchema} from './workflow-run.js';
@@ -15,6 +16,10 @@ export const stepAttemptDetailResponseSchema = z.object({
   job_id: z.string().uuid().optional(),
   job_execution_id: z.string().uuid().optional(),
   step_id: z.string().uuid(),
+  /** The composite action step that holds this step. Null for a job step. */
+  parent_step_id: z.string().uuid().nullable().optional(),
+  /** Labels from the outermost composite down to this step, such as `["setup", "lint"]`. */
+  step_path: z.array(z.string()).min(1).max(MAX_STEP_PATH_LENGTH).optional(),
   step_attempt_id: z.string().uuid().optional(),
   attempt: stepAttemptDetailDtoSchema.shape.attempt,
   authored_config: z.record(z.string(), z.unknown()).nullable(),

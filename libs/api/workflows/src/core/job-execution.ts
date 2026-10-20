@@ -50,6 +50,7 @@ import {
 import {createAgentDefaultsResolver} from './agent-defaults.js';
 import {
   closableComposite,
+  compositeAncestorsOf,
   compositeFailed,
   compositeScopeValues,
   earlierSiblingFailed,
@@ -58,6 +59,8 @@ import {
   parentStepOf,
   scopedSessionKey,
   sessionScopeOf,
+  stepPath,
+  stepPathLabel,
   withCompositeConfig,
 } from './composite-step.js';
 import {
@@ -79,7 +82,6 @@ import {
   ActionInputInvalidError,
   AgentConfigUnresolvableError,
   AgentStepSessionClaimError,
-  boundedStepName,
   InterpolationUnresolvableError,
   JobNotFoundError,
   JobOutputTooLargeError,
@@ -536,15 +538,15 @@ async function advanceWaitStep(params: {
       jobExecutionId,
       step,
       status: failed.length === 0 ? 'succeeded' : 'failed',
-      error: failed.length === 0 ? null : failedWaitError(failed),
+      error: failed.length === 0 ? null : failedWaitError(failed, params.steps),
     },
     tx,
   );
   return {kind: 'joined'};
 }
 
-function failedWaitError(failed: readonly Step[]): Record<string, unknown> {
-  const labels = failed.map((step) => `\`${boundedStepName(step.key ?? step.name)}\``).join(', ');
+function failedWaitError(failed: readonly Step[], steps: readonly Step[]): Record<string, unknown> {
+  const labels = failed.map((step) => `\`${stepLabel(step, steps)}\``).join(', ');
   return {
     message:
       failed.length === 1
@@ -727,6 +729,7 @@ async function progressPendingStep(
       scheduling: params.scheduling,
       error: conditionErroredStepError({
         step: pending,
+        steps,
         jobKey: workflowContext.jobKey,
         summary: condition.summary,
       }),
@@ -1760,10 +1763,11 @@ function stepReadsContext(step: Step, root: string): boolean {
 
 function conditionErroredStepError(params: {
   readonly step: Step;
+  readonly steps: readonly Step[];
   readonly jobKey: string;
   readonly summary: string;
 }): Record<string, unknown> {
-  const label = boundedStepName(params.step.key ?? params.step.name);
+  const label = stepLabel(params.step, params.steps);
   return {
     message: `The \`if\` of step \`${label}\` can't be evaluated: ${params.summary.replace(TRAILING_PERIOD, '')}.`,
     reason: 'condition_errored',
@@ -1773,6 +1777,11 @@ function conditionErroredStepError(params: {
     jobKey: params.jobKey,
     stepIndex: params.step.position,
   };
+}
+
+// Two uses of one composite hold inner steps with the same key, so a message names the whole path.
+function stepLabel(step: Step, steps: readonly Step[]): string {
+  return stepPathLabel(stepPath(step, compositeAncestorsOf(step, steps)));
 }
 
 function dispatchConfigError(error: DispatchConfigError): Record<string, unknown> {
