@@ -18,8 +18,6 @@ describe('slackProviderModule', () => {
   it('loads its database descriptor and persists a core connection with its Slack installation', async () => {
     vi.stubEnv('INTEGRATIONS_ENABLE_SLACK_PROVIDER', 'true');
     vi.resetModules();
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
     const slackPart = parts.find((part) => part.provider.provider === 'slack');
@@ -69,8 +67,6 @@ describe('slackProviderModule', () => {
       setSecrets: vi.fn(() => Promise.resolve()),
       deleteSecrets,
     };
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules({
       secrets: {slack: scopedSecrets, deleteSecrets},
@@ -149,8 +145,6 @@ describe('slackProviderModule', () => {
       setSecrets: vi.fn(() => Promise.resolve()),
       deleteSecrets,
     };
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules({
       secrets: {slack: scopedSecrets, deleteSecrets},

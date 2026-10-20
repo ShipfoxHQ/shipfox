@@ -312,8 +312,6 @@ describe('loadEnabledProviderModules', () => {
     vi.stubEnv('INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS', '3');
     vi.resetModules();
 
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
     const testVcsPart = parts.find((part) => part.provider.provider === 'test-vcs');
@@ -376,8 +374,6 @@ describe('loadEnabledProviderModules', () => {
     vi.stubEnv('INTEGRATIONS_ENABLE_GITHUB_PROVIDER', 'true');
     vi.resetModules();
 
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
     const githubPart = parts.find((part) => part.provider.provider === 'github');

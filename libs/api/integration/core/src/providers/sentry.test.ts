@@ -30,8 +30,6 @@ describe('sentryProviderModule', () => {
 
   async function loadSentryProviderModule() {
     vi.resetModules();
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {sentryProviderModule} = await import('#providers/sentry.js');
     return sentryProviderModule;
   }

@@ -574,9 +574,6 @@ describe('enrollRunnerControlSession', () => {
       assignRunnerInstancesTx: vi.fn().mockRejectedValue(unexpectedError),
     }));
 
-    const {closePostgresClient, createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
-
     try {
       const {enrollRunnerControlSession: enroll} = await import('./runner-control-sessions.js');
       const result = await enroll({
@@ -594,7 +591,6 @@ describe('enrollRunnerControlSession', () => {
         'Unexpected failure promoting runner reservation during enrollment',
       );
     } finally {
-      await closePostgresClient();
       vi.doUnmock('@shipfox/node-opentelemetry');
       vi.doUnmock('#db/runner-assignments.js');
       vi.resetModules();
@@ -629,9 +625,6 @@ describe('enrollRunnerControlSession', () => {
       issueRunnerActivationTokenTx: vi.fn().mockRejectedValue(activationIssueError),
     }));
 
-    const {closePostgresClient, createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
-
     try {
       const {enrollRunnerControlSession: enroll} = await import('./runner-control-sessions.js');
       const result = await enroll({
@@ -665,7 +658,6 @@ describe('enrollRunnerControlSession', () => {
       });
       expect(promotionFailureRecord).toHaveBeenCalledWith('not-assignable');
     } finally {
-      await closePostgresClient();
       vi.doUnmock('#metrics/index.js');
       vi.doUnmock('./runner-activation.js');
       vi.resetModules();
