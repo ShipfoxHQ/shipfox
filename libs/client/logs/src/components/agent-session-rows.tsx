@@ -153,7 +153,7 @@ function SessionMessageRow({
             <MessageRoleLabel label={row.label} terminalFailure={row.terminalFailure} />
             <RowMetadata meta={row.meta} className="ml-auto flex-none" />
           </div>
-          {/* Prompts use XML-like tags that Markdown would drop as raw HTML. */}
+          {/* A prompt is shown verbatim: Markdown would turn its indented lines into code blocks. */}
           {row.role === 'system-prompt' ? (
             <LogContent variant="code">
               <PreviewText text={row.text} />
