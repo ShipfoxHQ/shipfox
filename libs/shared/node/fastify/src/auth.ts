@@ -1,8 +1,13 @@
+import {processState} from '@shipfox/node-process-state';
 import type {FastifyReply, FastifyRequest} from 'fastify';
 import type {AuthMethod, RouteExport} from './types.js';
 import {isRouteGroup} from './types.js';
 
-const authMethods = new Map<string, AuthMethod>();
+const authMethods = processState(
+  '@shipfox/node-fastify/auth-methods/v1',
+  () => new Map<string, AuthMethod>(),
+  import.meta.url,
+);
 
 export function extractBearerToken(authHeader: string | undefined): string | undefined {
   if (!authHeader) return undefined;

@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@shipfox/config": "workspace:*",
+    "@shipfox/node-process-state": "workspace:*",
     "pino": "catalog:",
     "pino-pretty": "catalog:"
   },

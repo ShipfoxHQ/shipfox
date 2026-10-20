@@ -64,6 +64,7 @@
     "@opentelemetry/semantic-conventions": "catalog:",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-log": "workspace:*",
+    "@shipfox/node-process-state": "workspace:*",
     "@shipfox/regex": "workspace:*"
   },
   "devDependencies": {

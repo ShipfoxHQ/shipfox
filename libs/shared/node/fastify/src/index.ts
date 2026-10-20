@@ -1,4 +1,5 @@
 import {getFastifyInstrumentation, logger} from '@shipfox/node-opentelemetry';
+import {processState} from '@shipfox/node-process-state';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -47,7 +48,11 @@ export {
   verifyHexHmacSignature,
 } from './webhook-signature.js';
 
-let _app: FastifyInstance | undefined;
+const state = processState<{app?: FastifyInstance | undefined}>(
+  '@shipfox/node-fastify/app/v1',
+  () => ({}),
+  import.meta.url,
+);
 
 export type ListenOptions = {
   host?: string;
@@ -116,22 +121,22 @@ export async function createApp(appConfig?: AppConfig): Promise<FastifyInstance>
     mountRoutes({app: fastify, routes: appConfig.routes});
   }
 
-  _app = fastify;
+  state.app = fastify;
   return fastify;
 }
 
 export function app(): FastifyInstance {
-  if (!_app) {
+  if (!state.app) {
     throw new Error('Fastify app has not been created');
   }
-  return _app;
+  return state.app;
 }
 
 export async function listen(options: ListenOptions = {}): Promise<string> {
-  if (!_app) {
+  if (!state.app) {
     throw new Error('Fastify app has not been created');
   }
-  const address = await _app.listen({
+  const address = await state.app.listen({
     host: options.host ?? config.HOST,
     port: options.port ?? config.PORT,
   });
@@ -139,6 +144,6 @@ export async function listen(options: ListenOptions = {}): Promise<string> {
 }
 
 export async function closeApp(): Promise<void> {
-  await _app?.close();
-  _app = undefined;
+  await state.app?.close();
+  state.app = undefined;
 }

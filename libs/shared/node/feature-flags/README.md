@@ -53,6 +53,7 @@ A flag override is derived from its definition, not declared in a `config.ts`. `
 - **The instance holds no registry.** A definition carries its key, default, and schema, so the instance works before any module exists.
 - **OpenFeature stays private.** Modules never import `@openfeature/server-sdk`. Only a composition root or provider adapter handles the `Provider` type, which this package re-exports.
 - **Pass an explicit subject.** There is no ambient request context. Read a flag once for each unit of work and pass the value down.
+- **Installed copies count domains together.** Each instance gets its own OpenFeature domain. The counter lives in a `@shipfox/node-process-state` slot, so a second installed copy of this package never replaces the first copy's provider.
 - **Never read a flag in Temporal workflow code.** The value is not deterministic. Read it in an activity.
 
 ## Development

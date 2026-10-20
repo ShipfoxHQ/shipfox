@@ -1,6 +1,11 @@
+import {processState} from '@shipfox/node-process-state';
 import {and, eq, lt, or, type SQL, type SQLWrapper, sql} from 'drizzle-orm';
 
-const preciseTimestampValues = new WeakMap<Date, string>();
+const preciseTimestampValues = processState(
+  '@shipfox/node-drizzle/precise-timestamps/v1',
+  () => new WeakMap<Date, string>(),
+  import.meta.url,
+);
 const utcTimestampPattern =
   /^(?<seconds>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(?<fraction>\d{1,6}))?Z$/;
 

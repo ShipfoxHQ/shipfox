@@ -1,5 +1,5 @@
 import {createRequire} from 'node:module';
-
+import {processState} from '@shipfox/node-process-state';
 import type {Level, LogFn, LoggerOptions, TransportTargetOptions} from 'pino';
 import {config, resolveDestinationLevel} from './config.js';
 
@@ -8,11 +8,9 @@ export type {Level, LogFn} from 'pino';
 type PinoModule = typeof import('pino');
 
 const require = createRequire(import.meta.url);
-let pinoModule: PinoModule | undefined;
 
 function getPino(): PinoModule {
-  if (!pinoModule) pinoModule = require('pino') as PinoModule;
-  return pinoModule;
+  return require('pino') as PinoModule;
 }
 
 const stdoutLevel = resolveDestinationLevel(
@@ -183,11 +181,16 @@ function withSharedSettings(options: LoggerOptions): LoggerOptions {
 }
 
 type PinoLogger = Pick<ReturnType<PinoModule>, Level | 'flush'>;
-let logger: PinoLogger | undefined;
+
+const state = processState<{logger?: PinoLogger | undefined}>(
+  '@shipfox/node-log/logger/v1',
+  () => ({}),
+  import.meta.url,
+);
 
 function getLogger(): PinoLogger {
-  if (!logger) logger = createLogger({});
-  return logger;
+  state.logger ??= createLogger({});
+  return state.logger;
 }
 
 export function createLogger(options: LoggerOptions) {

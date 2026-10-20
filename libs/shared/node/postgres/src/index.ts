@@ -1,3 +1,4 @@
+import {processState} from '@shipfox/node-process-state';
 import pg from 'pg';
 import {config} from './config.js';
 import {createPoolConfig} from './pool-config.js';
@@ -6,7 +7,11 @@ export type * from 'pg';
 
 export {DatabaseError} from 'pg';
 
-let _pool: pg.Pool | undefined;
+const state = processState<{pool?: pg.Pool | undefined}>(
+  '@shipfox/node-postgres/pool/v1',
+  () => ({}),
+  import.meta.url,
+);
 
 async function closePoolConnections(pool: pg.Pool): Promise<void> {
   const connectionCount = pool.totalCount;
@@ -40,23 +45,24 @@ function ignoreConnectionError(): void {
 }
 
 export function createPostgresClient(options?: pg.PoolConfig): pg.Pool {
-  if (_pool) {
+  if (state.pool) {
     throw new Error('Postgres client has already been created');
   }
 
-  _pool = new pg.Pool(createPoolConfig(config, options));
+  const pool = new pg.Pool(createPoolConfig(config, options));
   // A dropped connection already rejects the query in flight and evicts the client. Without
   // listeners, Node also throws the same failure as an uncaught exception and stops the process.
-  _pool.on('error', ignoreConnectionError);
-  _pool.on('connect', (client) => client.on('error', ignoreConnectionError));
-  return _pool;
+  pool.on('error', ignoreConnectionError);
+  pool.on('connect', (client) => client.on('error', ignoreConnectionError));
+  state.pool = pool;
+  return pool;
 }
 
 export function pgClient(): pg.Pool {
-  if (!_pool) {
+  if (!state.pool) {
     throw new Error('Postgres client has not been created');
   }
-  return _pool;
+  return state.pool;
 }
 
 /**
@@ -89,16 +95,16 @@ export async function withPostgresSession<T>(fn: (client: pg.Client) => Promise<
 }
 
 export async function closePostgresClient() {
-  if (!_pool) return;
+  if (!state.pool) return;
 
-  await closePoolConnections(_pool);
-  _pool = undefined;
+  await closePoolConnections(state.pool);
+  state.pool = undefined;
 }
 
 export async function isPostgresHealthy() {
-  if (!_pool) return false;
+  if (!state.pool) return false;
   try {
-    const health = await _pool?.query('SELECT 1');
+    const health = await state.pool.query('SELECT 1');
     return health.rowCount === 1;
   } catch (_err) {
     return false;

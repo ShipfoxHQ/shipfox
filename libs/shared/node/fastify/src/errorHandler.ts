@@ -1,4 +1,5 @@
 import {reportError} from '@shipfox/node-error-monitoring';
+import {processState} from '@shipfox/node-process-state';
 import type {FastifyReply, FastifyRequest} from 'fastify';
 import {ClientError} from './clientError.js';
 
@@ -20,7 +21,11 @@ interface ClientErrorLog {
 
 // Client errors are logged on the request's `request completed` line rather than as a record of
 // their own, so each rejected request costs one log record.
-const clientErrors = new WeakMap<FastifyRequest, ClientErrorLog>();
+const clientErrors = processState(
+  '@shipfox/node-fastify/client-errors/v1',
+  () => new WeakMap<FastifyRequest, ClientErrorLog>(),
+  import.meta.url,
+);
 
 export function getClientErrorLog(request: FastifyRequest): ClientErrorLog | undefined {
   return clientErrors.get(request);

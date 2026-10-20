@@ -1,3 +1,4 @@
+import {processState} from '@shipfox/node-process-state';
 import type {OutboxTable, PostgresOutboxTable} from './schema.js';
 import type {EventMapLike, EventType, IdempotentOutboxEvent, OutboxWriteResult} from './types.js';
 
@@ -33,7 +34,11 @@ type OutboxEvent<TMap extends EventMapLike> = {
   [K in EventType<TMap>]: {type: K; orderingKey?: string | undefined; payload: TMap[K]};
 }[EventType<TMap>];
 
-const writeListeners = new Set<() => void>();
+const writeListeners = processState(
+  '@shipfox/node-outbox/write-listeners/v1',
+  () => new Set<() => void>(),
+  import.meta.url,
+);
 
 /**
  * Calls `listener` after each `writeOutboxEvents` insert in this process. The caller's

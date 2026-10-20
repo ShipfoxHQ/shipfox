@@ -9,6 +9,7 @@ import {AggregationType, type ViewOptions} from '@opentelemetry/sdk-metrics';
 import {NodeSDK} from '@opentelemetry/sdk-node';
 import type {SpanProcessor} from '@opentelemetry/sdk-trace-node';
 import {BatchSpanProcessor} from '@opentelemetry/sdk-trace-node';
+import {processState} from '@shipfox/node-process-state';
 import {config} from '#config.js';
 import {ClientErrorStatusSpanProcessor} from './client-error-status.js';
 import {
@@ -23,10 +24,18 @@ import {fastifyRequestHook} from './utils.js';
 
 const {FastifyOtelInstrumentation} = otel;
 
-let instanceInstrumentation: NodeSDK | undefined;
-let fastifyInstrumentation: InstanceType<typeof FastifyOtelInstrumentation> | undefined;
-let instanceResource: Resource | undefined;
-let instanceSpanProcessor: SpanProcessor | undefined;
+interface InstanceState {
+  sdk?: NodeSDK | undefined;
+  fastifyInstrumentation?: InstanceType<typeof FastifyOtelInstrumentation> | undefined;
+  resource?: Resource | undefined;
+  spanProcessor?: SpanProcessor | undefined;
+}
+
+const state = processState<InstanceState>(
+  '@shipfox/node-opentelemetry/instance/v1',
+  () => ({}),
+  import.meta.url,
+);
 
 // Queries outside a request, job, or dispatch span come from background polling. Tracing them
 // turns every poll into its own one-span trace.
@@ -69,8 +78,10 @@ async function resolveInstrumentations(
   const instrumentations: Instrumentation[] = [];
 
   if (fastify) {
-    fastifyInstrumentation = new FastifyOtelInstrumentation({requestHook: fastifyRequestHook});
-    instrumentations.push(fastifyInstrumentation);
+    state.fastifyInstrumentation = new FastifyOtelInstrumentation({
+      requestHook: fastifyRequestHook,
+    });
+    instrumentations.push(state.fastifyInstrumentation);
   }
   if (http) {
     const {HttpInstrumentation} = await import('@opentelemetry/instrumentation-http');
@@ -119,7 +130,7 @@ async function resolveInstrumentations(
 }
 
 export async function startInstanceInstrumentation(options: StartInstrumentationOptions) {
-  if (instanceInstrumentation) throw new Error('Instrumentation already initialized');
+  if (state.sdk) throw new Error('Instrumentation already initialized');
   if (!shouldStartTelemetry()) return;
   const instanceExporter = {
     port: config.OTEL_INSTANCE_METRICS_PORT,
@@ -134,10 +145,12 @@ export async function startInstanceInstrumentation(options: StartInstrumentation
 
   let instrumentations: Instrumentation[];
   if (options.instrumentations === undefined) {
-    fastifyInstrumentation = new FastifyOtelInstrumentation({requestHook: fastifyRequestHook});
+    state.fastifyInstrumentation = new FastifyOtelInstrumentation({
+      requestHook: fastifyRequestHook,
+    });
     const {getNodeAutoInstrumentations} = await import('@opentelemetry/auto-instrumentations-node');
     instrumentations = [
-      fastifyInstrumentation,
+      state.fastifyInstrumentation,
       ...getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-http': httpConfig,
         '@opentelemetry/instrumentation-pg': pgConfig,
@@ -147,39 +160,39 @@ export async function startInstanceInstrumentation(options: StartInstrumentation
     instrumentations = await resolveInstrumentations(options.instrumentations, httpConfig);
   }
 
-  instanceResource = getResource(options);
+  state.resource = getResource(options);
   const sdkConfig: ConstructorParameters<typeof NodeSDK>[0] = {
-    resource: instanceResource,
+    resource: state.resource,
     metricReader,
     views,
     instrumentations,
   };
   if (shouldExportTraces()) {
-    instanceSpanProcessor = new BatchSpanProcessor(new OTLPTraceExporter());
-    sdkConfig.spanProcessors = [new ClientErrorStatusSpanProcessor(), instanceSpanProcessor];
+    state.spanProcessor = new BatchSpanProcessor(new OTLPTraceExporter());
+    sdkConfig.spanProcessors = [new ClientErrorStatusSpanProcessor(), state.spanProcessor];
   }
-  instanceInstrumentation = new NodeSDK(sdkConfig);
-  instanceInstrumentation.start();
+  state.sdk = new NodeSDK(sdkConfig);
+  state.sdk.start();
 }
 
 export function getInstanceResource(): Resource | undefined {
-  return instanceResource;
+  return state.resource;
 }
 
 export function getInstanceSpanProcessor(): SpanProcessor | undefined {
-  return instanceSpanProcessor;
+  return state.spanProcessor;
 }
 
 export function getFastifyInstrumentation():
   | InstanceType<typeof FastifyOtelInstrumentation>
   | undefined {
-  return fastifyInstrumentation;
+  return state.fastifyInstrumentation;
 }
 
 export async function shutdownInstanceInstrumentation() {
-  await instanceInstrumentation?.shutdown();
-  instanceInstrumentation = undefined;
-  instanceResource = undefined;
-  instanceSpanProcessor = undefined;
-  fastifyInstrumentation = undefined;
+  await state.sdk?.shutdown();
+  state.sdk = undefined;
+  state.resource = undefined;
+  state.spanProcessor = undefined;
+  state.fastifyInstrumentation = undefined;
 }

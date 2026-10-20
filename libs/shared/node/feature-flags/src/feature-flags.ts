@@ -15,6 +15,7 @@ import {
   parseFlagOverride,
 } from '@shipfox/feature-flags';
 import {logger} from '@shipfox/node-opentelemetry';
+import {processState} from '@shipfox/node-process-state';
 
 export type {Provider};
 
@@ -40,7 +41,13 @@ export interface CreateFeatureFlagsOptions {
 
 type ProviderClient = ReturnType<typeof OpenFeature.getClient>;
 
-let instanceCount = 0;
+// OpenFeature keeps one provider registry per process, so every copy of this package must count
+// domains together or a second copy would replace the first copy's provider.
+const domains = processState(
+  '@shipfox/node-feature-flags/openfeature-domains/v1',
+  () => ({instanceCount: 0}),
+  import.meta.url,
+);
 
 /**
  * Creates the one flag reader a composition root hands to its modules.
@@ -160,8 +167,8 @@ function createClient(provider: Provider | undefined) {
   if (provider === undefined) return undefined;
   // One OpenFeature domain per instance keeps the SDK's global registry private
   // and lets tests create several instances.
-  instanceCount += 1;
-  const domain = `shipfox-feature-flags-${instanceCount}`;
+  domains.instanceCount += 1;
+  const domain = `shipfox-feature-flags-${domains.instanceCount}`;
   OpenFeature.setProvider(domain, provider);
   return OpenFeature.getClient(domain);
 }

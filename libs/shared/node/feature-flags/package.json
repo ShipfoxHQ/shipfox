@@ -51,7 +51,8 @@
   "dependencies": {
     "@openfeature/server-sdk": "catalog:",
     "@shipfox/feature-flags": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*"
+    "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/node-process-state": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

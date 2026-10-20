@@ -1,7 +1,12 @@
 import * as Sentry from '@sentry/node';
+import {processState} from '@shipfox/node-process-state';
 
 const errorReportedMarker = Symbol.for('@shipfox/error-reported');
-const reportedErrors = new WeakSet<object>();
+const reportedErrors = processState(
+  '@shipfox/node-error-monitoring/reported-errors/v1',
+  () => new WeakSet<object>(),
+  import.meta.url,
+);
 
 export interface ErrorReportContext {
   boundary: string;

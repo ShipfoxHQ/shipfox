@@ -129,6 +129,13 @@ conventions require. They carry the reason as `error.type` and `error.message`
 attributes instead of an exception event. A thrown error counts as a client
 error when its `statusCode` is between 400 and 499.
 
+## Installed copies
+
+The instance SDK, the Fastify instrumentation, the service meter provider, and
+the base `logger()` live in `@shipfox/node-process-state` slots. Two installed
+copies of this package share them, so a copy that did not start the SDK still
+finds its Fastify instrumentation and resource.
+
 ## Development
 
 ```sh
