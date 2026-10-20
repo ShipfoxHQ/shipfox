@@ -44,6 +44,16 @@ export function createUpdateIntegrationConnectionRoute(registry: IntegrationProv
         .list()
         .find((candidate) => candidate.provider === connection.provider);
       const capabilities = provider?.capabilities ?? [];
+      if (request.body.lifecycle_status === 'active') {
+        const providerAccess = await provider?.connectionProviderAccess?.(connection);
+        if (providerAccess) {
+          throw new ClientError(
+            'The provider no longer grants access to this connection',
+            'connection-provider-access-unavailable',
+            {details: {provider_access: providerAccess}, status: 409},
+          );
+        }
+      }
       const updated = await updateIntegrationConnectionLifecycleStatus({
         id: connection.id,
         lifecycleStatus: request.body.lifecycle_status,

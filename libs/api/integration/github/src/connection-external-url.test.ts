@@ -79,4 +79,34 @@ describe('github connectionExternalUrl', () => {
 
     expect(url).toBeUndefined();
   });
+
+  it('returns undefined after the installation is deleted', async () => {
+    const provider = createProvider(() => Promise.resolve(installation({deletedAt: new Date()})));
+
+    const url = await provider.connectionExternalUrl({id: crypto.randomUUID()});
+
+    expect(url).toBeUndefined();
+  });
+});
+
+describe('github connectionProviderAccess', () => {
+  const connection = {id: crypto.randomUUID()};
+
+  it.each([
+    ['removed', {deletedAt: new Date()}],
+    ['suspended', {suspendedAt: new Date()}],
+    ['removed', {deletedAt: new Date(), suspendedAt: new Date()}],
+  ] as const)('reports %s for %j', async (expected, overrides) => {
+    const provider = createProvider(() => Promise.resolve(installation(overrides)));
+
+    await expect(provider.connectionProviderAccess(connection)).resolves.toBe(expected);
+  });
+
+  it('reports nothing for a healthy or missing installation', async () => {
+    const healthy = createProvider(() => Promise.resolve(installation()));
+    const missing = createProvider(() => Promise.resolve(undefined));
+
+    await expect(healthy.connectionProviderAccess(connection)).resolves.toBeUndefined();
+    await expect(missing.connectionProviderAccess(connection)).resolves.toBeUndefined();
+  });
 });

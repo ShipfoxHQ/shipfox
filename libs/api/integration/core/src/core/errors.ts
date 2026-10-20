@@ -1,5 +1,6 @@
 import {
   ConnectionSlugConflictError,
+  type IntegrationConnectionProviderAccess,
   IntegrationProviderError,
   type IntegrationProviderErrorReason,
 } from '@shipfox/api-integration-spi';
@@ -13,7 +14,10 @@ export class IntegrationConnectionNotFoundError extends Error {
 }
 
 export class IntegrationConnectionInactiveError extends Error {
-  constructor(connectionId: string) {
+  constructor(
+    connectionId: string,
+    public readonly providerAccess?: IntegrationConnectionProviderAccess | undefined,
+  ) {
     super(`Integration connection is not active: ${connectionId}`);
   }
 }

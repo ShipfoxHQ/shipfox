@@ -1,5 +1,6 @@
 import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
+  type IntegrationConnectionProviderAccess,
   listIntegrationConnectionsQuerySchema,
   listIntegrationConnectionsResponseSchema,
 } from '@shipfox/api-integration-spi';
@@ -43,9 +44,23 @@ export function createListIntegrationConnectionsRoute(registry: IntegrationProvi
               'Could not resolve integration connection external URL',
             );
           }
+          // Same best-effort rule as the external link. Only a connection that isn't
+          // active can have lost provider access.
+          let providerAccess: IntegrationConnectionProviderAccess | undefined;
+          if (connection.lifecycleStatus !== 'active') {
+            try {
+              providerAccess = await provider.connectionProviderAccess?.(connection);
+            } catch (error) {
+              request.log.warn(
+                {connectionId: connection.id, provider: connection.provider, err: error},
+                'Could not resolve integration connection provider access',
+              );
+            }
+          }
           return toIntegrationConnectionDto(connection, {
             capabilities: provider.capabilities,
             externalUrl,
+            providerAccess,
           });
         }),
       );

@@ -1,8 +1,13 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
+import {integrationConnectionProviderAccessSchema} from './schemas/integrations.js';
 
 const id = z.string().uuid();
+const connectionInactive = z.object({
+  connectionId: id,
+  providerAccess: integrationConnectionProviderAccessSchema.optional(),
+});
 const provider = z.string().min(1);
 const capability = z.enum(['source_control', 'agent_tools']);
 const safeRef = z.string().refine(isSafeRefInput, 'Ref contains a control character');
@@ -172,7 +177,7 @@ const repositoryAuthorizationErrors = {
 };
 const toolCallErrors = {
   'connection-not-found': z.object({connectionId: id}),
-  'connection-inactive': z.object({connectionId: id}),
+  'connection-inactive': connectionInactive,
   'connection-workspace-mismatch': z.object({connectionId: id}),
   'connection-provider-changed': z.object({connectionId: id}),
   'provider-unavailable': z.object({provider}),
@@ -189,7 +194,7 @@ const providerError = z.object({
 });
 const sourceErrors = {
   'connection-not-found': z.object({connectionId: id}),
-  'connection-inactive': z.object({connectionId: id}),
+  'connection-inactive': connectionInactive,
   'connection-workspace-mismatch': z.object({connectionId: id}),
   'provider-unavailable': z.object({provider}),
   'capability-unavailable': z.object({provider, capability}),

@@ -39,6 +39,67 @@ describe('GET /integration-connections', () => {
     ).toEqual(['active', 'error']);
   });
 
+  it('reports provider access only for connections that are not active', async () => {
+    const connectionProviderAccess = vi.fn(() => Promise.resolve('removed' as const));
+    const app = await createTestApp([sourceProvider({connectionProviderAccess})]);
+    const active = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-active',
+      slug: 'gitea_active',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+    });
+    const errored = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-error',
+      slug: 'gitea_error',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+      lifecycleStatus: 'error',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    const byId = new Map(
+      res.json().connections.map((connection: {id: string}) => [connection.id, connection]),
+    );
+    expect(res.statusCode).toBe(200);
+    expect(byId.get(active.id)).not.toHaveProperty('provider_access');
+    expect(byId.get(errored.id)).toMatchObject({provider_access: 'removed'});
+    expect(connectionProviderAccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('still lists a connection when the provider access lookup fails', async () => {
+    const app = await createTestApp([
+      sourceProvider({connectionProviderAccess: () => Promise.reject(new Error('boom'))}),
+    ]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-error',
+      slug: 'gitea_error',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+      lifecycleStatus: 'error',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections).toHaveLength(1);
+    expect(res.json().connections[0]).not.toHaveProperty('provider_access');
+  });
+
   it('drops connections whose provider misses the capability filter', async () => {
     const app = await createTestApp([
       sourceProvider(),
