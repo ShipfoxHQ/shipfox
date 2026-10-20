@@ -203,6 +203,153 @@ describe('resolveRepositoryContext', () => {
     );
   });
 
+  describe('with the runner home directory', () => {
+    let home = '';
+
+    beforeEach(() => {
+      home = mkdtempSync(join(tmpdir(), 'shipfox-runner-home-'));
+    });
+
+    afterEach(() => {
+      rmSync(home, {recursive: true, force: true});
+    });
+
+    it('reads skills from the home directory after the repository skills', async () => {
+      writeSkill(join(root, '.agents', 'skills', 'review'), 'description: Repository review.');
+      writeSkill(join(home, '.agents', 'skills', 'tdd'), 'description: Runner TDD.');
+      writeSkill(join(home, '.claude', 'skills', 'debug'), 'description: Runner debug.');
+
+      const context = await resolveRepositoryContext({
+        harness: 'pi',
+        cwd: root,
+        homeDirectory: home,
+        config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+      });
+
+      expect(context.skills.map((skill) => [skill.name, skill.displayPath])).toEqual([
+        ['review', '.agents/skills/review'],
+        ['tdd', '~/.agents/skills/tdd'],
+        ['debug', '~/.claude/skills/debug'],
+      ]);
+    });
+
+    it('lets a repository skill override a home skill with the same name', async () => {
+      writeSkill(join(home, '.agents', 'skills', 'review'), 'description: Runner review.');
+      writeSkill(join(root, '.claude', 'skills', 'review'), 'description: Repository review.');
+
+      const context = await resolveRepositoryContext({
+        harness: 'claude',
+        cwd: root,
+        homeDirectory: home,
+        config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+      });
+
+      expect(context.skills.map((skill) => skill.description)).toEqual(['Repository review.']);
+    });
+
+    it.each([
+      ['pi', 'pi-marker'],
+      ['claude', 'claude-marker'],
+    ] as const)('reads the home instructions that %s prefers first', async (harness, marker) => {
+      write(join(home, '.pi', 'agent', 'AGENTS.md'), 'pi-marker');
+      write(join(home, '.claude', 'CLAUDE.md'), 'claude-marker');
+      write(join(root, 'AGENTS.md'), 'repository-marker');
+      write(join(root, 'CLAUDE.md'), 'repository-marker');
+
+      const context = await resolveRepositoryContext({
+        harness,
+        cwd: root,
+        homeDirectory: home,
+        config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+      });
+
+      expect(context.instructionFiles.map((file) => file.content)).toEqual([
+        marker,
+        'repository-marker',
+      ]);
+    });
+
+    it("falls back to the other harness's home instructions", async () => {
+      write(join(home, '.pi', 'agent', 'AGENTS.md'), 'pi-marker');
+
+      const context = await resolveRepositoryContext({
+        harness: 'claude',
+        cwd: root,
+        homeDirectory: home,
+        config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+      });
+
+      expect(context.instructionFiles.map((file) => file.displayPath)).toEqual([
+        '~/.pi/agent/AGENTS.md',
+      ]);
+    });
+
+    it('reads no other instruction files from the home directory', async () => {
+      write(join(home, 'AGENTS.md'), 'home-marker');
+      write(join(home, '.agents', 'AGENTS.md'), 'home-marker');
+      write(join(home, '.codex', 'AGENTS.md'), 'home-marker');
+
+      const context = await resolveRepositoryContext({
+        harness: 'pi',
+        cwd: root,
+        homeDirectory: home,
+        config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+      });
+
+      expect(context.instructionFiles).toEqual([]);
+    });
+
+    it('counts home instructions toward the size limit', async () => {
+      write(join(home, '.claude', 'CLAUDE.md'), 'x'.repeat(MAX_REPOSITORY_INSTRUCTIONS_BYTES + 1));
+      write(join(root, 'CLAUDE.md'), 'repository-marker');
+
+      const context = await resolveRepositoryContext({
+        harness: 'claude',
+        cwd: root,
+        homeDirectory: home,
+        config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+      });
+
+      expect(context.instructionFiles.map((file) => [file.displayPath, file.truncated])).toEqual([
+        ['~/.claude/CLAUDE.md', true],
+      ]);
+    });
+
+    it('skips home instructions when instructions are turned off', async () => {
+      write(join(home, '.claude', 'CLAUDE.md'), 'claude-marker');
+
+      const context = await resolveRepositoryContext({
+        harness: 'claude',
+        cwd: root,
+        homeDirectory: home,
+        config: {instructions: false, skills: true},
+      });
+
+      expect(context.instructionFiles).toEqual([]);
+    });
+
+    it('applies the skill selection to home skills', async () => {
+      writeSkill(join(home, '.agents', 'skills', 'tdd'), 'description: Runner TDD.');
+      writeSkill(join(home, '.agents', 'skills', 'debug'), 'description: Runner debug.');
+
+      const selected = await resolveRepositoryContext({
+        harness: 'pi',
+        cwd: root,
+        homeDirectory: home,
+        config: {instructions: true, skills: ['tdd']},
+      });
+      const off = await resolveRepositoryContext({
+        harness: 'pi',
+        cwd: root,
+        homeDirectory: home,
+        config: {instructions: true, skills: false},
+      });
+
+      expect(selected.skills.map((skill) => skill.displayPath)).toEqual(['~/.agents/skills/tdd']);
+      expect(off.skills).toEqual([]);
+    });
+  });
+
   it('skips skills when they are turned off', async () => {
     writeSkill(join(root, '.agents', 'skills', 'review'), 'description: Reviews.');
 

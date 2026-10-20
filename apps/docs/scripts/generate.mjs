@@ -48,6 +48,7 @@ import {
   AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES,
 } from '@shipfox/api-agent-access-dto';
 import {
+  AGENT_HOME_INSTRUCTION_FILE_PATHS,
   AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES,
   AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES,
   AGENT_REPOSITORY_SKILL_DIRECTORIES,
@@ -544,10 +545,15 @@ function renderRepositoryContextFiles() {
   return [
     '| Item | Files | Limit |',
     '|---|---|---|',
+    ...Object.entries(AGENT_HOME_INSTRUCTION_FILE_PATHS).map(
+      ([harness, paths]) =>
+        `| Runner instructions, \`${harness}\` | ${order(paths.map((path) => `~/${path}`))} | ${limit} |`,
+    ),
     ...Object.entries(AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES).map(
       ([harness, fileNames]) => `| Instructions, \`${harness}\` | ${order(fileNames)} | ${limit} |`,
     ),
     `| Skills | ${AGENT_REPOSITORY_SKILL_DIRECTORIES.map((directory) => `\`${directory}/<name>/SKILL.md\``).join(', ')} | None |`,
+    `| Runner skills | ${AGENT_REPOSITORY_SKILL_DIRECTORIES.map((directory) => `\`~/${directory}/<name>/SKILL.md\``).join(', ')} | None |`,
   ].join('\n');
 }
 

@@ -1114,7 +1114,7 @@ export const workflowDocumentRepositoryContextSchema = z
     z.strictObject({
       instructions: workflowRepositoryContextToggleSchema.optional().meta({
         description:
-          'Reads `AGENTS.md` or `CLAUDE.md` from the repository root down to the working directory. Supports a $' +
+          'Reads `AGENTS.md` or `CLAUDE.md` from the runner home directory and from the repository root down to the working directory. Supports a $' +
           '{{ }} expression.',
       }),
       skills: z
@@ -1127,7 +1127,7 @@ export const workflowDocumentRepositoryContextSchema = z
         .optional()
         .meta({
           description:
-            'Loads skills from `.agents/skills` and `.claude/skills`. Use `true`, `false`, a $' +
+            'Loads skills from `.agents/skills` and `.claude/skills` in the repository and in the runner home directory. Use `true`, `false`, a $' +
             '{{ }} expression, or a list of skill names.',
         }),
     }),

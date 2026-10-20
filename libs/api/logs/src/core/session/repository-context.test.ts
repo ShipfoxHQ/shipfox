@@ -15,7 +15,11 @@ describe('repository context session rows', () => {
           {path: 'AGENTS.md', bytes: 120, truncated: false},
           {path: 'packages/api/AGENTS.md', bytes: 65_536, truncated: true},
         ],
-        skills: [{name: 'review', path: '.agents/skills/review'}],
+        skills: [
+          {name: 'review', path: '.agents/skills/review'},
+          {name: 'tdd', path: '~/.agents/skills/tdd'},
+          {name: 'debug', path: '~/.agents/skills/debug'},
+        ],
       }),
       harness,
     );
@@ -25,7 +29,9 @@ describe('repository context session rows', () => {
         kind: 'lifecycle',
         timestamp: 1_700_000_000_000,
         label: 'Repository context',
-        detail: 'Instructions: AGENTS.md, packages/api/AGENTS.md (truncated). Skills: review.',
+        detail:
+          'Instructions: AGENTS.md, packages/api/AGENTS.md (truncated). ' +
+          'Skills: review (.agents/skills); tdd, debug (~/.agents/skills).',
         meta: [],
         tone: 'default',
         terminalFailure: false,

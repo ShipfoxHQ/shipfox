@@ -19,9 +19,16 @@ Shipfox looks in each directory from the repository root to the working
 directory. The repository root is the nearest directory that contains `.git`.
 If there is no `.git`, Shipfox looks only in the working directory.
 
+Shipfox also reads one instruction file and the skills in the home directory of
+the runner. Put them there to apply them to every agent step on the runner, or
+write them in an earlier `run` step of the job. In a job that runs in a
+container, Shipfox does not read the home directory.
+
 ### Instructions
 
 - In each directory, Shipfox reads the first file that is not empty.
+- The instructions from the home directory come before the instructions from
+  the repository.
 - Shipfox adds the files after the step prompt. The step prompt has priority.
 - Shipfox does not expand `@path` imports.
 - Shipfox does not read files below the working directory. The agent reads them
@@ -34,15 +41,22 @@ If there is no `.git`, Shipfox looks only in the working directory.
 - If `name` is missing, Shipfox uses the directory name.
 - If `description` is missing, Shipfox skips the skill.
 - If two skills have the same name, Shipfox uses the skill nearest to the
-  working directory. In the same directory, `.agents/skills` has priority over
+  working directory. A skill in the repository has priority over a skill in the
+  home directory. In the same directory, `.agents/skills` has priority over
   `.claude/skills`.
+- Shipfox does not look in nested directories, such as
+  `.agents/skills/<group>/<name>/SKILL.md`.
 - A skill that two paths link to loads one time.
-- If a skill listed in `repository_context` does not exist, the step fails.
+- If a skill listed in `repository_context` does not exist, the step fails. List
+  the skills that the prompt names, so a missing skill stops the step.
+- The `Repository context` row of the agent session shows each skill and the
+  directory that it came from.
 
 ## Files that agent steps ignore
 
 Shipfox does not read files that run code, change permissions, or replace the
-system prompt. Shipfox does not read the home directory of the runner.
+system prompt. In the home directory of the runner, Shipfox reads only the files
+in the table above.
 
 | Files | Belongs to |
 | --- | --- |
@@ -52,7 +66,7 @@ system prompt. Shipfox does not read the home directory of the runner.
 | `AGENTS.override.md`, `.codex/` | Codex |
 | `opencode.json`, `.opencode/` | OpenCode |
 | `.cursor/rules/`, `.cursor/skills/` | Cursor |
-| `~/.claude/`, `~/.pi/`, `~/.agents/`, `~/.codex/` | The runner's home directory |
+| Everything else in `~/.claude/`, `~/.pi/`, `~/.agents/`, `~/.codex/` | The runner's home directory |
 
 ## Compatibility with coding agents
 

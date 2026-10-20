@@ -3,6 +3,7 @@ import {open, readdir, readFile, realpath, stat} from 'node:fs/promises';
 import {dirname, join, relative, resolve, sep} from 'node:path';
 import {parseFrontmatter} from '@earendil-works/pi-coding-agent';
 import {
+  AGENT_HOME_INSTRUCTION_FILE_PATHS,
   AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES,
   AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES,
   AGENT_REPOSITORY_SKILL_DIRECTORIES,
@@ -31,7 +32,10 @@ export const DEFAULT_REPOSITORY_CONTEXT_CONFIG: RepositoryContextConfig = {
 
 export interface RepositoryInstructionFile {
   readonly path: string;
-  /** Path relative to the repository root, with `/` separators. */
+  /**
+   * Path relative to the repository root, or under `~/` for a file from the runner's home
+   * directory, with `/` separators.
+   */
   readonly displayPath: string;
   readonly content: string;
   readonly bytes: number;
@@ -43,7 +47,10 @@ export interface RepositorySkill {
   readonly description: string;
   readonly directory: string;
   readonly filePath: string;
-  /** Directory relative to the repository root, with `/` separators. */
+  /**
+   * Directory relative to the repository root, or under `~/` for a skill from the runner's home
+   * directory, with `/` separators.
+   */
   readonly displayPath: string;
 }
 
@@ -55,11 +62,14 @@ export interface RepositoryContext {
 
 /**
  * Reads the repository files that every harness gives the agent: instruction files and skills
- * from the repository root down to the working directory. It never reads harness settings,
- * hooks, MCP configuration, extensions, or anything outside the repository.
+ * from the repository root down to the working directory, and the global instructions and skills
+ * of the runner's home directory when `homeDirectory` is set. It never reads harness settings,
+ * hooks, MCP configuration, extensions, or anything else outside the repository.
  */
 export async function resolveRepositoryContext(params: {
   readonly cwd: string;
+  /** The runner's home directory, whose instructions and skills apply to every step on it. */
+  readonly homeDirectory?: string | undefined;
   readonly harness: Harness;
   readonly config: RepositoryContextConfig;
 }): Promise<RepositoryContext> {
@@ -67,16 +77,33 @@ export async function resolveRepositoryContext(params: {
   const root = await findRepositoryRoot(cwd);
   const directories = directoriesFromRoot(root, cwd);
   const instructionFiles = params.config.instructions
-    ? await readInstructionFiles({
-        root,
-        directories,
-        fileNames: AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES[params.harness],
-      })
+    ? await readInstructionFiles([
+        // Runner-wide instructions come first, so the repository's own files read as refinements.
+        ...(params.homeDirectory === undefined
+          ? []
+          : [
+              {
+                root: params.homeDirectory,
+                directory: params.homeDirectory,
+                fileNames: AGENT_HOME_INSTRUCTION_FILE_PATHS[params.harness],
+                displayPrefix: '~/',
+              },
+            ]),
+        ...directories.map((directory) => ({
+          root,
+          directory,
+          fileNames: AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES[params.harness],
+          displayPrefix: '',
+        })),
+      ])
     : [];
   const skills =
     params.config.skills === false
       ? []
-      : selectSkills(await discoverSkills(root, directories), params.config.skills);
+      : selectSkills(
+          await discoverSkills({root, directories, homeDirectory: params.homeDirectory}),
+          params.config.skills,
+        );
   return {config: params.config, instructionFiles, skills};
 }
 
@@ -125,7 +152,7 @@ export function logRepositoryContext(params: {
         bytes: file.bytes,
         truncated: file.truncated,
       })),
-      skills: context.skills.map((skill) => skill.name),
+      skills: context.skills.map((skill) => ({name: skill.name, path: skill.displayPath})),
     },
     'Agent repository context resolved',
   );
@@ -154,21 +181,21 @@ function directoriesFromRoot(root: string, cwd: string): string[] {
   return directories;
 }
 
-async function readInstructionFiles(params: {
+interface InstructionSource {
   readonly root: string;
-  readonly directories: readonly string[];
+  readonly directory: string;
   readonly fileNames: readonly string[];
-}): Promise<RepositoryInstructionFile[]> {
+  readonly displayPrefix: string;
+}
+
+async function readInstructionFiles(
+  sources: readonly InstructionSource[],
+): Promise<RepositoryInstructionFile[]> {
   const files: RepositoryInstructionFile[] = [];
   let remainingBytes = MAX_REPOSITORY_INSTRUCTIONS_BYTES;
-  for (const directory of params.directories) {
+  for (const source of sources) {
     if (remainingBytes === 0) break;
-    const file = await readDirectoryInstructionFile({
-      root: params.root,
-      directory,
-      fileNames: params.fileNames,
-      maxBytes: remainingBytes,
-    });
+    const file = await readDirectoryInstructionFile({...source, maxBytes: remainingBytes});
     if (file === undefined) continue;
     files.push(file);
     remainingBytes -= Buffer.byteLength(file.content);
@@ -183,12 +210,9 @@ async function readInstructionFiles(params: {
   return files;
 }
 
-async function readDirectoryInstructionFile(params: {
-  readonly root: string;
-  readonly directory: string;
-  readonly fileNames: readonly string[];
-  readonly maxBytes: number;
-}): Promise<RepositoryInstructionFile | undefined> {
+async function readDirectoryInstructionFile(
+  params: InstructionSource & {readonly maxBytes: number},
+): Promise<RepositoryInstructionFile | undefined> {
   for (const name of params.fileNames) {
     const path = join(params.directory, name);
     let bytes: Buffer;
@@ -207,7 +231,7 @@ async function readDirectoryInstructionFile(params: {
       : bytes.toString('utf8');
     return {
       path,
-      displayPath: displayPath(params.root, path),
+      displayPath: `${params.displayPrefix}${displayPath(params.root, path)}`,
       content,
       bytes: bytes.byteLength,
       truncated,
@@ -232,18 +256,33 @@ async function readBoundedFile(path: string, maxBytes: number): Promise<Buffer> 
   }
 }
 
-// Directories closer to the working directory win a name collision, and `.agents/skills` wins
-// over `.claude/skills` in the same directory, which is often a link to it.
-async function discoverSkills(
-  root: string,
-  directories: readonly string[],
-): Promise<RepositorySkill[]> {
+// Directories closer to the working directory win a name collision, the runner's home directory
+// loses to every repository directory, and `.agents/skills` wins over `.claude/skills` in the
+// same directory, which is often a link to it.
+async function discoverSkills(params: {
+  readonly root: string;
+  readonly directories: readonly string[];
+  readonly homeDirectory: string | undefined;
+}): Promise<RepositorySkill[]> {
+  const sources = [...params.directories]
+    .reverse()
+    .map((directory) => ({directory, displayRoot: params.root, displayPrefix: ''}));
+  if (params.homeDirectory !== undefined) {
+    sources.push({
+      directory: params.homeDirectory,
+      displayRoot: params.homeDirectory,
+      displayPrefix: '~/',
+    });
+  }
   const skills: RepositorySkill[] = [];
   const names = new Set<string>();
   const files = new Set<string>();
-  for (const directory of [...directories].reverse()) {
+  for (const source of sources) {
     for (const skillDirectory of SKILL_DIRECTORIES) {
-      for (const skill of await readSkillDirectory(root, join(directory, skillDirectory))) {
+      for (const skill of await readSkillDirectory(
+        source,
+        join(source.directory, skillDirectory),
+      )) {
         const canonicalFile = await realpath(skill.filePath).catch(() => skill.filePath);
         if (names.has(skill.name) || files.has(canonicalFile)) continue;
         names.add(skill.name);
@@ -255,7 +294,15 @@ async function discoverSkills(
   return skills;
 }
 
-async function readSkillDirectory(root: string, directory: string): Promise<RepositorySkill[]> {
+interface SkillDisplay {
+  readonly displayRoot: string;
+  readonly displayPrefix: string;
+}
+
+async function readSkillDirectory(
+  display: SkillDisplay,
+  directory: string,
+): Promise<RepositorySkill[]> {
   let entries: Dirent[];
   try {
     entries = await readdir(directory, {withFileTypes: true});
@@ -268,14 +315,14 @@ async function readSkillDirectory(root: string, directory: string): Promise<Repo
   const skills: RepositorySkill[] = [];
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     if (entry.name.startsWith('.') || !(entry.isDirectory() || entry.isSymbolicLink())) continue;
-    const skill = await readSkill(root, join(directory, entry.name), entry.name);
+    const skill = await readSkill(display, join(directory, entry.name), entry.name);
     if (skill !== undefined) skills.push(skill);
   }
   return skills;
 }
 
 async function readSkill(
-  root: string,
+  display: SkillDisplay,
   directory: string,
   directoryName: string,
 ): Promise<RepositorySkill | undefined> {
@@ -306,7 +353,13 @@ async function readSkill(
     typeof frontmatter.name === 'string' && frontmatter.name.trim().length > 0
       ? frontmatter.name.trim()
       : directoryName;
-  return {name, description, directory, filePath, displayPath: displayPath(root, directory)};
+  return {
+    name,
+    description,
+    directory,
+    filePath,
+    displayPath: `${display.displayPrefix}${displayPath(display.displayRoot, directory)}`,
+  };
 }
 
 function selectSkills(
@@ -320,7 +373,7 @@ function selectSkills(
   if (missing.length > 0) {
     const available =
       skills.length === 0
-        ? 'The repository has no skills in .agents/skills or .claude/skills.'
+        ? 'No skills were found in .agents/skills or .claude/skills.'
         : `Available skills: ${skills.map((skill) => skill.name).join(', ')}.`;
     throw new AgentConfigError(
       `Repository skills not found: ${missing.join(', ')}. ${available}`,

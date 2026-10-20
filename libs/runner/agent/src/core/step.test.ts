@@ -1,3 +1,5 @@
+import {localExecutionHost} from '@shipfox/runner-container';
+
 const {
   bridgeCloseMock,
   createIntegrationToolsBridgeMock,
@@ -128,6 +130,7 @@ describe('executeAgentStep', () => {
     let repository = '';
 
     beforeEach(() => {
+      vi.stubEnv('HOME', mkdtempSync(join(tmpdir(), 'shipfox-step-home-')));
       repository = mkdtempSync(join(tmpdir(), 'shipfox-step-repository-'));
       mkdirSync(join(repository, '.git'));
       writeFileSync(join(repository, 'AGENTS.md'), 'repository-instruction-marker');
@@ -140,6 +143,39 @@ describe('executeAgentStep', () => {
 
     afterEach(() => {
       rmSync(repository, {recursive: true, force: true});
+      rmSync(process.env.HOME ?? '', {recursive: true, force: true});
+      vi.unstubAllEnvs();
+    });
+
+    it('reads skills from the runner home directory outside a container', async () => {
+      runAgentMock.mockResolvedValue({});
+      mkdirSync(join(process.env.HOME ?? '', '.agents', 'skills', 'tdd'), {recursive: true});
+      writeFileSync(
+        join(process.env.HOME ?? '', '.agents', 'skills', 'tdd', 'SKILL.md'),
+        '---\ndescription: Test-driven development.\n---\n',
+      );
+
+      await executeAgentStep(buildAgentStep(), {cwd: repository, runtime: RUNTIME});
+
+      const invocation = runAgentMock.mock.calls[0]?.[0] as HarnessInvocation;
+      expect(invocation.repositoryContext?.skills.map((skill) => skill.displayPath)).toEqual([
+        '.agents/skills/review',
+        '~/.agents/skills/tdd',
+      ]);
+    });
+
+    it('reads instructions from the runner home directory outside a container', async () => {
+      runAgentMock.mockResolvedValue({});
+      mkdirSync(join(process.env.HOME ?? '', '.pi', 'agent'), {recursive: true});
+      writeFileSync(join(process.env.HOME ?? '', '.pi', 'agent', 'AGENTS.md'), 'runner-marker');
+
+      await executeAgentStep(buildAgentStep(), {cwd: repository, runtime: RUNTIME});
+
+      const invocation = runAgentMock.mock.calls[0]?.[0] as HarnessInvocation;
+      expect(invocation.repositoryContext?.instructionFiles.map((file) => file.content)).toEqual([
+        'runner-marker',
+        'repository-instruction-marker',
+      ]);
     });
 
     it('resolves instructions and skills by default and records them in the session', async () => {
@@ -162,6 +198,30 @@ describe('executeAgentStep', () => {
         instructions: [{path: 'AGENTS.md'}],
         skills: [{name: 'review', path: '.agents/skills/review'}],
       });
+    });
+
+    it('reads nothing from the runner home directory in a container job', async () => {
+      runAgentMock.mockResolvedValue({});
+      mkdirSync(join(process.env.HOME ?? '', '.claude'), {recursive: true});
+      writeFileSync(join(process.env.HOME ?? '', '.claude', 'CLAUDE.md'), 'runner-marker');
+      mkdirSync(join(process.env.HOME ?? '', '.agents', 'skills', 'tdd'), {recursive: true});
+      writeFileSync(
+        join(process.env.HOME ?? '', '.agents', 'skills', 'tdd', 'SKILL.md'),
+        '---\ndescription: Test-driven development.\n---\n',
+      );
+
+      await executeAgentStep(buildAgentStep(), {
+        cwd: repository,
+        runtime: RUNTIME,
+        host: localExecutionHost,
+        container: {shell: 'sh', env: {}, runnerInstallDir: '/opt/shipfox-runner'},
+      });
+
+      const invocation = runAgentMock.mock.calls[0]?.[0] as HarnessInvocation;
+      expect(invocation.repositoryContext?.instructionFiles.map((file) => file.content)).toEqual([
+        'repository-instruction-marker',
+      ]);
+      expect(invocation.repositoryContext?.skills.map((skill) => skill.name)).toEqual(['review']);
     });
 
     it('applies the step configuration', async () => {
