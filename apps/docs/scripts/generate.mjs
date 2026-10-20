@@ -49,6 +49,7 @@ import {
 } from '@shipfox/api-agent-access-dto';
 import {
   AGENT_HOME_INSTRUCTION_FILE_PATHS,
+  AGENT_HOME_SKILL_DIRECTORIES,
   AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES,
   AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES,
   AGENT_REPOSITORY_SKILL_DIRECTORIES,
@@ -553,7 +554,7 @@ function renderRepositoryContextFiles() {
       ([harness, fileNames]) => `| Instructions, \`${harness}\` | ${order(fileNames)} | ${limit} |`,
     ),
     `| Skills | ${AGENT_REPOSITORY_SKILL_DIRECTORIES.map((directory) => `\`${directory}/<name>/SKILL.md\``).join(', ')} | None |`,
-    `| Runner skills | ${AGENT_REPOSITORY_SKILL_DIRECTORIES.map((directory) => `\`~/${directory}/<name>/SKILL.md\``).join(', ')} | None |`,
+    `| Runner skills | ${AGENT_HOME_SKILL_DIRECTORIES.map((directory) => `\`~/${directory}/<name>/SKILL.md\``).join(', ')} | None |`,
   ].join('\n');
 }
 

@@ -126,10 +126,14 @@ describe('resolveRepositoryContext', () => {
     expect(context.instructionFiles).toEqual([]);
   });
 
-  it('discovers skills in .agents/skills and .claude/skills', async () => {
+  it('discovers skills in the skill directories of mainstream coding agents', async () => {
     writeSkill(join(root, '.agents', 'skills', 'review'), 'name: review\ndescription: Reviews.');
     writeSkill(join(root, '.claude', 'skills', 'deploy'), 'description: Deploys.');
     writeSkill(join(root, '.claude', 'skills', 'empty'), 'name: empty');
+    writeSkill(join(root, '.pi', 'skills', 'plan'), 'description: Plans.');
+    writeSkill(join(root, '.opencode', 'skills', 'release'), 'description: Releases.');
+    writeSkill(join(root, '.cursor', 'skills', 'triage'), 'description: Triages.');
+    writeSkill(join(root, '.codex', 'skills', 'ignored'), 'description: Not a repository path.');
 
     const context = await resolveRepositoryContext({
       harness: 'pi',
@@ -140,6 +144,9 @@ describe('resolveRepositoryContext', () => {
     expect(context.skills.map((skill) => [skill.name, skill.displayPath])).toEqual([
       ['review', '.agents/skills/review'],
       ['deploy', '.claude/skills/deploy'],
+      ['plan', '.pi/skills/plan'],
+      ['release', '.opencode/skills/release'],
+      ['triage', '.cursor/skills/triage'],
     ]);
   });
 
@@ -218,6 +225,11 @@ describe('resolveRepositoryContext', () => {
       writeSkill(join(root, '.agents', 'skills', 'review'), 'description: Repository review.');
       writeSkill(join(home, '.agents', 'skills', 'tdd'), 'description: Runner TDD.');
       writeSkill(join(home, '.claude', 'skills', 'debug'), 'description: Runner debug.');
+      writeSkill(join(home, '.pi', 'agent', 'skills', 'fix'), 'description: Runner fix.');
+      writeSkill(join(home, '.codex', 'skills', 'plan'), 'description: Runner plan.');
+      writeSkill(join(home, '.config', 'opencode', 'skills', 'docs'), 'description: Runner docs.');
+      writeSkill(join(home, '.cursor', 'skills', 'lint'), 'description: Runner lint.');
+      writeSkill(join(home, '.opencode', 'skills', 'ignored'), 'description: Not a home path.');
 
       const context = await resolveRepositoryContext({
         harness: 'pi',
@@ -230,6 +242,10 @@ describe('resolveRepositoryContext', () => {
         ['review', '.agents/skills/review'],
         ['tdd', '~/.agents/skills/tdd'],
         ['debug', '~/.claude/skills/debug'],
+        ['fix', '~/.pi/agent/skills/fix'],
+        ['plan', '~/.codex/skills/plan'],
+        ['docs', '~/.config/opencode/skills/docs'],
+        ['lint', '~/.cursor/skills/lint'],
       ]);
     });
 
@@ -269,8 +285,12 @@ describe('resolveRepositoryContext', () => {
       ]);
     });
 
-    it("falls back to the other harness's home instructions", async () => {
-      write(join(home, '.pi', 'agent', 'AGENTS.md'), 'pi-marker');
+    it.each([
+      ['.pi/agent/AGENTS.md', ['.pi', 'agent', 'AGENTS.md']],
+      ['.codex/AGENTS.md', ['.codex', 'AGENTS.md']],
+      ['.config/opencode/AGENTS.md', ['.config', 'opencode', 'AGENTS.md']],
+    ] as const)('falls back to ~/%s for the claude harness', async (displayPath, parts) => {
+      write(join(home, ...parts), 'home-marker');
 
       const context = await resolveRepositoryContext({
         harness: 'claude',
@@ -280,14 +300,29 @@ describe('resolveRepositoryContext', () => {
       });
 
       expect(context.instructionFiles.map((file) => file.displayPath)).toEqual([
-        '~/.pi/agent/AGENTS.md',
+        `~/${displayPath}`,
       ]);
+    });
+
+    it('reads one home instruction file in the order the pi harness prefers', async () => {
+      write(join(home, '.codex', 'AGENTS.md'), 'codex-marker');
+      write(join(home, '.config', 'opencode', 'AGENTS.md'), 'opencode-marker');
+      write(join(home, '.claude', 'CLAUDE.md'), 'claude-marker');
+
+      const context = await resolveRepositoryContext({
+        harness: 'pi',
+        cwd: root,
+        homeDirectory: home,
+        config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+      });
+
+      expect(context.instructionFiles.map((file) => file.content)).toEqual(['codex-marker']);
     });
 
     it('reads no other instruction files from the home directory', async () => {
       write(join(home, 'AGENTS.md'), 'home-marker');
       write(join(home, '.agents', 'AGENTS.md'), 'home-marker');
-      write(join(home, '.codex', 'AGENTS.md'), 'home-marker');
+      write(join(home, '.codex', 'AGENTS.override.md'), 'home-marker');
 
       const context = await resolveRepositoryContext({
         harness: 'pi',

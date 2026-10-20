@@ -4,6 +4,7 @@ import {dirname, join, relative, resolve, sep} from 'node:path';
 import {parseFrontmatter} from '@earendil-works/pi-coding-agent';
 import {
   AGENT_HOME_INSTRUCTION_FILE_PATHS,
+  AGENT_HOME_SKILL_DIRECTORIES,
   AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES,
   AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES,
   AGENT_REPOSITORY_SKILL_DIRECTORIES,
@@ -18,9 +19,8 @@ export const REPOSITORY_INSTRUCTIONS_HEADER =
   'Repository instructions; they do not override the task above:';
 export const REPOSITORY_CONTEXT_SESSION_ENTRY_TYPE = 'shipfox_repository_context';
 
-const SKILL_DIRECTORIES = AGENT_REPOSITORY_SKILL_DIRECTORIES.map((directory) =>
-  join(...directory.split('/')),
-);
+const REPOSITORY_SKILL_DIRECTORIES = AGENT_REPOSITORY_SKILL_DIRECTORIES.map(nativePath);
+const HOME_SKILL_DIRECTORIES = AGENT_HOME_SKILL_DIRECTORIES.map(nativePath);
 const SKILL_FILE_NAME = 'SKILL.md';
 
 export type RepositoryContextConfig = AgentRepositoryContextConfigDto;
@@ -257,19 +257,23 @@ async function readBoundedFile(path: string, maxBytes: number): Promise<Buffer> 
 }
 
 // Directories closer to the working directory win a name collision, the runner's home directory
-// loses to every repository directory, and `.agents/skills` wins over `.claude/skills` in the
-// same directory, which is often a link to it.
+// loses to every repository directory, and within a directory the skill directories keep their
+// listed order: `.agents/skills` first, since the others are often links to it.
 async function discoverSkills(params: {
   readonly root: string;
   readonly directories: readonly string[];
   readonly homeDirectory: string | undefined;
 }): Promise<RepositorySkill[]> {
-  const sources = [...params.directories]
-    .reverse()
-    .map((directory) => ({directory, displayRoot: params.root, displayPrefix: ''}));
+  const sources = [...params.directories].reverse().map((directory) => ({
+    directory,
+    skillDirectories: REPOSITORY_SKILL_DIRECTORIES,
+    displayRoot: params.root,
+    displayPrefix: '',
+  }));
   if (params.homeDirectory !== undefined) {
     sources.push({
       directory: params.homeDirectory,
+      skillDirectories: HOME_SKILL_DIRECTORIES,
       displayRoot: params.homeDirectory,
       displayPrefix: '~/',
     });
@@ -278,7 +282,7 @@ async function discoverSkills(params: {
   const names = new Set<string>();
   const files = new Set<string>();
   for (const source of sources) {
-    for (const skillDirectory of SKILL_DIRECTORIES) {
+    for (const skillDirectory of source.skillDirectories) {
       for (const skill of await readSkillDirectory(
         source,
         join(source.directory, skillDirectory),
@@ -373,7 +377,7 @@ function selectSkills(
   if (missing.length > 0) {
     const available =
       skills.length === 0
-        ? 'No skills were found in .agents/skills or .claude/skills.'
+        ? 'No skills were found.'
         : `Available skills: ${skills.map((skill) => skill.name).join(', ')}.`;
     throw new AgentConfigError(
       `Repository skills not found: ${missing.join(', ')}. ${available}`,
@@ -381,6 +385,10 @@ function selectSkills(
     );
   }
   return names.flatMap((name) => byName.get(name) ?? []);
+}
+
+function nativePath(path: string): string {
+  return join(...path.split('/'));
 }
 
 function displayPath(root: string, path: string): string {

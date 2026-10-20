@@ -10,15 +10,43 @@ export const AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES = {
   claude: ['CLAUDE.md', 'AGENTS.md'],
 } as const satisfies Record<Harness, readonly string[]>;
 /**
- * Instruction files in the runner's home directory for each harness, in the order the runner
- * tries them. Paths are relative to the home directory.
+ * Global instruction files of mainstream coding agents in the runner's home directory, in the
+ * order the runner tries them for each harness. Paths are relative to the home directory.
  */
 export const AGENT_HOME_INSTRUCTION_FILE_PATHS = {
-  pi: ['.pi/agent/AGENTS.md', '.claude/CLAUDE.md'],
-  claude: ['.claude/CLAUDE.md', '.pi/agent/AGENTS.md'],
+  pi: [
+    '.pi/agent/AGENTS.md',
+    '.codex/AGENTS.md',
+    '.config/opencode/AGENTS.md',
+    '.claude/CLAUDE.md',
+  ],
+  claude: [
+    '.claude/CLAUDE.md',
+    '.pi/agent/AGENTS.md',
+    '.codex/AGENTS.md',
+    '.config/opencode/AGENTS.md',
+  ],
 } as const satisfies Record<Harness, readonly string[]>;
-/** Skill directories, relative to each directory from the repository root to the working directory. */
-export const AGENT_REPOSITORY_SKILL_DIRECTORIES = ['.agents/skills', '.claude/skills'] as const;
+/**
+ * Skill directories of mainstream coding agents, relative to each directory from the repository
+ * root to the working directory, in priority order.
+ */
+export const AGENT_REPOSITORY_SKILL_DIRECTORIES = [
+  '.agents/skills',
+  '.claude/skills',
+  '.pi/skills',
+  '.opencode/skills',
+  '.cursor/skills',
+] as const;
+/** User skill directories of mainstream coding agents, relative to the runner's home directory. */
+export const AGENT_HOME_SKILL_DIRECTORIES = [
+  '.agents/skills',
+  '.claude/skills',
+  '.pi/agent/skills',
+  '.codex/skills',
+  '.config/opencode/skills',
+  '.cursor/skills',
+] as const;
 /** Total size of the instruction files an agent step reads. */
 export const AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES = 64 * 1024;
 
