@@ -1,5 +1,5 @@
 import type {SessionViewRowMeta} from '@shipfox/api-logs-dto';
-import type {AgentMessage, SessionEntry} from '../entry-schema.js';
+import {type AgentMessage, asLooseObject, type SessionEntry} from '../entry-schema.js';
 import {
   booleanField,
   field,
@@ -86,7 +86,7 @@ export function labelDetail(entry: SessionEntry): string | null {
   return stringField(entry, 'label') ?? entryDetail(entry);
 }
 
-export function labelMeta(entry: SessionEntry): readonly SessionViewRowMeta[] {
+export function targetMeta(entry: SessionEntry): readonly SessionViewRowMeta[] {
   const targetId = stringField(entry, 'targetId');
   return [targetId == null ? null : metaItem('target', targetId, false)].filter(isMeta);
 }
@@ -140,24 +140,79 @@ export function assistantMeta(message: AgentMessage): readonly SessionViewRowMet
   ].filter(isMeta);
 }
 
+export function systemMessageText(message: AgentMessage): string {
+  const parts = [messageText(message)];
+  for (const [name, value] of Object.entries(systemSections(message))) {
+    if (value === null) parts.push(`Removed section "${name}".`);
+    else if (typeof value === 'string') parts.push(value);
+  }
+  const added = toolNames(field(message, 'toolsAdded'));
+  if (added) parts.push(`Tools added: ${added}`);
+  const removed = toolNames(field(message, 'toolsRemoved'));
+  if (removed) parts.push(`Tools removed: ${removed}`);
+  return parts.filter(Boolean).join('\n\n');
+}
+
+export function systemMessageMeta(message: AgentMessage): readonly SessionViewRowMeta[] {
+  const names = Object.entries(systemSections(message))
+    .filter(([, value]) => typeof value === 'string')
+    .map(([name]) => name)
+    .join(', ');
+  return [metaItem('sections', names, false)].filter(isMeta);
+}
+
+function systemSections(message: AgentMessage): Record<string, unknown> {
+  return asLooseObject(field(message, 'sections')) ?? {};
+}
+
+function toolNames(value: unknown): string {
+  if (!Array.isArray(value)) return '';
+  return value
+    .map((tool) => stringField(tool, 'name'))
+    .filter(Boolean)
+    .join(', ');
+}
+
+export function contextEditLabel(entry: SessionEntry): string {
+  const replacement = field(entry, 'replacement');
+  if (replacement === null) return 'Message removed from context';
+  if (field(replacement, 'content') !== undefined) return 'Message replaced in context';
+  return 'Context edited';
+}
+
+export function contextEditDetail(entry: SessionEntry): string | null {
+  const content = field(field(entry, 'replacement'), 'content');
+  return content === undefined ? null : messageText({content}) || null;
+}
+
+export function usageEntryDetail(entry: SessionEntry): string | null {
+  return (
+    [stringField(entry, 'kind'), stringField(entry, 'note')].filter(Boolean).join(' · ') || null
+  );
+}
+
+export function usageEntryMeta(entry: SessionEntry): readonly SessionViewRowMeta[] {
+  return [providerModelMeta(entry), usageMeta(entry), costMeta(entry)].filter(isMeta);
+}
+
 export function messageMeta(message: AgentMessage): readonly SessionViewRowMeta[] {
   return [stopReasonMeta(message)].filter(isMeta);
 }
 
-function providerModelMeta(message: AgentMessage): SessionViewRowMeta | null {
+function providerModelMeta(message: AgentMessage | SessionEntry): SessionViewRowMeta | null {
   const model = stringField(message, 'model') ?? stringField(message, 'modelId');
   const provider = stringField(message, 'provider');
   const value = [provider, model].filter(Boolean).join('/');
   return value ? metaItem('model', value) : null;
 }
 
-function usageMeta(message: AgentMessage): SessionViewRowMeta | null {
+function usageMeta(message: AgentMessage | SessionEntry): SessionViewRowMeta | null {
   const usage = field(message, 'usage');
   const totalTokens = numberField(usage, 'totalTokens');
   return totalTokens == null ? null : metaItem('tokens', formatCount(totalTokens, 'token'));
 }
 
-function costMeta(message: AgentMessage): SessionViewRowMeta | null {
+function costMeta(message: AgentMessage | SessionEntry): SessionViewRowMeta | null {
   const usage = field(message, 'usage');
   const cost = field(usage, 'cost');
   const total = numberField(cost, 'total');

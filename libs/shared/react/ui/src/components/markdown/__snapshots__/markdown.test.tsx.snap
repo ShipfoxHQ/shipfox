@@ -6,8 +6,38 @@ exports[`Markdown > sanitizes hostile input 1`] = `
     class="min-w-0 [overflow-wrap:anywhere]"
     dir="auto"
   >
+    <p
+      class="mb-8 text-sm leading-20 text-foreground-neutral-base"
+    >
+      &lt;script&gt;alert(1)&lt;/script&gt;
+    </p>
     
 
+    <p
+      class="mb-8 text-sm leading-20 text-foreground-neutral-base"
+    >
+      &lt;img src=x onerror=alert(1)&gt;
+      <br />
+      
+
+      &lt;svg onload=alert(1)&gt;&lt;/svg&gt;
+      <br />
+      
+
+      &lt;iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;"&gt;&lt;/iframe&gt;
+      <br />
+      
+
+      &lt;object data="javascript:alert(1)"&gt;&lt;/object&gt;
+      <br />
+      
+
+      [javascript](javascript:alert(1))
+      <br />
+      
+
+      [data](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)
+    </p>
   </div>
 </div>
 `;

@@ -17,6 +17,8 @@ import {
   customEntryMeta,
   customEntryText,
   messageMeta,
+  systemMessageMeta,
+  systemMessageText,
 } from './metadata.js';
 import {
   bashExecutionText,
@@ -74,6 +76,18 @@ export function expandMessageEntry(
         compactionDetail(message) ?? toJson(message),
         isTerminalStop(message),
         compactionMeta(message),
+      ),
+    ];
+  }
+  if (role === 'system') {
+    return [
+      messageRow(
+        timestamp,
+        'system-prompt',
+        'system prompt',
+        systemMessageText(message) || toJson(message),
+        false,
+        systemMessageMeta(message),
       ),
     ];
   }

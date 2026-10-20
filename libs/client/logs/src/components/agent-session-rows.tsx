@@ -153,9 +153,16 @@ function SessionMessageRow({
             <MessageRoleLabel label={row.label} terminalFailure={row.terminalFailure} />
             <RowMetadata meta={row.meta} className="ml-auto flex-none" />
           </div>
-          <div className="block min-w-0">
-            <MarkdownPreview text={row.text} />
-          </div>
+          {/* Prompts use XML-like tags that Markdown would drop as raw HTML. */}
+          {row.role === 'system-prompt' ? (
+            <LogContent variant="code">
+              <PreviewText text={row.text} />
+            </LogContent>
+          ) : (
+            <div className="block min-w-0">
+              <MarkdownPreview text={row.text} />
+            </div>
+          )}
         </div>
       </div>
     </LogRow>

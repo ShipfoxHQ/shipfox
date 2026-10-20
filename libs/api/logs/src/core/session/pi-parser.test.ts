@@ -425,6 +425,144 @@ describe('parsePiSessionRecord', () => {
     ]);
   });
 
+  test('renders a structured system prompt from its sections and tool names', () => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'message',
+        message: {
+          role: 'system',
+          content: '',
+          sections: {
+            preamble: 'You are a coding assistant.',
+            tools: '<tools>\n- read: Read file contents\n</tools>',
+          },
+          toolsAdded: [
+            {name: 'read', description: 'Read a file', parameters: {type: 'object'}},
+            {name: 'set_output', description: 'Set an output', parameters: {type: 'object'}},
+          ],
+          timestamp: 1,
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'system-prompt',
+        label: 'system prompt',
+        meta: [meta('sections', 'preamble, tools', false)],
+        text: 'You are a coding assistant.\n\n<tools>\n- read: Read file contents\n</tools>\n\nTools added: read, set_output',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('names replaced and removed sections in a system prompt patch', () => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'message',
+        message: {
+          role: 'system',
+          content: '',
+          sections: {skills: 'commit: create commits', mcp_servers: null},
+          toolsRemoved: [{name: 'write'}],
+          timestamp: 1,
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        role: 'system-prompt',
+        meta: [meta('sections', 'skills', false)],
+        text: 'commit: create commits\n\nRemoved section "mcp_servers".\n\nTools removed: write',
+      }),
+    ]);
+  });
+
+  test('falls back to the raw message when a system prompt has no renderable text', () => {
+    const message = {role: 'system', content: '', sections: {rules: ''}, timestamp: 1};
+    const rows = parsePiSessionRecord(record({type: 'message', message}));
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        role: 'system-prompt',
+        text: JSON.stringify(message, null, 2),
+      }),
+    ]);
+  });
+
+  test('renders a context edit that removes a message', () => {
+    const rows = parsePiSessionRecord(
+      record({type: 'context_edit', id: 'e1', targetId: 'c3d4e5f6', replacement: null}),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label: 'Message removed from context',
+        detail: null,
+        meta: [meta('target', 'c3d4e5f6', false)],
+        tone: 'default',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('renders a context edit replacement with its content', () => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'context_edit',
+        targetId: 'c3d4e5f6',
+        replacement: {content: [{type: 'text', text: '[output omitted]'}]},
+      }),
+    );
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        label: 'Message replaced in context',
+        detail: '[output omitted]',
+      }),
+    ]);
+  });
+
+  test('does not call a context edit without a replacement a replacement', () => {
+    const rows = parsePiSessionRecord(record({type: 'context_edit', targetId: 'c3d4e5f6'}));
+
+    expect(rows).toEqual([expect.objectContaining({label: 'Context edited', detail: null})]);
+  });
+
+  test('renders a usage entry with its kind, note, model, tokens, and cost', () => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'usage',
+        kind: 'cache_warm',
+        note: 'idle refresh',
+        provider: 'anthropic',
+        model: 'claude-sonnet-5-5',
+        usage: {totalTokens: 50000, cost: {total: 0.25}},
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label: 'Usage recorded',
+        detail: 'cache_warm · idle refresh',
+        meta: [
+          meta('model', 'anthropic/claude-sonnet-5-5'),
+          meta('tokens', '50K tokens'),
+          meta('cost', '$0.25'),
+        ],
+        tone: 'default',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
   test('maps a scheduled provider retry to a warning lifecycle row', () => {
     const rows = parsePiSessionRecord(
       record({
