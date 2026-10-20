@@ -1,13 +1,42 @@
 import {createHash} from 'node:crypto';
 import {actionBundleDirectoryName, WORKFLOW_SESSION_KEY_PATTERN} from '@shipfox/workflow-document';
 import type {Step, StepAttempt} from './entities/step.js';
-import {AgentStepSessionClaimError} from './errors.js';
+import {AgentStepSessionClaimError, boundedStepName} from './errors.js';
 import {isTerminal, stepAffectsConclusion} from './step-transition/decide-step-transition.js';
 
 /** The composite action step that holds `step`, or undefined for a job step. */
 export function parentStepOf(step: Step, steps: readonly Step[]): Step | undefined {
   if (step.parentStepId === null) return undefined;
   return steps.find((candidate) => candidate.id === step.parentStepId);
+}
+
+export type StepPathNode = Pick<Step, 'id' | 'parentStepId' | 'key' | 'name' | 'position'>;
+
+/** The composite action steps that hold `step`, outermost first. */
+export function compositeAncestorsOf<T extends StepPathNode>(step: T, steps: readonly T[]): T[] {
+  const stepById = new Map(steps.map((candidate) => [candidate.id, candidate]));
+  const ancestors: T[] = [];
+  let parent = step.parentStepId === null ? undefined : stepById.get(step.parentStepId);
+  while (parent !== undefined && !ancestors.includes(parent)) {
+    ancestors.unshift(parent);
+    parent = parent.parentStepId === null ? undefined : stepById.get(parent.parentStepId);
+  }
+  return ancestors;
+}
+
+/**
+ * Names a step the way the run page labels an inner step: one label per composite that holds it,
+ * outermost first, then the step itself. A job step has only its own label.
+ */
+export function stepPath(step: StepPathNode, ancestors: readonly StepPathNode[]): string[] {
+  return [...ancestors, step].map(
+    (node) => node.key?.trim() || node.name.trim() || `Step ${node.position + 1}`,
+  );
+}
+
+/** A step path as prose, such as `setup › lint`. */
+export function stepPathLabel(path: readonly string[]): string {
+  return path.map(boundedStepName).join(' › ');
 }
 
 /** The attempt the composite's current pass opened. Its config holds the resolved inputs. */

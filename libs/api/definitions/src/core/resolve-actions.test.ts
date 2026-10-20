@@ -1,3 +1,4 @@
+import {MAX_ACTION_NESTING_DEPTH} from '@shipfox/api-definitions-dto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {decodeActionBundle} from '@shipfox/workflow-document';
@@ -14,7 +15,6 @@ import {
   MAX_ACTION_BYTES,
   MAX_ACTION_FILE_BYTES,
   MAX_ACTION_FILES,
-  MAX_ACTION_NESTING_DEPTH,
   MAX_ACTIONS_PER_WORKFLOW,
   readActionDirectory,
   resolveWorkflowActions,

@@ -28,6 +28,7 @@ import {
   getStepAttempts,
   getStepsByJobId,
   insertRunningStepAttempt,
+  listCompositeAncestors,
   listStepEnvSources,
   markStepRunning,
 } from '../workflow-runs.js';
@@ -472,30 +473,25 @@ describe('workflow run queries', () => {
       });
     }
 
-    test('names an inner step from its outermost composite down, by key', async () => {
+    test('lists the composites that hold a step, outermost first', async () => {
       const {byKey} = await arrangeNestedComposite();
-      const lint = byKey('lint');
-      await failWithAttempt(lint);
 
-      const detail = await getStepAttemptDetail({stepId: lint.id, attempt: 1});
+      const ancestors = await listCompositeAncestors(byKey('lint').parentStepId);
 
-      expect(detail?.step).toMatchObject({
-        parentStepId: byKey('nested').id,
-        path: ['setup', 'nested', 'lint'],
-      });
+      expect(ancestors.map((ancestor) => ancestor.id)).toEqual([
+        byKey('setup').id,
+        byKey('nested').id,
+      ]);
+      expect(ancestors[0]).toMatchObject({parentStepId: null, key: 'setup'});
     });
 
-    test('names a job step by itself', async () => {
+    test('lists no composite for a job step', async () => {
       const {byKey} = await arrangeNestedComposite();
-      const prepare = byKey('prepare');
-      await failWithAttempt(prepare);
 
-      const detail = await getStepAttemptDetail({stepId: prepare.id, attempt: 1});
-
-      expect(detail?.step).toMatchObject({parentStepId: null, path: ['prepare']});
+      await expect(listCompositeAncestors(byKey('prepare').parentStepId)).resolves.toEqual([]);
     });
 
-    test('names the failure origin by its path', async () => {
+    test('carries what names the failure origin', async () => {
       const {jobExecutionId, byKey} = await arrangeNestedComposite();
       for (const key of ['setup', 'nested', 'lint']) await failWithAttempt(byKey(key));
 
@@ -503,7 +499,10 @@ describe('workflow run queries', () => {
 
       expect(origin).toMatchObject({
         stepId: byKey('lint').id,
-        stepPath: ['setup', 'nested', 'lint'],
+        stepParentId: byKey('nested').id,
+        stepKey: 'lint',
+        stepName: 'Lint files',
+        stepPosition: byKey('lint').position,
       });
     });
   });

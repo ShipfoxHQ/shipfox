@@ -9,6 +9,7 @@ import type {
   WorkflowsStepAttemptTerminatedEventDto,
 } from '@shipfox/api-workflows-dto';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import type {StepPathNode} from '#core/composite-step.js';
 import type {Step, StepAttempt} from '#core/entities/step.js';
 import {
   onJobTerminatedFailureAnnotation,
@@ -20,6 +21,7 @@ const dbMocks = vi.hoisted(() => ({
   getJobScope: vi.fn(),
   getStepAttemptDetail: vi.fn(),
   getWorkflowRunAttemptById: vi.fn(),
+  listCompositeAncestors: vi.fn(async (): Promise<StepPathNode[]> => []),
 }));
 
 const metricMocks = vi.hoisted(() => ({recordWorkflowFailureAnnotationFailed: vi.fn()}));
@@ -411,8 +413,10 @@ describe('failure annotations', () => {
       id: payload.stepId,
       parentStepId: '88888888-8888-4888-8888-888888888888',
       key: 'deploy',
-      path: ['release', 'deploy'],
     });
+    dbMocks.listCompositeAncestors.mockResolvedValueOnce([
+      compositeNode({id: '88888888-8888-4888-8888-888888888888', key: 'release'}),
+    ]);
     const attempt = stepAttemptEntity({
       stepId: step.id,
       status: 'failed',
@@ -435,6 +439,26 @@ describe('failure annotations', () => {
         }),
       }),
     );
+  });
+
+  it('reads the composites that hold a failed step only when the copy names the step', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      parentStepId: '88888888-8888-4888-8888-888888888888',
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt: stepAttemptEntity({stepId: step.id, status: 'failed'}),
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalled();
+    expect(dbMocks.listCompositeAncestors).not.toHaveBeenCalled();
   });
 
   it('names the step and the cause when its if condition cannot be evaluated', async () => {
@@ -1377,8 +1401,10 @@ describe('failure annotations', () => {
     dbMocks.getJobExecutionFailureOrigin.mockResolvedValue({
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
+      stepParentId: null,
+      stepKey: 'run',
       stepName: 'Run tests',
-      stepPath: ['Run tests'],
+      stepPosition: 1,
       stepStatus: 'failed',
       stepAttempt: 2,
       stepError: {reason: 'agent_invocation_failed', message: 'internal step detail'},
@@ -1422,8 +1448,10 @@ describe('failure annotations', () => {
     dbMocks.getJobExecutionFailureOrigin.mockResolvedValue({
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
+      stepParentId: null,
+      stepKey: 'run',
       stepName: 'Run tests',
-      stepPath: ['Run tests'],
+      stepPosition: 1,
       stepStatus: 'failed',
       stepAttempt: 2,
       stepError: {reason: 'agent_invocation_failed', message: 'Provider returned 500'},
@@ -1435,6 +1463,7 @@ describe('failure annotations', () => {
     await onJobTerminatedFailureAnnotation(annotations)(payload);
 
     expect(dbMocks.getJobExecutionFailureOrigin).toHaveBeenCalledWith(payload.jobExecutionId);
+    expect(dbMocks.listCompositeAncestors).not.toHaveBeenCalled();
     expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
       expect.objectContaining({
         jobExecutionId: payload.jobExecutionId,
@@ -1470,11 +1499,16 @@ describe('failure annotations', () => {
       triggerReference: null,
     });
     dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 3});
+    dbMocks.listCompositeAncestors.mockResolvedValueOnce([
+      compositeNode({id: '88888888-8888-4888-8888-888888888888', key: 'setup'}),
+    ]);
     dbMocks.getJobExecutionFailureOrigin.mockResolvedValue({
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
+      stepParentId: '88888888-8888-4888-8888-888888888888',
+      stepKey: 'lint',
       stepName: 'Lint files',
-      stepPath: ['setup', 'lint'],
+      stepPosition: 2,
       stepStatus: 'failed',
       stepAttempt: 1,
       stepError: null,
@@ -1508,8 +1542,10 @@ describe('failure annotations', () => {
     dbMocks.getJobExecutionFailureOrigin.mockResolvedValue({
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
+      stepParentId: null,
+      stepKey: 'run',
       stepName: 'Run tests',
-      stepPath: ['Run tests'],
+      stepPosition: 1,
       stepStatus: 'succeeded',
       stepAttempt: 1,
       stepError: null,
@@ -1546,8 +1582,10 @@ describe('failure annotations', () => {
     dbMocks.getJobExecutionFailureOrigin.mockResolvedValue({
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
+      stepParentId: null,
+      stepKey: 'run',
       stepName: 'Run tests',
-      stepPath: ['Run tests'],
+      stepPosition: 1,
       stepStatus: 'skipped',
       stepAttempt: 1,
       stepError: null,
@@ -1577,8 +1615,10 @@ describe('failure annotations', () => {
     dbMocks.getJobExecutionFailureOrigin.mockResolvedValue({
       jobExecutionId: payload.jobExecutionId,
       stepId: '77777777-7777-4777-8777-777777777777',
+      stepParentId: null,
+      stepKey: null,
       stepName: 'Checkout',
-      stepPath: ['Checkout'],
+      stepPosition: 1,
       stepStatus: 'pending',
       stepAttempt: 1,
       stepError: null,
@@ -1757,14 +1797,13 @@ function jobTerminatedPayload(
   };
 }
 
-function stepEntity(overrides: Partial<Step & {path: string[]}> = {}): Step & {path: string[]} {
+function stepEntity(overrides: Partial<Step> = {}): Step {
   return {
     id: '77777777-7777-4777-8777-777777777777',
     jobExecutionId: JOB_EXECUTION_ID,
     parentStepId: null,
     key: 'run',
     name: 'Run tests',
-    path: ['run'],
     sourceLocation: null,
     status: 'failed',
     statusReason: null,
@@ -1787,6 +1826,10 @@ function stepEntity(overrides: Partial<Step & {path: string[]}> = {}): Step & {p
     updatedAt: new Date('2026-08-05T12:00:00.000Z'),
     ...overrides,
   };
+}
+
+function compositeNode(overrides: {id: string; key: string}) {
+  return {parentStepId: null, name: 'Composite', position: 1, ...overrides};
 }
 
 function stepAttemptEntity(overrides: Partial<StepAttempt> = {}): StepAttempt {

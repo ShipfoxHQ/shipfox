@@ -1,5 +1,6 @@
 import {Buffer} from 'node:buffer';
 import {isDeepStrictEqual} from 'node:util';
+import {MAX_ACTION_NESTING_DEPTH} from '@shipfox/api-definitions-dto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {
   type RegistryInterModuleClient,
@@ -43,8 +44,6 @@ export const MAX_ACTION_FILES = 100;
 export const MAX_ACTION_BYTES = 1024 * 1024;
 export const MAX_ACTION_FILE_BYTES = 1_000_000;
 export const MAX_ACTIONS_PER_WORKFLOW = 20;
-/** How many actions deep a chain of composite actions can go, the last action included. */
-export const MAX_ACTION_NESTING_DEPTH = 5;
 
 // GitHub resolves `action.yml` first, so a directory with both uses it.
 const ACTION_MANIFEST_FILE_NAMES = ['action.yml', 'action.yaml'] as const;

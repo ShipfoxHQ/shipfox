@@ -260,6 +260,24 @@ describe('composite action steps', () => {
       ]);
       expect(await nextStepForJob(jobId)).toEqual({kind: 'done', status: 'succeeded'});
     });
+
+    test('names an inner step by its key path when its if cannot be evaluated', async () => {
+      const {jobId} = await arrangeJob([
+        {
+          key: 'setup',
+          uses: SETUP,
+          steps: [{key: 'check', run: 'echo check', if: predicate('1 / 0 == 0')}],
+        },
+      ]);
+      await runSetup(jobId);
+
+      await nextStepForJob(jobId);
+
+      expect((await stepByKey(jobId, 'check')).error).toMatchObject({
+        reason: 'condition_errored',
+        message: expect.stringContaining("The `if` of step `setup › check` can't be evaluated"),
+      });
+    });
   });
 
   describe('closing', () => {

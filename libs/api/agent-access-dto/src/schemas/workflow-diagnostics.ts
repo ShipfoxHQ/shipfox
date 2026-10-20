@@ -1,3 +1,4 @@
+import {MAX_STEP_PATH_LENGTH} from '@shipfox/api-definitions-dto';
 import {z} from 'zod';
 import type {AgentAccessObjectSchema} from './envelope.js';
 import {AGENT_ACCESS_PAGE_LIMIT_MAX, AGENT_ACCESS_TEXT_MAX_BYTES} from './paged-tools.js';
@@ -368,8 +369,8 @@ export const getStepAttemptResultSchema = z
     job_id: idSchema,
     job_execution_id: idSchema,
     step_id: idSchema,
-    parent_step_id: idSchema.nullable(),
-    step_path: z.array(textSchema).max(AGENT_ACCESS_PAGE_LIMIT_MAX),
+    parent_step_id: idSchema.nullable().optional(),
+    step_path: z.array(textSchema).min(1).max(MAX_STEP_PATH_LENGTH).optional(),
     step_attempt_id: idSchema,
     attempt: attemptSchema,
     authored_config: z.unknown().nullable(),

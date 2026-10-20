@@ -48,6 +48,7 @@ import {z} from 'zod';
 import {cacheAgentDefaults, checkAgentConfigReadiness} from '#core/agent-config-readiness.js';
 import {createAgentDefaultsResolver} from '#core/agent-defaults.js';
 import {findFrozenActionIntegrations, flattenActionIntegrations} from '#core/agent-tools.js';
+import {stepPath} from '#core/composite-step.js';
 import type {Step, StepType} from '#core/entities/step.js';
 import type {WorkflowRunTriggerReference} from '#core/entities/workflow-run.js';
 import {
@@ -111,6 +112,7 @@ import {
   getWorkflowRunOverview,
   getWorkflowRunSource,
   getWorkflowStepReadScope,
+  listCompositeAncestors,
   listExecutionTriggerEvents,
   listFailedStepAttempts,
   listRunAttemptsPage,
@@ -823,6 +825,7 @@ export function createWorkflowsInterModulePresentation(params: {
           workflowRunAttempt: detail.workflowRunAttempt,
           jobId: detail.jobId,
           jobExecutionId: detail.jobExecutionId,
+          stepPath: stepPath(detail.step, await listCompositeAncestors(detail.step.parentStepId)),
         },
         detail.diagnosticBytes,
         detail.sessionDescriptor,
@@ -927,21 +930,21 @@ export function createWorkflowsInterModulePresentation(params: {
         attempt: input.attempt,
         workspaceId: input.workspaceId,
       });
+      if (!detail) return {detail: null};
       return {
-        detail: detail
-          ? toStepAttemptDetailResponseDto(
-              detail.step,
-              detail.attempt,
-              {
-                workflowRunId: detail.workflowRunId,
-                workflowRunAttempt: detail.workflowRunAttempt,
-                jobId: detail.jobId,
-                jobExecutionId: detail.jobExecutionId,
-              },
-              detail.diagnosticBytes,
-              detail.sessionDescriptor,
-            )
-          : null,
+        detail: toStepAttemptDetailResponseDto(
+          detail.step,
+          detail.attempt,
+          {
+            workflowRunId: detail.workflowRunId,
+            workflowRunAttempt: detail.workflowRunAttempt,
+            jobId: detail.jobId,
+            jobExecutionId: detail.jobExecutionId,
+            stepPath: stepPath(detail.step, await listCompositeAncestors(detail.step.parentStepId)),
+          },
+          detail.diagnosticBytes,
+          detail.sessionDescriptor,
+        ),
       };
     },
     getLatestRunAttempt: async (input) => ({

@@ -1,4 +1,8 @@
-import {readPersistedWorkflowModel, type WorkflowModel} from '@shipfox/api-definitions-dto';
+import {
+  MAX_ACTION_NESTING_DEPTH,
+  readPersistedWorkflowModel,
+  type WorkflowModel,
+} from '@shipfox/api-definitions-dto';
 import {
   type LogOutcomeDto,
   type StepAttemptTerminalCauseDto,
@@ -27,6 +31,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
+import type {StepPathNode} from '#core/composite-step.js';
 import {
   assertWorkflowExecutionPayloadSize,
   assertWorkflowProductOutputSize,
@@ -176,8 +181,7 @@ export interface StepAttemptDetailStep {
   parentStepId: string | null;
   key: string | null;
   name: string;
-  /** Labels from the outermost composite down to this step. A job step has only its own. */
-  path: string[];
+  position: number;
   jobExecutionId: string;
   status: StepStatus;
   type: StepType;
@@ -190,8 +194,10 @@ export interface StepAttemptDetailStep {
 export interface JobExecutionFailureOrigin {
   jobExecutionId: string;
   stepId: string;
+  stepParentId: string | null;
+  stepKey: string | null;
   stepName: string;
-  stepPath: string[];
+  stepPosition: number;
   stepStatus: StepStatus;
   stepAttempt: number;
   stepError: Record<string, unknown> | null;
@@ -216,6 +222,7 @@ export async function getJobExecutionFailureOrigin(
       stepParentId: steps.parentStepId,
       stepKey: steps.key,
       stepName: steps.name,
+      stepPosition: steps.position,
       stepStatus: steps.status,
       stepAttempt: steps.currentAttempt,
       stepError: steps.error,
@@ -244,16 +251,9 @@ export async function getJobExecutionFailureOrigin(
 
   const row = rows[0];
   if (!row) return undefined;
-  const {stepParentId, stepKey, ...origin} = row;
 
   return {
-    ...origin,
-    stepPath: await readStepPath({
-      jobExecutionId: row.jobExecutionId,
-      parentStepId: stepParentId,
-      key: stepKey,
-      name: row.stepName,
-    }),
+    ...row,
     stepError: (row.stepError as Record<string, unknown> | null) ?? null,
     attemptError: (row.attemptError as Record<string, unknown> | null) ?? null,
     attemptStatus: row.attemptStatus === null ? null : (row.attemptStatus as StepAttemptStatus),
@@ -283,6 +283,7 @@ export async function getStepAttemptDetail(params: {
         parentStepId: steps.parentStepId,
         key: steps.key,
         name: steps.name,
+        position: steps.position,
         jobExecutionId: steps.jobExecutionId,
         status: steps.status,
         type: steps.type,
@@ -375,7 +376,7 @@ export async function getStepAttemptDetail(params: {
     workflowRunAttempt: row.workflowRunAttempt,
     jobId: row.jobId,
     jobExecutionId: row.jobExecutionId,
-    step: {...row.step, path: await readStepPath(row.step)},
+    step: row.step,
     attempt: toStepAttempt(row.stepAttempt),
     sessionDescriptor: row.stepAttemptSessionDescriptor,
     diagnosticBytes: {
@@ -387,31 +388,35 @@ export async function getStepAttemptDetail(params: {
   };
 }
 
-// Segments read like the run page's key path, such as `setup › lint`: the key when the step has one.
-async function readStepPath(step: {
-  jobExecutionId: string;
-  parentStepId: string | null;
-  key: string | null;
-  name: string;
-}): Promise<string[]> {
-  const path = [stepPathSegment(step)];
-  if (step.parentStepId === null) return path;
-
-  const composites = await db()
-    .select({id: steps.id, parentStepId: steps.parentStepId, key: steps.key, name: steps.name})
-    .from(steps)
-    .where(and(eq(steps.jobExecutionId, step.jobExecutionId), eq(steps.type, 'composite')));
-  const compositeById = new Map(composites.map((composite) => [composite.id, composite]));
-  let parent = compositeById.get(step.parentStepId);
-  while (parent !== undefined && path.length <= composites.length) {
-    path.unshift(stepPathSegment(parent));
-    parent = parent.parentStepId === null ? undefined : compositeById.get(parent.parentStepId);
-  }
-  return path;
-}
-
-function stepPathSegment(step: {key: string | null; name: string}): string {
-  return step.key?.trim() || step.name;
+/** The composite action steps that hold a step, outermost first. */
+export async function listCompositeAncestors(parentStepId: string | null): Promise<StepPathNode[]> {
+  if (parentStepId === null) return [];
+  const result = await db().execute<{
+    id: string;
+    parent_step_id: string | null;
+    key: string | null;
+    name: string;
+    position: number;
+  }>(sql`
+    with recursive ancestors as (
+      select id, parent_step_id, key, name, position, 1 as depth
+      from ${steps}
+      where id = ${parentStepId}
+      union all
+      select parent.id, parent.parent_step_id, parent.key, parent.name, parent.position, ancestors.depth + 1
+      from ${steps} parent
+      join ancestors on parent.id = ancestors.parent_step_id
+      where ancestors.depth < ${MAX_ACTION_NESTING_DEPTH}
+    )
+    select id, parent_step_id, key, name, position from ancestors order by depth desc
+  `);
+  return result.rows.map((row) => ({
+    id: row.id,
+    parentStepId: row.parent_step_id,
+    key: row.key,
+    name: row.name,
+    position: row.position,
+  }));
 }
 
 export async function getLatestStepAttempt(params: {

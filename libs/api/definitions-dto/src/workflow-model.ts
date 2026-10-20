@@ -10,6 +10,10 @@ import {z} from 'zod';
 
 export const DEFAULT_RUN_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
 export const DEFAULT_JOB_SUCCESS = "!executions.exists(e, e.status == 'failed')";
+/** How many actions deep a chain of composite actions can go, the last action included. */
+export const MAX_ACTION_NESTING_DEPTH = 5;
+/** The labels that name a step: each composite action that holds it, then the step itself. */
+export const MAX_STEP_PATH_LENGTH = MAX_ACTION_NESTING_DEPTH + 1;
 
 export interface WorkflowModelCheckoutTemplates {
   readonly project?: WorkflowFieldTemplate;

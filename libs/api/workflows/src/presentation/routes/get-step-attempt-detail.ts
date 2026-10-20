@@ -2,7 +2,8 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import {stepAttemptDetailResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {getStepAttemptDetail} from '#db/index.js';
+import {stepPath} from '#core/composite-step.js';
+import {getStepAttemptDetail, listCompositeAncestors} from '#db/index.js';
 import {toStepAttemptDetailResponseDto} from '#presentation/dto/step.js';
 import {requireAccessibleRunScope} from './require-accessible-run.js';
 
@@ -35,6 +36,7 @@ export function getStepAttemptDetailRoute(projects: ProjectsModuleClient) {
           workflowRunAttempt: detail.workflowRunAttempt,
           jobId: detail.jobId,
           jobExecutionId: detail.jobExecutionId,
+          stepPath: stepPath(detail.step, await listCompositeAncestors(detail.step.parentStepId)),
         },
         detail.diagnosticBytes,
         detail.sessionDescriptor,

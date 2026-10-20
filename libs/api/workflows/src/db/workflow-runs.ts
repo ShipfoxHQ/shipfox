@@ -219,6 +219,7 @@ export {
   getStepToolMaterializationSource,
   hasStoppingStepAttempt,
   insertRunningStepAttempt,
+  listCompositeAncestors,
   listStepAttemptIdsByJobId,
   listStepEnvSources,
   listStoppingStepAttempts,

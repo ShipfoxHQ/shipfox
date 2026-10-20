@@ -466,9 +466,7 @@ function projectStepAttempt(detail: StepAttemptDetailResponseDto): Record<string
     detail.workflow_run_attempt === undefined ||
     detail.job_id === undefined ||
     detail.job_execution_id === undefined ||
-    detail.step_attempt_id === undefined ||
-    detail.parent_step_id === undefined ||
-    detail.step_path === undefined
+    detail.step_attempt_id === undefined
   ) {
     return null;
   }
@@ -510,8 +508,13 @@ function projectStepAttempt(detail: StepAttemptDetailResponseDto): Record<string
     job_id: detail.job_id,
     job_execution_id: detail.job_execution_id,
     step_id: detail.step_id,
-    parent_step_id: detail.parent_step_id,
-    step_path: detail.step_path.map((label) => cap(label)),
+    // An older producer omits the composite path; the attempt itself is still complete.
+    ...(detail.step_path === undefined
+      ? {}
+      : {
+          parent_step_id: detail.parent_step_id ?? null,
+          step_path: detail.step_path.map((label) => cap(label)),
+        }),
     step_attempt_id: detail.step_attempt_id,
     attempt: detail.attempt,
     authored_config: authoredConfig.value,

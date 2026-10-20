@@ -10,6 +10,7 @@ import {getStepAttemptDetailRoute} from './get-step-attempt-detail.js';
 
 vi.mock('#db/index.js', () => ({
   getStepAttemptDetail: vi.fn(),
+  listCompositeAncestors: vi.fn(async () => []),
   getWorkflowRunAccessScopeById: vi.fn(),
 }));
 
@@ -120,14 +121,13 @@ describe('GET /api/workflows/runs/steps/:stepId/attempts/:attempt', () => {
   });
 });
 
-function stepEntity(): Step & {path: string[]} {
+function stepEntity(): Step {
   return {
     id: STEP_ID,
     jobExecutionId: crypto.randomUUID(),
     parentStepId: null,
     key: 'test',
     name: 'Run tests',
-    path: ['test'],
     sourceLocation: null,
     status: 'failed',
     statusReason: null,
