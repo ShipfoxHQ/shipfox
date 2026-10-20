@@ -780,7 +780,7 @@ discord:
 # recorded video with narration and a screenshot, both made with the `jam` CLI. Jam skips the
 # chapters of a video shorter than 45 seconds. The fake serves the same two Jams.
 jam:
-  connection: jam_sandbox
+  connection: jam
   fixtures:
     team: {id: bf9da890-a8ce-4cf6-8627-1e352ddba3c8}
     # Two console errors, a `POST /api/orders` that answers 500 with `coupon_lookup_failed`, five
