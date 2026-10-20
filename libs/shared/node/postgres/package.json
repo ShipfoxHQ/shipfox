@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@shipfox/config": "workspace:*",
+    "@shipfox/node-process-state": "workspace:*",
     "pg": "catalog:"
   },
   "devDependencies": {

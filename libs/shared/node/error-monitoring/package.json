@@ -53,7 +53,8 @@
     "@opentelemetry/api": "catalog:",
     "@sentry/node": "catalog:",
     "@sentry/opentelemetry": "catalog:",
-    "@shipfox/config": "workspace:*"
+    "@shipfox/config": "workspace:*",
+    "@shipfox/node-process-state": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

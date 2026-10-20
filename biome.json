@@ -16,7 +16,8 @@
       "!libs/client/shell/test/external/fixture",
       "!tools/biome/plugins/client-architecture/fixtures",
       "!tools/biome/plugins/api-architecture/fixtures",
-      "!tools/biome/plugins/code-style/fixtures"
+      "!tools/biome/plugins/code-style/fixtures",
+      "!tools/biome/plugins/shared-node/fixtures"
     ]
   },
   "plugins": [
@@ -367,6 +368,15 @@
         "!**/*.gen.ts",
         "!**/*.gen.tsx",
         "!**/tools/biome/plugins/code-style/fixtures/**"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/shared-node/no-module-state.grit",
+      "includes": [
+        "**/libs/shared/node/*/src/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts"
       ]
     }
   ],

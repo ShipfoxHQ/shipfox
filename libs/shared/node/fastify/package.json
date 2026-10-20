@@ -45,6 +45,7 @@
     "@shipfox/config": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/node-process-state": "workspace:*",
     "fastify": "catalog:",
     "fastify-plugin": "^6.0.0",
     "fastify-type-provider-zod": "catalog:",

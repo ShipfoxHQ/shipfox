@@ -78,6 +78,7 @@ It needs PostgreSQL 18 because that release added the built-in `uuidv7()` functi
 - `maxAttempts` defaults to 5. The last failed attempt moves the event to the dead letter state.
 - `maxRetryDelayMs` defaults to 30 minutes. Longer retry delays use that limit.
 - `onOutboxWrite` listeners run before the caller's transaction commits. A listener that polls right away can miss the new row.
+- The listeners live in a `@shipfox/node-process-state` slot. `writeOutboxEvent` and `writeOutboxEvents` through one installed copy of this package notify listeners registered through another. `writeIdempotentOutboxEvent` does not notify listeners.
 - `createOutboxTable` stays separate, so current Shipfox modules need no schema or source change.
 
 ## Connections and Migrations

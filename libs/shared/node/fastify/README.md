@@ -115,6 +115,12 @@ The message and `data` go to the request log line, never to the client. A
 route `errorHandler` also maps errors thrown by its handler, so tracing records
 the mapped client error rather than the original one.
 
+### Installed copies
+
+The app from `createApp`, the registered auth methods, and the recorded client
+errors live in `@shipfox/node-process-state` slots. Two installed copies of this
+package share them, so `app()` returns the same app from either copy.
+
 ## Development
 
 ```sh

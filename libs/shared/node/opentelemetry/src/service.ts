@@ -1,4 +1,5 @@
 import {type IMetricReader, MeterProvider} from '@opentelemetry/sdk-metrics';
+import {processState} from '@shipfox/node-process-state';
 import {config} from '#config.js';
 import {
   getMetricsReader,
@@ -7,33 +8,41 @@ import {
   shouldStartTelemetry,
 } from './common.js';
 
-let serviceMetricsProvider: MeterProvider | undefined;
-let serviceMetricReader: IMetricReader | undefined;
+interface ServiceMetricsState {
+  provider?: MeterProvider | undefined;
+  reader?: IMetricReader | undefined;
+}
+
+const state = processState<ServiceMetricsState>(
+  '@shipfox/node-opentelemetry/service-metrics/v1',
+  () => ({}),
+  import.meta.url,
+);
 
 export function startServiceMetrics(options?: StartInstrumentationOptions) {
-  if (serviceMetricsProvider) return serviceMetricsProvider;
+  if (state.provider) return state.provider;
   if (!shouldStartTelemetry()) {
-    serviceMetricsProvider = new MeterProvider();
-    return serviceMetricsProvider;
+    state.provider = new MeterProvider();
+    return state.provider;
   }
 
   const resource = getResource(options);
-  serviceMetricReader = getMetricsReader({
+  state.reader = getMetricsReader({
     port: config.OTEL_SERVICE_METRICS_PORT,
     endpoint: '/metrics',
     ...options?.exporter?.service,
   });
-  serviceMetricsProvider = new MeterProvider({readers: [serviceMetricReader], resource});
-  return serviceMetricsProvider;
+  state.provider = new MeterProvider({readers: [state.reader], resource});
+  return state.provider;
 }
 
 export function getServiceMetricsProvider() {
-  if (!serviceMetricsProvider) return startServiceMetrics();
-  return serviceMetricsProvider;
+  if (!state.provider) return startServiceMetrics();
+  return state.provider;
 }
 
 export async function shutdownServiceMetrics() {
-  await serviceMetricsProvider?.shutdown();
-  serviceMetricsProvider = new MeterProvider();
-  serviceMetricReader = undefined;
+  await state.provider?.shutdown();
+  state.provider = new MeterProvider();
+  state.reader = undefined;
 }

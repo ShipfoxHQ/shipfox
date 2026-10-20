@@ -8,17 +8,6 @@ import {
 } from '@opentelemetry/api';
 import {suppressTracing} from '@opentelemetry/core';
 
-const contextKeyCache = new Map<string, symbol>();
-
-function getOrCreateContextKey(name: string): symbol {
-  let key = contextKeyCache.get(name);
-  if (!key) {
-    key = createContextKey(name);
-    contextKeyCache.set(name, key);
-  }
-  return key;
-}
-
 export function contextWithMetadata(
   metadata: Record<string, string>,
   options?: {parentContext?: Context},
@@ -27,7 +16,7 @@ export function contextWithMetadata(
   let baggage = propagation.getBaggage(ctx) ?? propagation.createBaggage();
 
   for (const [key, value] of Object.entries(metadata)) {
-    ctx = ctx.setValue(getOrCreateContextKey(key), value);
+    ctx = ctx.setValue(createContextKey(key), value);
     baggage = baggage.setEntry(key, {value});
   }
 
@@ -44,7 +33,7 @@ export function getContextMetadata(ctx?: Context): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const [key, entry] of baggage.getAllEntries()) {
-    const contextValue = resolvedCtx.getValue(getOrCreateContextKey(key));
+    const contextValue = resolvedCtx.getValue(createContextKey(key));
     result[key] = typeof contextValue === 'string' ? contextValue : entry.value;
   }
 

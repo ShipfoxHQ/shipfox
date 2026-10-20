@@ -62,6 +62,9 @@ Combine `LOG_PRETTY` and `LOG_STDOUT_LEVEL` during development for
 readability. For example, `LOG_LEVEL=info` and `LOG_STDOUT_LEVEL=warn` keeps
 info records out of stdout while retaining them in the OpenTelemetry log stream.
 
+The default `log` logger lives in a `@shipfox/node-process-state` slot. Two
+installed copies of this package write through the same logger.
+
 ## Development
 
 ```sh

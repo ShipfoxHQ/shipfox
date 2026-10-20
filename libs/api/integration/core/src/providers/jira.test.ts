@@ -25,8 +25,6 @@ describe('jiraProviderModule', () => {
       setSecrets: vi.fn(() => Promise.resolve()),
       deleteSecrets,
     };
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules({
       secrets: {jira: scopedSecrets, deleteSecrets},
@@ -64,8 +62,6 @@ describe('jiraProviderModule', () => {
   it('loads its database descriptor and persists a core connection with its Jira installation', async () => {
     vi.stubEnv('INTEGRATIONS_ENABLE_JIRA_PROVIDER', 'true');
     vi.resetModules();
-    const {createPostgresClient} = await import('@shipfox/node-postgres');
-    createPostgresClient();
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
     const jiraPart = parts.find((part) => part.provider.provider === 'jira');

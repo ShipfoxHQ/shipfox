@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@shipfox/node-drizzle": "workspace:^",
+    "@shipfox/node-process-state": "workspace:*",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {

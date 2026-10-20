@@ -1,17 +1,20 @@
 import {trace} from '@opentelemetry/api';
 import {createLogger} from '@shipfox/node-log';
+import {processState} from '@shipfox/node-process-state';
 import {getContextMetadata} from './context.js';
 
 type Logger = ReturnType<typeof createLogger>;
 type LoggerOptions = Parameters<typeof createLogger>[0];
 
-let baseLogger: Logger | undefined;
+const state = processState<{baseLogger?: Logger | undefined}>(
+  '@shipfox/node-opentelemetry/logger/v1',
+  () => ({}),
+  import.meta.url,
+);
 
 function getBaseLogger(): Logger {
-  if (!baseLogger) {
-    baseLogger = createLogger({});
-  }
-  return baseLogger;
+  state.baseLogger ??= createLogger({});
+  return state.baseLogger;
 }
 
 export function logger(options?: LoggerOptions): Logger {

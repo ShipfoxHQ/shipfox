@@ -92,6 +92,7 @@ POSTGRES_TLS_MODE=verify-full
 - The environment uses split connection fields. Application and migration processes can select different hosts without parsing a connection URL.
 - Caller options still override environment settings for existing consumers.
 - A second call to `createPostgresClient()` throws until `closePostgresClient()` completes.
+- The pool lives in a `@shipfox/node-process-state` slot. Two installed copies of this package share one pool.
 - `isPostgresHealthy()` executes a real query. A health check wakes a suspended database and can delay scale to zero.
 
 ## Development

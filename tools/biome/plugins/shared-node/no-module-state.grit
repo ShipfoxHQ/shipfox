@@ -1,0 +1,37 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsVariableDeclaration() as $match where {
+    $match <: r"(?s)^(?:let|var)\s.*",
+    not $match <: within or {
+      JsFunctionBody(),
+      JsStaticInitializationBlockClassMember(),
+      JsBlockStatement(),
+      JsForStatement(),
+      JsForInStatement(),
+      JsForOfStatement()
+    }
+  },
+  JsVariableDeclarator(id=$name, initializer=JsInitializerClause(expression=$value)) as $match where {
+    $value <: or {
+      JsNewExpression(callee=$collection),
+      TsAsExpression(expression=JsNewExpression(callee=$collection)),
+      TsSatisfiesExpression(expression=JsNewExpression(callee=$collection))
+    },
+    $collection <: or { `Map`, `Set`, `WeakMap`, `WeakSet` },
+    not $match <: within or {
+      JsFunctionBody(),
+      JsStaticInitializationBlockClassMember(),
+      JsBlockStatement()
+    },
+    $program <: contains or {
+      `$name.set($...)`,
+      `$name.add($...)`,
+      `$name.delete($...)`,
+      `$name.clear()`
+    }
+  }
+} where {
+  register_diagnostic(span=$match, message="shared-node/no-module-state: keep process state in a processState slot from @shipfox/node-process-state so every installed copy of the package shares it.")
+}

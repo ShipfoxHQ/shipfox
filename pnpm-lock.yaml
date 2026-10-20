@@ -9772,6 +9772,9 @@ importers:
       '@shipfox/node-postgres':
         specifier: workspace:^
         version: link:../postgres
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
@@ -9877,6 +9880,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../common/config
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -9914,6 +9920,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../opentelemetry
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       fastify:
         specifier: 'catalog:'
         version: 5.8.5
@@ -9957,6 +9966,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../opentelemetry
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -10007,6 +10019,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../common/config
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       pino:
         specifier: 'catalog:'
         version: 10.3.1
@@ -10224,6 +10239,9 @@ importers:
       '@shipfox/node-log':
         specifier: workspace:*
         version: link:../log
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       '@shipfox/regex':
         specifier: workspace:*
         version: link:../../common/regex
@@ -10255,6 +10273,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:^
         version: link:../drizzle
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
@@ -10283,6 +10304,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../common/config
+      '@shipfox/node-process-state':
+        specifier: workspace:*
+        version: link:../process-state
       pg:
         specifier: 'catalog:'
         version: 8.21.0
