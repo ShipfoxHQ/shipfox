@@ -1,5 +1,6 @@
 import type {ActionDetails} from '@/lib/package-page';
 import {providerLabel} from '@/lib/providers';
+import {ActionsUsed} from './actions-used';
 import {ProviderIcon} from './provider-icon';
 import {CodeName, Row, RowList, Section} from './section';
 
@@ -48,7 +49,12 @@ export function ActionSections({details}: {details: ActionDetails}) {
           <RowList>
             {inputs.map(([name, input]) => (
               <Row key={name}>
-                <Signature name={name} type={input.type} required={input.required} />
+                <Signature
+                  name={name}
+                  type={input.type}
+                  required={input.required}
+                  secret={input.secret === true}
+                />
                 {input.description ? (
                   <span className="text-foreground-neutral-subtle">{input.description}</span>
                 ) : null}
@@ -77,6 +83,8 @@ export function ActionSections({details}: {details: ActionDetails}) {
           </RowList>
         </Section>
       ) : null}
+
+      <ActionsUsed actions={details.actions} />
 
       {details.post ? (
         <Section title="Post step">
@@ -117,12 +125,24 @@ export function ActionSections({details}: {details: ActionDetails}) {
   );
 }
 
-function Signature({name, type, required}: {name: string; type: string; required: boolean}) {
+function Signature({
+  name,
+  type,
+  required,
+  secret = false,
+}: {
+  name: string;
+  type: string;
+  required: boolean;
+  /** A composite action input that receives a secret, the only secrets the action can read. */
+  secret?: boolean;
+}) {
   return (
     <span className="flex items-center gap-inline">
       <CodeName>{name}</CodeName>
       <span className="font-code text-xs text-foreground-neutral-muted">{type}</span>
       {required ? <span className="text-xs text-foreground-neutral-subtle">required</span> : null}
+      {secret ? <span className="text-xs text-foreground-neutral-subtle">secret</span> : null}
     </span>
   );
 }

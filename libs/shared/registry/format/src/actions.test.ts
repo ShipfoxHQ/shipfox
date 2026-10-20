@@ -1,5 +1,11 @@
 import {type ActionManifestInput, actionManifestSchema} from '@shipfox/workflow-document';
-import {computeActionBump, deriveActionMetadata, diffActionCapabilities} from '#actions.js';
+import {
+  collectCompositeActions,
+  computeActionBump,
+  deriveActionMetadata,
+  diffActionCapabilities,
+  registryActionMetadataSchema,
+} from '#actions.js';
 import {type RegistryBump, registryActionVersionDocumentSchema} from '#documents.js';
 import {actionVersionDocument} from '#test/fixtures/documents.js';
 
@@ -10,6 +16,24 @@ function manifest(fields: Partial<ActionManifestInput> = {}) {
     inputs: {thread: {type: 'string', required: true}, limit: {type: 'number'}},
     outputs: {markdown: {type: 'string'}},
     integrations: {slack: {provider: 'slack', include: ['conversations.replies']}},
+    ...fields,
+  });
+}
+
+const expression = (body: string) => `$${'{{'} ${body} }}`;
+
+function compositeManifest(fields: Partial<ActionManifestInput> = {}) {
+  return actionManifestSchema.parse({
+    name: 'Slack thread brief',
+    inputs: {
+      thread: {type: 'string', required: true},
+      token: {type: 'string', secret: true, required: true},
+    },
+    outputs: {markdown: {type: 'string', value: expression('steps.digest.outputs.path')}},
+    steps: [
+      {key: 'digest', uses: 'shipfox/slack-thread-digest@1.4.2'},
+      {run: './notify.sh', env: {TOKEN: expression('inputs.token')}},
+    ],
     ...fields,
   });
 }
@@ -215,6 +239,62 @@ describe('computeActionBump', () => {
     expect(result).toBe(bump);
   });
 
+  it('is major when a JavaScript action becomes a composite action', () => {
+    const next = compositeManifest({
+      inputs: {thread: {type: 'string', required: true}, limit: {type: 'number'}},
+      integrations: {slack: {provider: 'slack', include: ['conversations.replies']}},
+    });
+
+    const result = computeActionBump({previous: manifest(), next});
+
+    expect(result).toBe('major');
+  });
+
+  it.each<{rule: string; inputs: Partial<ActionManifestInput>['inputs']; bump: RegistryBump}>([
+    {
+      rule: 'an input becomes a secret input',
+      inputs: {
+        thread: {type: 'string', required: true, secret: true},
+        token: {type: 'string', secret: true, required: true},
+      },
+      bump: 'major',
+    },
+    {
+      rule: 'a secret input becomes a plain input',
+      inputs: {thread: {type: 'string', required: true}, token: {type: 'string', required: true}},
+      bump: 'major',
+    },
+    {
+      rule: 'an optional secret input is added',
+      inputs: {
+        thread: {type: 'string', required: true},
+        token: {type: 'string', secret: true, required: true},
+        npm_token: {type: 'string', secret: true},
+      },
+      bump: 'minor',
+    },
+  ])('is $bump when $rule', ({inputs, bump}) => {
+    const result = computeActionBump({
+      previous: compositeManifest(),
+      next: compositeManifest({inputs}),
+    });
+
+    expect(result).toBe(bump);
+  });
+
+  it('is patch when only the steps of a composite action change', () => {
+    const next = compositeManifest({
+      steps: [
+        {key: 'digest', uses: 'shipfox/slack-thread-digest@1.5.0'},
+        {run: './notify.sh --quiet', env: {TOKEN: expression('inputs.token')}},
+      ],
+    });
+
+    const result = computeActionBump({previous: compositeManifest(), next});
+
+    expect(result).toBe('patch');
+  });
+
   it('keeps the highest bump across rules', () => {
     const next = manifest({
       outputs: {markdown: {type: 'string'}, participants: {type: 'number'}},
@@ -294,6 +374,7 @@ describe('deriveActionMetadata', () => {
     const result = deriveActionMetadata({reference, manifest: source, contentBytes: 48213});
 
     expect(result).toEqual({
+      kind: 'javascript',
       integrations: ['linear', 'slack'],
       capabilities: {
         slack: {provider: 'slack', selectors: ['conversations.replies'], allow_write: false},
@@ -330,6 +411,37 @@ describe('deriveActionMetadata', () => {
     expect(result.usage).toBe('uses: shipfox/slack-thread-digest@1.4.2\n');
   });
 
+  it('records the kind and the secret inputs of a composite action', () => {
+    const result = deriveActionMetadata({
+      reference,
+      manifest: compositeManifest(),
+      contentBytes: 512,
+    });
+
+    expect(result).toMatchObject({
+      kind: 'composite',
+      interface: {
+        inputs: {
+          thread: {type: 'string', required: true},
+          token: {type: 'string', required: true, secret: true},
+        },
+      },
+    });
+    expect(result.interface.inputs.thread).not.toHaveProperty('secret');
+  });
+
+  it('reads metadata published before composite actions, which has no kind', () => {
+    const {kind: _, ...legacy} = deriveActionMetadata({
+      reference,
+      manifest: manifest(),
+      contentBytes: 1,
+    });
+
+    const result = registryActionMetadataSchema.safeParse(legacy);
+
+    expect(result.success).toBe(true);
+  });
+
   it('produces metadata that the version document accepts', () => {
     const derived = deriveActionMetadata({reference, manifest: manifest(), contentBytes: 48213});
 
@@ -339,5 +451,42 @@ describe('deriveActionMetadata', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('collectCompositeActions', () => {
+  it('lists the registry actions of the steps, sorted and unique', () => {
+    const source = compositeManifest({
+      steps: [
+        {uses: 'shipfox/slack-thread-digest@1.4.2'},
+        {uses: 'acme/notify@2.0.0'},
+        {run: 'echo done'},
+        {uses: 'shipfox/slack-thread-digest@1.4.2'},
+      ],
+    });
+
+    const result = collectCompositeActions(source);
+
+    expect(result).toEqual({
+      ok: true,
+      actions: ['acme/notify@2.0.0', 'shipfox/slack-thread-digest@1.4.2'],
+    });
+  });
+
+  it('lists nothing for a JavaScript action', () => {
+    const result = collectCompositeActions(manifest());
+
+    expect(result).toEqual({ok: true, actions: []});
+  });
+
+  it.each([
+    ['a repository path', './actions/notify'],
+    ['an action.path path', `${expression('action.path')}/steps/notify`],
+  ])('refuses %s', (_name, uses) => {
+    const source = compositeManifest({steps: [{run: 'echo first'}, {uses}]});
+
+    const result = collectCompositeActions(source);
+
+    expect(result).toMatchObject({ok: false, uses});
   });
 });

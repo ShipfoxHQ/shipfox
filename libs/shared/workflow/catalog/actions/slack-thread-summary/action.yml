@@ -1,0 +1,46 @@
+name: Slack thread summary
+description: Summarizes a Slack thread as decisions, open questions, and next steps.
+keywords: [slack, summary, thread]
+related: [shipfox/slack-thread-digest]
+
+inputs:
+  channel_id:
+    description: ID of the channel that holds the thread.
+    required: true
+  thread_ts:
+    description: Timestamp of the thread's parent message.
+    required: true
+
+outputs:
+  summary:
+    description: The summary in Markdown.
+    required: true
+    value: ${{ steps.summarize.outputs.summary }}
+  complete:
+    description: False when Slack reports more replies than the summary read.
+    type: boolean
+    required: true
+    value: ${{ steps.digest.outputs.complete }}
+
+integrations:
+  slack:
+    provider: slack
+    include: [read_thread, read_user_profile, get_permalink]
+
+steps:
+  - key: digest
+    name: Read the thread
+    uses: shipfox/slack-thread-digest@1.0.0
+    connections:
+      slack: slack
+    with:
+      channel_id: ${{ inputs.channel_id }}
+      thread_ts: ${{ inputs.thread_ts }}
+
+  - key: summarize
+    name: Summarize the thread
+    prompt:
+      - file: ${{ action.path }}/prompts/summarize.md
+      - The thread is in `${{ steps.digest.outputs.path }}`.
+    outputs:
+      summary: string

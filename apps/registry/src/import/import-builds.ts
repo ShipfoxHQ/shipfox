@@ -20,6 +20,8 @@ const buildSummarySchema = z.object({
   package: z.string(),
   kind: registryPackageKindSchema,
   version: z.string(),
+  /** The exact registry actions the package uses. */
+  actions: z.array(z.string()).default([]),
 });
 
 export interface BuildOutput {
@@ -28,6 +30,7 @@ export interface BuildOutput {
   name: string;
   kind: z.infer<typeof registryPackageKindSchema>;
   version: string;
+  actions: string[];
 }
 
 export interface ImportedVersion extends BuildOutput {
@@ -35,8 +38,9 @@ export interface ImportedVersion extends BuildOutput {
 }
 
 /**
- * Imports every version built below `directory`. Actions go first, because a template's actions
- * must exist, and lower versions go first, because a version's bump is checked against them.
+ * Imports every version built below `directory`. A version goes after the imported versions it
+ * uses, because the actions of a template or a composite action must exist. Lower versions go
+ * first, because a version's bump is checked against them.
  */
 export async function importBuildOutputs({
   directory,
@@ -67,12 +71,35 @@ export async function findBuildOutputs(directory: string): Promise<BuildOutput[]
       .filter((entry) => entry.isFile() && entry.name === BUILD_SUMMARY)
       .map((entry) => readBuildOutput(join(entry.parentPath, entry.name))),
   );
-  return outputs.sort(
-    (a, b) =>
-      Number(a.kind === 'template') - Number(b.kind === 'template') ||
-      `${a.namespace}/${a.name}`.localeCompare(`${b.namespace}/${b.name}`) ||
-      compareRegistryVersions(a.version, b.version),
+  return orderByUse(
+    outputs.sort(
+      (a, b) =>
+        Number(a.kind === 'template') - Number(b.kind === 'template') ||
+        `${a.namespace}/${a.name}`.localeCompare(`${b.namespace}/${b.name}`) ||
+        compareRegistryVersions(a.version, b.version),
+    ),
   );
+}
+
+/** Keeps the order, except that a version moves after the versions of the batch it uses. */
+function orderByUse(outputs: BuildOutput[]): BuildOutput[] {
+  const referenceOf = (output: BuildOutput) =>
+    `${output.namespace}/${output.name}@${output.version}`;
+  const pending = [...outputs];
+  const unimported = new Set(pending.map(referenceOf));
+  const ordered: BuildOutput[] = [];
+  while (pending.length > 0) {
+    // Exact versions cannot use each other in a cycle, so a ready version always exists.
+    const index = Math.max(
+      0,
+      pending.findIndex((output) => output.actions.every((action) => !unimported.has(action))),
+    );
+    const [next] = pending.splice(index, 1);
+    if (next === undefined) break;
+    unimported.delete(referenceOf(next));
+    ordered.push(next);
+  }
+  return ordered;
 }
 
 async function readBuildOutput(summaryPath: string): Promise<BuildOutput> {
@@ -81,7 +108,13 @@ async function readBuildOutput(summaryPath: string): Promise<BuildOutput> {
   if (name === undefined) {
     throw new Error(`${summaryPath} names ${JSON.stringify(summary.package)}, not ns/name`);
   }
-  return {directory: dirname(summaryPath), ...name, kind: summary.kind, version: summary.version};
+  return {
+    directory: dirname(summaryPath),
+    ...name,
+    kind: summary.kind,
+    version: summary.version,
+    actions: summary.actions,
+  };
 }
 
 async function readParts(directory: string): Promise<PublishRequestParts> {

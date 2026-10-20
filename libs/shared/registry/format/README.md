@@ -30,23 +30,33 @@ release tool, Shipfox instances, and the docs build.
 
   | Change | Bump |
   | -- | -- |
-  | Input removed, type changed, or newly required without a default | major |
+  | Change between a JavaScript action (`main`) and a composite action (`steps`) | major |
+  | Input removed, type changed, `secret` changed, or newly required without a default | major |
   | Output removed or type changed | major |
   | Integration alias added or removed, or its provider changed | major |
   | `allow_write` turned on | major |
   | `post_failure` changed from `warn` to `fail` | major |
   | Optional input, output, or selectors added | minor |
   | `post` added or removed | minor |
-  | Anything else, including selectors removed, `allow_write` turned off, and `post_failure` changed from `fail` to `warn` | patch |
+  | Anything else, including selectors removed, `allow_write` turned off, `post_failure` changed from `fail` to `warn`, and the steps of a composite action | patch |
 
 - **`diffActionCapabilities({previous, next})`** lists what changed in the
   integration aliases: `alias_added`, `alias_removed`, `provider_changed`,
   `write_enabled`, `write_disabled`, `selectors_added`, and
   `selectors_removed`. A provider change reports only `provider_changed`.
 - **`deriveActionMetadata({reference, manifest, contentBytes})`** returns the
-  `derived` field of an action version document: integration providers,
-  capabilities per alias, the input and output interface, a YAML usage
-  snippet, and the bundle size. `registryActionMetadataSchema` validates it.
+  `derived` field of an action version document: the `kind` (`javascript` or
+  `composite`), integration providers, capabilities per alias, the input and
+  output interface with `secret: true` on secret inputs, a YAML usage snippet,
+  and the bundle size. `registryActionMetadataSchema` validates it. Versions
+  published before composite actions have no `kind`, and are JavaScript
+  actions.
+- **`collectCompositeActions(manifest)`** returns the exact registry actions
+  the steps of a composite action use, sorted, for the version document's
+  `actions`. It refuses a repository path or a `${{ action.path }}/` path,
+  which a registry composite cannot run. `COMPOSITE_ACTION_MAX_FILES` (100) and
+  `COMPOSITE_ACTION_MAX_BYTES` (1 MiB) bound its bundle, as for a repository
+  action.
 - **`canonicalJson(value)`** writes JSON with object keys sorted at every depth.
 - **Signed envelopes** wrap version documents in a
   [DSSE](https://github.com/secure-systems-lab/dsse) envelope with Ed25519

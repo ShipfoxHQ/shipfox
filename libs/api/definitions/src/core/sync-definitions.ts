@@ -222,7 +222,11 @@ export async function fetchAndParseWorkflows(
         actionManifests,
         promptFiles,
       }),
-      registryRefs: collectRegistryRefs({content: entry.content, document: entry.document}),
+      registryRefs: collectRegistryRefs({
+        content: entry.content,
+        document: entry.document,
+        actions: actionManifests,
+      }),
     };
   });
 

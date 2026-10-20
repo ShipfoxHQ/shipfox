@@ -1,7 +1,10 @@
 import {createHash} from 'node:crypto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
+import {actionManifestSchema} from '@shipfox/workflow-document';
+import {parse as parseYaml} from 'yaml';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {
   fakeRegistry,
@@ -819,7 +822,7 @@ jobs:
     paths?: string[];
     actionsEnabled?: boolean;
     registryActionsEnabled?: boolean;
-    registry?: ReturnType<typeof fakeRegistry>;
+    registry?: Pick<RegistryInterModuleClient, 'resolveVersion'>;
     source?: DefinitionsSourceControl;
     onProgress?: (path: string) => void;
     loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>;
@@ -892,6 +895,30 @@ jobs:
       const hash = before.workflows[0]?.contentHash;
       expect(nested.workflows[0]?.contentHash).not.toBe(hash);
       expect(prompt.workflows[0]?.contentHash).not.toBe(hash);
+    });
+
+    it('records the registry actions that a repository composite pins, at its action.yml', async () => {
+      const result = await sync({
+        repository: compositeRepository({
+          [workflowPath]: `${compositeWorkflow}      - uses: ${REGISTRY_ACTION_REF}\n`,
+          '.shipfox/actions/setup/action.yml': [
+            'name: Setup',
+            'steps:',
+            `  - uses: ${REGISTRY_ACTION_REF}`,
+            '  - uses: ./.shipfox/actions/notify',
+          ].join('\n'),
+        }),
+        registry: fakeRegistry(await registryVersion()),
+      });
+
+      expect(result.workflows[0]?.registryRefs).toEqual([
+        {
+          kind: 'action',
+          package: 'shipfox/slack-thread-digest',
+          version: '1.4.2',
+          steps: ['build.1', '.shipfox/actions/setup/action.yml'],
+        },
+      ]);
     });
 
     it('fails with prompt-file-invalid on a missing repository file named by a composite', async () => {
@@ -1239,6 +1266,63 @@ jobs:
         message: 'The registry is unavailable',
         retryable: true,
       });
+    });
+
+    it('expands a registry composite action with a nested registry action', async () => {
+      const compositeYaml = [
+        'name: Slack thread brief',
+        'inputs:',
+        '  thread:',
+        '    required: true',
+        'steps:',
+        '  - key: digest',
+        `    uses: ${REGISTRY_ACTION_REF}`,
+        '  - run: $' + '{{ action.path }}/scripts/brief.sh',
+        '    env:',
+        '      THREAD: $' + '{{ inputs.thread }}',
+        '',
+      ].join('\n');
+      const composite = await registryVersion({
+        files: [
+          {path: 'action.yml', content: compositeYaml},
+          {path: 'scripts/brief.sh', content: '#!/bin/sh\necho brief\n'},
+        ],
+        // The registry stores the parsed manifest, so the resolver compares it after a second parse.
+        manifest: actionManifestSchema.parse(parseYaml(compositeYaml)) as Record<string, unknown>,
+      });
+      const digest = await registryVersion();
+      const registry = {
+        resolveVersion: vi.fn(({package: name}: {package: string}) =>
+          Promise.resolve(name === 'shipfox/slack-thread-brief' ? composite : digest),
+        ),
+      };
+      const yaml = `name: Brief\nrunner: ubuntu-latest\njobs:\n  build:\n    steps:\n      - key: brief\n        uses: shipfox/slack-thread-brief@1.0.0\n        with:\n          thread: '1721300000.000100'\n`;
+
+      const result = await sync({repository: {[workflowPath]: yaml}, registry});
+
+      expect(result.actions.map((action) => action.registry?.package)).toEqual([
+        'shipfox/slack-thread-brief',
+        'shipfox/slack-thread-digest',
+      ]);
+      expect(result.workflows[0]?.definition.model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'composite',
+        composite: {origin: 'registry', package: 'shipfox/slack-thread-brief', version: '1.0.0'},
+        steps: [
+          {
+            kind: 'action',
+            action: {origin: 'registry', package: 'shipfox/slack-thread-digest', version: '1.4.2'},
+          },
+          {kind: 'run'},
+        ],
+      });
+      expect(result.workflows[0]?.registryRefs).toEqual([
+        {
+          kind: 'action',
+          package: 'shipfox/slack-thread-brief',
+          version: '1.0.0',
+          steps: ['build.brief'],
+        },
+      ]);
     });
 
     it('counts registry and repository actions toward the 20-action limit', async () => {

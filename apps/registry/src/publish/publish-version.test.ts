@@ -4,6 +4,7 @@ import type {AddressInfo} from 'node:net';
 import {closeApp} from '@shipfox/node-fastify';
 import {registryBlobKey, verifyRegistryVersionEnvelope} from '@shipfox/registry-format';
 import {and, eq} from 'drizzle-orm';
+import {stringify} from 'yaml';
 import {db} from '#db/db.js';
 import {audit} from '#db/schema/audit.js';
 import {packages} from '#db/schema/packages.js';
@@ -13,6 +14,7 @@ import {
   ACTION_DRAFT,
   actionFiles,
   bundleOf,
+  compositeActionFiles,
   multipartRequest,
   sourceArchive,
   TEMPLATE_DRAFT,
@@ -178,6 +180,75 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
           slack: {provider: 'slack', selectors: ['conversations.history'], allow_write: false},
         },
       });
+    });
+  });
+
+  describe('publishing a composite action', () => {
+    const publishComposite = async (files = compositeActionFiles()) =>
+      publishAction({name: 'slack-thread-brief', content: await bundleOf(files)});
+
+    it('lists the registry actions it uses and records its kind and secret inputs', async () => {
+      await publishAction();
+
+      const response = await publishComposite();
+
+      expect(response.statusCode).toBe(201);
+      expect(documentOf(envelopeOf(response))).toMatchObject({
+        kind: 'action',
+        content: {format: 'action-bundle@1'},
+        actions: ['shipfox/slack-thread-digest@1.0.0'],
+        derived: {
+          kind: 'composite',
+          interface: {inputs: {token: {type: 'string', required: true, secret: true}}},
+        },
+      });
+    });
+
+    it('refuses a composite action that uses an action the registry does not hold', async () => {
+      const response = await publishComposite();
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({code: 'action-not-found'});
+      expect(await storedVersions('shipfox/slack-thread-brief')).toEqual([]);
+    });
+
+    it.each([
+      ['a repository path', './actions/notify'],
+      ['an action.path path', '$' + '{{ action.path }}/steps/notify'],
+    ])('refuses a composite action that uses %s', async (_name, uses) => {
+      const response = await publishComposite(compositeActionFiles({uses: [uses]}));
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({code: 'invalid-manifest'});
+    });
+
+    it('refuses a composite action bundle with more files than a repository action', async () => {
+      const files = compositeActionFiles({uses: []});
+      for (let index = 0; index < 100; index += 1) files[`prompts/${index}.md`] = 'x\n';
+
+      const response = await publishComposite(files);
+
+      expect(response.statusCode).toBe(413);
+      expect(response.json()).toMatchObject({code: 'too-large'});
+    });
+
+    it('requires a major bump to turn a JavaScript action into a composite action', async () => {
+      await publishAction();
+
+      const response = await publishAction({
+        version: '1.1.0',
+        content: await bundleOf({
+          ...compositeActionFiles({uses: []}),
+          'action.yml': stringify({
+            name: 'Slack thread digest',
+            description: 'Summarizes a Slack thread.',
+            steps: [{run: 'echo digest'}],
+          }),
+        }),
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({code: 'bump-too-low'});
     });
   });
 

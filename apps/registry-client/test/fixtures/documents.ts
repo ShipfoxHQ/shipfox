@@ -131,22 +131,37 @@ const ACTION_MANIFEST = actionManifestSchema.parse({
   integrations: {slack: {provider: 'slack', include: ['conversations'], allow_write: false}},
 });
 
+const COMPOSITE_MANIFEST = actionManifestSchema.parse({
+  name: 'Slack thread brief',
+  description: 'Digests a Slack thread and writes a brief.',
+  inputs: {
+    channel_id: {type: 'string', required: true},
+    npm_token: {type: 'string', required: true, secret: true},
+  },
+  steps: [{uses: 'shipfox/slack-thread-digest@1.0.0'}, {run: 'echo brief'}],
+});
+
+function javascriptManifest(postFailure: 'warn' | 'fail' | undefined) {
+  if (postFailure === undefined) return ACTION_MANIFEST;
+  return actionManifestSchema.parse({
+    ...ACTION_MANIFEST,
+    post: 'post.mjs',
+    post_failure: postFailure,
+  });
+}
+
 export function actionDocument({
   version,
   postFailure,
+  composite = false,
 }: {
   version: string;
   /** Declares a post entry with this `post_failure` value. */
   postFailure?: 'warn' | 'fail';
+  /** Makes the action a composite action that uses `shipfox/slack-thread-digest@1.0.0`. */
+  composite?: boolean;
 }): RegistryActionVersionDocument {
-  const manifest =
-    postFailure === undefined
-      ? ACTION_MANIFEST
-      : actionManifestSchema.parse({
-          ...ACTION_MANIFEST,
-          post: 'post.mjs',
-          post_failure: postFailure,
-        });
+  const manifest = composite ? COMPOSITE_MANIFEST : javascriptManifest(postFailure);
   return {
     schema: 'shipfox.registry/version@1',
     package: 'shipfox/slack-thread-digest',
@@ -164,8 +179,8 @@ export function actionDocument({
       manifest,
       contentBytes: 48213,
     }),
-    dependencies: [{name: 'mdast-util-to-markdown', version: '2.1.2'}],
-    actions: [],
+    dependencies: composite ? [] : [{name: 'mdast-util-to-markdown', version: '2.1.2'}],
+    actions: composite ? ['shipfox/slack-thread-digest@1.0.0'] : [],
     builder: {tool: '@shipfox/registry-release', version: '0.1.0', recipe: 1, mode: 'workspace'},
     provenance: {...PROVENANCE, path: 'libs/shared/workflow/catalog/actions/slack-thread-digest'},
   };

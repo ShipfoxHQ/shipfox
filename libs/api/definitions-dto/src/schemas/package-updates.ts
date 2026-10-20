@@ -25,7 +25,10 @@ export const packageUpdateSchema = z.object({
   bump: z.enum(['major', 'minor', 'patch']).nullable(),
   /** Whether a newer version widens what the action can do. Set for actions only. */
   capability_change: z.boolean().optional(),
-  /** Steps that use the action, as `<job key>.<step key or index>`. Set for actions only. */
+  /**
+   * Where the action is pinned: workflow steps as `<job key>.<step key or index>`, and repository
+   * composite actions as the path of their `action.yml`. Set for actions only.
+   */
   steps: z.array(z.string()).optional(),
   /** Changelog sections of the newest versions after the pinned one, newest first. */
   changelog: z.array(packageUpdateChangelogEntrySchema).max(PACKAGE_UPDATE_CHANGELOG_MAX_ENTRIES),

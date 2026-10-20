@@ -9,11 +9,10 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react';
-import Link from 'next/link';
 import type {TemplateDetails} from '@/lib/package-page';
 import {isChoosable} from '@/lib/prompts';
 import {providerLabel} from '@/lib/providers';
-import {packagePath} from '@/lib/urls';
+import {ActionsUsed} from './actions-used';
 import {ProviderIcon} from './provider-icon';
 import {CodeName, InlineCode, Row, RowList, Section} from './section';
 
@@ -165,22 +164,7 @@ export function TemplateSections({details}: {details: TemplateDetails}) {
         </Section>
       ) : null}
 
-      {actions.length > 0 ? (
-        <Section title="Actions used">
-          <RowList>
-            {actions.map((reference) => (
-              <Row key={reference}>
-                <Link
-                  href={packagePath(reference.slice(0, reference.lastIndexOf('@')))}
-                  className="font-code text-foreground-highlight-interactive underline underline-offset-2"
-                >
-                  {reference}
-                </Link>
-              </Row>
-            ))}
-          </RowList>
-        </Section>
-      ) : null}
+      <ActionsUsed actions={actions} />
     </>
   );
 }

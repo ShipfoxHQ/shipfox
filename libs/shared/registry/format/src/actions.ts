@@ -3,13 +3,26 @@ import {
   type ActionManifestInputDeclaration,
   type ActionManifestIntegration,
   type ActionManifestOutputDeclaration,
+  actionPathRelativePart,
+  isCompositeActionManifest,
+  parseWorkflowActionRef,
+  WORKFLOW_ACTION_PATH_PREFIX,
   workflowDocumentStepOutputTypes,
 } from '@shipfox/workflow-document';
 import {z} from 'zod';
 import type {RegistryBump} from '#documents.js';
 import {formatRegistryReference, type RegistryReference} from '#reference.js';
 
+export const REGISTRY_ACTION_KINDS = ['javascript', 'composite'] as const;
+
+/** The most files a composite action bundle holds, as for a repository action. */
+export const COMPOSITE_ACTION_MAX_FILES = 100;
+/** The most bytes of file content a composite action bundle holds, as for a repository action. */
+export const COMPOSITE_ACTION_MAX_BYTES = 1024 * 1024;
+
 export const registryActionMetadataSchema = z.object({
+  /** Absent on versions published before composite actions, which are JavaScript actions. */
+  kind: z.enum(REGISTRY_ACTION_KINDS).optional(),
   /** Providers of the manifest's integration aliases, sorted and unique. */
   integrations: z.array(z.string()),
   capabilities: z.record(
@@ -23,6 +36,8 @@ export const registryActionMetadataSchema = z.object({
         type: z.enum(workflowDocumentStepOutputTypes),
         required: z.boolean(),
         default: z.unknown().optional(),
+        /** Set on the inputs of a composite action that receive a secret. */
+        secret: z.literal(true).optional(),
         description: z.string().optional(),
       }),
     ),
@@ -42,6 +57,7 @@ export const registryActionMetadataSchema = z.object({
 });
 
 export type RegistryActionMetadata = z.infer<typeof registryActionMetadataSchema>;
+export type RegistryActionKind = (typeof REGISTRY_ACTION_KINDS)[number];
 
 export type ActionCapabilityChange =
   | {type: 'alias_added'; alias: string; provider: string}
@@ -71,7 +87,8 @@ const CAPABILITY_CHANGE_BUMP: Record<ActionCapabilityChange['type'], RegistryBum
 
 /** The minimum bump from `previous` to `next`, from their manifests alone. */
 export function computeActionBump({previous, next}: ActionManifestChange): RegistryBump {
-  const bumps = [
+  const bumps: RegistryBump[] = [
+    ...(actionKind(previous) === actionKind(next) ? [] : ['major' as const]),
     ...inputBumps(entries(previous.inputs), entries(next.inputs)),
     ...outputBumps(entries(previous.outputs), entries(next.outputs)),
     ...diffActionCapabilities({previous, next}).map(
@@ -123,6 +140,7 @@ export function deriveActionMetadata({
 }: DeriveActionMetadataParams): RegistryActionMetadata {
   const integrations = [...entries(manifest.integrations)];
   return {
+    kind: actionKind(manifest),
     integrations: [...new Set(integrations.map(([, {provider}]) => provider))].sort(),
     capabilities: Object.fromEntries(
       integrations.map(([alias, {provider, include, allow_write}]) => [
@@ -133,9 +151,15 @@ export function deriveActionMetadata({
     interface: {
       inputs: Object.fromEntries(
         [...entries(manifest.inputs)].map(
-          ([name, {type, required, default: value, description}]) => [
+          ([name, {type, required, default: value, secret, description}]) => [
             name,
-            {type, required, default: value, description},
+            {
+              type,
+              required,
+              default: value,
+              ...(secret ? {secret: true as const} : {}),
+              description,
+            },
           ],
         ),
       ),
@@ -158,8 +182,11 @@ function inputBumps(
   const bumps: RegistryBump[] = [];
   for (const [name, input] of before) {
     const later = after.get(name);
-    if (!later || later.type !== input.type) bumps.push('major');
-    else if (mustBeProvided(later) && !mustBeProvided(input)) bumps.push('major');
+    // A secret input takes only secret references, and other inputs take none, so the flag is
+    // part of the type.
+    if (!later || later.type !== input.type || isSecret(later) !== isSecret(input)) {
+      bumps.push('major');
+    } else if (mustBeProvided(later) && !mustBeProvided(input)) bumps.push('major');
   }
   for (const [name, input] of after) {
     if (!before.has(name)) bumps.push(mustBeProvided(input) ? 'major' : 'minor');
@@ -209,6 +236,50 @@ function integrationChanges(
   const removed = before.include.filter((selector) => !after.include.includes(selector));
   if (removed.length > 0) changes.push({type: 'selectors_removed', alias, selectors: removed});
   return changes;
+}
+
+export function actionKind(manifest: ActionManifest): RegistryActionKind {
+  return isCompositeActionManifest(manifest) ? 'composite' : 'javascript';
+}
+
+export type CompositeActionReferences =
+  | {ok: true; actions: string[]}
+  | {ok: false; uses: string; message: string};
+
+/**
+ * The exact registry actions the steps of a composite action use, sorted and unique, and none
+ * for a JavaScript action. A registry composite can use registry actions only: a repository path
+ * or a `${{ action.path }}/` path would not exist where the composite runs.
+ */
+export function collectCompositeActions(manifest: ActionManifest): CompositeActionReferences {
+  if (!isCompositeActionManifest(manifest)) return {ok: true, actions: []};
+  const references = new Set<string>();
+  for (const {uses} of manifest.steps) {
+    if (uses === undefined) continue;
+    if (actionPathRelativePart(uses) !== undefined) {
+      return {
+        ok: false,
+        uses,
+        message: `A registry composite action cannot use \`${WORKFLOW_ACTION_PATH_PREFIX}\` in \`uses\`. Publish the inner action and use it by version.`,
+      };
+    }
+    const ref = parseWorkflowActionRef(uses);
+    if (!ref.ok) return {ok: false, uses, message: ref.message};
+    if (ref.ref.kind === 'local') {
+      return {
+        ok: false,
+        uses,
+        message:
+          'A registry composite action can use registry actions only, such as shipfox/x@1.4.2, not repository paths.',
+      };
+    }
+    references.add(formatRegistryReference(ref.ref));
+  }
+  return {ok: true, actions: [...references].sort()};
+}
+
+function isSecret(input: ActionManifestInputDeclaration): boolean {
+  return input.secret === true;
 }
 
 function mustBeProvided(input: ActionManifestInputDeclaration): boolean {

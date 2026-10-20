@@ -8,8 +8,8 @@ The `shipfox-registry-release` command runs the deterministic recipe that turns 
 
 - **`build <dir>`** builds one package into `.shipfox-registry/<ns>/<name>/<version>/` (ignored by Git) and prints its digests. The directory holds the blobs, `README.md` when present, the publish `draft.json`, and a `build.json` summary. The registry's operator `import` command reads it.
 - **`check --mode pr`** builds every configured package. A package whose fingerprint differs from its published version needs a pending changeset that bumps it by at least the computed minimum. An unpublished package needs no changeset.
-- **`check --mode release`** builds every configured package and compares it with the registry. A published version must keep its fingerprint. A new version must meet the bump rules against the highest lower published version, and every action a template uses must be a published action or part of the same release.
-- **`publish`** runs `check --mode release`, exchanges a GitHub OIDC token for a publish token, then uploads the versions the registry does not have. Actions upload before templates.
+- **`check --mode release`** builds every configured package and compares it with the registry. A published version must keep its fingerprint. A new version must meet the bump rules against the highest lower published version, and every action a template or a composite action uses must be a published action or part of the same release.
+- **`publish`** runs `check --mode release`, exchanges a GitHub OIDC token for a publish token, then uploads the versions the registry does not have. Each version uploads after the versions of the same release that it uses, so actions upload before the composite actions and templates that use them.
 - **`verify <ns/name@version>`** checks out the provenance commit of a published version in a temporary worktree, runs the recipe, and compares the content and source digests.
 
 `check` also warns about a `related` name that is neither published nor configured. It never fails on one.
@@ -37,7 +37,12 @@ The `shipfox-registry-release` command runs the deterministic recipe that turns 
 5. Bundles `main` with the pinned esbuild: `platform: node`, `format: esm`, `target: node24`, the `workspace-source` condition, `@shipfox/actions` external, legal comments at the end, no minify or source maps, and a `createRequire` banner. No tsconfig file is read. A `require` or `import()` esbuild cannot resolve fails the build, and so does a native `.node` file.
 6. Encodes the `action-bundle@1` from `action.yml` with `main: index.mjs` (and `post: post.mjs` when the action declares a `post`), `index.mjs`, `post.mjs` when present, and `LICENSE` when present, and the `source-archive@1` from the build tree without `node_modules`. The resolved production dependencies are recorded from the trimmed lockfile.
 
-The source digest depends on the action's path, on the bundled workspace packages, and on the root install settings the tree keeps, such as `overrides` and `packageExtensions`. A change to any of them needs a changeset for the action.
+A composite action (`steps:` in `action.yml`) skips steps 1 to 6:
+
+1. Collects the `uses:` references of its steps. Every one must be an exact registry reference, never a repository path or a `${{ action.path }}/` path.
+2. Encodes the `action-bundle@1` from the Git-tracked text files of the package without `package.json`, `README.md`, and `CHANGELOG.md`, at most 100 files and 1 MiB. Scripts and prompt files the steps read through `${{ action.path }}` ship as written. The `source-archive@1` holds every tracked text file of the package. No dependency is recorded.
+
+The source digest of a JavaScript action depends on the action's path, on the bundled workspace packages, and on the root install settings the tree keeps, such as `overrides` and `packageExtensions`. A change to any of them needs a changeset for the action.
 
 ## Installation and setup
 

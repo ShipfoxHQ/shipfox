@@ -34,7 +34,10 @@ export function PackageView({page}: {page: PackagePage}) {
           <Header variant="h1" className="text-foreground-neutral-base">
             {page.title}
           </Header>
-          <KindBadge kind={details.kind} />
+          <KindBadge
+            kind={details.kind}
+            composite={details.kind === 'action' && details.metadata.kind === 'composite'}
+          />
         </div>
         <p className="max-w-[720px] text-md text-foreground-neutral-subtle">{page.summary}</p>
         {details.kind === 'template' ? (

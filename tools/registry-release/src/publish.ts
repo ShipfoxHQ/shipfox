@@ -14,7 +14,8 @@ export class ReleaseCheckFailedError extends Error {
 
 /**
  * Runs `check --mode release`, then uploads the versions the registry does not
- * have: actions first, because a template's actions must exist when it is
+ * have. Each version goes after the versions of the batch that it uses, because
+ * the actions of a template or a composite action must exist when it is
  * published. Versions the registry already has are skipped, so a retry of a
  * partial publish continues where it stopped.
  */
@@ -47,13 +48,36 @@ export async function publishPackages({
     return [];
   }
 
-  const ordered = missing.sort(
-    (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || (a.package < b.package ? -1 : 1),
-  );
+  const ordered = orderByUse(missing);
   const token = await registry.exchangeOidcToken({oidcToken: await requestOidcToken()});
   for (const built of ordered) {
     await registry.publishVersion({token, built});
     log(`Published ${built.package}@${built.version}`);
   }
   return ordered;
+}
+
+/** Actions before templates and then by name, with every version after the batch versions it uses. */
+function orderByUse(packages: readonly BuiltPackage[]): BuiltPackage[] {
+  const pending = [...packages].sort(
+    (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || (a.package < b.package ? -1 : 1),
+  );
+  const unpublished = new Set(pending.map(referenceOf));
+  const ordered: BuiltPackage[] = [];
+  while (pending.length > 0) {
+    // Exact versions cannot use each other in a cycle, so a ready version always exists.
+    const index = Math.max(
+      0,
+      pending.findIndex((built) => built.actions.every((action) => !unpublished.has(action))),
+    );
+    const [next] = pending.splice(index, 1);
+    if (next === undefined) break;
+    unpublished.delete(referenceOf(next));
+    ordered.push(next);
+  }
+  return ordered;
+}
+
+function referenceOf(built: BuiltPackage): string {
+  return `${built.package}@${built.version}`;
 }

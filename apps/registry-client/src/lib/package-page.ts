@@ -36,6 +36,8 @@ export interface ActionDetails {
   kind: 'action';
   metadata: RegistryActionMetadata;
   dependencies: {name: string; version: string}[];
+  /** Exact registry references of the actions a composite action uses. */
+  actions: string[];
   /** Set when the action declares a post entry. */
   post?: {failure: 'warn' | 'fail'};
 }
@@ -151,6 +153,7 @@ function describe(document: RegistryVersionDocument) {
         kind: 'action',
         metadata: document.derived,
         dependencies: document.dependencies,
+        actions: document.actions,
         ...(manifest.post === undefined ? {} : {post: {failure: manifest.post_failure ?? 'warn'}}),
       } satisfies ActionDetails,
     };
