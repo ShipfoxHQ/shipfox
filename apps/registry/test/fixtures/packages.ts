@@ -45,6 +45,27 @@ export function actionFiles({
   };
 }
 
+/** The files of a composite `action-bundle@1`: steps that use `uses`, and a shipped script. */
+export function compositeActionFiles({
+  uses = ['shipfox/slack-thread-digest@1.0.0'],
+}: {
+  uses?: string[];
+} = {}): Record<string, string> {
+  return {
+    'action.yml': stringify({
+      name: 'Slack thread brief',
+      description: 'Digests a Slack thread and posts a brief.',
+      inputs: {token: {type: 'string', secret: true, required: true}},
+      steps: [
+        ...uses.map((ref) => ({uses: ref})),
+        {run: '$' + '{{ action.path }}/scripts/brief.sh', env: {TOKEN: '$' + '{{ inputs.token }}'}},
+      ],
+    }),
+    'scripts/brief.sh': '#!/bin/sh\necho brief\n',
+    LICENSE: 'MIT License\n',
+  };
+}
+
 export interface TemplateFixture {
   title?: string;
   summary?: string;

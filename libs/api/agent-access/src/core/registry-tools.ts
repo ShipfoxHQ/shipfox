@@ -143,7 +143,7 @@ async function listPackages(
 function createGetRegistryPackageTool(registry: RegistryInterModuleClient): AgentAccessTool {
   return {
     name: AGENT_ACCESS_REGISTRY_TOOL_NAMES[1],
-    description: `Get one version of a registry package: manifest, derived interface and capabilities, dependencies, changelog, provenance, digests, README (cut at 32 KiB), and the latest ${AGENT_ACCESS_REGISTRY_VERSIONS_MAX} versions with their bump. Omit \`version\` for the latest. ${PACKAGE_TEXT_NOTICE}`,
+    description: `Get one version of a registry package: manifest, derived interface and capabilities, dependencies, changelog, provenance, digests, README (cut at 32 KiB), and the latest ${AGENT_ACCESS_REGISTRY_VERSIONS_MAX} versions with their bump. For an action, \`derived.kind\` is \`composite\` when its body is workflow steps (absent or \`javascript\` otherwise), \`derived.interface.inputs\` marks the inputs that receive a secret with \`secret: true\`, and \`actions\` lists the registry actions a composite action uses. Omit \`version\` for the latest. ${PACKAGE_TEXT_NOTICE}`,
     inputSchema: getRegistryPackageInputJsonSchema,
     outputSchema: agentAccessOutputSchema(getRegistryPackageResultJsonSchema),
     validateInput: (input) => getRegistryPackageInputSchema.safeParse(input).success,
@@ -236,7 +236,7 @@ function toPackageResult(params: {
 function createDiffRegistryActionTool(registry: RegistryInterModuleClient): AgentAccessTool {
   return {
     name: AGENT_ACCESS_REGISTRY_TOOL_NAMES[2],
-    description: `Compare two versions of a registry action before moving a workflow from \`from\` to \`to\`. The first page reports the \`bump\` (the highest over the skipped versions), \`capability_changes\` (read these first: an added alias, a changed provider, or enabled writes widens what the action can do), manifest and dependency changes, and the changelog of every version after \`from\` up to \`to\`. \`source_diff\` is a unified diff of the source archives, paged by file at ${AGENT_ACCESS_REGISTRY_DIFF_PAGE_MAX_BYTES / 1024} KiB: pass \`next_cursor\` as \`cursor\` for the remaining files. Later pages carry only \`source_diff\`. ${PACKAGE_TEXT_NOTICE}`,
+    description: `Compare two versions of a registry action before moving a workflow from \`from\` to \`to\`. The first page reports the \`bump\` (the highest over the skipped versions), \`capability_changes\` (read these first: an added alias, a changed provider, or enabled writes widens what the action can do), manifest changes (secret inputs included), \`kind_change\` when the action moves between JavaScript and composite, the registry actions a composite action starts or stops using, dependency changes, and the changelog of every version after \`from\` up to \`to\`. \`source_diff\` is a unified diff of the source archives, paged by file at ${AGENT_ACCESS_REGISTRY_DIFF_PAGE_MAX_BYTES / 1024} KiB: pass \`next_cursor\` as \`cursor\` for the remaining files. Later pages carry only \`source_diff\`. ${PACKAGE_TEXT_NOTICE}`,
     inputSchema: diffRegistryActionInputJsonSchema,
     outputSchema: agentAccessOutputSchema(diffRegistryActionResultJsonSchema),
     validateInput: (input) => diffRegistryActionInputSchema.safeParse(input).success,
@@ -339,7 +339,12 @@ async function describeChanges(params: DescribeChangesParams) {
       outputs: diffDeclarations(from.derived.interface.outputs, to.derived.interface.outputs),
       integrations: diffDeclarations(from.derived.capabilities, to.derived.capabilities),
     },
+    ...kindChange(from, to),
     dependency_changes: diffDependencies(from.dependencies, to.dependencies),
+    action_changes: {
+      added: to.actions.filter((reference) => !from.actions.includes(reference)),
+      removed: from.actions.filter((reference) => !to.actions.includes(reference)),
+    },
     changelog: changelog.entries,
     ...(changelog.truncated ? {changelog_truncated: true} : {}),
   };
@@ -377,6 +382,13 @@ async function collectChangelog(params: {
     entries.push({version: document.version, markdown});
   }
   return {entries, truncated};
+}
+
+function kindChange(from: RegistryActionVersionDocument, to: RegistryActionVersionDocument) {
+  // Versions published before composite actions record no kind, and are JavaScript actions.
+  const before = from.derived.kind ?? 'javascript';
+  const after = to.derived.kind ?? 'javascript';
+  return before === after ? {} : {kind_change: {from: before, to: after}};
 }
 
 function diffDependencies(

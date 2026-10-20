@@ -1,0 +1,11 @@
+{
+  "name": "@shipfox/action-slack-thread-summary",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/shared/workflow/catalog/actions/slack-thread-summary"
+  },
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0"
+}

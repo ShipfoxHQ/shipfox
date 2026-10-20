@@ -159,7 +159,7 @@ async function runActionRecipe({
     manifest: action.manifest,
     contentFiles: action.files,
     sourceFiles: action.sourceFiles,
-    actions: [],
+    actions: action.actions,
     composition: undefined,
     dependencies: action.dependencies,
     recipe: ACTION_RECIPE,

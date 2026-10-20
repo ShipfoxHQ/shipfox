@@ -104,6 +104,28 @@ describe('publishPackages', () => {
     ]);
   });
 
+  it('publishes an action after the batch actions that it uses', async () => {
+    const action = (name: string, actions: string[] = []): BuiltPackage => ({
+      ...template,
+      package: `shipfox/${name}`,
+      kind: 'action',
+      manifest: {description: 'An action.'},
+      actions,
+    });
+
+    await publish([
+      action('alpha', ['shipfox/beta@1.0.0']),
+      action('beta', ['shipfox/zeta@1.0.0']),
+      action('zeta'),
+    ]);
+
+    expect(registry.publishes.map(({package: name}) => name)).toEqual([
+      'shipfox/zeta',
+      'shipfox/beta',
+      'shipfox/alpha',
+    ]);
+  });
+
   it('skips a version the registry already has and continues with the rest', async () => {
     const other: BuiltPackage = {...template, package: 'shipfox/other'};
     registry.seed(publishedDocument(template));

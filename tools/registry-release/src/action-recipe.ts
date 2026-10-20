@@ -1,15 +1,23 @@
+import {Buffer} from 'node:buffer';
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
+import {
+  COMPOSITE_ACTION_MAX_BYTES,
+  COMPOSITE_ACTION_MAX_FILES,
+  collectCompositeActions,
+} from '@shipfox/registry-format';
 import {
   type ActionBundleFile,
   type ActionManifest,
   actionManifestSchema,
+  type CompositeActionManifest,
+  isCompositeActionManifest,
 } from '@shipfox/workflow-document';
 import {build, type Message} from 'esbuild';
 import {parseDocument} from 'yaml';
 import {z} from 'zod';
 import {prepareBuildTree, type ResolvedDependency} from './build-tree.js';
-import {readDirectoryTextFiles, readOptional} from './source-archive.js';
+import {readDirectoryTextFiles, readOptional, readTrackedTextFiles} from './source-archive.js';
 
 /** The action recipe number stamped into `builder.recipe`. */
 export const ACTION_RECIPE = 1;
@@ -17,6 +25,8 @@ export const ACTION_RECIPE = 1;
 const ACTION_MAIN = 'index.mjs';
 const ACTION_POST = 'post.mjs';
 const ACTIONS_PACKAGE = '@shipfox/actions';
+// The registry publishes these as their own parts, so a composite bundle leaves them out.
+const PACKAGE_METADATA_FILES = new Set(['package.json', 'README.md', 'CHANGELOG.md']);
 
 // esbuild leaves these calls in place and logs them at debug level, even in
 // dependencies. The bundle could not resolve them at run time.
@@ -38,13 +48,19 @@ const actionPackageJsonSchema = z.object({
 export interface ActionBuild {
   manifest: ActionManifest;
   /**
-   * The files of the `action-bundle@1`: `action.yml`, `index.mjs`, `post.mjs` when the action
-   * declares a post, and `LICENSE` when present.
+   * The files of the `action-bundle@1`. A JavaScript action has `action.yml`, `index.mjs`,
+   * `post.mjs` when the action declares a post, and `LICENSE` when present. A composite action
+   * has the files of its directory that Git tracks, without the package metadata files.
    */
   files: ActionBundleFile[];
-  /** The build tree without `node_modules`, for the `source-archive@1`. */
+  /**
+   * For the `source-archive@1`: the build tree without `node_modules` of a JavaScript action,
+   * or the tracked files of a composite action directory.
+   */
   sourceFiles: ActionBundleFile[];
   dependencies: ResolvedDependency[];
+  /** The exact registry actions a composite action uses, sorted. */
+  actions: string[];
 }
 
 export async function buildAction({
@@ -60,8 +76,8 @@ export async function buildAction({
   const directory = join(root, path);
   const manifestText = await readFile(join(directory, 'action.yml'), 'utf8');
   const sourceManifest = actionManifestSchema.parse(parseDocument(manifestText).toJS());
-  if (sourceManifest.main === undefined) {
-    throw new Error(`${path}: composite actions (\`steps\`) cannot be released yet.`);
+  if (isCompositeActionManifest(sourceManifest)) {
+    return await buildCompositeAction({directory, path, manifest: sourceManifest});
   }
   const packageJson = actionPackageJsonSchema.parse(
     JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')),
@@ -102,10 +118,46 @@ export async function buildAction({
       ],
       sourceFiles: await readDirectoryTextFiles(tree.directory),
       dependencies: tree.dependencies,
+      actions: [],
     };
   } finally {
     await tree.remove();
   }
+}
+
+/**
+ * A composite action has nothing to build: the bundle is its directory as written, so the files
+ * its steps read through `${{ action.path }}` ship with it.
+ */
+async function buildCompositeAction({
+  directory,
+  path,
+  manifest,
+}: {
+  directory: string;
+  path: string;
+  manifest: CompositeActionManifest;
+}): Promise<ActionBuild> {
+  const actions = collectCompositeActions(manifest);
+  if (!actions.ok) throw new Error(`${path}: uses ${actions.uses}: ${actions.message}`);
+
+  const sourceFiles = await readTrackedTextFiles(directory);
+  const files = sourceFiles.filter((file) => !PACKAGE_METADATA_FILES.has(file.path));
+  if (!files.some((file) => file.path === 'action.yml')) {
+    throw new Error(`${path}: action.yml is not tracked by Git, so the bundle would leave it out`);
+  }
+  if (files.length > COMPOSITE_ACTION_MAX_FILES) {
+    throw new Error(
+      `${path}: a composite action holds at most ${COMPOSITE_ACTION_MAX_FILES} files`,
+    );
+  }
+  const bytes = files.reduce((total, {content}) => total + Buffer.byteLength(content, 'utf8'), 0);
+  if (bytes > COMPOSITE_ACTION_MAX_BYTES) {
+    throw new Error(
+      `${path}: a composite action holds at most ${COMPOSITE_ACTION_MAX_BYTES} bytes of files`,
+    );
+  }
+  return {manifest, files, sourceFiles, dependencies: [], actions: actions.actions};
 }
 
 /**

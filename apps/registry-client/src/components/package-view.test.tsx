@@ -205,6 +205,24 @@ describe('package page', () => {
       expect(html).toContain('post_failure');
       expect(html).toContain('If it fails, the job fails.');
     });
+
+    it('marks a composite action, its secret inputs, and the actions it uses', async () => {
+      const {html} = await renderPackage(
+        {
+          ...routes,
+          '/v1/packages/shipfox/slack-thread-digest/versions/1.0.0': {
+            body: envelope(actionDocument({version: '1.0.0', composite: true})),
+          },
+        },
+        'slack-thread-digest',
+      );
+
+      expect(html).toContain('Composite action');
+      expect(html).toContain('npm_token');
+      expect(html).toContain('>secret<');
+      expect(html).toContain('Actions used');
+      expect(html).toContain('href="/shipfox/slack-thread-digest"');
+    });
   });
 
   it('is undefined for a package the registry does not know', async () => {

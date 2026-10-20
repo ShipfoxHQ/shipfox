@@ -41,7 +41,7 @@ export function preparePackage({
   files: readonly ActionBundleFile[];
 }): PreparedPackage {
   if (draft.kind === 'action') {
-    return {kind: 'action', draft, ...readActionBundle(files), actions: []};
+    return {kind: 'action', draft, ...readActionBundle(files)};
   }
   const bundle = readTemplateBundle(files);
   const actions = collectTemplateActions({name, bundle, composition: draft.composition});

@@ -10741,6 +10741,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../../../tools/vitest
 
+  libs/shared/workflow/catalog/actions/slack-thread-summary: {}
+
   libs/shared/workflow/catalog/templates/ask-codebase: {}
 
   libs/shared/workflow/catalog/templates/fix-default-branch-ci: {}

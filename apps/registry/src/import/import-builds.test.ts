@@ -14,6 +14,7 @@ import {
   actionFiles,
   type BundleFixture,
   bundleOf,
+  compositeActionFiles,
   sourceArchive,
   TEMPLATE_DRAFT,
   templateFiles,
@@ -51,6 +52,7 @@ describe('importBuildOutputs', () => {
     draft,
     content,
     readme,
+    actions = [],
   }: {
     name: string;
     version: string;
@@ -58,12 +60,13 @@ describe('importBuildOutputs', () => {
     draft: object;
     content: BundleFixture;
     readme?: string;
+    actions?: string[];
   }) {
     const directory = join(buildsDirectory(), 'shipfox', name, version);
     await mkdir(directory, {recursive: true});
     await writeFile(
       join(directory, 'build.json'),
-      JSON.stringify({package: `shipfox/${name}`, kind, version}),
+      JSON.stringify({package: `shipfox/${name}`, kind, version, actions}),
     );
     await writeFile(join(directory, 'draft.json'), JSON.stringify(draft));
     await writeFile(join(directory, 'content.gz'), content.gzip);
@@ -125,6 +128,52 @@ describe('importBuildOutputs', () => {
       'slack-thread-digest@1.0.0',
       'slack-thread-digest@1.1.0',
       'ticket-digest@1.0.0',
+    ]);
+  });
+
+  it('imports a composite action after the action it uses, whatever their names', async () => {
+    await writeBuild({
+      name: 'aaa-thread-brief',
+      version: '1.0.0',
+      kind: 'action',
+      draft: ACTION_DRAFT,
+      content: await bundleOf(compositeActionFiles()),
+      actions: ['shipfox/slack-thread-digest@1.0.0'],
+    });
+    await writeAction('1.0.0');
+
+    const imported = await importBuildOutputs({directory: buildsDirectory(), importVersion});
+
+    expect(imported.map(({name, created}) => ({name, created}))).toEqual([
+      {name: 'slack-thread-digest', created: true},
+      {name: 'aaa-thread-brief', created: true},
+    ]);
+  });
+
+  it('imports a lower version first even when it waits for the action it uses', async () => {
+    const writeBrief = async (version: string, actions: string[]) =>
+      writeBuild({
+        name: 'aaa-thread-brief',
+        version,
+        kind: 'action',
+        draft: ACTION_DRAFT,
+        content: await bundleOf(
+          compositeActionFiles({
+            uses: actions.length === 0 ? [] : ['shipfox/slack-thread-digest@1.0.0'],
+          }),
+        ),
+        actions,
+      });
+    await writeBrief('1.0.0', ['shipfox/slack-thread-digest@1.0.0']);
+    await writeBrief('1.0.1', []);
+    await writeAction('1.0.0');
+
+    const imported = await importBuildOutputs({directory: buildsDirectory(), importVersion});
+
+    expect(imported.map(({name, version}) => `${name}@${version}`)).toEqual([
+      'slack-thread-digest@1.0.0',
+      'aaa-thread-brief@1.0.0',
+      'aaa-thread-brief@1.0.1',
     ]);
   });
 

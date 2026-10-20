@@ -1,10 +1,17 @@
 export {
   type ActionCapabilityChange,
   type ActionManifestChange,
+  actionKind,
+  COMPOSITE_ACTION_MAX_BYTES,
+  COMPOSITE_ACTION_MAX_FILES,
+  type CompositeActionReferences,
+  collectCompositeActions,
   computeActionBump,
   type DeriveActionMetadataParams,
   deriveActionMetadata,
   diffActionCapabilities,
+  REGISTRY_ACTION_KINDS,
+  type RegistryActionKind,
   type RegistryActionMetadata,
   registryActionMetadataSchema,
 } from '#actions.js';

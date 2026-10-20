@@ -3,7 +3,10 @@ export interface RegistryActionRef {
   kind: 'action';
   package: string;
   version: string;
-  /** The steps that use it, as `<job key>.<step key or index>`. */
+  /**
+   * Where it is pinned: workflow steps as `<job key>.<step key or index>`, and repository
+   * composite actions as the path of their `action.yml`.
+   */
   steps: string[];
 }
 

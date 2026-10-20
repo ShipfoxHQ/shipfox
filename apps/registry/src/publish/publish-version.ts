@@ -354,7 +354,7 @@ async function readSubmission({
   return {parts, draft, content, source, prepared, readme, readmeBlob, fingerprint};
 }
 
-/** The bump against the highest lower version, and whether a template's actions are published. */
+/** The bump against the highest lower version, and whether the actions the package uses are published. */
 async function checkVersionRules({
   packageName,
   version,
@@ -399,7 +399,10 @@ async function previousVersion({packageName, version}: {packageName: string; ver
   return {version: previous, manifest};
 }
 
-/** The registry can only vouch for actions it holds, so a template cannot pin one it lacks. */
+/**
+ * The registry can only vouch for actions it holds, so a template or a composite action cannot pin
+ * one it lacks.
+ */
 async function checkActionsExist(actions: readonly string[]): Promise<void> {
   const missing: string[] = [];
   for (const reference of actions) {
@@ -419,7 +422,7 @@ async function checkActionsExist(actions: readonly string[]): Promise<void> {
   if (missing.length > 0) {
     throw new VersionRefusedError(
       'action-not-found',
-      `The template uses actions the registry does not hold: ${missing.join(', ')}. Publish actions before templates.`,
+      `The package uses actions the registry does not hold: ${missing.join(', ')}. Publish them first.`,
     );
   }
 }

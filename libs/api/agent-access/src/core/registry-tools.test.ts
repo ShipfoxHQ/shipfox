@@ -178,6 +178,25 @@ describe('get_registry_package', () => {
     expect(getRegistryPackageResultSchema.safeParse(result).success).toBe(true);
   });
 
+  test('shows the kind, the secret inputs, and the actions of a composite action', async () => {
+    const {client} = await createFakeRegistry({
+      versions: [
+        {
+          version: '1.0.0',
+          inputs: {token: {type: 'string', required: true, secret: true}},
+          steps: [{uses: 'shipfox/notify@1.0.0'}],
+        },
+      ],
+    });
+
+    const response = await call(client, 'get_registry_package', {package: REGISTRY_PACKAGE});
+
+    expect(resultOf(response)).toMatchObject({
+      derived: {kind: 'composite', interface: {inputs: {token: {secret: true}}}},
+      actions: ['shipfox/notify@1.0.0'],
+    });
+  });
+
   test('returns a named version, and none of a version the package lacks', async () => {
     const {client} = await createFakeRegistry({versions: [{version: '1.0.0'}, {version: '1.1.0'}]});
 
@@ -339,6 +358,36 @@ describe('diff_registry_action', () => {
       {version: '1.2.0', markdown: '- Fixes threads.'},
       {version: '2.0.0', markdown: '- Writes to Slack.'},
     ]);
+    expect(diffRegistryActionResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  test('reports a move to a composite action, its secret inputs, and its actions', async () => {
+    const {client} = await createFakeRegistry({
+      versions: [
+        {version: '1.0.0', inputs: {token: {type: 'string', required: true}}},
+        {
+          version: '2.0.0',
+          bump: 'major',
+          inputs: {token: {type: 'string', required: true, secret: true}},
+          steps: [{uses: 'shipfox/notify@1.0.0'}, {run: 'echo done'}],
+        },
+      ],
+    });
+
+    const response = await call(client, 'diff_registry_action', {
+      package: REGISTRY_PACKAGE,
+      from: '1.0.0',
+      to: '2.0.0',
+    });
+    const result = resultOf(response);
+
+    expect(result).toMatchObject({
+      kind_change: {from: 'javascript', to: 'composite'},
+      action_changes: {added: ['shipfox/notify@1.0.0'], removed: []},
+      manifest_changes: {
+        inputs: {changed: {token: {to: {type: 'string', required: true, secret: true}}}},
+      },
+    });
     expect(diffRegistryActionResultSchema.safeParse(result).success).toBe(true);
   });
 

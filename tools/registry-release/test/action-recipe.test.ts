@@ -153,6 +153,83 @@ describe('buildPackage for an action', () => {
   );
 });
 
+const COMPOSITE_FILES: Record<string, string> = {
+  [`${ACTION_PATH}/package.json`]: `${JSON.stringify({
+    name: '@fixture/action-example',
+    private: true,
+    version: '1.0.0',
+    license: 'MIT',
+  })}\n`,
+  [`${ACTION_PATH}/action.yml`]: `name: Example
+description: Digests a thread, then briefs it.
+steps:
+  - key: digest
+    uses: shipfox/slack-thread-digest@1.0.0
+  - uses: acme/notify@2.0.0
+  - run: $\{{ action.path }}/scripts/brief.sh
+`,
+  [`${ACTION_PATH}/scripts/brief.sh`]: '#!/bin/sh\necho brief\n',
+  [`${ACTION_PATH}/LICENSE`]: 'MIT License\n',
+  [`${ACTION_PATH}/README.md`]: 'Briefs a thread.\n',
+  [`${ACTION_PATH}/CHANGELOG.md`]: '# Changelog\n',
+};
+
+describe('buildPackage for a composite action', () => {
+  let repository: ActionRepository;
+  afterEach(() => repository.remove());
+
+  it('bundles the directory as written, without the package metadata files', async () => {
+    repository = new ActionRepository(COMPOSITE_FILES);
+
+    const built = await buildAction(repository);
+
+    expect(Object.keys(await contentFiles(built)).sort()).toEqual([
+      'LICENSE',
+      'action.yml',
+      'scripts/brief.sh',
+    ]);
+    expect((await contentFiles(built))['action.yml']).toBe(
+      COMPOSITE_FILES[`${ACTION_PATH}/action.yml`],
+    );
+    expect(Object.keys(await sourceFiles(built)).sort()).toEqual([
+      'CHANGELOG.md',
+      'LICENSE',
+      'README.md',
+      'action.yml',
+      'package.json',
+      'scripts/brief.sh',
+    ]);
+    expect(built).toMatchObject({
+      kind: 'action',
+      content: {format: 'action-bundle@1'},
+      actions: ['acme/notify@2.0.0', 'shipfox/slack-thread-digest@1.0.0'],
+      dependencies: [],
+      builder: {recipe: 1},
+    });
+  });
+
+  it.each([
+    ['a repository path', './libs/catalog/actions/other'],
+    ['an action.path path', '$' + '{{ action.path }}/steps/notify'],
+  ])('rejects a step that uses %s', async (_name, uses) => {
+    repository = new ActionRepository({
+      ...COMPOSITE_FILES,
+      [`${ACTION_PATH}/action.yml`]: `name: Example\ndescription: Uses a path.\nsteps:\n  - uses: ${uses}\n`,
+    });
+
+    await expect(buildAction(repository)).rejects.toThrow(`uses ${uses}`);
+  });
+
+  it('rejects more files than a repository action holds', async () => {
+    const prompts = Object.fromEntries(
+      Array.from({length: 100}, (_, index) => [`${ACTION_PATH}/prompts/${index}.md`, 'x\n']),
+    );
+    repository = new ActionRepository({...COMPOSITE_FILES, ...prompts});
+
+    await expect(buildAction(repository)).rejects.toThrow('at most 100 files');
+  });
+});
+
 describe('buildPackage for an action that breaks a rule', () => {
   let repository: ActionRepository | undefined;
   afterEach(() => repository?.remove());

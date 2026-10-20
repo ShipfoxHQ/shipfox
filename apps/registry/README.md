@@ -103,7 +103,7 @@ names one namespace, and `{namespace}` must be that one.
 | Part | Content |
 | --- | --- |
 | `draft` | JSON: `kind`, `license` (an SPDX expression), `builder`, `path`, `changelog` when present, and by kind `dependencies` (actions) or `composition` (templates). Unknown fields are refused. |
-| `content` | The gzip content bundle: `action-bundle@1` (`action.yml`, `index.mjs`, `post.mjs` when the manifest sets `post`, and `LICENSE` when present) or `template-bundle@1` (`template.yaml`, `workflow.yml`, `GUIDE.md`, `parts/<role>/<provider>.yml`). |
+| `content` | The gzip content bundle: `action-bundle@1` or `template-bundle@1` (`template.yaml`, `workflow.yml`, `GUIDE.md`, `parts/<role>/<provider>.yml`). A JavaScript action bundle holds `action.yml`, `index.mjs`, `post.mjs` when the manifest sets `post`, and `LICENSE` when present. A composite action bundle (`steps:` in `action.yml`) holds `action.yml` and any other files, at most 100 files and 1 MiB. |
 | `source` | The gzip source archive that rebuilds the version. It holds no `node_modules` or `.npmrc`. |
 | `readme` | Optional README text, UTF-8, at most 64 KiB. |
 
@@ -120,14 +120,18 @@ The request must pass these checks, in this order:
 3. Each bundle inflates within its limit (action content 4 MiB, template
    content 1 MiB, source 20 MiB, request 30 MiB) and is in canonical form. The
    manifest parses, the description or summary is 1 to 160 characters, the
-   license is SPDX, and a template composes for every role binding.
+   license is SPDX, and a template composes for every role binding. A
+   composite action uses registry actions only, never a repository path or a
+   `${{ action.path }}/` path.
 4. A version that exists with the same fingerprint is a retry. With another
    fingerprint it is refused with `changed-without-version-bump`.
 5. The version step from the highest lower version is at least the bump that
    `computeActionBump` or `computeTemplateBump` computes. The first version has
    no bump.
-6. Every registry action a template uses exists. The list is what the
-   composed workflow of any binding uses, with every option block kept.
+6. Every registry action the package uses exists. For a template, the list is
+   what the composed workflow of any binding uses, with every option block
+   kept. For a composite action, it is the `uses` of its steps. The version
+   document lists them in `actions`.
 
 The blobs are written first, under `blobs/sha256/<digest>`, and one transaction
 then commits the package row, the version row with its envelope, and the audit
@@ -164,7 +168,8 @@ node apps/registry/dist/import.js .shipfox-registry
 
 Each version directory holds `build.json`, `draft.json`, `content.gz`,
 `source.gz`, and `README.md` when present. Actions are imported before
-templates, and lower versions first. An import goes through the same checks,
+templates, each version after the imported versions its `build.json` lists in
+`actions`, and lower versions first. An import goes through the same checks,
 signing, and audit rows as a publish, so a changed version without a bump is
 refused. Its namespace must be declared in the bootstrap file, but needs no
 publisher. No CI run vouches for the version, so its provenance names the

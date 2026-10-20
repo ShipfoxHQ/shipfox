@@ -1,5 +1,6 @@
 import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import {
+  collectCompositeActions,
   deriveActionMetadata,
   type RegistryActionVersionDocument,
   type RegistryBump,
@@ -17,7 +18,12 @@ export interface FakeRegistryVersion {
   version: string;
   bump?: RegistryBump;
   changelog?: string;
-  inputs?: Record<string, {type?: 'string' | 'number' | 'boolean'; required?: boolean}>;
+  inputs?: Record<
+    string,
+    {type?: 'string' | 'number' | 'boolean'; required?: boolean; secret?: boolean}
+  >;
+  /** Makes the version a composite action with these steps. */
+  steps?: Record<string, unknown>[];
   integrations?: Record<string, {provider: string; include: string[]; allow_write?: boolean}>;
   dependencies?: {name: string; version: string}[];
   files?: ActionBundleFile[];
@@ -30,6 +36,16 @@ export interface FakeRegistry {
 }
 
 const digest = (character: string) => `sha256:${character.repeat(64)}`;
+
+function fakeManifest(fake: FakeRegistryVersion) {
+  return actionManifestSchema.parse({
+    name: 'Slack thread digest',
+    description: 'Turns a Slack thread into Markdown.',
+    ...(fake.steps === undefined ? {main: 'index.mjs'} : {steps: fake.steps}),
+    inputs: fake.inputs ?? {},
+    integrations: fake.integrations ?? {},
+  });
+}
 
 /** An in-memory registry serving one action package, with real source archives. */
 export async function createFakeRegistry(params: {
@@ -44,13 +60,8 @@ export async function createFakeRegistry(params: {
       {path: 'index.mjs', content: `export const v = '${fake.version}';`},
     ];
     const source = await encodeActionBundle({files});
-    const manifest = actionManifestSchema.parse({
-      name: 'Slack thread digest',
-      description: 'Turns a Slack thread into Markdown.',
-      main: 'index.mjs',
-      inputs: fake.inputs ?? {},
-      integrations: fake.integrations ?? {},
-    });
+    const manifest = fakeManifest(fake);
+    const actions = collectCompositeActions(manifest);
     documents.set(fake.version, {
       schema: 'shipfox.registry/version@1',
       package: REGISTRY_PACKAGE,
@@ -72,7 +83,7 @@ export async function createFakeRegistry(params: {
         contentBytes: 10,
       }),
       dependencies: fake.dependencies ?? [],
-      actions: [],
+      actions: actions.ok ? actions.actions : [],
       ...(fake.changelog === undefined ? {} : {changelog: fake.changelog}),
       ...(fake.bump === undefined ? {} : {bump: fake.bump}),
       builder: {tool: '@shipfox/registry-release', version: '0.1.0', recipe: 1, mode: 'workspace'},

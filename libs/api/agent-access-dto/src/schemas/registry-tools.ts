@@ -1,4 +1,5 @@
 import {
+  REGISTRY_ACTION_KINDS,
   registryBumpSchema,
   registryDigestSchema,
   registryPackageKindSchema,
@@ -147,10 +148,18 @@ export const diffRegistryActionResultSchema = z.strictObject({
       integrations: declarationChangesSchema,
     })
     .optional(),
+  /** Set when the action changes between a JavaScript action and a composite action. */
+  kind_change: z
+    .strictObject({from: z.enum(REGISTRY_ACTION_KINDS), to: z.enum(REGISTRY_ACTION_KINDS)})
+    .optional(),
   dependency_changes: z
     .array(
       z.strictObject({name: z.string(), from: z.string().nullable(), to: z.string().nullable()}),
     )
+    .optional(),
+  /** The registry actions a composite action uses that `to` adds or removes. */
+  action_changes: z
+    .strictObject({added: z.array(z.string()), removed: z.array(z.string())})
     .optional(),
   changelog: z
     .array(z.strictObject({version: registryVersionSchema, markdown: z.string()}))
