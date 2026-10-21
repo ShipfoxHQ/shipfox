@@ -3,6 +3,7 @@ import {renderAgentHandoff} from './agent-handoff';
 import {canonicalDocsOrigin} from './canonical-docs-origin';
 import {serializeEditionsComparison} from './editions';
 import type {EventReferenceDocument} from './event-reference/document';
+import {serializeImprovementLoop} from './improvement-loop';
 import {
   type CatalogProvider,
   catalogCapabilityLabels,
@@ -279,6 +280,7 @@ const placeholderSerializers: Record<
   Illustration: () => '',
   EditionsComparison: () => serializeEditionsComparison(),
   WorkflowOverview: () => serializeWorkflowOverview(),
+  ImprovementLoop: () => serializeImprovementLoop(),
   IntegrationCatalog: (options) => {
     if (!options.integrationCatalog) {
       throw new Error('Integration catalog data is unavailable for machine-readable Markdown.');
