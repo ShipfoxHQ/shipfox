@@ -2,7 +2,9 @@ import {buildUserContext, requireWorkspaceAccess, setUserContext} from '@shipfox
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
+import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {createWorkspaceForUser} from '#core/workspaces.js';
+import {createInvitation, revokeInvitation} from '#db/invitations.js';
 import {createMembership, removeMembership} from '#db/memberships.js';
 import {createWorkspace, updateWorkspace} from '#db/workspaces.js';
 import {createWorkspacesInterModulePresentation} from './inter-module.js';
@@ -224,6 +226,34 @@ describe('Workspaces inter-module presentation', () => {
     expect(await client.getWorkspaceOperatingState({workspaceId: workspace.id})).toEqual({
       status: 'suspended',
     });
+  });
+
+  test('rejects a revoked invitation at signup preflight', async () => {
+    const client = createClient();
+    const workspace = await createWorkspace({name: 'Revoked Invitation Workspace'});
+    const email = `revoked-${crypto.randomUUID()}@example.com`;
+    const token = `revoked-${crypto.randomUUID()}`;
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email,
+      hashedToken: hashOpaqueToken(token),
+      expiresAt: new Date(Date.now() + 60_000),
+      invitedByUserId: crypto.randomUUID(),
+      skipEmail: true,
+    });
+    await revokeInvitation({invitationId: invitation.id});
+
+    const error = await client
+      .preflightInvitationAcceptance({token, email})
+      .catch((caught) => caught);
+
+    expect(
+      isInterModuleKnownError(
+        workspacesInterModuleContract.methods.preflightInvitationAcceptance,
+        error,
+      ),
+    ).toBe(true);
+    expect(error.code).toBe('invitation-token-invalid');
   });
 
   test('maps a missing workspace to the published known error', async () => {
