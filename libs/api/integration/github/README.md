@@ -44,7 +44,13 @@ const provider = createGithubIntegrationProvider({
 
 Production composition should use the provider module exported by the integrations server. The direct factory is useful for integration tests and composed provider setup.
 
-`createGithubToolClient({token})` builds the client that tool calls use. Pass it as `GithubAgentToolsProvider`'s `createClient` with `throttle: false` for a test server without rate limits, because Octokit otherwise spaces writes 1 second apart and searches 2 seconds apart.
+`createGithubToolClient({token})` builds the client that tool calls use. Octokit spaces writes 1 second apart and searches 2 seconds apart, so a test server without rate limits can turn that off through `GithubAgentToolsProvider`'s `createClient`:
+
+```ts
+new GithubAgentToolsProvider({
+  createClient: (token) => createGithubToolClient({token, throttle: false}),
+});
+```
 
 ## Environment
 
