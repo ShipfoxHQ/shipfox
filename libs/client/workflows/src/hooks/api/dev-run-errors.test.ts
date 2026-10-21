@@ -111,6 +111,18 @@ describe('devRunErrorCopy', () => {
     expect(copy).toEqual({title, message});
   });
 
+  test('says the source connection is unavailable when it is inactive', () => {
+    const copy = devRunErrorCopy(
+      apiError('source-unavailable', 502, {reason: 'connection-inactive'}),
+    );
+
+    expect(copy).toEqual({
+      title: 'Source connection unavailable',
+      message:
+        "The project's source connection is unavailable. Check its status in the integration settings.",
+    });
+  });
+
   test('includes the filter reason for trigger-filtered', () => {
     const copy = devRunErrorCopy(
       apiError('trigger-filtered', 409, {reason: 'condition path missing'}),

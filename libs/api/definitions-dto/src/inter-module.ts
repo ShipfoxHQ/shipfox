@@ -84,6 +84,10 @@ const workflowLineageSchema = z.object({
   projectId: idSchema,
   configPath: z.string().nullable(),
 });
+const sourceUnavailableDetailsSchema = z.object({
+  /** Set when the project's source connection exists but is not active. */
+  reason: z.literal('connection-inactive').optional(),
+});
 const refResolutionErrors = {
   'project-not-found': z.object({projectId: idSchema}),
   'ref-not-found': z.object({ref: refSchema}),
@@ -92,7 +96,7 @@ const refResolutionErrors = {
   'file-not-found': z.object({ref: refSchema, configPath: configPathSchema}),
   'content-too-large': z.object({configPath: configPathSchema}),
   'invalid-definition': z.object({errors: z.array(definitionValidationErrorSchema)}),
-  'source-unavailable': z.object({}),
+  'source-unavailable': sourceUnavailableDetailsSchema,
 };
 const {'invalid-definition': _invalidDefinition, ...refValidationErrors} = refResolutionErrors;
 const definitionAtRefInputSchema = z.object({
@@ -128,7 +132,7 @@ const refListingErrors = {
   'ref-not-found': z.object({ref: refSchema}),
   'ref-invalid': z.object({ref: refSchema}),
   'too-many-files': z.object({fileCount: z.number().int().positive()}),
-  'source-unavailable': z.object({}),
+  'source-unavailable': sourceUnavailableDetailsSchema,
 };
 const resolvedDefinitionAtRefSchema = z.object({
   workflow: z.object({id: idSchema, configPath: configPathSchema}),
