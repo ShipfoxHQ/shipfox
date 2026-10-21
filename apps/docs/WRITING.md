@@ -37,12 +37,12 @@ The canonical product category is **AI software factory**.
 
 Use this product headline on public overview surfaces:
 
-> Turn recurring engineering work into agent workflows
+> Your software factory, smarter every week
 
 Follow the headline with this description. Also use it in machine-readable
 summaries such as `llms.txt` and in search engine and link previews:
 
-> Shipfox runs your recurring engineering work with coding agents and returns it ready for your team.
+> Shipfox finds what to automate, ships it as pull requests you review, and improves it every week.
 
 On overview pages, follow the headline with a literal product definition and
 one concrete example before introducing technical concepts. Describe who the

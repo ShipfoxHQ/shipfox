@@ -42,6 +42,8 @@ SQL
 Sentry
 Slack
 Linear
+Spotify
+Uber
 GitHub
 GitLab
 Git

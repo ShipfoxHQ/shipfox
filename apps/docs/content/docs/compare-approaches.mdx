@@ -12,26 +12,26 @@ import {ComparisonTable} from '@/app/components/comparison-table';
 ## What sets Shipfox apart
 
 <Cards className="[&_h3]:text-base [&_h3]:font-semibold">
-  <Card title="Control at every step">
+  <Card title="Agents follow your process">
     <Shippy pose="control" className="mx-auto my-3 max-h-48 w-auto" />
 
-    **You decide what each agent can use, which checks must pass, and who approves.**
+    **Agents run as steps in your workflow and only use the tools you allow.**
 
-    You write each workflow as code in your repository, so your whole team uses the same process. For each step, you choose which tools the agent can use and which checks must pass. You choose where a person must approve. Each agent gets only the access it needs, never a personal account. Nothing merges without your approval.
+    Each workflow is a file in your repository. Changes go through code review, so your whole team uses the same process. A workflow mixes agent steps with normal commands, which are fast and give the same result every time. It can repeat a step until your checks pass, or wait for a review comment and continue with the earlier context. You set the checks and approvals, as strict or as light as you want. Each agent gets only the access it needs, never a personal account.
   </Card>
-  <Card title="Any model, no lock-in">
+  <Card title="Open source, no lock-in">
     <Shippy pose="vending" className="mx-auto my-3 max-h-48 w-auto" />
 
-    **Choose the best model, and its cost, for each step. You are not tied to one provider.**
+    **Pick any model for each step, and run on our cloud or your own.**
 
-    You choose a model for each step. Use a low-cost model for simple work, and a stronger model only when you need it. You see the cost of each run, and you can set a limit. Shipfox is open source, so you can host it yourself and move your workflows to another system at any time.
+    Use a low-cost model for simple work, and a stronger model only when you need it. You see the cost of each run. Shipfox is MIT licensed and self-hostable, so you can move your workflows to another system at any time.
   </Card>
-  <Card title="Runs until the work is done">
+  <Card title="Gets better every week">
     <Shippy pose="loop" className="mx-auto my-3 max-h-48 w-auto" />
 
-    **Loops, waits, and agents mixed with the commands you choose.**
+    **Workflows watch your other runs, find what breaks, and suggest a fix.**
 
-    A simple tool runs one prompt and then stops. Most work needs more. A Shipfox workflow has many steps. It can repeat a step until your checks pass. It can also wait for an event, such as a review comment or a failed check. Then it starts the agent again with all the earlier context. You can also mix agent steps with normal commands, which are fast and give the same result every time.
+    Every run keeps a full log and its cost. A workflow can start when another run fails, read its logs, and report the cause. Your coding agent reads the same runs through Shipfox and proposes changes to your workflows, such as a fix or a different model for a step. You review each change as a pull request.
   </Card>
   <Card title="100+ integrations">
     <Shippy pose="cables" className="mx-auto my-3 max-h-48 w-auto" />

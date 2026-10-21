@@ -2,14 +2,20 @@ import {mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {chromium} from '@playwright/test';
 
-// The repository README can't render the introduction diagram's markup, so it embeds
-// screenshots of it. Run this against a running docs server after changing the diagram.
+// The repository README can't render the introduction diagrams' markup, so it embeds
+// screenshots of them. Run this against a running docs server after changing a diagram.
 
 const docsUrl = process.env.DOCS_URL ?? `http://localhost:${process.env.SHIPFOX_DOCS_PORT ?? 3500}`;
 const outputDir = new URL('../public/readme/', import.meta.url);
 
 // Wide enough for the horizontal step layout, narrow enough to fit GitHub's README column.
 const diagramWidth = 880;
+
+// Each diagram is found by its figure caption.
+const diagrams = [
+  {caption: 'How Shippy AI improves your workflows', file: 'improvement-loop'},
+  {caption: 'How a Shipfox workflow runs', file: 'workflow-overview'},
+];
 
 // GitHub's Primer colors replace the docs neutrals so the diagram sits naturally in the README.
 // Cards use the muted background GitHub gives code blocks. The orange accent stays.
@@ -34,6 +40,8 @@ try {
   for (const colorScheme of ['light', 'dark']) {
     const page = await browser.newPage({
       colorScheme,
+      // The improvement loop renders its final frame instead of playing.
+      reducedMotion: 'reduce',
       deviceScaleFactor: 2,
       viewport: {width: 1440, height: 1200},
     });
@@ -48,12 +56,13 @@ try {
         figure:has(> figcaption) { width: ${diagramWidth}px !important; max-width: none !important; }`,
     });
     await page.evaluate(() => document.fonts.ready);
-    const diagram = page.locator('figure', {hasText: 'How a Shipfox workflow runs'});
-    await diagram.screenshot({
-      path: fileURLToPath(new URL(`workflow-overview-${colorScheme}.png`, outputDir)),
-      omitBackground: true,
-      animations: 'disabled',
-    });
+    for (const {caption, file} of diagrams) {
+      await page.locator('figure', {hasText: caption}).screenshot({
+        path: fileURLToPath(new URL(`${file}-${colorScheme}.png`, outputDir)),
+        omitBackground: true,
+        animations: 'disabled',
+      });
+    }
     await page.close();
   }
 } finally {

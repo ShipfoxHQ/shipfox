@@ -46,6 +46,8 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
       return `\0${JSON.stringify({name: 'TemplateGallery', children: '', attributes: {}})}\0`;
     case 'WorkflowOverview':
       return `\0${JSON.stringify({name: 'WorkflowOverview', children: '', attributes: {}})}\0`;
+    case 'ImprovementLoop':
+      return `\0${JSON.stringify({name: 'ImprovementLoop', children: '', attributes: {}})}\0`;
     case 'TemplateDetail':
       return `\0${JSON.stringify({name: 'TemplateDetail', children: '', attributes: {id: attributeValue(node, 'id')}})}\0`;
     case 'AgentHandoff':

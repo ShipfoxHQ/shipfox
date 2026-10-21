@@ -17,10 +17,10 @@ data density, unambiguous status, and no marketing fluff.
 
 ## Product Purpose
 
-Turn recurring engineering work into agent workflows.
+Your software factory, smarter every week.
 
-Shipfox runs your recurring engineering work with coding agents and returns it
-ready for your team.
+Shipfox finds what to automate, ships it as pull requests you review, and
+improves it every week.
 
 Workflows plug into the tools that power an engineering team, such as ticketing,
 monitoring, chat, and source control, through one secured layer. The same
@@ -103,9 +103,9 @@ Constraints:
 ## Brand Commitments
 
 - **Name:** Shipfox. Domain: shipfox.io.
-- **Headline:** "Turn recurring engineering work into agent workflows."
-- **Description:** "Shipfox runs your recurring engineering work with coding
-  agents and returns it ready for your team."
+- **Headline:** "Your software factory, smarter every week."
+- **Description:** "Shipfox finds what to automate, ships it as pull requests
+  you review, and improves it every week."
 - **Voice:** direct, technical, no marketing fluff. Written for engineers who read
   logs at 2am. See `WRITING.md` and `apps/docs/WRITING.md` for repository prose
   conventions; product docs terminology there is binding.
