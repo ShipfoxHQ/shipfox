@@ -239,6 +239,10 @@ function toDefinitionAtRefKnownError(method: InterModuleMethodContract, error: u
         fileCount: Number(details.fileCount),
       });
     case 'source-unavailable':
-      return createInterModuleKnownError(method, 'source-unavailable', {});
+      return createInterModuleKnownError(
+        method,
+        'source-unavailable',
+        details.sourceCode === 'connection-inactive' ? {sourceCode: 'connection-inactive'} : {},
+      );
   }
 }

@@ -199,6 +199,13 @@ function handleDefinitionResolutionError(error: unknown): void {
         cause: error,
       });
     case 'source-unavailable':
+      if (error.details.sourceCode === 'connection-inactive') {
+        throw new ClientError(
+          'Integration connection is not active',
+          'integration-connection-inactive',
+          {status: 422, cause: error},
+        );
+      }
       throw new ClientError('The source repository is unavailable', 'source-unavailable', {
         status: 502,
         cause: error,

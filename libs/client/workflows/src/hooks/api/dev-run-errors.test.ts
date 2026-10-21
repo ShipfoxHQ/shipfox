@@ -111,6 +111,20 @@ describe('devRunErrorCopy', () => {
     expect(copy).toEqual({title, message});
   });
 
+  test('names an inactive project source connection and links to the integrations', () => {
+    const copy = devRunErrorCopy(apiError('integration-connection-inactive', 422));
+
+    expect(copy).toEqual({
+      title: 'Project source is unavailable',
+      message: "The project's source connection is unavailable. Restore it, then try again.",
+      action: {
+        kind: 'link',
+        label: 'Open integrations',
+        to: '/w/$workspaceSlug/settings/integrations',
+      },
+    });
+  });
+
   test('includes the filter reason for trigger-filtered', () => {
     const copy = devRunErrorCopy(
       apiError('trigger-filtered', 409, {reason: 'condition path missing'}),
