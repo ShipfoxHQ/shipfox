@@ -1,0 +1,67 @@
+{
+  "name": "@shipfox/e2e-contracts-integrations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/suites/contracts/integrations"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "contracts:backlog": "node dist/generate-backlog.js",
+    "contracts:generate": "node dist/generate-contracts.js",
+    "depcruise": "shipfox-depcruise",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check"
+  },
+  "dependencies": {
+    "@shipfox/actions": "workspace:*",
+    "yaml": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@shipfox/api-integration-claap": "workspace:*",
+    "@shipfox/api-integration-clickup": "workspace:*",
+    "@shipfox/api-integration-core": "workspace:*",
+    "@shipfox/api-integration-core-dto": "workspace:*",
+    "@shipfox/api-integration-discord": "workspace:*",
+    "@shipfox/api-integration-github": "workspace:*",
+    "@shipfox/api-integration-jam": "workspace:*",
+    "@shipfox/api-integration-jira": "workspace:*",
+    "@shipfox/api-integration-linear": "workspace:*",
+    "@shipfox/api-integration-notion": "workspace:*",
+    "@shipfox/api-integration-posthog": "workspace:*",
+    "@shipfox/api-integration-slack": "workspace:*",
+    "@shipfox/api-integration-spi": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-driver-claap": "workspace:*",
+    "@shipfox/e2e-driver-clickup": "workspace:*",
+    "@shipfox/e2e-driver-discord": "workspace:*",
+    "@shipfox/e2e-driver-github": "workspace:*",
+    "@shipfox/e2e-driver-jam": "workspace:*",
+    "@shipfox/e2e-driver-jira": "workspace:*",
+    "@shipfox/e2e-driver-linear": "workspace:*",
+    "@shipfox/e2e-driver-notion": "workspace:*",
+    "@shipfox/e2e-driver-posthog": "workspace:*",
+    "@shipfox/e2e-driver-slack": "workspace:*",
+    "@shipfox/e2e-harness": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*"
+  }
+}

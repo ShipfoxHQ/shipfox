@@ -1,6 +1,6 @@
 import {parse as parseYaml} from 'yaml';
 import {z} from 'zod';
-import {CaseValidationError, formatValidationIssues} from './schema.js';
+import {CaseValidationError, formatValidationIssues} from './validation.js';
 
 export const CONTRACT_MODES = ['real', 'fake'] as const;
 export const CONTRACT_KINDS = ['read', 'round-trip', 'error'] as const;
@@ -220,7 +220,7 @@ const providerSandboxSchema = z
   })
   .strict();
 
-/** The contents of `cases/contracts/sandbox.yaml`: the sandbox accounts, per provider. */
+/** The contents of `cases/sandbox.yaml`: the sandbox accounts, per provider. */
 export const sandboxManifestSchema = z.record(nameSchema, providerSandboxSchema);
 
 export type SandboxManifest = z.infer<typeof sandboxManifestSchema>;
@@ -238,7 +238,7 @@ const backlogEntrySchema = z
 
 export type BacklogEntry = z.infer<typeof backlogEntrySchema>;
 
-/** The contents of `cases/contracts/backlog.yaml`: the tools whose case isn't written yet. */
+/** The contents of `cases/backlog.yaml`: the tools whose case isn't written yet. */
 export const contractBacklogSchema = z
   .object({
     ceiling: z.number().int().nonnegative(),

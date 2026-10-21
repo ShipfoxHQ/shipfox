@@ -38,7 +38,7 @@ const e2eLayerPathPatterns = (workspacePath) =>
     : [workspacePathPattern(workspacePath)];
 const e2eSuitePathPatterns =
   currentE2eLayer === 'suite'
-    ? ['^\\.\\./[^.][^/]*/', '^\\.\\./\\.\\./(?:api|client|eval|flow)/']
+    ? ['^\\.\\./[^.][^/]*/', '^\\.\\./\\.\\./(?:api|client|contracts|eval|flow)/']
     : [workspacePathPattern('e2e/suites')];
 const e2eLayerTargets = {
   core: {
@@ -59,7 +59,7 @@ const e2eLayerTargets = {
   },
   suite: {
     paths: e2eSuitePathPatterns,
-    packages: ['^@shipfox/e2e-(?:client|api|eval|flow)-'],
+    packages: ['^@shipfox/e2e-(?:client|api|contracts|eval|flow)-'],
   },
 };
 const e2eTargetPatterns = (layers) =>
@@ -82,11 +82,16 @@ const currentE2eLayerRule = ({name, comment, layers, disallowed}) => {
     },
   ];
 };
+// Contract suites call the integration tool adapters in-process against the provider fakes, so
+// they are the one E2E level that reaches into the integration server packages.
+const isContractsSuite = currentE2ePath.startsWith('suites/contracts/');
 const currentE2eRules = currentE2eLayer
   ? [
       {
         name: 'e2e-no-server-api-packages',
-        comment: 'E2E code must depend on API DTO packages, not server API packages.',
+        comment: isContractsSuite
+          ? 'E2E contract suites may depend on the integration packages, and on DTO packages otherwise.'
+          : 'E2E code must depend on API DTO packages, not server API packages.',
         severity: 'error',
         from: {path: e2eSourcePath},
         to: {
@@ -94,6 +99,9 @@ const currentE2eRules = currentE2eLayer
             `${workspacePathPattern('libs/api')}(?!.*-dto(?:/|$))`,
             '^@shipfox/api-(?!.*-dto(?:$|/))',
           ],
+          ...(isContractsSuite
+            ? {pathNot: [workspacePathPattern('libs/api/integration'), '^@shipfox/api-integration-']}
+            : {}),
         },
       },
       ...currentE2eLayerRule({

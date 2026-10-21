@@ -38,6 +38,7 @@ Suite levels are independent from layers:
 | `suites/api/*` | HTTP-only tests that assert API contracts without a browser. |
 | `suites/flow/*` | Full platform loops that need VCS push, webhook delivery, definition sync, Temporal, runner capacity, step execution, and logs. |
 | `suites/eval/*` | Repeatable workflow-template and onboarding evaluations that run through the E2E stack and write scored results. |
+| `suites/contracts/*` | Integration tool contracts checked in-process against the provider fakes, with no stack. They are the only suites that may import the integration server packages, to call the provider tool adapters. Their cases also run against real sandboxes on staging. |
 
 Driver-specific docs live with their drivers:
 
@@ -492,24 +493,9 @@ each sandbox the files name, such as `linear_sandbox`, binds the slugs, and
 requires zero error diagnostics and every trigger active. A failure names the
 file path. `--case` filters by file name. `test:e2e` runs it.
 
-`--suite contracts` runs the contract cases that list `fake` in their `modes`
-against the E2E fakes, and `--mode fake` is its default. It arranges one
-workspace and GitHub project, a local runner, and a connection to each fake.
-It seeds each fake from the `fixtures` of `cases/contracts/sandbox.yaml`
-through the provider's adapter in `src/contract-fakes.ts`, puts the
-`inaccessible` `targets` on the adapter's deny list, generates the
-provider workflows from the `fake` cases, and starts each one manually, one at
-a time, because the Slack, ClickUp, and Linear fakes listen on fixed
-addresses. Each job maps to its case. A job that fails means the fake answers
-differently from the provider, and any failed case makes the exit code
-non-zero. A provider can have `fake` cases only once it has an adapter. The
-generated fake workflows have no `fixtures` job, no agent jobs, and no waits
-before an effect, because a fake applies a write before it answers. `--case`
-filters by case id, provider, or workflow file name. `test:e2e` runs it.
-
-```sh
-mise run evals -- --suite contracts
-```
+The contract cases that list `fake` in their `modes` do not run here. They run
+in-process in `@shipfox/e2e-contracts-integrations`, with its unit tests, and
+its [cases README](suites/contracts/integrations/cases/README.md) explains how.
 
 The onboarding suite drives a real Claude Agent SDK session against the stack.
 Each case in `cases/onboarding/` sets up a workspace, a fixture repository, and

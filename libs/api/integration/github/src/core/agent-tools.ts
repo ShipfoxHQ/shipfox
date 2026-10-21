@@ -268,7 +268,9 @@ export class GithubAgentToolsProvider
         }
         tokenPromise ??= this.tokenProvider.getInstallationAccessToken(installationId);
         const token = await tokenPromise;
-        const client = (this.options.createClient ?? createOctokitClient)(token.token);
+        const client = this.options.createClient
+          ? this.options.createClient(token.token)
+          : createGithubToolClient({token: token.token});
         const method =
           typeof call.arguments.method === 'string' ? call.arguments.method : undefined;
         return await executeGithubToolOperation(client, tool, operation, method);
@@ -408,11 +410,22 @@ interface GithubToolOperation {
   kind: 'rest' | 'graphql';
 }
 
-function createOctokitClient(token: string): GithubToolClient {
+/**
+ * The client tool calls use. `throttle: false` drops Octokit's spacing between writes and
+ * searches, for a test server that has no rate limit.
+ */
+export function createGithubToolClient({
+  token,
+  throttle = true,
+}: {
+  token: string;
+  throttle?: boolean | undefined;
+}): GithubToolClient {
   const octokit = new Octokit({
     auth: token,
     baseUrl: normalizedGithubApiBaseUrl(),
     retry: {enabled: false},
+    ...(throttle ? {} : {throttle: {enabled: false}}),
   });
   return {
     request: async (route, parameters) => {

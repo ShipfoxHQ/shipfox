@@ -60,31 +60,21 @@ describe('generateContractFiles', () => {
     );
   });
 
+  it('marks each sandbox connection with its provider, and leaves the shipfox connection alone', async () => {
+    const generated = generateContractFiles(await generate());
+    const content = (name: string) => generated.find((file) => file.name === name)?.content ?? '';
+
+    expect(content('contracts-linear.yaml')).toContain('connection: linear_sandbox # bind:linear');
+    expect(content('contracts-linear.yaml')).not.toContain('connection: linear_sandbox\n');
+    expect(content('contracts.yaml')).toContain('connection: shipfox\n');
+  });
+
   it('keeps cases that do not run in real mode out of the files', async () => {
     const generated = generateContractFiles(await generate());
     const linear = generated.find(({name}) => name === 'contracts-linear.yaml');
 
     expect(linear?.content).not.toContain('fake_only');
     expect(generated.map(({name}) => name)).not.toContain('contracts-gitea.yaml');
-  });
-
-  it('generates the fake files from the fake cases only, without the real-only jobs', async () => {
-    const generated = generateContractFiles(await generate(), {mode: 'fake'});
-
-    // Only Linear has a fake case, and nothing starts the provider files in fake mode.
-    expect(generated.map(({name}) => name)).toEqual(['contracts-linear.yaml']);
-    const linear = generated[0]?.content ?? '';
-    expect(linear).toContain('  get_issue:\n');
-    expect(linear).toContain('  get_issue_not_found:\n');
-    expect(linear).toContain('  fake_only:\n');
-    expect(linear).not.toContain('list_teams');
-    expect(linear).not.toContain('  fixtures:\n');
-  });
-
-  it('generates nothing in fake mode when no case runs against a fake', async () => {
-    await rm(join(casesRoot, 'linear'), {recursive: true});
-
-    expect(generateContractFiles(await generate(), {mode: 'fake'})).toEqual([]);
   });
 
   it('generates nothing when no case runs in real mode', async () => {
@@ -355,22 +345,6 @@ describe('generateContractFiles', () => {
       expect(await generatedLinear()).toContain('since: "2026-09-01"');
     });
 
-    it('generates round-trip cases in fake mode', async () => {
-      await writeCase(
-        'linear/fake-trip.yaml',
-        (await readFile(join(casesRoot, 'linear', 'issue-round-trip.yaml'), 'utf8')).replace(
-          '[real]',
-          '[real, fake]',
-        ),
-      );
-
-      const files = generateContractFiles(await generate(), {mode: 'fake'});
-
-      expect(files.find(({name}) => name === 'contracts-linear.yaml')?.content).toContain(
-        'fake_trip:',
-      );
-    });
-
     it('rejects an effect outside a round-trip case', async () => {
       await writeCase(
         'linear/read-effect.yaml',
@@ -413,40 +387,6 @@ describe('generateContractFiles', () => {
       expect(polled).toContain(
         '          on_failure:\n            restart_from: a_wait\n            max_attempts: 6\n',
       );
-    });
-
-    it('reads once in fake mode, where the write is applied before the answer', async () => {
-      await writeCase(
-        'linear/polled.yaml',
-        roundTrip(
-          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      wait_seconds: 10\n      attempts: 6\n      expect:\n        values: {status: Done}\n',
-          'real, fake',
-        ),
-      );
-
-      const files = generateContractFiles(await generate(), {mode: 'fake'});
-
-      const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
-      const polled = content.slice(content.indexOf('  polled:'));
-      expect(content).toContain('  polled:');
-      expect(polled).toContain('- key: a_effect');
-      expect(polled).not.toContain('on_failure');
-    });
-
-    it('skips the wait in fake mode, where the write is applied before the answer', async () => {
-      await writeCase(
-        'linear/waited.yaml',
-        roundTrip(
-          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      wait_seconds: 15\n      expect:\n        values: {status: Done}\n',
-          'real, fake',
-        ),
-      );
-
-      const files = generateContractFiles(await generate(), {mode: 'fake'});
-
-      const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
-      expect(content).toContain('- key: a_effect');
-      expect(content).not.toContain('sleep');
     });
 
     it('rejects a wait key that another step uses', async () => {

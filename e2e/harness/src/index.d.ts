@@ -33,3 +33,17 @@ export function baseE2eEnv(source?: E2eEnvironment): E2eEnvironment;
 export function startFakeRouters(env: E2eEnvironment): Promise<FakeRouter[]>;
 export function collectE2eDiagnostics(logDir: string): Promise<void>;
 export function copyPlaywrightTestResults(logDir: string): Promise<void>;
+
+/** A provider double the E2E deployment runs in the harness process. */
+export interface ProviderMock {
+  /** Where it listens, with the port it bound when the requested port was 0. */
+  endpoint: URL;
+  stop(): Promise<void>;
+}
+
+/** PostHog's REST API and MCP, at `/mcp`, on one port. */
+export function startPosthogMock(endpoint: URL): Promise<ProviderMock>;
+/** Jam's token introspection and MCP, at `/mcp`, on one port. */
+export function startJamMock(endpoint: URL): Promise<ProviderMock>;
+/** Claap's MCP, at the endpoint's path, and its `/__e2e` routes on the same port. */
+export function startClaapMock(endpoint: URL): Promise<ProviderMock>;

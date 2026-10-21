@@ -53,7 +53,7 @@ const CASES = [
 const REFERENCE = /^\$(fixture|target)\./u;
 const PHASES = process.argv.slice(2).length > 0 ? process.argv.slice(2) : ['reads', 'writes'];
 const here = dirname(fileURLToPath(import.meta.url));
-const contracts = join(here, '../cases/contracts');
+const contracts = join(here, '../cases');
 const outputDirectory = join(here, '../../../../drivers/linear/recordings');
 const token = process.env.LINEAR_SANDBOX_TOKEN;
 if (!token) throw new Error('LINEAR_SANDBOX_TOKEN must be set.');

@@ -58,6 +58,8 @@ console.log(integrations.registry.list());
 
 A built-in provider still needs an `agent_tools` adapter. Its `openSession` receives the synthetic active connection and, when called by a workflow step, the caller context with workspace, project, run, job execution, step, and attempt identifiers.
 
+To call tools without the module, build a registry with `createIntegrationProviderRegistry` and pass it to `createIntegrationsInterModulePresentation`. Its `callTool` handler is the one tool steps reach, with the live catalog and method checks and the error codes. The integration contract suite runs its cases through it against the provider fakes.
+
 ## Behavior notes
 
 - `shipfox` is reserved for the first-party built-in provider. Users cannot create a connection with that slug.
