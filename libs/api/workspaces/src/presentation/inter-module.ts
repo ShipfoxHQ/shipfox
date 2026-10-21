@@ -85,7 +85,9 @@ export function createWorkspacesInterModulePresentation(): InterModulePresentati
     preflightInvitationAcceptance: async (input) => {
       try {
         const invitation = await peekInvitationByRawToken({token: input.token});
-        if (!invitation) throw new TokenInvalidError('Invitation token is invalid');
+        if (!invitation || invitation.revokedAt !== null) {
+          throw new TokenInvalidError('Invitation token is invalid');
+        }
         if (invitation.acceptedAt !== null) throw new TokenAlreadyUsedError();
         if (invitation.expiresAt.getTime() <= Date.now()) throw new TokenExpiredError();
         if (invitation.email !== input.email) throw new InvitationEmailMismatchError();
