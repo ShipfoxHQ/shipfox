@@ -7,6 +7,7 @@ Process orchestration for local Shipfox E2E suites.
 - **`runE2e`** starts consumer-provided servers in order, waits for readiness, runs the Turbo test task, and shuts down child processes.
 - **`baseE2eEnv`** builds the local environment shared by E2E consumers and rejects remote API or client URLs.
 - **`startFakeRouters`** starts the provider routers used by integration fakes.
+- **`startPosthogMock`**, **`startJamMock`**, and **`startClaapMock`** start the PostHog, Jam, and Claap doubles on an endpoint. Pass port 0 to let the system pick a port; the returned `endpoint` holds the bound one.
 - **`collectE2eDiagnostics`** collects Docker, runner, and Playwright artifacts after a failure.
 - **`copyPlaywrightTestResults`** copies suite test results into the diagnostic directory.
 

@@ -5,18 +5,17 @@ import {fileURLToPath} from 'node:url';
 import {afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {parseEvalArgs} from './cli.js';
 import {bindConnectionSlugs} from './compile.js';
-import {loadContracts} from './contracts.js';
 import {
+  boundProviders,
   type ContractWorkflowFile,
   listContractWorkflows,
-  markSandboxConnections,
   runContractsCompile,
 } from './contracts-compile.js';
 import type {CaseResult} from './results.js';
 
 const fixtures = fileURLToPath(new URL('../test/fixtures/contracts/', import.meta.url));
-const contractsOnlyPattern = /--suite contracts runs with --mode fake or compile only/u;
-const fakeOnlyPattern = /--mode fake applies to --suite contracts only/u;
+const contractsOnlyPattern = /--suite contracts runs with --mode compile only/u;
+const unknownModePattern = /--mode must be scripted, live, or compile/u;
 const noFilesPattern = /No contract workflow files matching "contracts-missing.yaml"/u;
 const catalogPattern = /--catalog applies to --suite templates --mode compile only/u;
 
@@ -71,7 +70,6 @@ describe('contract workflow files', () => {
 
     const run = await runContractsCompile({
       workflowsDirectory: root,
-      manifest: (await loadContracts(join(fixtures, 'cases'))).manifest,
       resultsDirectory: join(root, 'results'),
       runId: 'contracts-compile',
       compile: (file) => {
@@ -98,7 +96,6 @@ describe('contract workflow files', () => {
       runContractsCompile({
         workflowsDirectory: root,
         caseFilter: 'contracts-missing.yaml',
-        manifest: (await loadContracts(join(fixtures, 'cases'))).manifest,
         compile: () => Promise.reject(),
       }),
     ).rejects.toThrow(noFilesPattern);
@@ -107,7 +104,6 @@ describe('contract workflow files', () => {
   it('passes when no workflow file is generated yet', async () => {
     const run = await runContractsCompile({
       workflowsDirectory: join(root, 'missing'),
-      manifest: (await loadContracts(join(fixtures, 'cases'))).manifest,
       resultsDirectory: join(root, 'results'),
       runId: 'contracts-compile',
     });
@@ -117,27 +113,22 @@ describe('contract workflow files', () => {
 });
 
 describe('sandbox connections', () => {
-  it('binds each sandbox slug the file names to the connection created for its provider', async () => {
-    const {manifest} = await loadContracts(join(fixtures, 'cases'));
+  it('binds each sandbox connection the file marks to the connection created for its provider', async () => {
     const [file] = await listContractWorkflows({
       directory: join(fixtures, 'expected'),
       filter: 'contracts-linear.yaml',
     });
     if (file === undefined) throw new Error('The linear fixture is missing');
 
-    const marked = markSandboxConnections({yaml: file.yaml, manifest});
-    const bound = bindConnectionSlugs({yaml: marked.yaml, slugs: {linear: 'linear_acme'}});
+    const bound = bindConnectionSlugs({yaml: file.yaml, slugs: {linear: 'linear_acme'}});
 
-    expect(marked.providers).toEqual(['linear']);
+    expect(boundProviders(file.yaml)).toEqual(['linear']);
     expect(bound).toContain('connection: linear_acme # bind:linear');
     expect(bound).not.toContain('linear_sandbox');
   });
 
-  it('leaves the shipfox connection and unknown slugs alone', async () => {
-    const {manifest} = await loadContracts(join(fixtures, 'cases'));
-    const yaml = '- connection: shipfox\n- connection: jira_sandbox\n';
-
-    expect(markSandboxConnections({yaml, manifest})).toEqual({yaml, providers: []});
+  it('binds nothing in a file without markers', () => {
+    expect(boundProviders('- connection: shipfox\n- connection: jira_sandbox\n')).toEqual([]);
   });
 });
 
@@ -149,19 +140,19 @@ describe('contracts suite options', () => {
     });
   });
 
-  it('runs the contracts suite in fake mode unless told otherwise', () => {
+  it('runs the contracts suite in compile mode unless told otherwise', () => {
     expect(parseEvalArgs(['--suite', 'contracts'])).toMatchObject({
       suite: 'contracts',
-      mode: 'fake',
+      mode: 'compile',
     });
   });
 
-  it('rejects the template modes for the contracts suite, and fake mode for the others', () => {
+  it('rejects the template modes for the contracts suite, and fake mode for every suite', () => {
     expect(() => parseEvalArgs(['--suite', 'contracts', '--mode', 'scripted'])).toThrow(
       contractsOnlyPattern,
     );
-    expect(() => parseEvalArgs(['--suite', 'templates', '--mode', 'fake'])).toThrow(
-      fakeOnlyPattern,
+    expect(() => parseEvalArgs(['--suite', 'contracts', '--mode', 'fake'])).toThrow(
+      unknownModePattern,
     );
   });
 

@@ -44,6 +44,8 @@ const provider = createGithubIntegrationProvider({
 
 Production composition should use the provider module exported by the integrations server. The direct factory is useful for integration tests and composed provider setup.
 
+`createGithubToolClient({token})` builds the client that tool calls use. Pass it as `GithubAgentToolsProvider`'s `createClient` with `throttle: false` for a test server without rate limits, because Octokit otherwise spaces writes 1 second apart and searches 2 seconds apart.
+
 ## Environment
 
 The provider reads the GitHub App credentials, webhook secret, API base URL, and install-state secret from the GitHub integration configuration. See [`src/config.ts`](src/config.ts) for the complete schema and descriptions.

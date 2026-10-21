@@ -13,7 +13,7 @@ import {
   parseYamlDocument,
   type SandboxManifest,
 } from './contract-schema.js';
-import {CaseValidationError} from './schema.js';
+import {CaseValidationError} from './validation.js';
 
 export interface LoadedContractCase {
   /** `<provider>/<file name>`, such as `linear/get-issue`. */
@@ -35,7 +35,7 @@ export interface ContractFiles {
   exemptions: LoadedContractExemption[];
 }
 
-const defaultContractsRoot = fileURLToPath(new URL('../cases/contracts/', import.meta.url));
+const defaultContractsRoot = fileURLToPath(new URL('../cases/', import.meta.url));
 
 async function readYamlFile(path: string): Promise<unknown> {
   return parseYamlDocument({source: await readFile(path, 'utf8'), path});
@@ -55,7 +55,7 @@ function isExemptionDocument(document: unknown): boolean {
 }
 
 /**
- * Loads and validates everything under `cases/contracts/`: the sandbox manifest, the backlog,
+ * Loads and validates everything under `cases/`: the sandbox manifest, the backlog,
  * and the case and exemption files of each provider directory. Throws on the first invalid file.
  */
 export async function loadContracts(root = defaultContractsRoot): Promise<ContractFiles> {

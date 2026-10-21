@@ -116,7 +116,10 @@ export type {
   OpenAgentToolsSessionInput,
 } from '#core/providers/agent-tools.js';
 export {redactCheckoutSpec} from '#core/providers/redact-checkout-spec.js';
-export type {IntegrationProviderRegistry} from '#core/providers/registry.js';
+export {
+  createIntegrationProviderRegistry,
+  type IntegrationProviderRegistry,
+} from '#core/providers/registry.js';
 export type {
   CheckoutCredentialRenewal,
   CheckoutCredentials,
@@ -226,6 +229,7 @@ export {
   pruneWebhookDeliveries,
   publishSourceRepositoryUpdated,
 } from '#db/webhook-deliveries.js';
+export {createIntegrationsInterModulePresentation} from '#presentation/inter-module.js';
 export {integrationRouteErrorHandler} from '#presentation/routes/errors.js';
 export type {
   IntegrationBuiltinConnection,

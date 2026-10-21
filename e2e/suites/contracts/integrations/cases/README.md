@@ -93,8 +93,8 @@ In fake mode an `absent` target is never seeded, so the fake answers it like any
 The generator writes `.shipfox-staging/workflows/` at the repository root. The staging instance syncs that path. Never edit those files by hand.
 
 ```sh
-mise exec -- pnpm --filter @shipfox/e2e-eval-workflows build
-mise exec -- pnpm --filter @shipfox/e2e-eval-workflows contracts:generate
+mise exec -- pnpm --filter @shipfox/e2e-contracts-integrations build
+mise exec -- pnpm --filter @shipfox/e2e-contracts-integrations contracts:generate
 ```
 
 A test fails when the committed files differ from the generator output.
@@ -102,17 +102,28 @@ A test fails when the committed files differ from the generator output.
 ## Check the cases
 
 ```sh
-# Every generated file compiles against this branch's catalog.
+# The cases that list `fake`, and the coverage and drift tests.
+turbo test --filter=@shipfox/e2e-contracts-integrations
+
+# Every generated file compiles against this branch's catalog. It needs the E2E stack.
 mise run evals -- --suite contracts --mode compile
-
-# The cases that list `fake` pass against the E2E fakes.
-mise run evals -- --suite contracts
-
-# The coverage and drift tests.
-turbo test --filter=@shipfox/e2e-eval-workflows
 ```
 
 One invalid file fails the whole staging sync, so run the compile check before you push.
+
+## How fake cases run
+
+The `fake` cases run in one Vitest file, `src/contracts-fake.test.ts`, with no API, database, or runner. The suite starts each provider's fake in the test process and seeds it from `sandbox.yaml` through the provider's adapter in `src/fakes/`. It then calls each step through the integrations module's own `callTool` handler, over the provider's real tool adapter, wired to the fake in `src/providers/`. A step's checks are the ones the generated workflow's gate makes, in `src/expectations.ts`.
+
+The provider packages read their API addresses when they load. So the suite starts the fakes first, puts their addresses in the environment, and only then loads `src/gateway.ts`.
+
+A provider can have `fake` cases only once it has an adapter in `src/fakes/index.ts` and a tool adapter in `src/gateway.ts`. A fake applies a write before it answers, so an `effect` reads at once, without `wait_seconds`.
+
+Run one provider's cases:
+
+```sh
+mise exec -- pnpm --filter @shipfox/e2e-contracts-integrations test src/contracts-fake.test.ts -t linear
+```
 
 ## Run against the sandboxes
 

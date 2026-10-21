@@ -2601,6 +2601,115 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/typescript
 
+  e2e/suites/contracts/integrations:
+    dependencies:
+      '@shipfox/actions':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/actions
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.32.1(zod@4.4.3)
+      '@shipfox/api-integration-claap':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/claap
+      '@shipfox/api-integration-clickup':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/clickup
+      '@shipfox/api-integration-core':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/core
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/core-dto
+      '@shipfox/api-integration-discord':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/discord
+      '@shipfox/api-integration-github':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/github
+      '@shipfox/api-integration-jam':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/jam
+      '@shipfox/api-integration-jira':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/jira
+      '@shipfox/api-integration-linear':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/linear
+      '@shipfox/api-integration-notion':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/notion
+      '@shipfox/api-integration-posthog':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/posthog
+      '@shipfox/api-integration-slack':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/slack
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/spi
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../../core
+      '@shipfox/e2e-driver-claap':
+        specifier: workspace:*
+        version: link:../../../drivers/claap
+      '@shipfox/e2e-driver-clickup':
+        specifier: workspace:*
+        version: link:../../../drivers/clickup
+      '@shipfox/e2e-driver-discord':
+        specifier: workspace:*
+        version: link:../../../drivers/discord
+      '@shipfox/e2e-driver-github':
+        specifier: workspace:*
+        version: link:../../../drivers/github
+      '@shipfox/e2e-driver-jam':
+        specifier: workspace:*
+        version: link:../../../drivers/jam
+      '@shipfox/e2e-driver-jira':
+        specifier: workspace:*
+        version: link:../../../drivers/jira
+      '@shipfox/e2e-driver-linear':
+        specifier: workspace:*
+        version: link:../../../drivers/linear
+      '@shipfox/e2e-driver-notion':
+        specifier: workspace:*
+        version: link:../../../drivers/notion
+      '@shipfox/e2e-driver-posthog':
+        specifier: workspace:*
+        version: link:../../../drivers/posthog
+      '@shipfox/e2e-driver-slack':
+        specifier: workspace:*
+        version: link:../../../drivers/slack
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
   e2e/suites/eval/workflows:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
@@ -2624,9 +2733,6 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: 'catalog:'
         version: 2.8.0(@opentelemetry/api@1.9.1)
-      '@shipfox/actions':
-        specifier: workspace:*
-        version: link:../../../../libs/shared/workflow/actions
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/auth-dto
@@ -2660,12 +2766,6 @@ importers:
       '@shipfox/e2e-driver-linear':
         specifier: workspace:*
         version: link:../../../drivers/linear
-      '@shipfox/e2e-driver-notion':
-        specifier: workspace:*
-        version: link:../../../drivers/notion
-      '@shipfox/e2e-driver-posthog':
-        specifier: workspace:*
-        version: link:../../../drivers/posthog
       '@shipfox/e2e-driver-runner-process':
         specifier: workspace:*
         version: link:../../../drivers/runner-process
@@ -14193,6 +14293,7 @@ packages:
   '@opentelemetry/propagator-jaeger@2.12.0':
     resolution: {integrity: sha512-Kz2Vz+NILW7S1WtN4rV1wr76fMtT/RRWvAMFBc91uTIi2dDMXxrfBKNe2KH7yaCfFp1X0xfAuabzuFczvoPB6A==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Package no longer supported. See https://github.com/open-telemetry/opentelemetry-js/pull/7077
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -14275,30 +14376,35 @@ packages:
   '@opentelemetry/sdk-trace-base@1.30.1':
     resolution: {integrity: sha512-jVPgBbH1gCy2Lb7X0AVQ8XAfgg0pJ4nvl8/IiQA6nxOsPvS+0zMJaFSs2ltXe0J6C8dqjcnpyqINDJmU30+uOg==}
     engines: {node: '>=14'}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@2.12.0':
     resolution: {integrity: sha512-JOERgZCxRM06FEJ5kEWxlSRChah6MmXDx3KwCruqEv/iEyLkTokCSemf2y1w8oIHtfrr8EVTpzebq/31vn2Cpg==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@2.8.0':
     resolution: {integrity: sha512-mhU4jp+vW0mGbFRd+GeXHvmfA4aDqWjBjLC3pE5XMpLs0IE2ryYb019Ts2AQrOq67gaTF25D91+fgvEHDZEnuQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.12.0':
     resolution: {integrity: sha512-9DufH1IlmQMoKAfot5y/FhTP1RnmhLb5K6eKmJO/bvzPjYwPAazoiAUbTZFdPbqxOXN0FEbhZx/e6SB1Og4jmg==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.8.0':
     resolution: {integrity: sha512-nZt9OGufioAc3AfoLTqA9bsAeaMJAictYDdI2VcNQ+PmT+3rfKjAZDZvgPfd8VPX0O5Bw1hdQF6kDK8VSpZiWg==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -24031,7 +24137,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.12.0(@opentelemetry/api@1.9.1)
-      yaml: 2.9.0
+      yaml: 2.9.1
 
   '@opentelemetry/context-async-hooks@2.12.0(@opentelemetry/api@1.9.1)':
     dependencies:

@@ -1,16 +1,18 @@
 import {readdir, readFile} from 'node:fs/promises';
 import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {preflightCheck} from '@shipfox/e2e-core';
 import {arrangeCompileStack, bindConnectionSlugs, compileResult} from './compile.js';
-import {GENERATED_WORKFLOWS_DIRECTORY} from './contract-generator.js';
-import {defaultOutputRoot} from './contract-output.js';
-import type {SandboxManifest} from './contract-schema.js';
-import {loadContracts} from './contracts.js';
 import {matchesCase} from './discovery.js';
 import {type CaseResult, createRunId, type ResultsRun, writeResults} from './results.js';
 
 const WORKFLOW_FILE = /\.ya?ml$/u;
-const CONNECTION_LINE = /^(\s*(?:-\s+)?connection:\s*)([A-Za-z0-9_-]+)\s*$/u;
+const BIND_MARKER = /# bind:([A-Za-z0-9_-]+)\s*$/gmu;
+const STAGING_WORKFLOWS_DIRECTORY = '.shipfox-staging/workflows';
+// The directory at the repository root that the staging instance syncs.
+const stagingWorkflowsRoot = fileURLToPath(
+  new URL(`../../../../../${STAGING_WORKFLOWS_DIRECTORY}/`, import.meta.url),
+);
 
 export interface ContractWorkflowFile {
   /** The path the staging project syncs the file from, such as `.shipfox-staging/workflows/contracts.yaml`. */
@@ -23,7 +25,7 @@ export interface ContractWorkflowFile {
  * whole sync, so every file counts, not only the generated ones. A missing directory has none.
  */
 export async function listContractWorkflows({
-  directory = defaultOutputRoot,
+  directory = stagingWorkflowsRoot,
   filter,
 }: {
   directory?: string;
@@ -38,36 +40,16 @@ export async function listContractWorkflows({
   }
   const files: ContractWorkflowFile[] = [];
   for (const name of names.filter((entry) => WORKFLOW_FILE.test(entry)).sort()) {
-    const id = `${GENERATED_WORKFLOWS_DIRECTORY}/${name}`;
+    const id = `${STAGING_WORKFLOWS_DIRECTORY}/${name}`;
     if (matchesCase(name, filter) || matchesCase(id, filter))
       files.push({id, yaml: await readFile(join(directory, name), 'utf8')});
   }
   return files;
 }
 
-/**
- * Marks each step connection that names a sandbox slug, such as `linear_sandbox`, with the role
- * that `bindConnectionSlugs` replaces. Returns the providers whose sandbox the file uses.
- */
-export function markSandboxConnections({
-  yaml,
-  manifest,
-}: {
-  yaml: string;
-  manifest: SandboxManifest;
-}): {yaml: string; providers: string[]} {
-  const providers = new Set<string>();
-  const marked = yaml
-    .split('\n')
-    .map((line) => {
-      const slug = CONNECTION_LINE.exec(line)?.[2];
-      const provider = Object.keys(manifest).find((name) => manifest[name]?.connection === slug);
-      if (provider === undefined) return line;
-      providers.add(provider);
-      return `${line.trimEnd()} # bind:${provider}`;
-    })
-    .join('\n');
-  return {yaml: marked, providers: [...providers]};
+/** The providers whose sandbox connections the file marks with `# bind:<provider>`. */
+export function boundProviders(yaml: string): string[] {
+  return [...new Set([...yaml.matchAll(BIND_MARKER)].map(([, provider]) => provider as string))];
 }
 
 export interface ContractsCompileOptions {
@@ -75,8 +57,6 @@ export interface ContractsCompileOptions {
   caseFilter?: string;
   /** A directory of workflow files to compile instead of `.shipfox-staging/workflows`. */
   workflowsDirectory?: string;
-  /** The sandbox manifest the files were generated from, read from the cases when unset. */
-  manifest?: SandboxManifest;
   resultsDirectory?: string;
   runId?: string;
   /** Replaces compilation against the running stack, which tests don't have. */
@@ -97,8 +77,6 @@ export async function runContractsCompile(
   if (files.length === 0 && options.caseFilter !== undefined) {
     throw new Error(`No contract workflow files matching "${options.caseFilter}" were found.`);
   }
-  const manifest = options.manifest ?? (await loadContracts()).manifest;
-
   const cleanups: Array<() => Promise<void>> = [];
   try {
     let compile = options.compile;
@@ -109,10 +87,11 @@ export async function runContractsCompile(
         compileResult({
           id: file.id,
           compile: async (result) => {
-            const marked = markSandboxConnections({yaml: file.yaml, manifest});
             const slugs: Record<string, string> = {};
-            for (const provider of marked.providers) slugs[provider] = await stack.slugOf(provider);
-            const yaml = bindConnectionSlugs({yaml: marked.yaml, slugs});
+            for (const provider of boundProviders(file.yaml)) {
+              slugs[provider] = await stack.slugOf(provider);
+            }
+            const yaml = bindConnectionSlugs({yaml: file.yaml, slugs});
             result.composed_yaml = yaml;
             return await stack.check(yaml);
           },

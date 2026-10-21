@@ -125,7 +125,7 @@ function coveringIssue(unit: CatalogUnit): string {
   return found.issue;
 }
 
-const backlogPath = new URL('../cases/contracts/backlog.yaml', import.meta.url);
+const backlogPath = new URL('../cases/backlog.yaml', import.meta.url);
 const units = uncoveredUnits({grants: toolGrants, files: await loadContracts()});
 const entries = units.map((unit) => {
   const method = unit.method === undefined ? '' : `, method: ${unit.method}`;

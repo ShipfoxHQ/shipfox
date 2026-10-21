@@ -70,6 +70,7 @@ export {
   type AgentToolRepositoryScope,
   type AgentToolRepositoryScopeClassifier,
   type AgentToolRepositoryTarget,
+  createGithubToolClient,
   type GithubAgentToolCatalogEntry,
   type GithubAgentToolCategory,
   type GithubAgentToolId,
