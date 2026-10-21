@@ -299,6 +299,37 @@ describe('GitHub API mock webhook events', () => {
     }
   });
 
+  it('delivers a signed installation.deleted for the fake installation and account', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      const sent = await mock.sendInstallationDeleted({account: {login: 'acme', id: 9001}});
+
+      const [delivery] = api.deliveries;
+      expect(api.deliveries).toHaveLength(1);
+      expect(delivery?.event).toBe('installation');
+      expect(delivery?.deliveryId).toBe(sent.deliveryId);
+      expect(delivery?.signature).toBe(expectedSignature(delivery?.rawBody ?? ''));
+      expect(delivery?.payload).toMatchObject({
+        action: 'deleted',
+        installation: {
+          id: INSTALLATION_ID,
+          account: {login: 'acme', id: 9001, type: 'Organization'},
+        },
+        sender: {login: 'e2e-maintainer'},
+      });
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
   it('refuses to send an event for an issue the fake does not hold', async () => {
     const mock = await startGithubApiMock({
       endpoint: new URL('http://127.0.0.1:0'),
