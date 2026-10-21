@@ -94,6 +94,13 @@ export interface SendIssueAssignedParams {
   sender?: string | undefined;
 }
 
+export interface SendInstallationDeletedParams {
+  /** The account the App was installed on. Reattach on reinstall matches its ID. */
+  account: {login: string; id: number; type?: 'Organization' | 'User' | undefined};
+  /** Login of the user who uninstalled the App. Defaults to `e2e-maintainer`. */
+  sender?: string | undefined;
+}
+
 export interface GithubWebhookDelivery {
   /** The `X-GitHub-Delivery` header, which the trigger event reports as its delivery ID. */
   deliveryId: string;
@@ -134,6 +141,8 @@ export interface GithubWebhookSender {
    * `issues.assigned` for the issue's new state.
    */
   sendIssueAssigned(params: SendIssueAssignedParams): Promise<GithubWebhookDelivery>;
+  /** Delivers `installation.deleted` for the fake's installation, as an uninstall of the App. */
+  sendInstallationDeleted(params: SendInstallationDeletedParams): Promise<GithubWebhookDelivery>;
 }
 
 export interface CreateGithubWebhookSenderOptions {
@@ -288,6 +297,22 @@ export function createGithubWebhookSender(
         issue: issueEventPayload(params.issueNumber, issue),
         assignee: actorPayload(params.assignee),
         ...eventContext(options, issue.repository, params.sender ?? DEFAULT_MAINTAINER),
+      });
+    },
+
+    async sendInstallationDeleted(params) {
+      return await deliver(options, 'installation', {
+        action: 'deleted',
+        installation: {
+          ...installationPayload(options),
+          account: {
+            login: params.account.login,
+            id: params.account.id,
+            type: params.account.type ?? 'Organization',
+          },
+          repository_selection: 'all',
+        },
+        sender: userPayload(params.sender ?? DEFAULT_MAINTAINER, 'User'),
       });
     },
   };

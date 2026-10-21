@@ -41,6 +41,7 @@ export {
   type GithubWebhookDelivery,
   type GithubWebhookSender,
   type GithubWorkflowRunConclusion,
+  type SendInstallationDeletedParams,
   type SendIssueAssignedParams,
   type SendIssueLabeledParams,
   type SendPullRequestClosedParams,

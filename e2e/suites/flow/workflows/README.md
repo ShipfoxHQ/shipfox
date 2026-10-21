@@ -216,6 +216,18 @@ whose prompt reads a file from `${{ action.path }}`. The spec checks the
 composite step, its outputs, each inner step's `parent_step_id`, the masked
 log, and the restart attempts.
 
+## GitHub installation lifecycle
+
+`tests/github-installation-lifecycle.e2e.ts` adds a cron workflow, scheduled every minute,
+whose job checks out the project's GitHub repository. It then sends `installation.deleted`
+from the GitHub fake. It checks that the connection is `error` with provider access
+`removed`, and that a tick records an `errored` event with a `source-connection-unavailable`
+decision and no run. Then it reinstalls: a second fake serves a new installation ID with the
+same repository, and the E2E connect route connects it with the same account ID. It checks
+that the connection keeps its ID and slug and is `active`, and that a later tick starts a run
+that checks out the repository. The spec waits on real cron ticks, so it takes about two
+minutes.
+
 ## Local run
 
 Each scenario starts a local runner process from `apps/runner/src/index.ts` through

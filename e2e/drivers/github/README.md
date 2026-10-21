@@ -139,6 +139,11 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   or `issues.assigned` webhook with the issue's new state, the `label` or `assignee`, and the
   same repository, sender, and `installation.id` envelope. The sender defaults to
   `e2e-maintainer`.
+- `GithubApiMock.sendInstallationDeleted(params)`: delivers a signed `installation.deleted`
+  webhook for the fake's `installationId`, with the `account` (`login`, `id`, and `type`, which
+  defaults to `Organization`) the App was installed on. It models an uninstall. To model the
+  reinstall that follows, start another fake with a new `installationId` and the same
+  repositories, and connect it with the same account ID.
 - `signGithubWebhook(params)`: the `X-Hub-Signature-256`, `X-GitHub-Event`, and
   `X-GitHub-Delivery` headers for a raw body.
 - `GITHUB_*_INSTALLATION_TOKEN` and `GITHUB_*_RESULT_MARKER`: constants the suites
