@@ -107,6 +107,7 @@ async function persistJiraWebhookRegistration(
     connectionId: params.connectionId,
     webhookIds,
     webhookExpiresAt,
+    webhookDeliveryBound: true,
   });
   if (!installation) throw new Error('Jira webhook registration lost its installation record');
   state.metadataPersisted = true;
@@ -215,6 +216,7 @@ async function restorePreviousWebhookMetadata(
         ...(previous?.webhookIds ?? []).filter((webhookId) => webhookId !== retainedWebhookId),
       ],
       webhookExpiresAt: previous?.webhookExpiresAt ?? null,
+      webhookDeliveryBound: previous?.webhookDeliveryBound ?? false,
     });
   } catch (error) {
     logger().warn(

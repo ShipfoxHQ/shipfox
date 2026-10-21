@@ -104,9 +104,27 @@ async function renewJiraWebhook(params: {
   updateInstallation: typeof updateJiraInstallationWebhookIfUnchanged;
   registerWebhook: typeof registerJiraWebhook;
 }): Promise<JiraWebhookRenewalOutcome> {
-  if (!isDueForRenewal(params.installation, params.renewalDeadline)) return 'skipped';
+  // refreshDynamicWebhooks keeps the callback Jira already stored, so only a
+  // pre-token URL needs a new registration.
+  const replaceLegacyUrl = !params.installation.webhookDeliveryBound;
+  if (!replaceLegacyUrl && !isDueForRenewal(params.installation, params.renewalDeadline)) {
+    return 'skipped';
+  }
   const connection = await params.options.resolveConnection(params.installation.connectionId);
-  if (connection?.lifecycleStatus !== 'active') return 'skipped';
+  if (connection?.lifecycleStatus !== 'active') {
+    if (replaceLegacyUrl) {
+      // Only the row we read. A reconnect may have stored a new webhook since the list.
+      await params.updateInstallation({
+        connectionId: params.installation.connectionId,
+        webhookIds: params.installation.webhookIds,
+        webhookExpiresAt: null,
+        expectedWebhookIds: params.installation.webhookIds,
+        expectedWebhookExpiresAt: params.installation.webhookExpiresAt,
+        expectedWebhookDeliveryBound: false,
+      });
+    }
+    return 'skipped';
+  }
   const jira = params.options.jira;
   const webhookUrlForConnection = params.options.webhookUrlForConnection;
   if (!jira || !webhookUrlForConnection) {
@@ -115,17 +133,17 @@ async function renewJiraWebhook(params: {
   const accessToken = await params.options.tokenStore.getAccessToken({
     connectionId: params.installation.connectionId,
   });
-  const webhookExpiresAt = await refreshJiraWebhook(jira, params.installation, accessToken);
+  if (replaceLegacyUrl || params.installation.webhookIds.length === 0) {
+    await registerReplacement(params, jira, webhookUrlForConnection, accessToken);
+    return 'reregistered';
+  }
+  const webhookExpiresAt = await jira.refreshDynamicWebhooks({
+    accessToken,
+    cloudId: params.installation.cloudId,
+    webhookIds: params.installation.webhookIds,
+  });
   if (webhookExpiresAt === undefined) {
-    await params.registerWebhook({
-      jira,
-      connectionId: params.installation.connectionId,
-      cloudId: params.installation.cloudId,
-      accessToken,
-      webhookUrl: webhookUrlForConnection(params.installation.connectionId),
-      now: params.now,
-      replaceExistingWebhooks: true,
-    });
+    await registerReplacement(params, jira, webhookUrlForConnection, accessToken);
     return 'reregistered';
   }
   const updated = await params.updateInstallation({
@@ -138,16 +156,24 @@ async function renewJiraWebhook(params: {
   return updated ? 'renewed' : 'skipped';
 }
 
-function refreshJiraWebhook(
+function registerReplacement(
+  params: {
+    installation: JiraInstallation;
+    now: () => Date;
+    registerWebhook: typeof registerJiraWebhook;
+  },
   jira: NonNullable<CreateJiraWebhookRenewalActivitiesOptions['jira']>,
-  installation: JiraInstallation,
+  webhookUrlForConnection: (connectionId: string) => string,
   accessToken: string,
-): Promise<Date | undefined> {
-  if (installation.webhookIds.length === 0) return Promise.resolve(undefined);
-  return jira.refreshDynamicWebhooks({
+): Promise<{webhookId: number; webhookExpiresAt: Date}> {
+  return params.registerWebhook({
+    jira,
+    connectionId: params.installation.connectionId,
+    cloudId: params.installation.cloudId,
     accessToken,
-    cloudId: installation.cloudId,
-    webhookIds: installation.webhookIds,
+    webhookUrl: webhookUrlForConnection(params.installation.connectionId),
+    now: params.now,
+    replaceExistingWebhooks: true,
   });
 }
 

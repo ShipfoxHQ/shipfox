@@ -75,6 +75,7 @@ export function createE2eJiraConnectionRoute(options: CreateE2eJiraConnectionRou
           connectionId: connection.id,
           webhookIds: body.webhook_ids,
           webhookExpiresAt: null,
+          webhookDeliveryBound: true,
         });
       }
 

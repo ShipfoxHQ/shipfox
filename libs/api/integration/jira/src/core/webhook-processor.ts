@@ -19,6 +19,7 @@ import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {z} from 'zod';
 import {config} from '#config.js';
 import {handleJiraWebhook, isJiraInstallationUsable} from '#core/webhook.js';
+import {jiraWebhookDeliveryTokenMatches} from '#core/webhook-url.js';
 import {getJiraInstallationByConnectionId} from '#db/installations.js';
 
 const JIRA_PROVIDER = 'jira';
@@ -54,24 +55,17 @@ async function processJiraWebhookRequest(
 
   const rawBody = Buffer.from(decodeWebhookBody(request.body));
   const deliveryId = jiraDeliveryId(request, rawBody);
-  const authorization = request.headers.authorization;
-  if (!authorization) return invalidAuthorization(deliveryId);
+  const connectionId = request.path_parameters.connection_id;
+  if (!(await hasValidJiraJwt(request, deliveryId))) return invalidAuthorization(deliveryId);
 
-  const token = extractBearerToken(authorization);
-  if (!token) return invalidAuthorization(deliveryId);
-
-  try {
-    await verifyHs256({
-      token,
-      secret: config.JIRA_OAUTH_CLIENT_SECRET,
-      schema: jiraWebhookJwtClaimsSchema,
-      verificationTime: new Date(request.received_at),
-    });
-  } catch (error) {
-    logger().warn(
-      {deliveryId, errName: error instanceof Error ? error.name : typeof error},
-      'Jira webhook authorization verification failed',
-    );
+  const installation = await (
+    options.getJiraInstallationByConnectionId ?? getJiraInstallationByConnectionId
+  )(connectionId);
+  // Webhooks registered before the delivery token post without it until renewal replaces them.
+  if (
+    installation?.webhookDeliveryBound !== false &&
+    !jiraWebhookDeliveryTokenMatches(connectionId, request.raw_query_string)
+  ) {
     return invalidAuthorization(deliveryId);
   }
 
@@ -89,7 +83,6 @@ async function processJiraWebhookRequest(
     return {outcome: 'discarded', reason: 'unsupported_event', deliveryId};
   }
 
-  const connectionId = request.path_parameters.connection_id;
   const connection = await options.getIntegrationConnectionById(connectionId);
   if (
     !connection ||
@@ -98,9 +91,6 @@ async function processJiraWebhookRequest(
   ) {
     return await discardUnavailableConnection(options, deliveryId);
   }
-  const installation = await (
-    options.getJiraInstallationByConnectionId ?? getJiraInstallationByConnectionId
-  )(connectionId);
   if (
     !isJiraInstallationUsable(installation) ||
     !hasMatchingWebhookId(payload.data, installation.webhookIds)
@@ -122,6 +112,33 @@ async function processJiraWebhookRequest(
 
   if (result === 'duplicate') return {outcome: 'duplicate', deliveryId};
   return {outcome: 'processed', deliveryId};
+}
+
+async function hasValidJiraJwt(
+  request: StoredWebhookRequest,
+  deliveryId: string,
+): Promise<boolean> {
+  const authorization = request.headers.authorization;
+  if (!authorization) return false;
+
+  const token = extractBearerToken(authorization);
+  if (!token) return false;
+
+  try {
+    await verifyHs256({
+      token,
+      secret: config.JIRA_OAUTH_CLIENT_SECRET,
+      schema: jiraWebhookJwtClaimsSchema,
+      verificationTime: new Date(request.received_at),
+    });
+    return true;
+  } catch (error) {
+    logger().warn(
+      {deliveryId, errName: error instanceof Error ? error.name : typeof error},
+      'Jira webhook authorization verification failed',
+    );
+    return false;
+  }
 }
 
 function invalidAuthorization(deliveryId: string): WebhookProcessingResult {

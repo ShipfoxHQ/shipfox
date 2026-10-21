@@ -32,6 +32,7 @@ describe('registerJiraWebhook', () => {
       connectionId: 'connection-1',
       webhookIds: [123],
       webhookExpiresAt: new Date(now.getTime() + JIRA_WEBHOOK_TTL_MS),
+      webhookDeliveryBound: true,
     });
     expect(result.webhookId).toBe(123);
     expect(deleteDynamicWebhook).not.toHaveBeenCalled();
@@ -121,6 +122,7 @@ describe('registerJiraWebhook', () => {
       connectionId: 'connection-1',
       webhookIds: [123],
       webhookExpiresAt: previousExpiry,
+      webhookDeliveryBound: false,
     });
   });
 
@@ -166,6 +168,7 @@ describe('registerJiraWebhook', () => {
       connectionId: 'connection-1',
       webhookIds: [123],
       webhookExpiresAt: previousExpiry,
+      webhookDeliveryBound: false,
     });
   });
 

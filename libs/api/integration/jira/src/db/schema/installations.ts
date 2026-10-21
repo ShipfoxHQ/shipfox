@@ -1,5 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {boolean, index, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {JiraInstallation} from '#db/installations.js';
 import {pgTable} from './common.js';
 
@@ -15,6 +15,7 @@ export const jiraInstallations = pgTable(
     scopes: jsonb('scopes').$type<string[]>().notNull(),
     webhookIds: jsonb('webhook_ids').$type<number[]>().notNull().default([]),
     webhookExpiresAt: timestamp('webhook_expires_at', {withTimezone: true}),
+    webhookDeliveryBound: boolean('webhook_delivery_bound').notNull().default(false),
     status: text('status').notNull().$type<JiraInstallation['status']>(),
     tokenExpiresAt: timestamp('token_expires_at', {withTimezone: true}),
     refreshTokenLastUsedAt: timestamp('refresh_token_last_used_at', {
@@ -58,6 +59,7 @@ export function toJiraInstallation(row: JiraInstallationDb): JiraInstallation {
     scopes: row.scopes,
     webhookIds: row.webhookIds,
     webhookExpiresAt: row.webhookExpiresAt,
+    webhookDeliveryBound: row.webhookDeliveryBound,
     status: row.status,
     tokenExpiresAt: row.tokenExpiresAt,
     refreshTokenLastUsedAt: row.refreshTokenLastUsedAt,

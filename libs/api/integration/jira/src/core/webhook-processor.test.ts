@@ -3,6 +3,7 @@ import type {JiraWebhookEnvelopeDto} from '@shipfox/api-integration-jira-dto';
 import {createStoredWebhookRequest, type IntegrationConnection} from '@shipfox/api-integration-spi';
 import {signHs256} from '@shipfox/node-jwt';
 import {createJiraWebhookProcessor} from './webhook-processor.js';
+import {jiraWebhookDeliveryToken} from './webhook-url.js';
 
 const connectionId = 'c0a8012e-0b6d-4d8f-8d5c-6d74102602b0';
 const cloudId = 'cloud-1';
@@ -60,13 +61,14 @@ function createRequest(
   requestReceivedAt = receivedAt,
   requestConnectionId = connectionId,
   jiraWebhookIdentifier?: string,
+  rawQueryString = `delivery=${jiraWebhookDeliveryToken(requestConnectionId)}`,
 ) {
   const body = new TextEncoder().encode(JSON.stringify(payload));
   return createStoredWebhookRequest({
     requestId: crypto.randomUUID(),
     routeId: 'jira',
     receivedAt: requestReceivedAt,
-    rawQueryString: '',
+    rawQueryString,
     headers: {
       authorization,
       'content-type': 'application/json',
@@ -118,6 +120,7 @@ function createHarness(overrides: {published?: boolean; deduplicate?: boolean} =
     cloudId: id === connectionId ? cloudId : `cloud-${id}`,
     authorizingAccountId: 'account-1',
     webhookIds: [42],
+    webhookDeliveryBound: true,
     status: 'installed',
   }));
   const processor = createJiraWebhookProcessor({
@@ -173,6 +176,49 @@ describe('Jira webhook processor', () => {
     expect(missing).toMatchObject({outcome: 'discarded', reason: 'invalid_signature'});
     expect(tampered).toMatchObject({outcome: 'discarded', reason: 'invalid_signature'});
     expect(harness.recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('rejects a valid JWT that was not sent to this connection URL', async () => {
+    const harness = createHarness();
+    const token = await signedAuthorization();
+    const otherConnectionId = 'd0a8012e-0b6d-4d8f-8d5c-6d74102602b1';
+    const missingToken = await harness.processor.process(
+      createRequest(createPayload(), `Bearer ${token}`, receivedAt, connectionId, undefined, ''),
+    );
+    const otherConnectionToken = await harness.processor.process(
+      createRequest(
+        createPayload(),
+        `Bearer ${token}`,
+        receivedAt,
+        connectionId,
+        undefined,
+        `delivery=${jiraWebhookDeliveryToken(otherConnectionId)}`,
+      ),
+    );
+
+    expect(missingToken).toMatchObject({outcome: 'discarded', reason: 'invalid_signature'});
+    expect(otherConnectionToken).toMatchObject({outcome: 'discarded', reason: 'invalid_signature'});
+    expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
+  });
+
+  it('accepts a delivery without the token while the webhook still uses the legacy URL', async () => {
+    const harness = createHarness();
+    harness.getJiraInstallationByConnectionId.mockResolvedValue({
+      connectionId,
+      cloudId,
+      authorizingAccountId: 'account-1',
+      webhookIds: [42],
+      webhookDeliveryBound: false,
+      status: 'installed',
+    });
+    const token = await signedAuthorization();
+
+    const result = await harness.processor.process(
+      createRequest(createPayload(), `Bearer ${token}`, receivedAt, connectionId, undefined, ''),
+    );
+
+    expect(result).toMatchObject({outcome: 'processed'});
+    expect(harness.publishIntegrationEventReceived).toHaveBeenCalledOnce();
   });
 
   it('rejects tokens that are expired at Jira receipt time or use another algorithm', async () => {
@@ -387,7 +433,7 @@ describe('Jira webhook processor', () => {
       requestId: crypto.randomUUID(),
       routeId: 'jira',
       receivedAt,
-      rawQueryString: '',
+      rawQueryString: `delivery=${jiraWebhookDeliveryToken(connectionId)}`,
       headers: {authorization: `Bearer ${token}`},
       body: new TextEncoder().encode('{'),
       connectionId,

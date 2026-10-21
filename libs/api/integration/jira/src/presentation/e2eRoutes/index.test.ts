@@ -106,6 +106,7 @@ describe('Jira E2E routes', () => {
       connectionId: connection().id,
       webhookIds: [4242],
       webhookExpiresAt: null,
+      webhookDeliveryBound: true,
     });
   });
 

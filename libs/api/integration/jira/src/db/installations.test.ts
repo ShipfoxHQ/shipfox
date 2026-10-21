@@ -2,6 +2,7 @@ import {
   JiraInstallationAlreadyLinkedError,
   JiraInstallationSiteMismatchError,
 } from '#core/errors.js';
+import {jiraInstallationFactory} from '#test/factories/jira-installation.js';
 import {
   deleteJiraInstallationByConnectionId,
   getJiraInstallationByCloudId,
@@ -29,6 +30,7 @@ function createInstallationInput(
     authorizingAccountId: crypto.randomUUID(),
     scopes: ['read:jira-work'],
     webhookIds: [Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)],
+    webhookDeliveryBound: true,
     status: 'installed' as const,
     ...overrides,
   };
@@ -143,6 +145,51 @@ describe('jira installations', () => {
         webhookExpiresAt: new Date('2026-08-31T00:00:00.000Z'),
       }),
     ).resolves.toMatchObject({webhookIds: [789]});
+  });
+
+  it('does not clear a webhook a reconnect already replaced', async () => {
+    const expiry = new Date('2026-08-05T00:00:00.000Z');
+    const replacedExpiry = new Date('2026-09-01T00:00:00.000Z');
+    const input = createInstallationInput({webhookIds: [123], webhookExpiresAt: expiry});
+    await upsertJiraInstallation(input);
+    await updateJiraInstallationWebhook({
+      connectionId: input.connectionId,
+      webhookIds: [123],
+      webhookExpiresAt: expiry,
+      webhookDeliveryBound: false,
+    });
+    await updateJiraInstallationWebhook({
+      connectionId: input.connectionId,
+      webhookIds: [456],
+      webhookExpiresAt: replacedExpiry,
+      webhookDeliveryBound: true,
+    });
+
+    await expect(
+      updateJiraInstallationWebhookIfUnchanged({
+        connectionId: input.connectionId,
+        expectedWebhookIds: [123],
+        expectedWebhookExpiresAt: expiry,
+        webhookIds: [123],
+        webhookExpiresAt: null,
+        expectedWebhookDeliveryBound: false,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      updateJiraInstallationWebhookIfUnchanged({
+        connectionId: input.connectionId,
+        expectedWebhookIds: [456],
+        expectedWebhookExpiresAt: replacedExpiry,
+        webhookIds: [456],
+        webhookExpiresAt: null,
+        expectedWebhookDeliveryBound: false,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(getJiraInstallationByConnectionId(input.connectionId)).resolves.toMatchObject({
+      webhookIds: [456],
+      webhookExpiresAt: replacedExpiry,
+      webhookDeliveryBound: true,
+    });
   });
 
   it('refuses to repoint a connection to a different Jira site', async () => {
@@ -268,6 +315,66 @@ describe('jira installations', () => {
     );
   });
 
+  it('lists a legacy webhook that still posts without the delivery token', async () => {
+    const legacy = createInstallationInput({
+      webhookIds: [123],
+      webhookExpiresAt: new Date('2026-08-20T00:00:00.000Z'),
+    });
+    await upsertJiraInstallation(legacy);
+    await updateJiraInstallationWebhook({
+      connectionId: legacy.connectionId,
+      webhookIds: [123],
+      webhookExpiresAt: new Date('2026-08-20T00:00:00.000Z'),
+      webhookDeliveryBound: false,
+    });
+
+    const result = await listJiraInstallationsDueForWebhookRenewal({
+      before: new Date('2026-08-07T00:00:00.000Z'),
+    });
+
+    expect(result.map((installation) => installation.connectionId)).toContain(legacy.connectionId);
+    expect(
+      result.find((installation) => installation.connectionId === legacy.connectionId),
+    ).toMatchObject({webhookDeliveryBound: false});
+  });
+
+  it('lists a dated legacy webhook before one whose expiry was cleared', async () => {
+    const dated = createInstallationInput({
+      webhookIds: [123],
+      webhookExpiresAt: new Date('2026-08-20T00:00:00.000Z'),
+    });
+    const cleared = createInstallationInput({
+      webhookIds: [456],
+      webhookExpiresAt: new Date('2026-08-01T00:00:00.000Z'),
+    });
+    await upsertJiraInstallation(dated);
+    await upsertJiraInstallation(cleared);
+    await updateJiraInstallationWebhook({
+      connectionId: dated.connectionId,
+      webhookIds: [123],
+      webhookExpiresAt: dated.webhookExpiresAt ?? null,
+      webhookDeliveryBound: false,
+    });
+    await updateJiraInstallationWebhook({
+      connectionId: cleared.connectionId,
+      webhookIds: [456],
+      webhookExpiresAt: null,
+      webhookDeliveryBound: false,
+    });
+
+    const result = await listJiraInstallationsDueForWebhookRenewal({
+      before: new Date('2026-08-07T00:00:00.000Z'),
+    });
+    const connectionIds = result.map((installation) => installation.connectionId);
+
+    expect(connectionIds).toEqual(
+      expect.arrayContaining([dated.connectionId, cleared.connectionId]),
+    );
+    expect(connectionIds.indexOf(dated.connectionId)).toBeLessThan(
+      connectionIds.indexOf(cleared.connectionId),
+    );
+  });
+
   it('orders due installations by their latest refresh attempt', async () => {
     const refreshTokenLastUsedAt = new Date('1970-01-01T00:00:00.000Z');
     const attemptBase = Date.now();
@@ -353,5 +460,14 @@ describe('jira installations', () => {
     await expect(first).resolves.toBe('first');
     await expect(second).resolves.toBe('second');
     expect(secondFinished).toBe(true);
+  });
+
+  it('persists a legacy webhook flag from the installation factory', async () => {
+    const installation = await jiraInstallationFactory.create({webhookDeliveryBound: false});
+
+    expect(installation.webhookDeliveryBound).toBe(false);
+    expect(
+      (await getJiraInstallationByConnectionId(installation.connectionId))?.webhookDeliveryBound,
+    ).toBe(false);
   });
 });

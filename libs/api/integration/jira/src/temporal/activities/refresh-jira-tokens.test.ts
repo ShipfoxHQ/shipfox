@@ -14,6 +14,7 @@ function installation(connectionId: string): JiraInstallation {
     scopes: ['offline_access'],
     webhookIds: [],
     webhookExpiresAt: null,
+    webhookDeliveryBound: true,
     status: 'installed',
     tokenExpiresAt: now,
     refreshTokenLastUsedAt: now,

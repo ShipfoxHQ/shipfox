@@ -28,11 +28,16 @@ export interface JiraIssueEventParams {
   previousLabels?: string[] | undefined;
 }
 
-export function signJiraAuthorization(): string {
-  const clientSecret = process.env.JIRA_OAUTH_CLIENT_SECRET;
-  if (!clientSecret) {
+function clientSecret(): string {
+  const secret = process.env.JIRA_OAUTH_CLIENT_SECRET;
+  if (!secret) {
     throw new Error('JIRA_OAUTH_CLIENT_SECRET must be configured for Jira event signing.');
   }
+  return secret;
+}
+
+export function signJiraAuthorization(): string {
+  const clientSecretValue = clientSecret();
   const issuedAt = Math.floor(Date.now() / 1000);
   const signingInput = [
     {alg: 'HS256', typ: 'JWT'},
@@ -40,7 +45,9 @@ export function signJiraAuthorization(): string {
   ]
     .map((part) => Buffer.from(JSON.stringify(part)).toString('base64url'))
     .join('.');
-  const signature = createHmac('sha256', clientSecret).update(signingInput).digest('base64url');
+  const signature = createHmac('sha256', clientSecretValue)
+    .update(signingInput)
+    .digest('base64url');
   return `Bearer ${signingInput}.${signature}`;
 }
 
@@ -113,8 +120,14 @@ export async function postJiraIssueEvent(
 ): Promise<string> {
   // Jira sends this header with a stable ID per delivery, and the API prefixes it with the connection.
   const identifier = randomUUID();
+  const delivery = createHmac('sha256', clientSecret())
+    .update(`jira-webhook:${params.connectionId}`)
+    .digest('base64url');
   const response = await fetch(
-    new URL(`/webhooks/integrations/jira/${params.connectionId}`, config.API_URL),
+    new URL(
+      `/webhooks/integrations/jira/${params.connectionId}?delivery=${delivery}`,
+      config.API_URL,
+    ),
     {
       method: 'POST',
       body: JSON.stringify(buildJiraIssueEnvelope(params)),
