@@ -409,8 +409,8 @@ catalogs:
       specifier: ^2.1.0
       version: 2.1.0
     esbuild:
-      specifier: 0.28.1
-      version: 0.28.1
+      specifier: 0.28.2
+      version: 0.28.2
     fastify:
       specifier: ^5.3.3
       version: 5.8.5
@@ -11372,7 +11372,7 @@ importers:
         version: link:../../libs/shared/workflow/templates
       esbuild:
         specifier: 'catalog:'
-        version: 0.28.1
+        version: 0.28.2
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
