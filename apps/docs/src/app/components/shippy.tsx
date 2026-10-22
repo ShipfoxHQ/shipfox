@@ -28,7 +28,7 @@ export function Shippy({pose, className}: ShippyProps) {
       aria-hidden="true"
       width={width}
       height={height}
-      loading={pose === 'foreman' || pose === 'approaches' ? 'eager' : 'lazy'}
+      loading={pose === 'machine' || pose === 'approaches' ? 'eager' : 'lazy'}
       className={`not-prose pointer-events-none h-auto select-none ${className ?? ''}`}
     />
   );
