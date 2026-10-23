@@ -1,5 +1,104 @@
 # @shipfox/api-integration-shipfox
 
+## 34.0.0
+
+### Minor Changes
+
+- b9a53b2: Adds `status_reason`, `status_reason_message`, and `outputs` to the run overview attempt. The `shipfox` provider's `get_workflow_run` tool returns them on its attempt, and the agent-access `get_workflow_run` tool returns them on the run.
+- ac3561b: Names what is missing in MCP tool errors when a run cannot start. `fire_manual_trigger` and `create_dev_run` include the variable key and where it is read, the trigger secret key, runner labels and size figures in the error message and details. `start_workflow_run` does the same. The `interpolation-unresolvable` error from Triggers now carries the optional `variableKey`, `jobKey` and `step`.
+- 2ab4025: Workflows can link to their runs. `run.url` in the run context, `event.run.url` on Shipfox run and job events, and `url` on the `start_workflow_run` output hold the run permalink, built from `CLIENT_BASE_URL`. Replaying a Shipfox event stored without `run.url` fills it in. The `slack-dispatcher` and `report-failed-runs` templates use these links instead of `https://app.shipfox.io/runs/`.
+
+### Patch Changes
+
+- eca4c27: Stops runs that check out the project's source while its connection is missing, disabled, or in error. Trigger starts and listening-job deliveries now fail with the `source-connection-unavailable` known error. Cron records an errored tick and sends no failure alerts, and the next tick after recovery starts a run. A manual fire returns 422.
+- ebe3ac1: Adds the Shipfox lifecycle event names, payload schemas, empty event catalog, and exported built-in integration connection ID contract.
+- b1cc902: Shipfox read tools now work as `tool:` steps, including `get_step_logs` with `failed_only`.
+- Updated dependencies [be33fe6]
+- Updated dependencies [af0e24b]
+- Updated dependencies [e99aa97]
+- Updated dependencies [46f78a0]
+- Updated dependencies [7d20d04]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [807ae57]
+- Updated dependencies [4c789ca]
+- Updated dependencies [c4f486b]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [027e401]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [dc8065c]
+- Updated dependencies [205afb5]
+- Updated dependencies [dcd0b79]
+- Updated dependencies [a73e712]
+- Updated dependencies [e5872d5]
+- Updated dependencies [9e173c3]
+- Updated dependencies [f769d90]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [8872f36]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [c8e0869]
+- Updated dependencies [1d94e37]
+- Updated dependencies [3869c1d]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [6c0d6bd]
+- Updated dependencies [eca4c27]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [090d6a0]
+- Updated dependencies [507915a]
+- Updated dependencies [2c36559]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [395e11d]
+- Updated dependencies [041ae63]
+- Updated dependencies [ebe3ac1]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [ffffc16]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/api-integration-shipfox-dto@34.0.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 33.0.0
 
 ### Patch Changes

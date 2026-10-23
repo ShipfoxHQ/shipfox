@@ -1,5 +1,17 @@
 # @shipfox/api-workspaces-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 46f78a0: Adds `find_workspaces` and `find_projects` to the admin MCP endpoint `POST /mcp/admin`. Both need the `admin-observer` role and no impersonation window. `search` matches part of a name or slug, or an exact ID when it is a UUID. Leave it out to list every workspace or project. `find_workspaces` also filters by `status`. Each project names its `workspace_id` and `workspace_slug` for `start_impersonation`. The admin endpoint now needs a projects client. The Workspaces contract adds `listAdminWorkspaces`, and the Projects contract adds `listAdminProjects`. The `GET /admin/workspaces` and `GET /admin/projects` searches now match slugs as well as names.
+- 89a6cc7: Exposes the workspace slug to server modules. The workspace summary now returns the slug, and each membership in the user token carries an optional `workspaceSlug` claim. Tokens issued before this release stay valid without the claim.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+  - @shipfox/api-common-dto@34.0.0
+
 ## 29.1.0
 
 ### Minor Changes

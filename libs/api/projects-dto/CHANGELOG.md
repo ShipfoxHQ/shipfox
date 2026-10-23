@@ -1,5 +1,17 @@
 # @shipfox/api-projects-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 46f78a0: Adds `find_workspaces` and `find_projects` to the admin MCP endpoint `POST /mcp/admin`. Both need the `admin-observer` role and no impersonation window. `search` matches part of a name or slug, or an exact ID when it is a UUID. Leave it out to list every workspace or project. `find_workspaces` also filters by `status`. Each project names its `workspace_id` and `workspace_slug` for `start_impersonation`. The admin endpoint now needs a projects client. The Workspaces contract adds `listAdminWorkspaces`, and the Projects contract adds `listAdminProjects`. The `GET /admin/workspaces` and `GET /admin/projects` searches now match slugs as well as names.
+- 7fddfc5: A checkout-token refusal for an explicit `checkout.project` names the repository when the project has a source owner and name. `resolveCheckoutTarget` returns both as `sourceRepositoryOwner` and `sourceRepositoryName`.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+  - @shipfox/api-common-dto@34.0.0
+
 ## 23.2.0
 
 ### Patch Changes

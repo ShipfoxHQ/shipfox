@@ -1,5 +1,35 @@
 # @shipfox/node-module
 
+## 1.2.0
+
+### Minor Changes
+
+- 24ea599: Adds a feature flags seam. `@shipfox/feature-flags` declares flags with `defineFlags`. `@shipfox/node-feature-flags` reads them through `createFeatureFlags({provider?})`, resolving a `FLAG_*` env override, then the provider, then the code default. A read never throws. `ShipfoxModule` gains an optional `flags` field, and `defaultModules` accepts a root-created `featureFlags` instance, hands it to the modules, rejects a duplicate flag key, and fails startup on an invalid `FLAG_*` value.
+
+  `DEFINITION_ACTIONS_ENABLED` is replaced by the `definitions-actions` flag, read per workspace. Set `FLAG_DEFINITIONS_ACTIONS=true` where you set `DEFINITION_ACTIONS_ENABLED=true`. The flag defaults to `false`, and the old setting no longer has any effect. The development `.env` sets the override, so local development keeps action steps on.
+
+- 2128c1e: Two installed copies of `@shipfox/node-temporal` now share one Temporal client and one runtime install. The new `@shipfox/node-process-state` package keeps process state in versioned `globalThis` slots (`processState(key, init, import.meta.url)`) and records which package copy asked for each slot.
+
+  `initializeModules` logs one warning for every package that keeps its state in `processState` slots and is installed more than once, with its install folders and whether the copies share state. Set `SHIPFOX_STRICT_PACKAGE_COPIES=true` to fail startup when the copies of a package do not share state. It defaults to `false`.
+
+### Patch Changes
+
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [c06262b]
+- Updated dependencies [c06262b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [a32c90c]
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/feature-flags@0.1.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-process-state@0.1.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-error-monitoring@0.4.1
+
 ## 1.1.2
 
 ### Patch Changes

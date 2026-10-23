@@ -1,5 +1,24 @@
 # @shipfox/node-temporal
 
+## 0.6.0
+
+### Minor Changes
+
+- a32c90c: `TEMPORAL_PREBUILT_WORKFLOW_BUNDLES=true` makes workers load the workflow bundles written at build time outside production, instead of compiling each workflow entrypoint at startup.
+
+### Patch Changes
+
+- 2128c1e: Two installed copies of `@shipfox/node-temporal` now share one Temporal client and one runtime install. The new `@shipfox/node-process-state` package keeps process state in versioned `globalThis` slots (`processState(key, init, import.meta.url)`) and records which package copy asked for each slot.
+
+  `initializeModules` logs one warning for every package that keeps its state in `processState` slots and is installed more than once, with its install folders and whether the copies share state. Set `SHIPFOX_STRICT_PACKAGE_COPIES=true` to fail startup when the copies of a package do not share state. It defaults to `false`.
+
+- Updated dependencies [c06262b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-process-state@0.1.0
+  - @shipfox/node-error-monitoring@0.4.1
+
 ## 0.5.2
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @shipfox/api-email-challenges
 
+## 1.1.21
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+- Updated dependencies [2d009f4]
+- Updated dependencies [24ea599]
+- Updated dependencies [465a5eb]
+- Updated dependencies [21c993b]
+- Updated dependencies [c06262b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-email@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-mailer@0.2.8
+
 ## 1.1.20
 
 ### Patch Changes

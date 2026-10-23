@@ -1,5 +1,54 @@
 # @shipfox/api-projects
 
+## 34.0.0
+
+### Minor Changes
+
+- 46f78a0: Adds `find_workspaces` and `find_projects` to the admin MCP endpoint `POST /mcp/admin`. Both need the `admin-observer` role and no impersonation window. `search` matches part of a name or slug, or an exact ID when it is a UUID. Leave it out to list every workspace or project. `find_workspaces` also filters by `status`. Each project names its `workspace_id` and `workspace_slug` for `start_impersonation`. The admin endpoint now needs a projects client. The Workspaces contract adds `listAdminWorkspaces`, and the Projects contract adds `listAdminProjects`. The `GET /admin/workspaces` and `GET /admin/projects` searches now match slugs as well as names.
+
+### Patch Changes
+
+- 7fddfc5: A checkout-token refusal for an explicit `checkout.project` names the repository when the project has a source owner and name. `resolveCheckoutTarget` returns both as `sourceRepositoryOwner` and `sourceRepositoryName`.
+- Updated dependencies [46f78a0]
+- Updated dependencies [eadd377]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [8a926dc]
+- Updated dependencies [c4f486b]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [2d009f4]
+- Updated dependencies [4273dad]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [9e173c3]
+- Updated dependencies [f432fd2]
+- Updated dependencies [f769d90]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [c06262b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [a32c90c]
+- Updated dependencies [82f2480]
+- Updated dependencies [4c8f870]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 31.0.0
 
 ### Patch Changes
