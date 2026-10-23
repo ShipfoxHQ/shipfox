@@ -23,7 +23,7 @@ import {
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
-import {type ReactNode, useState} from 'react';
+import {type ReactNode, useEffect, useRef, useState} from 'react';
 import {DefinitionPackagesPanel} from '#components/definition-packages-panel/definition-packages-panel.js';
 import {
   WorkflowDefinitionsTable,
@@ -31,6 +31,7 @@ import {
 } from '#components/workflow-definitions-table.js';
 import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
+import {useInvalidateRunReadiness, useRunReadinessQuery} from '#hooks/api/run-readiness.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
 export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
@@ -45,11 +46,20 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   const projectQuery = useProjectQuery(projectId);
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
   const fireManual = useFireManualWorkflowMutation();
+  const invalidateReadiness = useInvalidateRunReadiness(projectId);
   const [selectedDefinition, setSelectedDefinition] = useState<Definition | null>(null);
   const {workspaceSlug} = useRouteParams(parseWorkspaceParams);
   const [runError, setRunError] = useState<WorkflowRunError | null>(null);
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const sync = definitionsQuery.data?.pages[0]?.sync;
+  const readiness = useRunReadinessQuery(
+    projectId,
+    // Placeholder pages belong to the previous project, so they have no readiness here.
+    definitionsQuery.isPlaceholderData
+      ? []
+      : (definitionsQuery.data?.pages.map((page) => page.definitions.map(({id}) => id)) ?? []),
+  );
+  useInvalidateOnSyncComplete(invalidateReadiness, sync?.status);
 
   async function handleRun(definition: Definition) {
     setRunError(null);
@@ -59,6 +69,7 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
       toast.success('Run queued');
     } catch (error) {
       setRunError({definitionId: definition.id, copy: runStartErrorCopy(error)});
+      void invalidateReadiness();
     }
   }
 
@@ -128,6 +139,7 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
                 onRetry={() => definitionsQuery.refetch()}
                 onLoadMore={() => definitionsQuery.fetchNextPage()}
                 onOpenDefinition={setSelectedDefinition}
+                readiness={readiness}
                 onRun={(definition) => {
                   void handleRun(definition);
                 }}
@@ -152,6 +164,19 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
       </div>
     </div>
   );
+}
+
+/** A finished sync may have changed what the definitions need. */
+function useInvalidateOnSyncComplete(
+  invalidate: () => unknown,
+  status: DefinitionSyncSummary['status'] | undefined,
+) {
+  const previousStatus = useRef(status);
+  useEffect(() => {
+    const wasRunning = previousStatus.current === 'pending' || previousStatus.current === 'syncing';
+    previousStatus.current = status;
+    if (wasRunning && (status === 'succeeded' || status === 'failed')) void invalidate();
+  }, [invalidate, status]);
 }
 
 /**
