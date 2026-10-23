@@ -42,6 +42,13 @@ export function sharedWorkflowErrorCopy(error: ApiError): WorkflowErrorCopy | un
         message: 'The provider is asking us to slow down. Try again shortly.',
       };
     case 'source-unavailable':
+      if (errorReason(error) === 'connection-inactive') {
+        return {
+          title: 'Source connection unavailable',
+          message:
+            "The project's source connection is unavailable. Check its status in the integration settings.",
+        };
+      }
       return {
         title: 'Source repository unavailable',
         message: 'Shipfox could not read the repository right now. Try again in a moment.',
@@ -49,4 +56,12 @@ export function sharedWorkflowErrorCopy(error: ApiError): WorkflowErrorCopy | un
     default:
       return undefined;
   }
+}
+
+function errorReason(error: ApiError): unknown {
+  const body = error.details;
+  if (typeof body !== 'object' || body === null || !('details' in body)) return undefined;
+  const details = body.details;
+  if (typeof details !== 'object' || details === null || !('reason' in details)) return undefined;
+  return details.reason;
 }

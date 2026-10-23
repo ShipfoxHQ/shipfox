@@ -66,6 +66,16 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/w/$workspaceSlug/integrations',
     component: () => <div>Integrations gallery placeholder</div>,
   });
+  const integrationSettingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/w/$workspaceSlug/settings/integrations',
+    component: () => <div>Integration settings placeholder</div>,
+  });
+  const connectionDetailsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/w/$workspaceSlug/settings/integrations/$connectionSlug',
+    component: () => <div>Connection details placeholder</div>,
+  });
   const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/w/$workspaceSlug/settings/agents',
@@ -111,6 +121,8 @@ function createTestRouter(path: string, element: ReactElement) {
       workspaceRoute,
       workspaceNewProjectRoute,
       integrationsRoute,
+      integrationSettingsRoute,
+      connectionDetailsRoute,
       modelProviderSettingsRoute,
       projectSettingsGeneralRoute,
       projectDetailRoute,

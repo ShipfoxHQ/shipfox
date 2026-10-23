@@ -564,6 +564,28 @@ describe('POST /dev-runs', () => {
     expect(res.json().code).toBe(expectedCode);
   });
 
+  test('says why the source is unavailable when its connection is inactive', async () => {
+    createDevRunMock.mockRejectedValue(
+      createInterModuleKnownError(
+        definitionsInterModuleContract.methods.resolveDefinitionAtRef,
+        'source-unavailable',
+        {reason: 'connection-inactive'},
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: VALID_BODY,
+    });
+
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toMatchObject({
+      code: 'source-unavailable',
+      details: {reason: 'connection-inactive'},
+    });
+  });
+
   test('maps an invalid definition to 422 invalid-workflow-definition with the errors', async () => {
     createDevRunMock.mockRejectedValue(
       createInterModuleKnownError(

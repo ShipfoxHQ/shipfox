@@ -57,6 +57,7 @@ export function createDevRunRoute(
         404: errorResponseSchema,
         409: errorResponseSchema,
         410: errorResponseSchema,
+        502: errorResponseSchema,
       },
     },
     errorHandler: (error) => {
@@ -201,6 +202,7 @@ function handleDefinitionResolutionError(error: unknown): void {
     case 'source-unavailable':
       throw new ClientError('The source repository is unavailable', 'source-unavailable', {
         status: 502,
+        ...(error.details.reason === undefined ? {} : {details: {reason: error.details.reason}}),
         cause: error,
       });
   }
