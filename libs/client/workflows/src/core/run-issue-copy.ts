@@ -89,7 +89,7 @@ const PREDICATE_FIELD_NAMES: Record<string, string> = {
 const LEADING_THE = /^The /;
 const VARIABLES_PATH = '/w/$workspaceSlug/settings/variables';
 const SECRETS_PATH = '/w/$workspaceSlug/settings/secrets';
-const INTEGRATIONS_PATH = '/w/$workspaceSlug/settings/integrations';
+export const INTEGRATIONS_PATH = '/w/$workspaceSlug/settings/integrations';
 const AI_PROVIDERS_PATH = '/w/$workspaceSlug/settings/agents';
 
 const VARIABLE_RULE =

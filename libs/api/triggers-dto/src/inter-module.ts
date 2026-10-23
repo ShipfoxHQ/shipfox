@@ -412,7 +412,7 @@ const definitionResolutionErrors = {
   'file-not-found': z.object({ref: refSchema, configPath: configPathSchema}),
   'content-too-large': z.object({configPath: configPathSchema}),
   'invalid-definition': z.object({errors: z.array(definitionValidationErrorSchema)}),
-  'source-unavailable': z.object({}),
+  'source-unavailable': z.object({sourceCode: z.literal('connection-inactive').optional()}),
 };
 const devRunDomainErrors = {
   'trigger-not-found': z.object({

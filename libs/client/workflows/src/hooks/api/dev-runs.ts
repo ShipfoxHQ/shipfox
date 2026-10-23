@@ -10,7 +10,7 @@ import {
   workflowRunTriggerLabel,
 } from '#core/workflow-run.js';
 import {definitionsAtRefQueryKeys, definitionsAtRefQueryOptions} from './definitions-at-ref.js';
-import {sharedWorkflowErrorCopy} from './workflow-error-copy.js';
+import {sharedWorkflowErrorCopy, type WorkflowErrorCopy} from './workflow-error-copy.js';
 import {
   cryptoRandomId,
   insertTemporaryWorkflowRun,
@@ -254,10 +254,7 @@ export function useCreateDevRunMutation() {
   });
 }
 
-export interface DevRunErrorCopy {
-  title: string;
-  message: string;
-}
+export type DevRunErrorCopy = WorkflowErrorCopy;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

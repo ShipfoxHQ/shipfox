@@ -6,7 +6,7 @@ import {
 import {ApiError, checkedApiRequest} from '@shipfox/client-api';
 import {queryOptions, type UseQueryOptions, useQuery} from '@tanstack/react-query';
 import type {DefinitionAtRefFile, DefinitionAtRefListing} from '#core/definitions-at-ref.js';
-import {sharedWorkflowErrorCopy} from './workflow-error-copy.js';
+import {sharedWorkflowErrorCopy, type WorkflowErrorCopy} from './workflow-error-copy.js';
 
 export const definitionsAtRefQueryKeys = {
   all: ['definitions-at-ref'] as const,
@@ -25,10 +25,7 @@ type DefinitionsAtRefQueryOptions = UseQueryOptions<
   DefinitionsAtRefQueryKey
 >;
 
-export interface DefinitionsAtRefErrorCopy {
-  title: string;
-  message: string;
-}
+export type DefinitionsAtRefErrorCopy = WorkflowErrorCopy;
 
 /**
  * List the workflow definition files at a git ref with their validation state
@@ -113,11 +110,6 @@ export function definitionsAtRefErrorCopy(error: unknown): DefinitionsAtRefError
         title: 'Too many workflow files',
         message:
           'This ref has more workflow files than Shipfox can list. Narrow the ref and try again.',
-      };
-    case 'integration-connection-inactive':
-      return {
-        title: 'Source connection inactive',
-        message: 'Reconnect or choose another source-control connection.',
       };
     case 'integration-connection-not-found':
       return {

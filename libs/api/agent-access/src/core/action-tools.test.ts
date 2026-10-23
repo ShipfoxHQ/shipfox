@@ -288,6 +288,36 @@ describe('agent-access action tools', () => {
     expect(response).toEqual({ok: false, error: {code}});
   });
 
+  test('names an inactive project source connection on a dev run', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        'source-unavailable',
+        {sourceCode: 'connection-inactive'},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      error: {
+        code: 'integration-connection-inactive',
+        message: expect.stringContaining('source connection is unavailable'),
+      },
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
   test('passes local content and maps the resolved ref and warnings', async () => {
     const {triggers, tools} = clients();
     vi.mocked(triggers.createDevRun).mockResolvedValue({
