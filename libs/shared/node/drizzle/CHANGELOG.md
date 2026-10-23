@@ -1,5 +1,17 @@
 # @shipfox/node-drizzle
 
+## 0.3.7
+
+### Patch Changes
+
+- 041ae63: Two installed copies of these packages now share their process state through `@shipfox/node-process-state` slots: the Postgres pool, the Fastify app, auth methods, and client errors, the default logger, the OpenTelemetry SDK, meter provider, and base logger, the OpenFeature domain counter, outbox write listeners, reported errors, and precise cursor timestamps. `@shipfox/node-module` now reports a duplicate copy of any of them at startup.
+- Updated dependencies [2d009f4]
+- Updated dependencies [21c993b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-process-state@0.1.0
+
 ## 0.3.6
 
 ### Patch Changes

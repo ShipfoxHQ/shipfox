@@ -1,5 +1,19 @@
 # @shipfox/node-outbox
 
+## 0.3.0
+
+### Minor Changes
+
+- c06262b: Adds `onOutboxWrite(listener)`, which calls the listener after each `writeOutboxEvents` insert in the same process and returns an unsubscribe function.
+
+### Patch Changes
+
+- 041ae63: Two installed copies of these packages now share their process state through `@shipfox/node-process-state` slots: the Postgres pool, the Fastify app, auth methods, and client errors, the default logger, the OpenTelemetry SDK, meter provider, and base logger, the OpenFeature domain counter, outbox write listeners, reported errors, and precise cursor timestamps. `@shipfox/node-module` now reports a duplicate copy of any of them at startup.
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+  - @shipfox/node-process-state@0.1.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 0.2.7
 
 ### Patch Changes

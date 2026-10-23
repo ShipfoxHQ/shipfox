@@ -1,5 +1,88 @@
 # @shipfox/runner-protocol
 
+## 0.2.57
+
+### Patch Changes
+
+- c25c566: Shows the cause of a checkout failure and its fix. The failure annotation and the run page choose their copy from the error code of the refused checkout, and show the provider's own explanation when there is one. A refused checkout-token request now returns its cause in `details.message`, and a provider refusal names the repository and the connection.
+- 9d7c039: Runs the steps of a composite action with the action files in place.
+
+  - **Actions directory:** the setup step report carries `actions_dir`, the job directory where the runner extracts action bundles.
+  - **Composite bundles:** before a run, agent, action, or post step with `action_bundles` runs, the runner downloads and extracts each of those bundles once per job, into the directory `actionBundleDirectoryName` names. A load failure fails the step with reason `action_unavailable`.
+  - **Bundle request:** `requestActionBundle` takes an optional `digest`, sent as the `digest` query parameter, so a step can name its own action or the composite action that holds it.
+
+- 901e5b3: A step that fails on a missing secret now names the secret.
+
+  - **API:** `secret-not-found` and `secret-input-missing` from the step secrets route carry `details: {key, store}`.
+  - **Runner:** the step failure reads "Secret `K` is not set in this project or workspace." or "Secret input `K` was not passed to this run." When the API sends no details, the runner keeps the generic message.
+
+- Updated dependencies [af0e24b]
+- Updated dependencies [e99aa97]
+- Updated dependencies [7d20d04]
+- Updated dependencies [dc2bd62]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [1f218c4]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [c4f486b]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [2e5a311]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [205afb5]
+- Updated dependencies [a73e712]
+- Updated dependencies [f432fd2]
+- Updated dependencies [b64fff6]
+- Updated dependencies [f769d90]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [e560f69]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [eca4c27]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [2c36559]
+- Updated dependencies [0b661c9]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [395e11d]
+- Updated dependencies [041ae63]
+- Updated dependencies [a429987]
+- Updated dependencies [3f1363c]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [70e6983]
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/regex@0.4.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/api-logs-dto@34.0.0
+
 ## 0.2.56
 
 ### Patch Changes

@@ -1,5 +1,88 @@
 # @shipfox/api-agent-dto
 
+## 34.0.0
+
+### Major Changes
+
+- 1f218c4: Treats every runner as able to renew Git and managed inference credentials. The runner capability manifest no longer has `features`, and `runnerFeaturesSchema` and `RunnerFeaturesDto` are removed. Registration still accepts a `features` key from older runner images and ignores it. `ManagedModelProvider.resolveCredentials` no longer receives `renewableInference`, and `RUNNER_CAPABILITY_REQUIRED_ERROR_CODE` with its `runner-capability-required` error is removed. A composing application must stop using both and always issue renewable credentials. The API no longer writes the "Renewable Git credentials are unavailable on this runner" annotation.
+
+### Minor Changes
+
+- 7d20d04: Agent steps read the same repository instructions and skills as a developer's coding agent, and `repository_context` controls them.
+
+  - **Workflow schema:** an agent step accepts `repository_context`: `false` turns repository context off, and the long form sets `instructions` and `skills` separately. Each toggle accepts a `${{ }}` expression that resolves to `true` or `false` when the step is dispatched. `skills` also accepts a list of skill names. The field is registered as the `agent.repository_context` interpolation field.
+  - **Agent contract:** `@shipfox/api-agent-dto` exports `agentRepositoryContextConfigSchema`, the instruction file names for each harness (`claude` tries `CLAUDE.md` first and `pi` tries `AGENTS.md` first), the skill directories, the 64 KiB instruction limit, and `AGENT_SHIPFOX_SYSTEM_PROMPT`, the guidance that both harnesses append to their default system prompt.
+  - **Session view:** a `shipfox_repository_context` session entry renders as a "Repository context" row that lists the instruction files and skills the step loaded, or shows that they were off.
+
+- dc2bd62: Agent steps read the files of mainstream coding agents (Claude Code, Codex, OpenCode, Cursor, and pi) in the repository and in the runner home directory. `AGENT_REPOSITORY_SKILL_DIRECTORIES` adds `.pi/skills`, `.opencode/skills`, and `.cursor/skills`. The new `AGENT_HOME_SKILL_DIRECTORIES` lists the user skill directories, and the new `AGENT_HOME_INSTRUCTION_FILE_PATHS` lists the global instruction files for each harness, in the order the runner tries them. The `Repository context` session row now names the directory of each skill, for example `Skills: review (.agents/skills); tdd (~/.agents/skills).`
+- 3f1363c: Agent steps accept `mcp_servers`, a map of stdio MCP servers that the runner starts for the step. The agent sees each server tool as `<name>__<tool>`.
+
+  - **Document:** each entry has a literal `command` and `args`, an `env` map whose values support expressions and secrets, and an optional `include` list. Names use lowercase letters, numbers, and single underscores, with at most 20 characters.
+  - **Definitions:** `WorkflowModelAgentStep.customMcpServers` keeps each server with its env templates. A server name that matches the tool prefix of an integration connection on the step is rejected with `agent-mcp-server-name-collision`.
+  - **Expressions:** the `agent.mcp_servers.env.value` field accepts server and runner contexts.
+  - **Materialized config:** `customMcpServers` holds each server with the env values known at dispatch. An env value that reads a secret becomes a secret binding with the new `mcp_server_env` target, and the step secrets route serves agent steps.
+  - **Errors:** a server that does not start fails the step with `agent_mcp_server_unavailable`. A materialization collision with the default connection reports `mcp-server-name-collision`.
+
+- 8937e15: An `mcp_servers` entry on an agent step can give a `url` instead of a `command`, for a server that the user runs. The runner connects to it over Streamable HTTP and sends its `headers` with every request.
+
+  - **Document:** an entry sets exactly one of `command` or `url`, and the published JSON schema says so. `url` is a literal `http` or `https` URL. `headers` maps HTTP field names to values that support expressions and secrets. Header names are unique without regard to case, cannot be one the transport sets (such as `Accept` or `Mcp-Protocol-Version`), and values cannot contain line breaks or null bytes. Headers share the entry and size limits of `env`. `args` and `env` apply only to `command` servers, and `headers` only to `url` servers.
+  - **Definitions:** `WorkflowModelAgentMcpServer` is a union of `WorkflowModelAgentStdioMcpServer` and `WorkflowModelAgentHttpMcpServer`. An http server keeps its header templates under `templates.headers`. `agentMcpServerValues(server)` returns the `env` or `headers` values and templates of either kind.
+  - **Expressions:** the `agent.mcp_servers.headers.value` field accepts server and runner contexts.
+  - **Materialized config:** `materializedAgentMcpServerSchema` accepts a stdio or an http server. A header value that reads a secret becomes a secret binding with the new `mcp_server_header` target.
+  - **Regex:** `isHttpFieldName(value)` and `HTTP_FIELD_NAME_RE` check an HTTP header name.
+
+- 68d6cd6: Adds lab and display label fields to workspace model contracts while preserving strict agent-access projections.
+- 8a4f3d8: Adds the GET /__e2e/agent/sessions/:stepAttemptId route and exports the e2eSessionTranscriptResponseSchema/E2eSessionTranscriptResponseDto contract for decrypted agent session transcripts.
+- a99c11b: Show managed models that a workspace cannot run. The workspace model catalog marks them `locked`, validation warns with `model-locked` and never rejects, and the model lists mark them with a lock and explain the reason once, with the required action, while keeping them selectable.
+- e560f69: The Pi harness now runs on Pi 1.x.
+
+  - **Agent DTO:** `piModelProviderId` maps a Shipfox provider ID to the Pi provider ID. Pi 1.x renamed `azure-openai-responses` to `azure`, and stored provider configs keep the Shipfox ID. `isReservedModelProviderId` now also reserves `azure`, so new custom providers cannot take Pi's built-in ID. The catalog lists Pi's new `meta`, `radius`, and `typesafe` providers as unsupported. Fireworks now defaults to `accounts/fireworks/models/kimi-k3` and Together AI to `deepseek-ai/DeepSeek-V4-Pro-0813`, because Pi removed the previous defaults.
+  - **Agent:** Azure OpenAI model lists and credential checks use the renamed Pi provider again.
+
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- 3f1363c: Claude now names integration tools `mcp__shipfox__<connection>__<tool>`, which leaves more room under its 64-character tool-name limit.
+
+  - **Agent DTO:** `AGENT_TOOLS_MCP_SERVER_ID` names the server that harnesses see. The persisted descriptor name `shipfox_integration_tools` does not change, so older runners and stored configs keep working.
+  - **Logs:** `withoutClaudeIntegrationPrefix` strips the new prefix and the legacy `mcp__shipfox_integration_tools__` prefix, so older transcripts still show their integration tools.
+
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- 70e6983: Adds `managed_provider_id` to the `getWorkspaceModels` inter-module result, so consumers can tell the managed provider's models apart from bring-your-own-key providers.
+
+### Patch Changes
+
+- Updated dependencies [be33fe6]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [7d20d04]
+- Updated dependencies [dc2bd62]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [d273097]
+- Updated dependencies [e087b95]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [c0b814f]
+- Updated dependencies [0654280]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [f1f520f]
+- Updated dependencies [cfe6ce6]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [67e55ea]
+- Updated dependencies [e08530c]
+- Updated dependencies [4e3497b]
+- Updated dependencies [d657853]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [9906470]
+- Updated dependencies [a429987]
+- Updated dependencies [2100749]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [0b661c9]
+- Updated dependencies [e71cded]
+  - @shipfox/workflow-document@4.0.0
+  - @shipfox/policy-notice@0.1.0
+
 ## 33.0.0
 
 ### Minor Changes

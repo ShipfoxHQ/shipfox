@@ -1,5 +1,37 @@
 # @shipfox/react-ui
 
+## 3.4.0
+
+### Minor Changes
+
+- 0461349: Adds Claap connection setup and API key replacement to integrations, with the Claap logo.
+- 2c9838a: Adds the Discord logo as a `discord` icon and maps the `discord` provider to it.
+- f57e1d1: Adds `DropdownMenuSegmentedRadioGroup` and `DropdownMenuSegmentedRadioItem`, a labelled row of icon segments for a short single choice inside a dropdown menu. The user menu now picks the theme with light, dark, and system icons.
+- 2b3aded: Adds Jam to integrations: connect a Jam workspace with a personal access token, see which Jam user the connection acts as, and replace its token. Integrations connected with a pasted credential now link to their settings page from the integration menu. Replacing the credential of an already connected integration now works when the page has not loaded that connection yet.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- 93b8cac: `LogDisclosureTrigger` now keeps its label at full width and truncates the summary first. The label truncates only when it alone is wider than the row.
+- 7b0fafd: Agent activity reads Pi 1.x session entries, and Markdown keeps text written with XML-like tags.
+
+  - **System prompt:** a structured system message becomes a `system-prompt` row. The body has the sections in order, removed sections, and the names of added or removed tools. The row metadata lists the section names. The client shows this row as plain text, so the prompt keeps its tags and indentation.
+  - **Context edits:** a `context_edit` entry becomes a lifecycle row that says whether the target message was removed or replaced, with the replacement text.
+  - **Usage:** a `usage` entry becomes a lifecycle row with its kind, note, model, tokens, and cost.
+  - **Markdown:** raw HTML is shown as literal text instead of being dropped. Before, a block such as `<issue>` hid every line up to the next blank line.
+
+  Session rows are parsed and stored when the session is ingested. Sessions recorded before this release keep their raw rows.
+
 ## 3.3.0
 
 ### Minor Changes

@@ -1,5 +1,58 @@
 # @shipfox/api-workspaces
 
+## 34.0.0
+
+### Minor Changes
+
+- 46f78a0: Adds `find_workspaces` and `find_projects` to the admin MCP endpoint `POST /mcp/admin`. Both need the `admin-observer` role and no impersonation window. `search` matches part of a name or slug, or an exact ID when it is a UUID. Leave it out to list every workspace or project. `find_workspaces` also filters by `status`. Each project names its `workspace_id` and `workspace_slug` for `start_impersonation`. The admin endpoint now needs a projects client. The Workspaces contract adds `listAdminWorkspaces`, and the Projects contract adds `listAdminProjects`. The `GET /admin/workspaces` and `GET /admin/projects` searches now match slugs as well as names.
+- 89a6cc7: Exposes the workspace slug to server modules. The workspace summary now returns the slug, and each membership in the user token carries an optional `workspaceSlug` claim. Tokens issued before this release stay valid without the claim.
+
+### Patch Changes
+
+- 9e131f3: `GET /workspaces` lists the workspaces the session token grants when the session is impersonated.
+  An impersonation window grants its workspace through the token only, so the client could not enter it.
+- a59b672: Rejects a revoked invitation during signup preflight. Signup with a revoked invitation token now fails with `invitation-token-invalid` before any user is created.
+- Updated dependencies [46f78a0]
+- Updated dependencies [eadd377]
+- Updated dependencies [1f218c4]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [8a926dc]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [f432fd2]
+- Updated dependencies [b64fff6]
+- Updated dependencies [465a5eb]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [c06262b]
+- Updated dependencies [4aad893]
+- Updated dependencies [0b661c9]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [4c8f870]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-email@0.4.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-tokens@1.2.2
+  - @shipfox/node-mailer@0.2.8
+
 ## 29.1.0
 
 ### Patch Changes

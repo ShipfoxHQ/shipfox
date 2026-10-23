@@ -1,5 +1,117 @@
 # @shipfox/api-logs
 
+## 34.0.0
+
+### Minor Changes
+
+- 7d20d04: Agent steps read the same repository instructions and skills as a developer's coding agent, and `repository_context` controls them.
+
+  - **Workflow schema:** an agent step accepts `repository_context`: `false` turns repository context off, and the long form sets `instructions` and `skills` separately. Each toggle accepts a `${{ }}` expression that resolves to `true` or `false` when the step is dispatched. `skills` also accepts a list of skill names. The field is registered as the `agent.repository_context` interpolation field.
+  - **Agent contract:** `@shipfox/api-agent-dto` exports `agentRepositoryContextConfigSchema`, the instruction file names for each harness (`claude` tries `CLAUDE.md` first and `pi` tries `AGENTS.md` first), the skill directories, the 64 KiB instruction limit, and `AGENT_SHIPFOX_SYSTEM_PROMPT`, the guidance that both harnesses append to their default system prompt.
+  - **Session view:** a `shipfox_repository_context` session entry renders as a "Repository context" row that lists the instruction files and skills the step loaded, or shows that they were off.
+
+- 3aa5d7a: Adds a `tool_row` log record so a runner can append tool call and tool result rows to step logs. They read back as `agent_session` rows, like tool-step calls.
+
+### Patch Changes
+
+- dc2bd62: Agent steps read the files of mainstream coding agents (Claude Code, Codex, OpenCode, Cursor, and pi) in the repository and in the runner home directory. `AGENT_REPOSITORY_SKILL_DIRECTORIES` adds `.pi/skills`, `.opencode/skills`, and `.cursor/skills`. The new `AGENT_HOME_SKILL_DIRECTORIES` lists the user skill directories, and the new `AGENT_HOME_INSTRUCTION_FILE_PATHS` lists the global instruction files for each harness, in the order the runner tries them. The `Repository context` session row now names the directory of each skill, for example `Skills: review (.agents/skills); tdd (~/.agents/skills).`
+- 7b0fafd: Agent activity reads Pi 1.x session entries, and Markdown keeps text written with XML-like tags.
+
+  - **System prompt:** a structured system message becomes a `system-prompt` row. The body has the sections in order, removed sections, and the names of added or removed tools. The row metadata lists the section names. The client shows this row as plain text, so the prompt keeps its tags and indentation.
+  - **Context edits:** a `context_edit` entry becomes a lifecycle row that says whether the target message was removed or replaced, with the replacement text.
+  - **Usage:** a `usage` entry becomes a lifecycle row with its kind, note, model, tokens, and cost.
+  - **Markdown:** raw HTML is shown as literal text instead of being dropped. Before, a block such as `<issue>` hid every line up to the next blank line.
+
+  Session rows are parsed and stored when the session is ingested. Sessions recorded before this release keep their raw rows.
+
+- Updated dependencies [be33fe6]
+- Updated dependencies [af0e24b]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [7d20d04]
+- Updated dependencies [dc2bd62]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [16d18f4]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [c4f486b]
+- Updated dependencies [d273097]
+- Updated dependencies [e087b95]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [c0b814f]
+- Updated dependencies [0654280]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2d009f4]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [205afb5]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [f769d90]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [cfe6ce6]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [c06262b]
+- Updated dependencies [e08530c]
+- Updated dependencies [21c993b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [eca4c27]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [2c36559]
+- Updated dependencies [9906470]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [395e11d]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [a32c90c]
+- Updated dependencies [0b661c9]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [89a6cc7]
+  - @shipfox/workflow-document@4.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-object-storage@0.3.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-error-monitoring@0.4.1
+
 ## 33.0.0
 
 ### Patch Changes
