@@ -15,23 +15,6 @@
 Stripe, Spotify, and Uber each built a platform to run their coding agents.
 Shipfox gives your team the same platform, without building it yourself.
 
-## A software factory that improves itself
-
-A big part of your team's week goes to recurring work: small tickets, failing
-checks, alerts, dependency updates, release chores. Shipfox finds what to
-automate, ships it as pull requests you review, and improves it every week.
-
-<img width="880" alt="How Shippy AI improves your workflows: it watches your workflows, the tools they connect to, and every run. Over five cycles it adds an alert-triage workflow for Sentry alerts, fixes a failing step in release-notes, moves a diagnosis step to a smaller model, adds an ask-codebase workflow for questions in Slack, and caches dependencies in pr-checks. Each change reaches your team as a pull request, and the platform runs the better version once you approve it." src="apps/docs/public/readme/improvement-loop-light.png#gh-light-mode-only" />
-<img width="880" alt="How Shippy AI improves your workflows: it watches your workflows, the tools they connect to, and every run. Over five cycles it adds an alert-triage workflow for Sentry alerts, fixes a failing step in release-notes, moves a diagnosis step to a smaller model, adds an ask-codebase workflow for questions in Slack, and caches dependencies in pr-checks. Each change reaches your team as a pull request, and the platform runs the better version once you approve it." src="apps/docs/public/readme/improvement-loop-dark.png#gh-dark-mode-only" />
-
-- **Find.** Connect your coding agent to Shipfox, and it suggests the workflows
-  that fit your repository and tools.
-- **Ship.** Each workflow arrives as a pull request, tested before you commit.
-  You set which model runs each step, what each agent can touch, and where a
-  person signs off.
-- **Improve.** Workflows watch your other runs, explain each failure, and
-  suggest a fix as a pull request.
-
 ## Run coding agents like CI pipelines
 
 <img width="880" alt="How a Shipfox workflow runs: a ticket, pull request, alert, check, or schedule starts a workflow of agent, tool, and run steps on an isolated runner. Failed tests send work back to the fix step. The result reaches your team as a pull request ready for review, and a comment resumes the workflow." src="apps/docs/public/readme/workflow-overview-light.png#gh-light-mode-only" />
@@ -48,6 +31,23 @@ automate, ships it as pull requests you review, and improves it every week.
 Workflows live as YAML in your repo, and you review them like any other code.
 Run on Shipfox Cloud or on your own infrastructure. Any model per step, any
 stack. Open source.
+
+## A software factory that improves itself
+
+A big part of your team's week goes to recurring work: small tickets, failing
+checks, alerts, dependency updates, release chores. Shipfox finds what to
+automate, ships it as pull requests you review, and improves it every week.
+
+<img width="880" alt="How Shippy AI improves your workflows: it watches your workflows, the tools they connect to, and every run. Over five cycles it adds an alert-triage workflow for Sentry alerts, fixes a failing step in release-notes, moves a diagnosis step to a smaller model, adds an ask-codebase workflow for questions in Slack, and caches dependencies in pr-checks. Each change reaches your team as a pull request, and the platform runs the better version once you approve it." src="apps/docs/public/readme/improvement-loop-light.png#gh-light-mode-only" />
+<img width="880" alt="How Shippy AI improves your workflows: it watches your workflows, the tools they connect to, and every run. Over five cycles it adds an alert-triage workflow for Sentry alerts, fixes a failing step in release-notes, moves a diagnosis step to a smaller model, adds an ask-codebase workflow for questions in Slack, and caches dependencies in pr-checks. Each change reaches your team as a pull request, and the platform runs the better version once you approve it." src="apps/docs/public/readme/improvement-loop-dark.png#gh-dark-mode-only" />
+
+- **Find.** Connect your coding agent to Shipfox, and it suggests the workflows
+  that fit your repository and tools.
+- **Ship.** Each workflow arrives as a pull request, tested before you commit.
+  You set which model runs each step, what each agent can touch, and where a
+  person signs off.
+- **Improve.** Workflows watch your other runs, explain each failure, and
+  suggest a fix as a pull request.
 
 [Get your first workflow running now](https://www.shipfox.io/docs/getting-started).
 
