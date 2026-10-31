@@ -14,6 +14,7 @@ import type {
   AgentToolSelectionCatalog,
   AgentToolSession,
   AgentToolsProvider,
+  AgentToolsRunCallerContext,
   IntegrationConnection,
   OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-spi';
@@ -391,6 +392,37 @@ const getStepLogsInputSchema = {
   ],
 };
 
+// Claude rejects a top-level oneOf, so a conversation gets one flat object. The provider still
+// enforces which parameters go together.
+const conversationGetStepLogsInputSchema = objectSchema(
+  {
+    step_id: {
+      type: 'string',
+      pattern: UUID_JSON_SCHEMA_PATTERN,
+      description: 'Step to read. Provide step_id or run_id, not both.',
+    },
+    attempt: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 2_147_483_647,
+      description: 'Step attempt to read. Only valid with step_id.',
+    },
+    run_id: {
+      type: 'string',
+      pattern: UUID_JSON_SCHEMA_PATTERN,
+      description: 'Run whose failed steps to read. Requires failed_only.',
+    },
+    failed_only: {const: true, description: 'Must be true with run_id.'},
+    tail_lines: {
+      type: 'integer',
+      minimum: 1,
+      maximum: MAX_STEP_LOG_TAIL_LINES,
+      default: DEFAULT_STEP_LOG_TAIL_LINES,
+    },
+  },
+  [],
+);
+
 const logSectionSchema = objectSchema(
   {
     workflow_run_id: {type: 'string', format: 'uuid'},
@@ -543,12 +575,27 @@ export const shipfoxAgentToolSelectionCatalog: AgentToolSelectionCatalog = {
   })),
 };
 
+// An allowlist, so a new tool reaches a conversation only once its project scoping is reviewed.
+const CONVERSATION_TOOL_IDS: readonly string[] = [
+  'list_workflow_definitions',
+  'list_workflow_runs',
+  'get_workflow_run',
+  'get_step_logs',
+  'get_run_annotations',
+];
+
+export const shipfoxConversationToolCatalog: readonly AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope>[] =
+  shipfoxAgentToolCatalog
+    .filter((tool) => CONVERSATION_TOOL_IDS.includes(tool.id))
+    .map(toConversationTool);
+
 type ShipfoxToolCall = AgentToolCallInput;
 type ShipfoxSessionInput = OpenAgentToolsSessionInput<
   ShipfoxIntegrationConnection,
   ShipfoxAgentToolRequiredScope,
   unknown
 >;
+type ShipfoxCaller = NonNullable<ShipfoxSessionInput['caller']>;
 type WorkflowRunSummary = Awaited<
   ReturnType<WorkflowsModuleClient['listWorkflowRuns']>
 >['runs'][number];
@@ -578,6 +625,10 @@ export class ShipfoxAgentToolsProvider
     return shipfoxAgentToolCatalog;
   }
 
+  conversationCatalog() {
+    return shipfoxConversationToolCatalog;
+  }
+
   selectionCatalog() {
     return shipfoxAgentToolSelectionCatalog;
   }
@@ -598,21 +649,26 @@ export class ShipfoxAgentToolsProvider
         toolError('Shipfox tools require workflow caller context', 'invalid-request'),
       );
     }
+    const caller = input.caller;
+    if (caller.callerKind === 'conversation' && Object.hasOwn(call.arguments, 'project_id')) {
+      return Promise.resolve(
+        toolError('Parameter project_id is not allowed: a conversation stays in its project'),
+      );
+    }
     const validationError = validateShipfoxToolArguments(tool.id, call.arguments);
     if (validationError !== undefined) return Promise.resolve(toolError(validationError));
-    const caller = input.caller;
 
     switch (tool.id) {
       case 'start_workflow_run':
         return this.startWorkflowRun(caller, call.arguments);
       case 'list_projects':
-        return this.listProjects(caller.workspaceId, call.arguments);
+        return this.listProjects(caller, call.arguments);
       case 'list_workflow_definitions':
         return this.listWorkflowDefinitions(caller, call.arguments);
       case 'list_workflow_runs':
         return this.listWorkflowRuns(caller, call.arguments);
       case 'get_workflow_run':
-        return this.getWorkflowRun(caller.workspaceId, call.arguments);
+        return this.getWorkflowRun(caller, call.arguments);
       case 'get_step_logs':
         return this.getStepLogs(caller, call.arguments);
       case 'get_run_annotations':
@@ -622,14 +678,15 @@ export class ShipfoxAgentToolsProvider
     }
   }
 
-  private async listProjects(workspaceId: string, args: Record<string, unknown>) {
+  private async listProjects(caller: ShipfoxCaller, args: Record<string, unknown>) {
+    if (caller.callerKind === 'conversation') return unavailableToConversation('list_projects');
     const input = parsePageArguments(args);
     if (!input.success) return toolError(input.error);
     const cursor = decodeTimestampIdCursor(input.cursor);
     if (input.cursor !== undefined && cursor === undefined) return toolError('Invalid cursor');
 
     const page = await this.options.projects.listProjectsByWorkspace({
-      workspaceId,
+      workspaceId: caller.workspaceId,
       limit: input.limit,
       ...(cursor === undefined
         ? {}
@@ -647,10 +704,7 @@ export class ShipfoxAgentToolsProvider
     });
   }
 
-  private async listWorkflowDefinitions(
-    caller: NonNullable<ShipfoxSessionInput['caller']>,
-    args: Record<string, unknown>,
-  ) {
+  private async listWorkflowDefinitions(caller: ShipfoxCaller, args: Record<string, unknown>) {
     const input = parseDefinitionArguments(args, caller.projectId);
     if (!input.success) return toolError(input.error);
     const projectError = await this.requireProject(caller.workspaceId, input.projectId);
@@ -682,10 +736,7 @@ export class ShipfoxAgentToolsProvider
     }
   }
 
-  private async listWorkflowRuns(
-    caller: NonNullable<ShipfoxSessionInput['caller']>,
-    args: Record<string, unknown>,
-  ) {
+  private async listWorkflowRuns(caller: ShipfoxCaller, args: Record<string, unknown>) {
     const input = parseRunArguments(args, caller.projectId);
     if (!input.success) return toolError(input.error);
     const projectError = await this.requireProject(caller.workspaceId, input.projectId);
@@ -710,7 +761,7 @@ export class ShipfoxAgentToolsProvider
       ...(Object.keys(filters).length === 0 ? {} : {filters}),
     });
     return toolResult({
-      runs: page.runs.map(toWorkflowRunSummary),
+      runs: page.runs.map((run) => toWorkflowRunSummary(run, caller)),
       next_cursor:
         page.nextCursor === null
           ? null
@@ -748,7 +799,8 @@ export class ShipfoxAgentToolsProvider
     }
   }
 
-  private async getWorkflowRun(workspaceId: string, args: Record<string, unknown>) {
+  private async getWorkflowRun(caller: ShipfoxCaller, args: Record<string, unknown>) {
+    const {workspaceId} = caller;
     const runId = args.run_id;
     if (!isUuid(runId)) return toolError('Missing or invalid parameter: run_id');
     if (Object.keys(args).some((key) => key !== 'run_id')) return toolError('Unknown parameter');
@@ -757,7 +809,9 @@ export class ShipfoxAgentToolsProvider
       workspaceId,
       workflowRunId: runId,
     });
-    if (overview === null) return notFound();
+    if (overview === null || isOutsideConversationProject(caller, overview.run.project_id)) {
+      return notFound();
+    }
     const jobsPage = await this.options.workflows.listWorkflowRunJobs({
       workspaceId,
       workflowRunId: runId,
@@ -772,7 +826,7 @@ export class ShipfoxAgentToolsProvider
       ),
     );
     return toolResult({
-      run: toWorkflowRunDetail(overview),
+      run: toWorkflowRunDetail(overview, caller),
       attempt: overview.attempt,
       jobs: jobsPage.items.map((job, index) => toWorkflowJob(job, details[index] ?? null)),
       jobs_truncated:
@@ -781,12 +835,11 @@ export class ShipfoxAgentToolsProvider
     });
   }
 
-  private async startWorkflowRun(
-    caller: NonNullable<ShipfoxSessionInput['caller']>,
-    args: Record<string, unknown>,
-  ) {
+  private async startWorkflowRun(caller: ShipfoxCaller, args: Record<string, unknown>) {
     if (caller.callerKind === undefined)
       return toolError('Shipfox tools require callerKind in workflow caller context');
+    if (caller.callerKind === 'conversation')
+      return unavailableToConversation('start_workflow_run');
     if (args.secrets !== undefined && caller.callerKind !== 'tool_step') {
       return toolError(
         'The secrets parameter is only allowed for tool-step callers',
@@ -852,8 +905,22 @@ export class ShipfoxAgentToolsProvider
     }
   }
 
+  /** A conversation learns run IDs from logs and page context, so none is trusted on sight. */
+  private async isRunOutsideConversationProject(
+    caller: ShipfoxCaller,
+    workflowRunId: string | undefined,
+  ): Promise<boolean> {
+    if (caller.callerKind !== 'conversation') return false;
+    if (workflowRunId === undefined) return true;
+    const overview = await this.options.workflows.getWorkflowRunOverview({
+      workspaceId: caller.workspaceId,
+      workflowRunId,
+    });
+    return overview === null || isOutsideConversationProject(caller, overview.run.project_id);
+  }
+
   private async getStepLogs(
-    caller: NonNullable<OpenAgentToolsSessionInput['caller']>,
+    caller: ShipfoxCaller,
     arguments_: Record<string, unknown>,
   ): Promise<ShipfoxToolCallResult> {
     const tailLines = numberArgument(arguments_, 'tail_lines') ?? DEFAULT_STEP_LOG_TAIL_LINES;
@@ -865,6 +932,9 @@ export class ShipfoxAgentToolsProvider
           ...optionalNumberArgument(arguments_, 'attempt'),
         });
         if (detail === null) return toolError('Resource not found', 'not-found');
+        if (await this.isRunOutsideConversationProject(caller, detail.workflow_run_id)) {
+          return notFound();
+        }
         const log = await this.options.logs.readStepLogTail({
           stepId: detail.step_id,
           attempt: detail.attempt,
@@ -878,6 +948,7 @@ export class ShipfoxAgentToolsProvider
       }
 
       const runId = stringArgument(arguments_, 'run_id') as string;
+      if (await this.isRunOutsideConversationProject(caller, runId)) return notFound();
       const page = await this.options.workflows.listFailedStepAttempts({
         workspaceId: caller.workspaceId,
         workflowRunId: runId,
@@ -937,10 +1008,11 @@ export class ShipfoxAgentToolsProvider
   }
 
   private async getRunAnnotations(
-    caller: NonNullable<OpenAgentToolsSessionInput['caller']>,
+    caller: ShipfoxCaller,
     arguments_: Record<string, unknown>,
   ): Promise<ShipfoxToolCallResult> {
     const runId = stringArgument(arguments_, 'run_id') as string;
+    if (await this.isRunOutsideConversationProject(caller, runId)) return notFound();
     const attempt = await resolveAnnotationAttempt(
       this.options.workflows,
       caller.workspaceId,
@@ -1373,7 +1445,7 @@ function validateStartWorkflowRunArguments(args: Record<string, unknown>): strin
     : undefined;
 }
 
-function toWorkflowRunSummary(run: WorkflowRunSummaryInput) {
+function toWorkflowRunSummary(run: WorkflowRunSummaryInput, caller: ShipfoxCaller) {
   return {
     id: run.id,
     project_id: run.project_id,
@@ -1396,25 +1468,33 @@ function toWorkflowRunSummary(run: WorkflowRunSummaryInput) {
     updated_at: run.updated_at,
     started_at: run.started_at,
     finished_at: run.finished_at,
-    parent_run: run.parent_run ?? null,
+    parent_run: visibleParentRun(run.parent_run, caller),
   };
 }
 
-function toWorkflowRunDetail(overview: WorkflowRunOverview) {
-  return toWorkflowRunSummary({
-    ...overview.run,
-    status: overview.attempt.status,
-    current_attempt: overview.attempt.attempt,
-    latest_attempt: overview.attempt.attempt,
-    started_at: overview.attempt.started_at,
-    finished_at: overview.attempt.finished_at,
-    updated_at: overview.attempt.created_at,
-    job_status_counts:
-      overview.jobs.kind === 'large'
-        ? overview.jobs.status_counts
-        : countJobStatuses(overview.jobs.items),
-    has_started_job_execution: overview.has_started_job_execution,
-  });
+function visibleParentRun(parentRun: WorkflowRunSummaryInput['parent_run'], caller: ShipfoxCaller) {
+  if (parentRun === null || parentRun === undefined) return null;
+  return isOutsideConversationProject(caller, parentRun.project_id) ? null : parentRun;
+}
+
+function toWorkflowRunDetail(overview: WorkflowRunOverview, caller: ShipfoxCaller) {
+  return toWorkflowRunSummary(
+    {
+      ...overview.run,
+      status: overview.attempt.status,
+      current_attempt: overview.attempt.attempt,
+      latest_attempt: overview.attempt.attempt,
+      started_at: overview.attempt.started_at,
+      finished_at: overview.attempt.finished_at,
+      updated_at: overview.attempt.created_at,
+      job_status_counts:
+        overview.jobs.kind === 'large'
+          ? overview.jobs.status_counts
+          : countJobStatuses(overview.jobs.items),
+      has_started_job_execution: overview.has_started_job_execution,
+    },
+    caller,
+  );
 }
 
 function toWorkflowJob(job: WorkflowRunJob, detail: WorkflowJobDetail | null) {
@@ -1531,7 +1611,7 @@ function describeSizeFailure(
 
 function idempotencyKeyForCall(
   args: Record<string, unknown>,
-  caller: NonNullable<ShipfoxSessionInput['caller']>,
+  caller: AgentToolsRunCallerContext,
 ): string {
   if (caller.callerKind === 'agent') {
     const suppliedKey = stringArgument(args, 'idempotency_key');
@@ -1549,6 +1629,27 @@ function mappedToolError(code: string, message: string, details: unknown): Shipf
 }
 function notFound(): ShipfoxToolCallResult {
   return toolError('Resource not found', 'not-found');
+}
+function unavailableToConversation(toolId: string): ShipfoxToolCallResult {
+  return toolError(`Shipfox tool ${toolId} is not available to a conversation`);
+}
+function isOutsideConversationProject(caller: ShipfoxCaller, projectId: string): boolean {
+  return caller.callerKind === 'conversation' && projectId !== caller.projectId;
+}
+function toConversationTool(
+  tool: AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope>,
+): AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope> {
+  return tool.id === 'get_step_logs'
+    ? {...tool, inputSchema: conversationGetStepLogsInputSchema}
+    : withoutProjectId(tool);
+}
+function withoutProjectId(
+  tool: AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope>,
+): AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope> {
+  const {properties} = tool.inputSchema;
+  if (!isRecord(properties) || !Object.hasOwn(properties, 'project_id')) return tool;
+  const {project_id: _projectId, ...scopedProperties} = properties;
+  return {...tool, inputSchema: {...tool.inputSchema, properties: scopedProperties}};
 }
 function toolError(message: string, code = 'invalid-request'): ShipfoxToolCallResult {
   return {isError: true, content: [{type: 'text', text: message}], structuredContent: {code}};

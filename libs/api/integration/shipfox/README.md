@@ -6,6 +6,7 @@ The `@shipfox/api-integration-shipfox` package provides the built-in Shipfox wor
 
 - **`ShipfoxAgentToolsProvider`** starts workflows and reads projects, workflow definitions, workflow runs, step logs, and run annotations.
 - **`shipfoxAgentToolCatalog`** describes the seven current Shipfox tools for workflow definitions and documentation generation.
+- **`shipfoxConversationToolCatalog`** lists the tools a conversation can call. It omits `list_projects` and `start_workflow_run`, has no `project_id` parameter, and uses a flat `get_step_logs` schema because Claude rejects a top-level `oneOf`.
 - **`shipfoxAgentToolSelectionCatalog`** exposes the standalone tool selector.
 - **`createShipfoxAgentToolsProvider`** creates a provider with annotations, definitions, logs, projects, triggers, and workflow clients.
 
@@ -63,7 +64,16 @@ const result = await session.call({
 await session.close?.();
 ```
 
-`callerKind` is required. Use `tool_step` for workflow tool execution and `agent` for agent leases.
+`callerKind` is required. Use `tool_step` for workflow tool execution, `agent` for agent leases, and `conversation` for a server-side agent turn.
+
+A conversation caller has no run. It carries `projectId`, `conversationId`, `turnId`, `callItemId`, and an optional `actorUserId`, and it can't leave its project:
+
+- `project_id` is rejected on every tool.
+- A run or step in another project answers `not-found`, exactly like one that doesn't exist.
+- A parent run in another project reads as a null `parent_run`.
+- `list_projects` and `start_workflow_run` return `invalid-request`.
+
+Lease callers keep their workspace-wide reads.
 
 A tool-step caller can pass `secrets` as a map from child input names to secret keys in the parent project's scope. Both names use `^[A-Z_][A-Z0-9_]*$`, and the map can contain at most 20 entries. The map is forwarded by reference, so logs contain names only. Agent callers cannot pass `secrets`; the tool returns `secrets-not-allowed` and starts no child run. An omitted map uses trigger defaults, while `{}` explicitly supplies an empty map.
 

@@ -186,6 +186,7 @@ export interface AgentToolsProviderOptions {
   onCall?(input: {toolId: string; arguments: Record<string, unknown>}): void;
   onClose?(): void;
   downloadFile?: AgentToolsProvider['downloadFile'];
+  conversationCatalog?: readonly AgentToolCatalogEntry[] | undefined;
 }
 
 export function agentToolsProvider(
@@ -196,6 +197,9 @@ export function agentToolsProvider(
     catalog: () => catalog,
     selectionCatalog: () => ({selectors: []}),
     ...(options.downloadFile === undefined ? {} : {downloadFile: options.downloadFile}),
+    ...(options.conversationCatalog === undefined
+      ? {}
+      : {conversationCatalog: () => options.conversationCatalog ?? []}),
     openSession: (input) => {
       if (options.openSessionError) return Promise.reject(options.openSessionError);
       options.onOpenSession?.({connection: input.connection, tools: input.tools});

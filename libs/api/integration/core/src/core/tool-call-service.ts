@@ -533,11 +533,23 @@ async function liveCatalogEntry(
   const catalog = await raceWithSignal(
     Promise.resolve().then(() => {
       if (input.signal?.aborted) throw abortReason(input.signal);
-      return input.registry.getAdapter(input.integration.provider, 'agent_tools').catalog();
+      return callerToolCatalog(input.registry, input.integration.provider, input.caller);
     }),
     input.signal,
   );
-  return catalog.find((entry) => entry.id === input.tool.id);
+  return catalog?.find((entry) => entry.id === input.tool.id);
+}
+
+/** The catalog that decides which tools a caller reaches and how they are classified. */
+export async function callerToolCatalog(
+  registry: IntegrationProviderRegistry,
+  provider: string,
+  caller: IntegrationToolCallCaller,
+): Promise<readonly AgentToolCatalogEntry[] | undefined> {
+  const adapter = registry.getAdapter(provider, 'agent_tools');
+  return caller.caller === 'conversation'
+    ? await adapter.conversationCatalog?.()
+    : await adapter.catalog();
 }
 
 function classifyToolCall(
@@ -590,6 +602,18 @@ function toAgentToolsCaller(
     };
   }
 
+  if (caller.caller === 'conversation') {
+    return {
+      callerKind: 'conversation',
+      workspaceId: caller.workspaceId,
+      projectId: caller.projectId,
+      conversationId: caller.conversationId,
+      turnId: caller.turnId,
+      callItemId: caller.callItemId,
+      actorUserId: caller.actorUserId,
+    };
+  }
+
   const lease = caller.lease;
   if (lease?.currentStepId === undefined || lease.currentStepAttempt === undefined)
     return undefined;
@@ -628,7 +652,9 @@ function syntheticConnection(params: {
 }
 
 function runProjectId(caller: IntegrationToolCallCaller): string | undefined {
-  return caller.caller === 'tool_step' ? caller.projectId : caller.lease?.projectId;
+  return caller.caller === 'tool_step' || caller.caller === 'conversation'
+    ? caller.projectId
+    : caller.lease?.projectId;
 }
 
 function repositoryAuthorizationErrorMessage(reason: RepositoryAuthorizationDenial): string {

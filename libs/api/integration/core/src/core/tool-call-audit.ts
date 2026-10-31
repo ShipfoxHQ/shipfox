@@ -21,8 +21,9 @@ import type {RepositoryAuthorizationDenial} from './repository-authorizer.js';
 /**
  * Who asked for an integration tool call. The agent and action callers are the
  * MCP gateway serving a model or action code under a job lease; the tool-step
- * caller is the workflow tool step executor. The metric label is the caller
- * kind, while the audit line expands each caller's identity fields.
+ * caller is the workflow tool step executor; the conversation caller is an
+ * agent turn running on the server, with no lease. The metric label is the
+ * caller kind, while the audit line expands each caller's identity fields.
  */
 export type IntegrationToolCallCaller =
   | {
@@ -40,6 +41,15 @@ export type IntegrationToolCallCaller =
       stepId: string;
       stepAttempt: number;
       callIndex: number;
+    }
+  | {
+      caller: 'conversation';
+      workspaceId: string;
+      projectId: string;
+      conversationId: string;
+      turnId: string;
+      callItemId: string;
+      actorUserId?: string | undefined;
     };
 
 /**
@@ -48,6 +58,17 @@ export type IntegrationToolCallCaller =
  * enrichment never drifts between the two.
  */
 export function callerLogContext(caller: IntegrationToolCallCaller): Record<string, unknown> {
+  if (caller.caller === 'conversation') {
+    return {
+      caller: 'conversation',
+      workspaceId: caller.workspaceId,
+      projectId: caller.projectId,
+      conversationId: caller.conversationId,
+      turnId: caller.turnId,
+      callItemId: caller.callItemId,
+      ...(caller.actorUserId === undefined ? {} : {actorUserId: caller.actorUserId}),
+    };
+  }
   return caller.caller !== 'tool_step'
     ? {
         caller: caller.caller,

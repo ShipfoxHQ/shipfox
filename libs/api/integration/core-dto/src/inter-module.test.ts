@@ -333,6 +333,37 @@ describe('integrationsInterModuleContract', () => {
     expect(input.tool.methods).toBeUndefined();
   });
 
+  test('accepts a conversation caller with an optional actor', () => {
+    const conversationCaller = {
+      kind: 'conversation',
+      projectId: 'project-1',
+      conversationId: 'conversation-1',
+      turnId: 'turn-1',
+      callItemId: 'item-1',
+    };
+
+    const input = integrationsInterModuleContract.methods.callTool.input.parse({
+      ...toolCallInput,
+      caller: conversationCaller,
+    });
+
+    expect(input.caller).toEqual(conversationCaller);
+  });
+
+  test('rejects a conversation caller without a project', () => {
+    const result = integrationsInterModuleContract.methods.callTool.input.safeParse({
+      ...toolCallInput,
+      caller: {
+        kind: 'conversation',
+        conversationId: 'conversation-1',
+        turnId: 'turn-1',
+        callItemId: 'item-1',
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   test('accepts a successful tool call outcome with a null structured result', () => {
     const output = integrationsInterModuleContract.methods.callTool.output.parse({
       outcome: 'success',

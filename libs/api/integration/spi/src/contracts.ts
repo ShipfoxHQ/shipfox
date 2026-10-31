@@ -326,7 +326,7 @@ export interface AgentToolSession<CallResult = unknown> {
   close?(): Promise<void>;
 }
 
-export interface AgentToolsCallerContext {
+export interface AgentToolsRunCallerContext {
   /** Identifies whether the call came from deterministic tool execution or an agent lease. */
   callerKind?: 'agent' | 'tool_step' | undefined;
   workspaceId: string;
@@ -336,6 +336,22 @@ export interface AgentToolsCallerContext {
   stepId: string;
   stepAttempt: number;
 }
+
+export interface AgentToolsConversationCallerContext {
+  callerKind: 'conversation';
+  workspaceId: string;
+  /** The only project the call may reach. */
+  projectId: string;
+  conversationId: string;
+  turnId: string;
+  callItemId: string;
+  /** Absent when the conversation has no Shipfox user, as on an integration origin. */
+  actorUserId?: string | undefined;
+}
+
+export type AgentToolsCallerContext =
+  | AgentToolsRunCallerContext
+  | AgentToolsConversationCallerContext;
 
 export interface OpenAgentToolsSessionInput<
   Connection extends IntegrationConnection = IntegrationConnection,
@@ -379,6 +395,13 @@ export interface AgentToolsProvider<
   CallResult = unknown,
 > {
   catalog():
+    | readonly AgentToolCatalogEntry<RequiredScope>[]
+    | Promise<readonly AgentToolCatalogEntry<RequiredScope>[]>;
+  /**
+   * The tools a conversation can call, with schemas shaped for a caller bound to one project.
+   * A provider without this method offers a conversation nothing.
+   */
+  conversationCatalog?():
     | readonly AgentToolCatalogEntry<RequiredScope>[]
     | Promise<readonly AgentToolCatalogEntry<RequiredScope>[]>;
   selectionCatalog(): AgentToolSelectionCatalog | Promise<AgentToolSelectionCatalog>;

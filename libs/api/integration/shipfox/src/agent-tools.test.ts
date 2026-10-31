@@ -14,6 +14,7 @@ import {
   SHIPFOX_INPUTS_MAX_BYTES,
   shipfoxAgentToolCatalog,
   shipfoxAgentToolSelectionCatalog,
+  shipfoxConversationToolCatalog,
 } from './agent-tools.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
@@ -36,6 +37,18 @@ function caller(overrides: Record<string, unknown> = {}) {
     jobExecutionId: '00000000-0000-4000-8000-000000000007',
     stepId: 'start-child',
     stepAttempt: 2,
+    ...overrides,
+  };
+}
+
+function conversationCaller(overrides: Record<string, unknown> = {}) {
+  return {
+    callerKind: 'conversation' as const,
+    workspaceId,
+    projectId,
+    conversationId: '00000000-0000-4000-8000-000000000020',
+    turnId: '00000000-0000-4000-8000-000000000021',
+    callItemId: '00000000-0000-4000-8000-000000000022',
     ...overrides,
   };
 }
@@ -1208,5 +1221,401 @@ describe('Shipfox agent tools', () => {
     });
 
     expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+  });
+});
+
+describe('Shipfox tools for a conversation', () => {
+  const otherProjectId = '00000000-0000-4000-8000-000000000030';
+
+  function runOverview(runProjectId: string) {
+    return {
+      run: {project_id: runProjectId, number: 42},
+      attempt: {attempt: 1},
+      jobs: {kind: 'small', items: []},
+      has_started_job_execution: false,
+    };
+  }
+
+  function parentRun(parentProjectId: string) {
+    return {id: parentRunId, number: 7, name: 'Secret parent', project_id: parentProjectId};
+  }
+
+  async function openConversationSession(provider: ReturnType<typeof createProvider>['provider']) {
+    return await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: conversationCaller(),
+    });
+  }
+
+  it('offers only project-scoped tools with no project_id parameter', () => {
+    expect(shipfoxConversationToolCatalog.map((tool) => tool.id)).toEqual([
+      'list_workflow_definitions',
+      'list_workflow_runs',
+      'get_workflow_run',
+      'get_step_logs',
+      'get_run_annotations',
+    ]);
+    expect(
+      JSON.stringify(shipfoxConversationToolCatalog.map((tool) => tool.inputSchema)),
+    ).not.toContain('project_id');
+  });
+
+  it('offers every input schema as one flat object', () => {
+    for (const tool of shipfoxConversationToolCatalog) {
+      expect(tool.inputSchema, tool.id).not.toHaveProperty('oneOf');
+      expect(tool.inputSchema, tool.id).not.toHaveProperty('anyOf');
+      expect(tool.inputSchema, tool.id).not.toHaveProperty('allOf');
+      expect(tool.inputSchema, tool.id).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+        properties: expect.any(Object),
+      });
+    }
+  });
+
+  it('offers both ways to read step logs in the flat schema', () => {
+    const tool = shipfoxConversationToolCatalog.find(({id}) => id === 'get_step_logs');
+
+    expect(Object.keys(tool?.inputSchema.properties as object).sort()).toEqual([
+      'attempt',
+      'failed_only',
+      'run_id',
+      'step_id',
+      'tail_lines',
+    ]);
+    expect(
+      shipfoxAgentToolCatalog.find(({id}) => id === 'get_step_logs')?.inputSchema,
+    ).toHaveProperty('oneOf');
+  });
+
+  it.each([
+    ['neither step_id nor run_id', {}],
+    ['both step_id and run_id', {step_id: stepId, run_id: parentRunId, failed_only: true}],
+    ['run_id without failed_only', {run_id: parentRunId}],
+    ['attempt with run_id', {run_id: parentRunId, failed_only: true, attempt: 1}],
+  ])('still rejects step logs with %s', async (_name, args) => {
+    const {logs, provider} = createProvider();
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'get_step_logs', arguments: args});
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+    expect(logs.readStepLogTail).not.toHaveBeenCalled();
+  });
+
+  it('keeps every conversation input schema valid for the strict validator', () => {
+    const ajv = new Ajv({strict: true, strictRequired: false});
+
+    for (const tool of shipfoxConversationToolCatalog) {
+      expect(() => ajv.compile(tool.inputSchema), tool.id).not.toThrow();
+    }
+  });
+
+  it('leaves project_id in the lease catalog', () => {
+    const leaseTools = shipfoxAgentToolCatalog.filter((tool) =>
+      ['start_workflow_run', 'list_workflow_definitions', 'list_workflow_runs'].includes(tool.id),
+    );
+
+    for (const tool of leaseTools) {
+      expect(tool.inputSchema, tool.id).toHaveProperty('properties.project_id');
+    }
+  });
+
+  it.each([
+    ['start_workflow_run', {workflow: 'child.yml'}],
+    ['list_workflow_definitions', {}],
+    ['list_workflow_runs', {}],
+  ])('rejects an injected project_id on %s', async (toolId, args) => {
+    const {definitions, projects, triggers, workflows, provider} = createProvider();
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId,
+      arguments: {...args, project_id: otherProjectId},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+    expect(result.content[0]?.text).toContain('project_id');
+    expect(projects.requireProjectForWorkspace).not.toHaveBeenCalled();
+    expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
+    expect(definitions.listDefinitionsByProject).not.toHaveBeenCalled();
+    expect(workflows.listWorkflowRuns).not.toHaveBeenCalled();
+    expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+  });
+
+  it('rejects a null project_id', async () => {
+    const {workflows, provider} = createProvider();
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'list_workflow_runs',
+      arguments: {project_id: null},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+    expect(workflows.listWorkflowRuns).not.toHaveBeenCalled();
+  });
+
+  it('lists runs in the caller project', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.listWorkflowRuns.mockResolvedValue({
+      runs: [],
+      nextCursor: null,
+      filteredTotalCount: 0,
+    });
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'list_workflow_runs', arguments: {}});
+
+    expect(result.isError).toBeUndefined();
+    expect(workflows.listWorkflowRuns).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId, projectId}),
+    );
+  });
+
+  it('lists definitions in the caller project', async () => {
+    const {definitions, provider} = createProvider();
+    definitions.listDefinitionsByProject.mockResolvedValue({definitions: [], nextCursor: null});
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'list_workflow_definitions', arguments: {}});
+
+    expect(result.isError).toBeUndefined();
+    expect(definitions.listDefinitionsByProject).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId, projectId}),
+    );
+  });
+
+  it('refuses list_projects', async () => {
+    const {projects, provider} = createProvider();
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'list_projects', arguments: {}});
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+    expect(projects.listProjectsByWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('refuses to start a run', async () => {
+    const {definitions, triggers, provider} = createProvider();
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml'},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+    expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
+    expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+  });
+
+  it('reads a run in the caller project', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+    workflows.listWorkflowRunJobs.mockResolvedValue({items: [], nextCursor: null});
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'get_workflow_run',
+      arguments: {run_id: parentRunId},
+    });
+
+    expect(result).toMatchObject({structuredContent: {run: {project_id: projectId}}});
+  });
+
+  it('answers not found for a run in another project', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'get_workflow_run',
+      arguments: {run_id: parentRunId},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+    expect(workflows.listWorkflowRunJobs).not.toHaveBeenCalled();
+  });
+
+  it('hides a parent run from another project on a run read', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue({
+      ...runOverview(projectId),
+      run: {...runOverview(projectId).run, parent_run: parentRun(otherProjectId)},
+    });
+    workflows.listWorkflowRunJobs.mockResolvedValue({items: [], nextCursor: null});
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'get_workflow_run',
+      arguments: {run_id: parentRunId},
+    });
+
+    expect(result).toMatchObject({structuredContent: {run: {parent_run: null}}});
+    expect(result.content[0]?.text).not.toContain(otherProjectId);
+    expect(result.content[0]?.text).not.toContain('Secret parent');
+  });
+
+  it('hides a parent run from another project on a run list', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.listWorkflowRuns.mockResolvedValue({
+      runs: [{id: childRunId, project_id: projectId, parent_run: parentRun(otherProjectId)}],
+      nextCursor: null,
+      filteredTotalCount: 1,
+    });
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'list_workflow_runs', arguments: {}});
+
+    expect(result).toMatchObject({structuredContent: {runs: [{parent_run: null}]}});
+    expect(result.content[0]?.text).not.toContain(otherProjectId);
+    expect(result.content[0]?.text).not.toContain('Secret parent');
+  });
+
+  it('keeps a parent run from the caller project', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.listWorkflowRuns.mockResolvedValue({
+      runs: [{id: childRunId, project_id: projectId, parent_run: parentRun(projectId)}],
+      nextCursor: null,
+      filteredTotalCount: 1,
+    });
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'list_workflow_runs', arguments: {}});
+
+    expect(result).toMatchObject({
+      structuredContent: {runs: [{parent_run: parentRun(projectId)}]},
+    });
+  });
+
+  it('reads step logs in the caller project', async () => {
+    const {logs, workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'get_step_logs', arguments: {step_id: stepId}});
+
+    expect(result.isError).toBeUndefined();
+    expect(workflows.getWorkflowRunOverview).toHaveBeenCalledWith({
+      workspaceId,
+      workflowRunId: parentRunId,
+    });
+    expect(logs.readStepLogTail).toHaveBeenCalledOnce();
+  });
+
+  it('answers not found for a step in another project', async () => {
+    const {logs, workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'get_step_logs', arguments: {step_id: stepId}});
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+    expect(logs.readStepLogTail).not.toHaveBeenCalled();
+  });
+
+  it('answers not found for a step with no run ancestry', async () => {
+    const {logs, workflows, provider} = createProvider();
+    workflows.getWorkflowStepAttemptDetail.mockResolvedValue({step_id: stepId, attempt: 1});
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({toolId: 'get_step_logs', arguments: {step_id: stepId}});
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+    expect(logs.readStepLogTail).not.toHaveBeenCalled();
+  });
+
+  it('answers not found for failed steps of a run in another project', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'get_step_logs',
+      arguments: {run_id: parentRunId, failed_only: true},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+    expect(workflows.listFailedStepAttempts).not.toHaveBeenCalled();
+  });
+
+  it('answers not found for annotations of a run in another project', async () => {
+    const {annotations, workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'get_run_annotations',
+      arguments: {run_id: parentRunId},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+    expect(annotations.listAnnotationsForRunAttempt).not.toHaveBeenCalled();
+  });
+
+  it('answers not found when the run does not exist', async () => {
+    const {annotations, workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(null);
+    const session = await openConversationSession(provider);
+
+    const result = await session.call({
+      toolId: 'get_run_annotations',
+      arguments: {run_id: parentRunId},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+    expect(annotations.listAnnotationsForRunAttempt).not.toHaveBeenCalled();
+  });
+
+  it('keeps a parent run from another project for a lease caller', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.listWorkflowRuns.mockResolvedValue({
+      runs: [{id: childRunId, project_id: projectId, parent_run: parentRun(otherProjectId)}],
+      nextCursor: null,
+      filteredTotalCount: 1,
+    });
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller({callerKind: 'agent'}),
+    });
+
+    const result = await session.call({toolId: 'list_workflow_runs', arguments: {}});
+
+    expect(result).toMatchObject({
+      structuredContent: {runs: [{parent_run: parentRun(otherProjectId)}]},
+    });
+  });
+
+  it('keeps reading across projects for a lease caller', async () => {
+    const {annotations, logs, workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+    workflows.listWorkflowRunJobs.mockResolvedValue({items: [], nextCursor: null});
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller({callerKind: 'agent'}),
+    });
+
+    const run = await session.call({
+      toolId: 'get_workflow_run',
+      arguments: {run_id: parentRunId},
+    });
+    const stepLogs = await session.call({toolId: 'get_step_logs', arguments: {step_id: stepId}});
+    const runAnnotations = await session.call({
+      toolId: 'get_run_annotations',
+      arguments: {run_id: parentRunId},
+    });
+
+    expect(run.isError).toBeUndefined();
+    expect(stepLogs.isError).toBeUndefined();
+    expect(runAnnotations.isError).toBeUndefined();
+    expect(logs.readStepLogTail).toHaveBeenCalledOnce();
+    expect(annotations.listAnnotationsForRunAttempt).toHaveBeenCalledOnce();
   });
 });
