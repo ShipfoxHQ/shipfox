@@ -4,7 +4,7 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 
 ## What it does
 
-- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, Input, Inspector (`Inspector`, `InspectorHeader`, `InspectorTabs`, `InspectorSection`, `PropertyList`, and related parts), Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
+- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FileTree, FormField, Icon, Input, Inspector (`Inspector`, `InspectorHeader`, `InspectorTabs`, `InspectorSection`, `PropertyList`, and related parts), Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
 - **Theme helpers**: `ThemeProvider`, `useTheme()`, and `useResolvedTheme()`.
 - **Hooks**: `useCopyToClipboard`, `useIsTextTruncated`, `useShikiHighlight`, `useShikiStyleInjection`, plus the theme hooks above.
 - **Utilities**: `cn()` for class name merging, `copyTextToClipboard`, `formatBytes`, `formatDate`/`formatTimestamp`, `formatDuration`/`humanDuration`, `formatRelative`, `debounce`, and avatar helpers (`getInitial`, `getPlaceholderImageUrl`).
@@ -378,6 +378,56 @@ const [checked, setChecked] = useState<CheckedState>('indeterminate');
 For table selection, place the same component directly inside `TableHead` or
 `TableCell`. The table primitives already recognize its checkbox role and apply
 the selection-column spacing.
+
+### File tree
+
+Import `FileTree`, `FileTreeFolder`, and `FileTreeFile` from
+`@shipfox/react-ui/file-tree`. The tree is read-only and acts as one tab stop.
+`FileTree` requires `aria-label` or `aria-labelledby`. It has no surface of its
+own, so place it in a `Panel`.
+
+```tsx
+import {useState} from 'react';
+import {FileTree, FileTreeFile, FileTreeFolder} from '@shipfox/react-ui/file-tree';
+
+const [selectedPath, setSelectedPath] = useState('.shipfox/workflows/implement.yml');
+
+<FileTree
+  aria-label="Config files"
+  defaultExpanded={new Set(['.shipfox', '.shipfox/workflows'])}
+  selectedPath={selectedPath}
+  onSelect={setSelectedPath}
+>
+  <FileTreeFolder path=".shipfox" name=".shipfox">
+    <FileTreeFolder path=".shipfox/workflows" name="workflows">
+      <FileTreeFile path=".shipfox/workflows/implement.yml" name="implement.yml" />
+    </FileTreeFolder>
+  </FileTreeFolder>
+</FileTree>;
+```
+
+Expansion is controlled through `expanded` and `onExpandedChange`, or uncontrolled
+through `defaultExpanded`. Selection is always controlled through `selectedPath`
+and `onSelect`. Each `path` must be unique in the tree.
+
+| Input | Result |
+| --- | --- |
+| Tab | Enters on the last-focused node, or the selected node the first time, then leaves the tree. |
+| Up and Down | Move through visible nodes. |
+| Right | Opens a closed folder, then moves to its first child. |
+| Left | Closes an open folder, otherwise moves to the parent. |
+| Home and End | Move to the first and last visible nodes. |
+| Printable characters | Move to the next visible node whose name starts with them. A space joins a search that's running, and otherwise activates the node. |
+| Enter, Space, or a row click | Selects the node and opens a closed folder. |
+| Chevron click | Toggles the folder without selecting it. |
+
+Rows can't hold other controls, because that would add tab stops. Extra props on
+`FileTreeFolder` and `FileTreeFile` go on the row, so they don't reach a folder's
+contents.
+
+If the focused node is hidden or removed, focus moves to the node with the same
+path, then its nearest visible ancestor, then the selected node, then the first
+node. The tree tracks its rows itself, so a child component can load or remove them.
 
 ## Storybook
 
