@@ -3,7 +3,8 @@
 import {Command as CommandPrimitive} from 'cmdk';
 import type {ReactNode} from 'react';
 import {useCallback, useState} from 'react';
-import {SearchContext, useControllableState, useKeyboardShortcut} from './search-context.js';
+import {useControllableState} from '#hooks/useControllableState.js';
+import {SearchContext, useKeyboardShortcut} from './search-context.js';
 
 export type SearchProps = {
   children: ReactNode;
