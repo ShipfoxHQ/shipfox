@@ -141,6 +141,14 @@ const toolCallCaller = z.discriminatedUnion('kind', [
     stepAttempt: z.number().int().nonnegative(),
     callIndex: z.number().int().nonnegative(),
   }),
+  z.object({
+    kind: z.literal('conversation'),
+    projectId: z.string().min(1),
+    conversationId: z.string().min(1),
+    turnId: z.string().min(1),
+    callItemId: z.string().min(1),
+    actorUserId: z.string().min(1).optional(),
+  }),
 ]);
 const toolCallOutcome = z.discriminatedUnion('outcome', [
   z.object({
@@ -310,6 +318,11 @@ export const integrationsInterModuleContract = defineInterModuleContract({
           events: z.array(z.string()),
         })
         .nullable(),
+    },
+    /** The tools to offer a conversation. Each entry is a valid `callTool` input `tool`. */
+    listConversationTools: {
+      input: z.object({}),
+      output: z.object({tools: z.array(toolCallTool.extend({description: z.string()}))}),
     },
     getAgentToolsContext: {
       input: z.object({workspaceId: id, defaultConnectionId: id}),

@@ -13,4 +13,5 @@ export {
   ShipfoxAgentToolsProvider,
   shipfoxAgentToolCatalog,
   shipfoxAgentToolSelectionCatalog,
+  shipfoxConversationToolCatalog,
 } from './agent-tools.js';

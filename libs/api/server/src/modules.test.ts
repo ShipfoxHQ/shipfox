@@ -177,6 +177,7 @@ describe('defaultModules', () => {
             getAgentToolsContext: vi.fn(),
             getConnectionToolCatalog: vi.fn(),
             listConnectionsByWorkspace: vi.fn(),
+            listConversationTools: vi.fn(),
             listSourceFiles: vi.fn(),
             resolveConnection: vi.fn(),
             resolveConnectionById: vi.fn(),

@@ -56,7 +56,9 @@ const integrations = await createIntegrationsContext({
 console.log(integrations.registry.list());
 ```
 
-A built-in provider still needs an `agent_tools` adapter. Its `openSession` receives the synthetic active connection and, when called by a workflow step, the caller context with workspace, project, run, job execution, step, and attempt identifiers.
+A built-in provider still needs an `agent_tools` adapter. Its `openSession` receives the synthetic active connection and, when called by a workflow step, the caller context with workspace, project, run, job execution, step, and attempt identifiers. A conversation has no run, so its caller context carries the project, conversation, turn, and call item instead.
+
+A conversation reaches only the tools in a provider's optional `conversationCatalog`. The `listConversationTools` inter-module method offers them, and `callTool` refuses anything else for a conversation caller. A provider without that catalog offers a conversation nothing.
 
 To call tools without the module, build a registry with `createIntegrationProviderRegistry` and pass it to `createIntegrationsInterModulePresentation`. Its `callTool` handler is the one tool steps reach, with the live catalog and method checks and the error codes. The integration contract suite runs its cases through it against the provider fakes.
 
