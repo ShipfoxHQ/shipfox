@@ -21,33 +21,8 @@ export interface ProjectDockPanelProps extends PropsWithChildren {
 export function ProjectDockPanel({label, children}: ProjectDockPanelProps) {
   const {open, setOpen} = useProjectDock();
   const docked = useMediaQuery(PROJECT_DOCK_QUERY);
-  const asideRef = useRef<HTMLElement | null>(null);
-  const wasOpenRef = useRef(open);
 
-  // The launcher unmounts as the panel opens, so focus would fall back to the
-  // body. A panel restored on page load leaves focus alone, and a contribution
-  // that already focused its own control keeps it.
-  useEffect(() => {
-    const opened = open && !wasOpenRef.current;
-    wasOpenRef.current = open;
-    const aside = asideRef.current;
-    if (opened && aside && !aside.contains(document.activeElement)) aside.focus();
-  }, [open]);
-
-  if (docked) {
-    if (!open) return null;
-    return (
-      <aside
-        ref={asideRef}
-        aria-label={label}
-        tabIndex={-1}
-        data-presentation="docked"
-        className="flex min-h-0 w-[400px] shrink-0 flex-col border-l border-border-neutral-base bg-background-neutral-base outline-none"
-      >
-        {children}
-      </aside>
-    );
-  }
+  if (docked) return open ? <DockedPanel label={label}>{children}</DockedPanel> : null;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -61,5 +36,26 @@ export function ProjectDockPanel({label, children}: ProjectDockPanelProps) {
         {children}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function DockedPanel({label, children}: ProjectDockPanelProps) {
+  const asideRef = useRef<HTMLElement | null>(null);
+
+  // The launcher unmounts as the panel opens, which would drop focus on the body.
+  useEffect(() => {
+    if (document.activeElement === document.body) asideRef.current?.focus();
+  }, []);
+
+  return (
+    <aside
+      ref={asideRef}
+      aria-label={label}
+      tabIndex={-1}
+      data-presentation="docked"
+      className="flex min-h-0 w-[400px] shrink-0 flex-col border-l border-border-neutral-base bg-background-neutral-base outline-none"
+    >
+      {children}
+    </aside>
   );
 }

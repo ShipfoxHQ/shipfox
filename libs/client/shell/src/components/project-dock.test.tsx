@@ -187,14 +187,38 @@ describe('project dock', () => {
     expect(await screen.findByRole('textbox', {name: 'Composer'})).toHaveFocus();
   });
 
-  test('restores the open panel for this browser without taking focus', async () => {
+  test('moves focus into a panel that mounts after the click', async () => {
+    let resolveDock: (module: {default: typeof Dock}) => void = () => undefined;
+    const load = () =>
+      new Promise<{default: typeof Dock}>((resolve) => {
+        resolveDock = resolve;
+      });
+    await renderDock({features: [pagesFeature(), dockFeature(load)]});
+    fireEvent.click(await screen.findByRole('button', {name: LAUNCHER_NAME}));
+
+    resolveDock({default: Dock});
+
+    expect(await screen.findByRole('complementary', {name: 'Shippy'})).toHaveFocus();
+  });
+
+  test('leaves focus on a control the user is already on', async () => {
+    await renderDock();
+    await waitFor(() => expect(dockMounted).toHaveBeenCalled());
+    const userMenu = await screen.findByRole('button', {name: 'User menu'});
+    userMenu.focus();
+
+    fireEvent.click(await screen.findByRole('button', {name: LAUNCHER_NAME}));
+
+    expect(await screen.findByRole('complementary', {name: 'Shippy'})).toBeVisible();
+    expect(userMenu).toHaveFocus();
+  });
+
+  test('restores the open panel for this browser', async () => {
     window.localStorage.setItem('shipfox.projectDock.open', 'true');
 
     await renderDock();
 
-    const panel = await screen.findByRole('complementary', {name: 'Shippy'});
-    expect(panel).toBeVisible();
-    expect(panel).not.toHaveFocus();
+    expect(await screen.findByRole('complementary', {name: 'Shippy'})).toBeVisible();
   });
 
   test('keeps one dock instance across project pages', async () => {

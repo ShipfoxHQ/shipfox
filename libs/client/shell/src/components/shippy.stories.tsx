@@ -19,7 +19,7 @@ const meta = {
   component: Shippy,
   parameters: {layout: 'centered'},
   args: {pose: 'bench', className: 'h-104'},
-  argTypes: {pose: {control: 'select', options: POSES}},
+  argTypes: {pose: {control: 'select', options: [...POSES, 'body', 'face']}},
 } satisfies Meta<typeof Shippy>;
 
 export default meta;
