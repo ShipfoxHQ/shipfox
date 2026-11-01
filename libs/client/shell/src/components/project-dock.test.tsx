@@ -218,7 +218,9 @@ describe('project dock', () => {
 
     await renderDock();
 
-    expect(await screen.findByRole('complementary', {name: 'Shippy'})).toBeVisible();
+    const panel = await screen.findByRole('complementary', {name: 'Shippy'});
+    expect(panel).toBeVisible();
+    expect(panel).toHaveFocus();
   });
 
   test('keeps one dock instance across project pages', async () => {
