@@ -99,6 +99,30 @@ export interface FetchFileInput<Connection extends IntegrationConnection = Integ
   path: string;
 }
 
+export interface ListCommitsInput<Connection extends IntegrationConnection = IntegrationConnection>
+  extends ResolveRepositoryInput<Connection> {
+  ref: string;
+  /** A file or folder. `.shipfox` lists every config change. */
+  path: string;
+  limit: number;
+  cursor?: string | undefined;
+}
+
+export interface CommitSummary {
+  oid: string;
+  message: string;
+  authorName: string;
+  authoredAt: Date;
+  /** Set by providers with their own commit page. */
+  htmlUrl?: string | undefined;
+}
+
+export interface CommitPage {
+  /** Can hold fewer than `limit` commits while `nextCursor` is set. */
+  commits: CommitSummary[];
+  nextCursor: string | null;
+}
+
 export type CheckoutCredentialRenewal =
   | {mode: 'refresh-at'; refreshAt: Date}
   | {mode: 'on-rejection'};
@@ -210,6 +234,8 @@ export interface SourceControlProvider<
    * The snapshot can become unreachable before a caller uses it.
    */
   resolveRef(input: ResolveRefInput<Connection>): Promise<ResolvedRef>;
+  /** Lists the commits that changed one path, newest first. */
+  listCommits?(input: ListCommitsInput<Connection>): Promise<CommitPage>;
   createCheckoutSpec?(input: CreateCheckoutSpecInput<Connection>): Promise<CheckoutSpec>;
   createCheckoutCredentials?(
     input: CreateCheckoutCredentialsInput<Connection>,

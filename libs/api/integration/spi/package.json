@@ -27,6 +27,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./testing": {
+      "workspace-source": {
+        "types": "./src/testing.ts",
+        "default": "./src/testing.ts"
+      },
+      "default": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      }
     }
   },
   "scripts": {
