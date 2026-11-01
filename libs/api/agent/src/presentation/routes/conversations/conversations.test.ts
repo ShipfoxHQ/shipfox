@@ -1,0 +1,917 @@
+import {CONVERSATION_MESSAGE_MAX_BYTES} from '@shipfox/api-agent-dto';
+import {
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+  type UserContextMembership,
+} from '@shipfox/api-auth-context';
+import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
+import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
+import {and, eq} from 'drizzle-orm';
+import {claimQueuedConversationItems, getRunningTurn} from '#db/conversations.js';
+import {db} from '#db/db.js';
+import {conversationItems} from '#db/schema/conversation-items.js';
+import {conversations} from '#db/schema/conversations.js';
+import {sessionDataKeys} from '#db/schema/data-keys.js';
+import {conversationFactory} from '#test/factories/conversation.js';
+import {turnFactory} from '#test/factories/turn.js';
+import {createTestProjectsClient} from '#test/fixtures/projects-client.js';
+import {createAgentRoutes} from '../index.js';
+
+interface TestUser {
+  userId: string;
+  memberships: UserContextMembership[];
+}
+
+const users = new Map<string, TestUser>();
+
+const fakeUserAuth: AuthMethod = {
+  name: AUTH_USER,
+  authenticate: (request: FastifyRequest) => {
+    const user = users.get(request.headers.authorization ?? '');
+    if (!user) throw new ClientError('Invalid user token', 'unauthorized', {status: 401});
+    setUserContext(
+      request,
+      buildUserContext({
+        userId: user.userId,
+        email: 'user@example.com',
+        memberships: user.memberships,
+      }),
+    );
+    return Promise.resolve();
+  },
+};
+
+function member(params: {workspaceId: string}) {
+  const user: TestUser = {
+    userId: crypto.randomUUID(),
+    memberships: [{workspaceId: params.workspaceId, role: 'admin', workspaceStatus: 'active'}],
+  };
+  const authorization = `Bearer ${user.userId}`;
+  users.set(authorization, user);
+  return {...user, authorization};
+}
+
+describe('conversation routes', () => {
+  let app: Awaited<ReturnType<typeof createApp>>;
+  const projects = new Map<string, {workspaceId: string}>();
+
+  function arrangeProject() {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    projects.set(projectId, {workspaceId});
+    return {workspaceId, projectId};
+  }
+
+  async function arrangeUnreadableDataKey(workspaceId: string) {
+    await db().insert(sessionDataKeys).values({
+      workspaceId,
+      wrappedDek: 'not-a-wrapped-key',
+      kekVersion: 'not-a-key-version',
+    });
+  }
+
+  function message(overrides: Record<string, unknown> = {}) {
+    return {client_message_id: crypto.randomUUID(), body: 'Why did this fail?', ...overrides};
+  }
+
+  beforeAll(async () => {
+    await closeApp();
+    app = await createApp({
+      auth: [fakeUserAuth],
+      routes: createAgentRoutes(undefined as never, {
+        projects: createTestProjectsClient({projects}),
+      }),
+      swagger: false,
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await closeApp();
+  });
+
+  describe('POST /projects/:projectId/conversations', () => {
+    it('creates a conversation owned by the caller, with its first message queued', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const pageContext = {page: 'run', run_id: crypto.randomUUID()};
+      const payload = message({page_context: pageContext});
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+        payload,
+      });
+
+      const stored = await db()
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, res.json().conversation.id));
+      expect(res.statusCode).toBe(201);
+      expect(res.json().conversation).toMatchObject({
+        project_id: projectId,
+        agent_key: 'shippy',
+        title: 'Why did this fail?',
+        unread: false,
+      });
+      expect(res.json().item).toMatchObject({
+        seq: null,
+        kind: 'user_message',
+        author_user_id: owner.userId,
+        client_message_id: payload.client_message_id,
+        body: 'Why did this fail?',
+        meta: {page_context: pageContext},
+      });
+      expect(stored[0]).toMatchObject({
+        workspaceId,
+        originKind: 'web',
+        ownerUserId: owner.userId,
+      });
+    });
+
+    it('returns the stored conversation for a retried create', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const payload = message();
+      const create = () =>
+        app.inject({
+          method: 'POST',
+          url: `/projects/${projectId}/conversations`,
+          headers: {authorization: owner.authorization},
+          payload,
+        });
+
+      const first = await create();
+      const retry = await create();
+
+      const stored = await db()
+        .select()
+        .from(conversations)
+        .where(eq(conversations.projectId, projectId));
+      expect(retry.statusCode).toBe(201);
+      expect(retry.json().conversation.id).toBe(first.json().conversation.id);
+      expect(retry.json().item.id).toBe(first.json().item.id);
+      expect(stored).toHaveLength(1);
+    });
+
+    it('returns 503 when the workspace key cannot be read', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      await arrangeUnreadableDataKey(workspaceId);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(503);
+      expect(res.json().code).toBe('conversation-unavailable');
+    });
+
+    it('rejects a caller from another workspace', async () => {
+      const {projectId} = arrangeProject();
+      const outsider = member({workspaceId: crypto.randomUUID()});
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: outsider.authorization},
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('returns 404 for an unknown project', async () => {
+      const caller = member({workspaceId: crypto.randomUUID()});
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/projects/${crypto.randomUUID()}/conversations`,
+        headers: {authorization: caller.authorization},
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().code).toBe('project-not-found');
+    });
+
+    it('returns 401 without a user', async () => {
+      const {projectId} = arrangeProject();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/conversations`,
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  describe('GET /projects/:projectId/conversations', () => {
+    it("lists only the caller's own web conversations in the project", async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const colleague = member({workspaceId});
+      const mine = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      await conversationFactory.create({workspaceId, projectId, ownerUserId: colleague.userId});
+      await conversationFactory.create({
+        workspaceId,
+        projectId: arrangeProject().projectId,
+        ownerUserId: owner.userId,
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().conversations.map((c: {id: string}) => c.id)).toEqual([
+        mine.conversation.id,
+      ]);
+    });
+
+    it('ignores owner and origin parameters', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const admin = member({workspaceId});
+      await conversationFactory.create({workspaceId, projectId, ownerUserId: owner.userId});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations?owner_user_id=${owner.userId}&origin_kind=integration`,
+        headers: {authorization: admin.authorization},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().conversations).toEqual([]);
+    });
+
+    it('pages by latest activity', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const scope = {workspaceId, projectId, ownerUserId: owner.userId};
+      const oldest = await conversationFactory.create(scope);
+      const middle = await conversationFactory.create(scope);
+      const newest = await conversationFactory.create(scope);
+
+      const first = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations?limit=2`,
+        headers: {authorization: owner.authorization},
+      });
+      const second = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations?limit=2&cursor=${first.json().next_cursor}`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(first.json().conversations.map((c: {id: string}) => c.id)).toEqual([
+        newest.conversation.id,
+        middle.conversation.id,
+      ]);
+      expect(second.json().conversations.map((c: {id: string}) => c.id)).toEqual([
+        oldest.conversation.id,
+      ]);
+      expect(second.json().next_cursor).toBeNull();
+    });
+
+    it('rejects an invalid cursor', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations?cursor=nope`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('invalid-cursor');
+    });
+
+    it('keeps listing around an unreadable title', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const scope = {workspaceId, projectId, ownerUserId: owner.userId};
+      const broken = await conversationFactory.create(scope);
+      const readable = await conversationFactory.create({...scope, body: 'Still readable'});
+      await db()
+        .update(conversations)
+        .set({title: Buffer.from('not sealed'), lastSeq: 1, lastAgentSeq: 1})
+        .where(eq(conversations.id, broken.conversation.id));
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+      });
+
+      const titles = new Map(
+        res.json().conversations.map((c: {id: string; title: string | null}) => [c.id, c.title]),
+      );
+      expect(res.statusCode).toBe(200);
+      expect(titles.get(broken.conversation.id)).toBeNull();
+      expect(titles.get(readable.conversation.id)).toBe('Still readable');
+      expect(res.json().unread_count).toBe(1);
+    });
+
+    it('returns 503 when the workspace key cannot be read', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      await arrangeUnreadableDataKey(workspaceId);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(503);
+      expect(res.json().code).toBe('conversation-unavailable');
+    });
+
+    it('reports unread state and a total count across pages', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const scope = {workspaceId, projectId, ownerUserId: owner.userId};
+      const unread = await conversationFactory.create(scope);
+      await conversationFactory.create(scope);
+      await db()
+        .update(conversations)
+        .set({lastSeq: 2, lastAgentSeq: 2})
+        .where(eq(conversations.id, unread.conversation.id));
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations?limit=1`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.json().unread_count).toBe(1);
+      expect(res.json().conversations).toHaveLength(1);
+    });
+  });
+
+  describe.each([
+    {method: 'GET' as const, path: (id: string) => `/conversations/${id}`},
+    {method: 'GET' as const, path: (id: string) => `/conversations/${id}/items`},
+    {method: 'DELETE' as const, path: (id: string) => `/conversations/${id}`},
+    {
+      method: 'POST' as const,
+      path: (id: string) => `/conversations/${id}/messages`,
+      payload: {client_message_id: '11111111-1111-4111-8111-111111111111', body: 'Hello'},
+    },
+    {
+      method: 'POST' as const,
+      path: (id: string) => `/conversations/${id}/read`,
+      payload: {last_read_seq: 0},
+    },
+  ])('$method $path access', ({method, path, payload}) => {
+    it('returns 404 to a workspace admin who is not the owner', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const admin = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+
+      const res = await app.inject({
+        method,
+        url: path(conversation.id),
+        headers: {authorization: admin.authorization},
+        ...(payload ? {payload} : {}),
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().code).toBe('conversation-not-found');
+    });
+
+    it('returns the same 404 for a conversation that does not exist', async () => {
+      const caller = member({workspaceId: crypto.randomUUID()});
+
+      const res = await app.inject({
+        method,
+        url: path(crypto.randomUUID()),
+        headers: {authorization: caller.authorization},
+        ...(payload ? {payload} : {}),
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().code).toBe('conversation-not-found');
+    });
+
+    it('returns 404 for a conversation of another origin, even to its would-be owner', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const caller = member({workspaceId});
+      const rows = await db()
+        .insert(conversations)
+        .values({workspaceId, projectId, agentKey: 'shippy', originKind: 'integration'})
+        .returning({id: conversations.id});
+
+      const res = await app.inject({
+        method,
+        url: path(rows[0]?.id as string),
+        headers: {authorization: caller.authorization},
+        ...(payload ? {payload} : {}),
+      });
+
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('refuses an owner who left the workspace', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      users.set(owner.authorization, {userId: owner.userId, memberships: []});
+
+      const res = await app.inject({
+        method,
+        url: path(conversation.id),
+        headers: {authorization: owner.authorization},
+        ...(payload ? {payload} : {}),
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
+  describe('GET /conversations/:conversationId', () => {
+    it('returns the header with no active turn', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+        body: 'First question',
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversation.id}`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({
+        id: conversation.id,
+        title: 'First question',
+        last_seq: 0,
+        active_turn: null,
+      });
+    });
+
+    it('returns the running turn', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      const turn = await turnFactory.create({conversationId: conversation.id});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversation.id}`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.json().active_turn).toMatchObject({id: turn.id, status: 'running'});
+    });
+  });
+
+  describe('GET /conversations/:conversationId/items', () => {
+    async function arrangeClaimedConversation(params: {count: number}) {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+        body: 'message 1',
+      });
+      for (let index = 2; index <= params.count; index += 1) {
+        await app.inject({
+          method: 'POST',
+          url: `/conversations/${conversation.id}/messages`,
+          headers: {authorization: owner.authorization},
+          payload: message({body: `message ${index}`}),
+        });
+      }
+      await claimQueuedConversationItems(conversation.id);
+      return {owner, conversationId: conversation.id};
+    }
+
+    function seqs(res: {json: () => {items: Array<{seq: number}>}}) {
+      return res.json().items.map((item) => item.seq);
+    }
+
+    it('opens at the latest page, in ascending order', async () => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 5});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?limit=2`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(seqs(res)).toEqual([4, 5]);
+      expect(res.json().has_more).toBe(true);
+    });
+
+    it('reads forward after a seq', async () => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 5});
+
+      const first = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?after_seq=1&limit=2`,
+        headers: {authorization: owner.authorization},
+      });
+      const last = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?after_seq=3&limit=2`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(seqs(first)).toEqual([2, 3]);
+      expect(first.json().has_more).toBe(true);
+      expect(seqs(last)).toEqual([4, 5]);
+      expect(last.json().has_more).toBe(false);
+    });
+
+    it('reads backward before a seq, in ascending order', async () => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 5});
+
+      const page = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?before_seq=5&limit=2`,
+        headers: {authorization: owner.authorization},
+      });
+      const oldest = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?before_seq=3&limit=2`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(seqs(page)).toEqual([3, 4]);
+      expect(page.json().has_more).toBe(true);
+      expect(seqs(oldest)).toEqual([1, 2]);
+      expect(oldest.json().has_more).toBe(false);
+    });
+
+    it('returns queued inputs apart from claimed items', async () => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 1});
+      await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversationId}/messages`,
+        headers: {authorization: owner.authorization},
+        payload: message({body: 'queued'}),
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(seqs(res)).toEqual([1]);
+      expect(res.json().queued).toMatchObject([{seq: null, body: 'queued'}]);
+    });
+
+    it('returns every queued input, whatever the page limit', async () => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 1});
+      for (let index = 0; index < 5; index += 1) {
+        await app.inject({
+          method: 'POST',
+          url: `/conversations/${conversationId}/messages`,
+          headers: {authorization: owner.authorization},
+          payload: message({body: `queued ${index}`}),
+        });
+      }
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?limit=2`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.json().queued).toHaveLength(5);
+      expect(res.json().queued_has_more).toBe(false);
+    });
+
+    it('returns an unreadable item with a null body', async () => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 2});
+      await db()
+        .update(conversationItems)
+        .set({body: Buffer.from('not sealed')})
+        .where(
+          and(eq(conversationItems.conversationId, conversationId), eq(conversationItems.seq, 1)),
+        );
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().items.map((item: {body: string | null}) => item.body)).toEqual([
+        null,
+        'message 2',
+      ]);
+    });
+
+    it.each(['after_seq', 'before_seq'])('rejects a %s past int4', async (field) => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 1});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?${field}=2147483648`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects both directions at once', async () => {
+      const {owner, conversationId} = await arrangeClaimedConversation({count: 1});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversationId}/items?after_seq=1&before_seq=2`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  describe('POST /conversations/:conversationId/messages', () => {
+    async function arrangeConversation() {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      return {owner, conversationId: conversation.id};
+    }
+
+    it('queues the message and stores its page context', async () => {
+      const {owner, conversationId} = await arrangeConversation();
+      const pageContext = {page: 'project_settings', section: 'general'};
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversationId}/messages`,
+        headers: {authorization: owner.authorization},
+        payload: message({body: 'Next question', page_context: pageContext}),
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({
+        seq: null,
+        body: 'Next question',
+        meta: {page_context: pageContext},
+      });
+    });
+
+    it('returns the stored item for a repeated post', async () => {
+      const {owner, conversationId} = await arrangeConversation();
+      const payload = message();
+      const post = () =>
+        app.inject({
+          method: 'POST',
+          url: `/conversations/${conversationId}/messages`,
+          headers: {authorization: owner.authorization},
+          payload,
+        });
+
+      const first = await post();
+      const repeat = await post();
+
+      expect(repeat.statusCode).toBe(201);
+      expect(repeat.json().id).toBe(first.json().id);
+    });
+
+    it('moves the conversation to the top of the list', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const scope = {workspaceId, projectId, ownerUserId: owner.userId};
+      const older = await conversationFactory.create(scope);
+      const newer = await conversationFactory.create(scope);
+
+      await app.inject({
+        method: 'POST',
+        url: `/conversations/${older.conversation.id}/messages`,
+        headers: {authorization: owner.authorization},
+        payload: message(),
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+      });
+      expect(res.json().conversations.map((c: {id: string}) => c.id)).toEqual([
+        older.conversation.id,
+        newer.conversation.id,
+      ]);
+    });
+
+    it.each([
+      {name: 'an empty body', body: '   '},
+      {name: 'a body over the limit', body: 'a'.repeat(CONVERSATION_MESSAGE_MAX_BYTES + 1)},
+    ])('rejects $name', async ({body}) => {
+      const {owner, conversationId} = await arrangeConversation();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversationId}/messages`,
+        headers: {authorization: owner.authorization},
+        payload: message({body}),
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects a page context with an unknown field', async () => {
+      const {owner, conversationId} = await arrangeConversation();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversationId}/messages`,
+        headers: {authorization: owner.authorization},
+        payload: message({page_context: {page: 'runs', note: 'typed by a person'}}),
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  describe('POST /conversations/:conversationId/read', () => {
+    async function arrangeUnreadConversation() {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      await db()
+        .update(conversations)
+        .set({lastSeq: 5, lastAgentSeq: 5})
+        .where(eq(conversations.id, conversation.id));
+      return {owner, conversationId: conversation.id};
+    }
+
+    async function markRead(params: {
+      authorization: string;
+      conversationId: string;
+      lastReadSeq: number;
+    }) {
+      return await app.inject({
+        method: 'POST',
+        url: `/conversations/${params.conversationId}/read`,
+        headers: {authorization: params.authorization},
+        payload: {last_read_seq: params.lastReadSeq},
+      });
+    }
+
+    async function readHeader(params: {authorization: string; conversationId: string}) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${params.conversationId}`,
+        headers: {authorization: params.authorization},
+      });
+      return res.json();
+    }
+
+    it('rejects a seq past int4', async () => {
+      const {owner, conversationId} = await arrangeUnreadConversation();
+      const {authorization} = owner;
+
+      const res = await markRead({authorization, conversationId, lastReadSeq: 2147483648});
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('clears unread once the latest reply is read', async () => {
+      const {owner, conversationId} = await arrangeUnreadConversation();
+      const {authorization} = owner;
+
+      const res = await markRead({authorization, conversationId, lastReadSeq: 5});
+
+      expect(res.statusCode).toBe(204);
+      expect(await readHeader({authorization, conversationId})).toMatchObject({
+        unread: false,
+        last_read_seq: 5,
+      });
+    });
+
+    it('keeps a reply newer than the read position unread', async () => {
+      const {owner, conversationId} = await arrangeUnreadConversation();
+      const {authorization} = owner;
+
+      await markRead({authorization, conversationId, lastReadSeq: 4});
+
+      expect(await readHeader({authorization, conversationId})).toMatchObject({
+        unread: true,
+        last_read_seq: 4,
+      });
+    });
+
+    it('never moves the read position backward', async () => {
+      const {owner, conversationId} = await arrangeUnreadConversation();
+      const {authorization} = owner;
+      await markRead({authorization, conversationId, lastReadSeq: 4});
+
+      await markRead({authorization, conversationId, lastReadSeq: 2});
+
+      expect((await readHeader({authorization, conversationId})).last_read_seq).toBe(4);
+    });
+
+    it('never moves past the last seq', async () => {
+      const {owner, conversationId} = await arrangeUnreadConversation();
+      const {authorization} = owner;
+
+      await markRead({authorization, conversationId, lastReadSeq: 99});
+
+      expect((await readHeader({authorization, conversationId})).last_read_seq).toBe(5);
+    });
+  });
+
+  describe('DELETE /conversations/:conversationId', () => {
+    it('deletes the conversation', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/conversations/${conversation.id}`,
+        headers: {authorization: owner.authorization},
+      });
+
+      const after = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversation.id}`,
+        headers: {authorization: owner.authorization},
+      });
+      expect(res.statusCode).toBe(204);
+      expect(after.statusCode).toBe(404);
+    });
+
+    it('refuses during a running turn', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      await turnFactory.create({conversationId: conversation.id});
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/conversations/${conversation.id}`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('conversation-turn-running');
+      expect(await getRunningTurn(conversation.id)).toBeDefined();
+    });
+  });
+
+  it('omits the routes without a projects client', () => {
+    const groups = createAgentRoutes(undefined as never);
+
+    expect(groups.some((group) => group.prefix === '/conversations')).toBe(false);
+  });
+});

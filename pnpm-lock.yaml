@@ -3105,6 +3105,9 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../projects-dto
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto
@@ -3196,6 +3199,9 @@ importers:
       drizzle-kit:
         specifier: 'catalog:'
         version: 0.31.10
+      fishery:
+        specifier: 'catalog:'
+        version: 2.4.0
 
   libs/api/agent-access:
     dependencies:

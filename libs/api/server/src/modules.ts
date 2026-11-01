@@ -20,7 +20,10 @@ import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto
 import {createLogsModule} from '@shipfox/api-logs';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import {createProjectsModule} from '@shipfox/api-projects';
-import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
 import {createRegistryModule} from '@shipfox/api-registry';
 import {registryInterModuleContract} from '@shipfox/api-registry-dto/inter-module';
 import {type CreateRunnersModuleOptions, createRunnersModule} from '@shipfox/api-runners';
@@ -99,7 +102,7 @@ export type DefaultAuthModuleFactory = (options: {
   workspaces: WorkspacesInterModuleClient;
 }) => ShipfoxModule;
 
-/** Options for the standard Agent module. `defaultModules` supplies Secrets and Workflows. */
+/** Options for the standard Agent module. `defaultModules` supplies Secrets, Workflows, and Projects. */
 export type DefaultAgentModuleOptions = Pick<CreateAgentModuleOptions, 'managedProvider'>;
 
 /**
@@ -118,6 +121,8 @@ export type DefaultAgentModuleFactory = (options: {
    * stack landed).
    */
   workflows?: WorkflowsModuleClient | undefined;
+  /** Optional: a factory built without it has no conversation routes. */
+  projects?: ProjectsModuleClient | undefined;
 }) => ShipfoxModule;
 
 /** Options for the standard Runners module. `defaultModules` supplies Auth. */
@@ -316,11 +321,13 @@ export async function defaultModules(
     ? agentModuleFactory({
         secrets: createAgentSecretsClient(secretsClient),
         workflows: workflowsClient,
+        projects: projectsClient,
       })
     : createAgentModule({
         ...options.agentModuleOptions,
         secrets: createAgentSecretsClient(secretsClient),
         workflows: workflowsClient,
+        projects: projectsClient,
       });
   if (agentModuleFactory) validateCustomAgentModule(agentModule);
 

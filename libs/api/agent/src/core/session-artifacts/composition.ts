@@ -9,6 +9,7 @@ import {
 import {createSessionArtifactStore, type SessionArtifactStore} from './store.js';
 
 let memoizedKeyProvider: SessionKeyProvider | undefined;
+let memoizedDekManager: SessionDekManager | undefined;
 let memoizedArtifactStore: SessionArtifactStore | undefined;
 
 /**
@@ -29,6 +30,15 @@ export function sessionKeyProvider(): SessionKeyProvider {
   return memoizedKeyProvider;
 }
 
+/** One DEK cache for everything sealed with the workspace data key. */
+export function sessionDekManager(): SessionDekManager {
+  memoizedDekManager ??= new SessionDekManager(sessionKeyProvider(), {
+    maxEntries: 32,
+    ttlMs: 60_000,
+  });
+  return memoizedDekManager;
+}
+
 /**
  * The module-wide encrypted session artifact store backing the lease-authed
  * transcript routes and the retention sweep. Memoized so routes, subscribers,
@@ -36,12 +46,7 @@ export function sessionKeyProvider(): SessionKeyProvider {
  */
 export function sessionArtifactStore(): SessionArtifactStore {
   if (memoizedArtifactStore) return memoizedArtifactStore;
-  memoizedArtifactStore = createSessionArtifactStore({
-    dekManager: new SessionDekManager(sessionKeyProvider(), {
-      maxEntries: 32,
-      ttlMs: 60_000,
-    }),
-  });
+  memoizedArtifactStore = createSessionArtifactStore({dekManager: sessionDekManager()});
   return memoizedArtifactStore;
 }
 

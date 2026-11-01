@@ -351,3 +351,17 @@ export function agentConfigInvalidDetails(
     managed_provider_id: error.managedProviderId,
   };
 }
+
+export class ConversationNotFoundError extends Error {
+  constructor(public readonly conversationId: string) {
+    super(`Conversation not found: ${conversationId}`);
+    this.name = 'ConversationNotFoundError';
+  }
+}
+
+export class ConversationTurnRunningError extends Error {
+  constructor(public readonly conversationId: string) {
+    super(`Conversation has a running turn: ${conversationId}`);
+    this.name = 'ConversationTurnRunningError';
+  }
+}

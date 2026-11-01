@@ -86,6 +86,7 @@
     "@opentelemetry/api": "catalog:",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
+    "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
@@ -117,6 +118,7 @@
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
     "@types/pg": "catalog:",
-    "drizzle-kit": "catalog:"
+    "drizzle-kit": "catalog:",
+    "fishery": "catalog:"
   }
 }

@@ -96,9 +96,10 @@ auth methods. The default MCP and step-log download routes require those
 methods to authenticate their respective credentials.
 
 The standard Agent module validates its configuration during composition. Its
-additive options cannot provide or replace the composition-owned Secrets and
-Workflows clients. The returned standard module therefore keeps the
-Workflows-backed session transcript routes mounted. An options object whose
+additive options cannot provide or replace the composition-owned Secrets,
+Workflows, and Projects clients. The returned standard module therefore keeps
+the Workflows-backed session transcript routes and the conversation routes
+mounted. An options object whose
 fields are all undefined is treated as unconfigured and does not conflict with
 a full replacement factory.
 
