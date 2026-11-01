@@ -174,7 +174,7 @@ export interface ManagedModelProvider {
    * Locked models for one workspace. Models not in the map are available.
    *
    * Checked before the first `resolveCredentials` of a step attempt or a turn and never on renewal,
-   * so running work is not cut off. A model in the returned map fails the step with a 422 and its
+   * so running work is not cut off. A model in the returned map rejects the call with a 422 and its
    * notice. A rejection is reported as a retryable 503.
    *
    * The lock is a product limit, not a security boundary: the runner marks renewals with a

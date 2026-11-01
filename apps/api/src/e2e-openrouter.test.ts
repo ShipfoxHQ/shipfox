@@ -283,6 +283,24 @@ describe('OpenRouter backend', () => {
     expect(upstream.requests).toEqual([]);
   });
 
+  it('refuses a conversation that moves to a model without an OpenRouter mapping', async () => {
+    const upstream = await startUpstream((_request, response) => response.end());
+    const subject = {
+      kind: 'conversation' as const,
+      projectId: PROJECT_ID,
+      conversationId: '00000000-0000-4000-8000-00000000000a',
+    };
+    const {fixture} = await startOpenRouterProject(upstream.baseUrl, subject);
+
+    expect(() =>
+      fixture.provider.resolveCredentials({
+        workspaceId: WORKSPACE_ID,
+        subject,
+        model: 'e2e-renewable-pi',
+      }),
+    ).toThrow('no OpenRouter model for e2e-renewable-pi');
+  });
+
   it('rejects a model without an OpenRouter mapping', async () => {
     const upstream = await startUpstream((_request, response) => response.end('{}'));
     const {fixture} = await startOpenRouterProject(upstream.baseUrl);

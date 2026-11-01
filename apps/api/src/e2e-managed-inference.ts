@@ -275,6 +275,12 @@ function resolveE2eCredentials(
   if (credentialState.model !== model.id) {
     throw new Error('E2E managed provider model changed during credential renewal');
   }
+  if (
+    credentialState.openRouterIdentity !== undefined &&
+    !Object.hasOwn(OPENROUTER_MODEL_IDS, model.id)
+  ) {
+    throw new Error(`E2E managed provider has no OpenRouter model for ${model.id}`);
+  }
   if (credentialState.projectId !== projectId) {
     throw new Error('E2E managed provider project changed during credential renewal');
   }
@@ -319,9 +325,6 @@ function createCredentialState(params: {
     scriptedAttempt === undefined &&
     params.state.openRouter !== undefined &&
     params.state.openRouterProjects.has(projectId);
-  if (openRouter && !Object.hasOwn(OPENROUTER_MODEL_IDS, params.params.model)) {
-    throw new Error(`E2E managed provider has no OpenRouter model for ${params.params.model}`);
-  }
   return {
     subject: params.params.subject,
     nextGeneration: 1,

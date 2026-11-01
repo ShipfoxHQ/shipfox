@@ -161,7 +161,17 @@ describe('Usage event contracts', () => {
   });
 
   it.each([
-    ['a segment with no subject', {stepAttemptId: null, workflowRunId: null, jobId: null}],
+    [
+      'a segment with no subject',
+      {
+        workflowRunId: null,
+        workflowRunAttemptId: null,
+        jobId: null,
+        jobExecutionId: null,
+        stepId: null,
+        stepAttemptId: null,
+      },
+    ],
     ['a partial step identity', {stepAttemptId: undefined}],
     ['a conversation with run identity', {conversationId: crypto.randomUUID()}],
   ])('rejects %s', (_name, overrides) => {

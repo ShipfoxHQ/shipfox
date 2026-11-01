@@ -21,23 +21,21 @@ export async function assertConversationProjects(params: {
       .map(({workspaceId, projectId}) => [`${workspaceId}:${projectId}`, {workspaceId, projectId}]),
   );
 
-  await Promise.all(
-    [...owners.values()].map(async (owner) => {
-      try {
-        await params.projects.requireProjectForWorkspace(owner);
-      } catch (error) {
-        if (
-          isInterModuleKnownError(
-            projectsInterModuleContract.methods.requireProjectForWorkspace,
-            error,
-          )
-        ) {
-          throw new Error(`Inference segment identity mismatch for project ${owner.projectId}`, {
-            cause: error,
-          });
-        }
-        throw error;
+  for (const owner of owners.values()) {
+    try {
+      await params.projects.requireProjectForWorkspace(owner);
+    } catch (error) {
+      if (
+        isInterModuleKnownError(
+          projectsInterModuleContract.methods.requireProjectForWorkspace,
+          error,
+        )
+      ) {
+        throw new Error(`Inference segment identity mismatch for project ${owner.projectId}`, {
+          cause: error,
+        });
       }
-    }),
-  );
+      throw error;
+    }
+  }
 }
