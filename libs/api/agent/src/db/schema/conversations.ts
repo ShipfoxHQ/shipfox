@@ -31,7 +31,7 @@ export const conversations = pgTable(
   (table) => [
     check(
       'agent_conversations_web_owner_ck',
-      sql`(${table.originKind} = 'web') = (${table.ownerUserId} is not null)`,
+      sql`(${table.originKind} = 'web' and ${table.ownerUserId} is not null) or (${table.originKind} = 'integration' and ${table.ownerUserId} is null)`,
     ),
     uniqueIndex('agent_conversations_client_message_unique')
       .on(table.projectId, table.ownerUserId, table.clientMessageId)

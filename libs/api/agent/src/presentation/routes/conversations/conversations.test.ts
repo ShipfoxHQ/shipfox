@@ -5,6 +5,7 @@ import {
   setUserContext,
   type UserContextMembership,
 } from '@shipfox/api-auth-context';
+import {encodeTimestampIdCursor} from '@shipfox/node-drizzle';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {and, eq} from 'drizzle-orm';
@@ -294,6 +295,21 @@ describe('conversation routes', () => {
       const res = await app.inject({
         method: 'GET',
         url: `/projects/${projectId}/conversations?cursor=nope`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('invalid-cursor');
+    });
+
+    it('rejects a cursor whose id is not a UUID', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const cursor = encodeTimestampIdCursor({createdAt: new Date(), id: 'not-a-uuid'});
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/projects/${projectId}/conversations?cursor=${cursor}`,
         headers: {authorization: owner.authorization},
       });
 

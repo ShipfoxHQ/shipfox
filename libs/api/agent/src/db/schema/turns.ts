@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {integer, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {index, integer, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {AgentTurn} from '#core/entities/conversation.js';
 import {pgTable} from './common.js';
 import {conversations} from './conversations.js';
@@ -22,6 +22,7 @@ export const turns = pgTable(
     finishedAt: timestamp('finished_at', {withTimezone: true}),
   },
   (table) => [
+    index('agent_turns_conversation_idx').on(table.conversationId),
     uniqueIndex('agent_turns_one_running_unique')
       .on(table.conversationId)
       .where(sql`${table.status} = 'running'`),

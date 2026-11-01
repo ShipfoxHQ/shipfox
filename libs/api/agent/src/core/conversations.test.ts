@@ -10,6 +10,7 @@ import {db} from '#db/db.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
 import {conversations} from '#db/schema/conversations.js';
 import {turnStreamChunks} from '#db/schema/turn-stream-chunks.js';
+import {turns} from '#db/schema/turns.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {turnFactory} from '#test/factories/turn.js';
 import {
@@ -213,6 +214,7 @@ describe('postWebConversationMessage', () => {
       clientMessageId,
       body: 'once',
     });
+    const before = await requireConversation(conversation.id, owner);
 
     const repeats = await Promise.all(
       [1, 2, 3].map(() =>
@@ -226,6 +228,8 @@ describe('postWebConversationMessage', () => {
     );
 
     const {queued} = await listOpenConversationItems({conversation: loaded, limit: 50});
+    const after = await requireConversation(conversation.id, owner);
+    expect(after.lastActivityAt).toEqual(before.lastActivityAt);
     expect(repeats.map((repeat) => repeat.id)).toEqual([first.id, first.id, first.id]);
     expect(queued.filter((item) => item.clientMessageId === clientMessageId)).toHaveLength(1);
   });
@@ -371,6 +375,28 @@ describe('listOpenConversationItems', () => {
     }
   });
 
+  it('caps queued inputs at 100 whatever the page limit, and reports the rest', async () => {
+    const owner = crypto.randomUUID();
+    const {conversation} = await conversationFactory.create({ownerUserId: owner});
+    const loaded = await requireConversation(conversation.id, owner);
+    for (let index = 0; index < 100; index += 1) {
+      await postWebConversationMessage({
+        conversation: loaded,
+        authorUserId: owner,
+        clientMessageId: crypto.randomUUID(),
+        body: `queued ${index}`,
+      });
+    }
+
+    const {queued, queuedHasMore} = await listOpenConversationItems({
+      conversation: loaded,
+      limit: 1,
+    });
+
+    expect(queued).toHaveLength(100);
+    expect(queuedHasMore).toBe(true);
+  });
+
   it('reads an unreadable body as null, and keeps the other items', async () => {
     const owner = crypto.randomUUID();
     const {conversation, item} = await conversationFactory.create({ownerUserId: owner});
@@ -392,36 +418,6 @@ describe('listOpenConversationItems', () => {
   });
 });
 
-describe('listConversationTimeline', () => {
-  it('reports queued inputs past its cap', async () => {
-    const owner = crypto.randomUUID();
-    const {conversation} = await conversationFactory.create({ownerUserId: owner});
-    const loaded = await requireConversation(conversation.id, owner);
-    await postWebConversationMessage({
-      conversation: loaded,
-      authorUserId: owner,
-      clientMessageId: crypto.randomUUID(),
-      body: 'second',
-    });
-
-    const capped = await listConversationTimeline({
-      conversationId: conversation.id,
-      limit: 1,
-      queuedLimit: 1,
-    });
-    const complete = await listConversationTimeline({
-      conversationId: conversation.id,
-      limit: 1,
-      queuedLimit: 2,
-    });
-
-    expect(capped.queued).toHaveLength(1);
-    expect(capped.queuedHasMore).toBe(true);
-    expect(complete.queued).toHaveLength(2);
-    expect(complete.queuedHasMore).toBe(false);
-  });
-});
-
 describe('deleteWebConversation', () => {
   it('removes the conversation, its items, and its finished turns', async () => {
     const owner = crypto.randomUUID();
@@ -434,10 +430,15 @@ describe('deleteWebConversation', () => {
       .select()
       .from(conversationItems)
       .where(eq(conversationItems.conversationId, conversation.id));
+    const remainingTurns = await db()
+      .select()
+      .from(turns)
+      .where(eq(turns.conversationId, conversation.id));
     expect(await loadWebConversation({conversationId: conversation.id, userId: owner})).toBe(
       undefined,
     );
     expect(items).toEqual([]);
+    expect(remainingTurns).toEqual([]);
   });
 
   it('refuses during a running turn', async () => {
@@ -467,6 +468,7 @@ describe('agent_conversations', () => {
   it.each([
     {originKind: 'web' as const, ownerUserId: null},
     {originKind: 'integration' as const, ownerUserId: crypto.randomUUID()},
+    {originKind: 'other' as 'web', ownerUserId: null},
   ])('rejects origin $originKind with owner $ownerUserId', async ({originKind, ownerUserId}) => {
     const insert = db().insert(conversations).values({
       workspaceId: crypto.randomUUID(),

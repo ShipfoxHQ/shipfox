@@ -1,5 +1,5 @@
 {
-  "id": "da47c019-e9bc-4e6d-bd36-4a07173ac216",
+  "id": "d33bed62-b788-4d4c-9da5-9390fcaf9ef7",
   "prevId": "2ba15141-ccfa-4791-abf6-b760f88e22f9",
   "version": "7",
   "dialect": "postgresql",
@@ -190,15 +190,6 @@
           "tableFrom": "agent_conversation_items",
           "tableTo": "agent_conversations",
           "columnsFrom": ["conversation_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_conversation_items_turn_id_agent_turns_id_fk": {
-          "name": "agent_conversation_items_turn_id_agent_turns_id_fk",
-          "tableFrom": "agent_conversation_items",
-          "tableTo": "agent_turns",
-          "columnsFrom": ["turn_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -406,7 +397,7 @@
       "checkConstraints": {
         "agent_conversations_web_owner_ck": {
           "name": "agent_conversations_web_owner_ck",
-          "value": "(\"agent_conversations\".\"origin_kind\" = 'web') = (\"agent_conversations\".\"owner_user_id\" is not null)"
+          "value": "(\"agent_conversations\".\"origin_kind\" = 'web' and \"agent_conversations\".\"owner_user_id\" is not null) or (\"agent_conversations\".\"origin_kind\" = 'integration' and \"agent_conversations\".\"owner_user_id\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -958,6 +949,21 @@
         }
       },
       "indexes": {
+        "agent_turns_conversation_idx": {
+          "name": "agent_turns_conversation_idx",
+          "columns": [
+            {
+              "expression": "conversation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "agent_turns_one_running_unique": {
           "name": "agent_turns_one_running_unique",
           "columns": [

@@ -6,7 +6,7 @@ Runs a Shipfox API server.
 
 - **`defaultModules()`**: Returns the standard module list.
 - **`DefaultModulesExtension`**: Receives the composed Auth, Workspaces, and Usage clients for extension modules.
-- **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets and Workflows clients.
+- **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets, Workflows, and Projects clients.
 - **`DefaultAuthModuleOptions`**: Configures the standard Auth module while `defaultModules()` supplies its Workspaces client.
 - **`DefaultRunnersModuleOptions`**: Configures the standard Runners module while `defaultModules()` supplies its Auth client.
 - **`DefaultCacheModuleOptions`**: Configures the standard Cache module while `defaultModules()` supplies its Workflows client.

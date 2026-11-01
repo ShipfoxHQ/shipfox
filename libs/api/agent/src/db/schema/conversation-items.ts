@@ -5,7 +5,6 @@ import {index, integer, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle
 import type {ConversationItem} from '#core/entities/conversation.js';
 import {bytea, pgTable} from './common.js';
 import {conversations} from './conversations.js';
-import {turns} from './turns.js';
 
 /**
  * The append-only timeline. `body` is sealed with the workspace data key. `meta`
@@ -30,7 +29,7 @@ export const conversationItems = pgTable(
         'turn_notice',
       ],
     }).notNull(),
-    turnId: uuid('turn_id').references(() => turns.id, {onDelete: 'cascade'}),
+    turnId: uuid('turn_id'),
     authorUserId: uuid('author_user_id'),
     clientMessageId: uuid('client_message_id'),
     body: bytea('body').notNull(),

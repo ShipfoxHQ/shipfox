@@ -10,6 +10,8 @@ import {listOpenWebConversations} from '#core/conversations.js';
 import {toConversationSummaryDto} from '#presentation/dto/conversation.js';
 import {requireProjectAccess, translateConversationRouteError} from './access.js';
 
+const cursorIdSchema = z.string().uuid();
+
 export function createListConversationsRoute(projects: ProjectsModuleClient) {
   return defineRoute({
     method: 'GET',
@@ -29,7 +31,7 @@ export function createListConversationsRoute(projects: ProjectsModuleClient) {
       const {workspaceId, userId} = await requireProjectAccess(request, projectId, projects);
 
       const decodedCursor = decodeTimestampIdCursor(cursor);
-      if (cursor && !decodedCursor) {
+      if (cursor && !cursorIdSchema.safeParse(decodedCursor?.id).success) {
         throw new ClientError('Invalid cursor', 'invalid-cursor', {status: 400});
       }
 

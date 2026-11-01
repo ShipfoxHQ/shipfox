@@ -225,12 +225,12 @@ export async function insertQueuedUserMessage(
 ): Promise<ConversationItem | undefined> {
   return await db().transaction(async (tx) => {
     // The row lock serializes this with delete and with a concurrent repeat of the same post.
-    const touched = await tx
-      .update(conversations)
-      .set({lastActivityAt: sql`NOW()`})
+    const locked = await tx
+      .select({id: conversations.id})
+      .from(conversations)
       .where(eq(conversations.id, params.conversationId))
-      .returning({id: conversations.id});
-    if (touched.length === 0) return undefined;
+      .for('update');
+    if (locked.length === 0) return undefined;
 
     const inserted = await tx
       .insert(conversationItems)
@@ -248,20 +248,26 @@ export async function insertQueuedUserMessage(
         where: sql`"client_message_id" IS NOT NULL`,
       })
       .returning();
-    const existing =
-      inserted[0] ??
-      (
-        await tx
-          .select()
-          .from(conversationItems)
-          .where(
-            and(
-              eq(conversationItems.conversationId, params.conversationId),
-              eq(conversationItems.clientMessageId, params.clientMessageId),
-            ),
-          )
-          .limit(1)
-      )[0];
+    const [created] = inserted;
+    if (created) {
+      await tx
+        .update(conversations)
+        .set({lastActivityAt: sql`NOW()`})
+        .where(eq(conversations.id, params.conversationId));
+      return toConversationItem(created);
+    }
+
+    const stored = await tx
+      .select()
+      .from(conversationItems)
+      .where(
+        and(
+          eq(conversationItems.conversationId, params.conversationId),
+          eq(conversationItems.clientMessageId, params.clientMessageId),
+        ),
+      )
+      .limit(1);
+    const [existing] = stored;
     if (!existing) throw new Error('Conversation message insert returned no row');
     return toConversationItem(existing);
   });
