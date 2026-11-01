@@ -64,6 +64,22 @@ describe('useAgentPageContext', () => {
     expect(screen.getByRole('status')).toHaveTextContent('{"page":"workflows"}');
   });
 
+  test('keeps the context when an older page with equal values unmounts last', () => {
+    const tree = (pages: readonly string[]) => (
+      <ShellProviders>
+        {pages.map((key) => (
+          <Page key={key} context={{page: 'runs'}} />
+        ))}
+        <Reader />
+      </ShellProviders>
+    );
+    const {rerender} = render(tree(['old', 'new']));
+
+    rerender(tree(['new']));
+
+    expect(screen.getByRole('status')).toHaveTextContent('{"page":"runs"}');
+  });
+
   test('does not notify readers when a page re-renders with equal values', () => {
     const onRender = vi.fn();
     const tree = () => (

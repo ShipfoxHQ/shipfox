@@ -22,6 +22,7 @@ import {
   useProjectDockContribution,
   useShippyPlacement,
 } from '#runtime/project-dock.js';
+import {useProjectDockAvailable} from '#runtime/project-dock-failures.js';
 import {ReportErrorBoundary} from '#runtime/report-error-boundary.js';
 import type {RouteFrame} from '#runtime/route-frame.js';
 import {WorkspaceUnavailablePage} from '#runtime/workspace-setup.js';
@@ -97,12 +98,11 @@ function useHostedDock(dockScope: string | undefined, frame: RouteFrame) {
   const dock = useProjectDockContribution();
   const {open} = useProjectDock();
   const {placement} = useShippyPlacement();
-  const [failedScope, setFailedScope] = useState<string | undefined>();
+  const available = useProjectDockAvailable(dockScope);
   const hostedDock = dockScope && frame !== 'focused' ? dock : undefined;
-  // A failed dock has no panel to open, so it gets no launcher and no strip.
-  const launcherPlacement = hostedDock && failedScope !== dockScope ? placement : undefined;
+  const launcherPlacement = hostedDock && available ? placement : undefined;
   const floorHeightPx = launcherPlacement === 'floating' && !open ? SHIPPY_FLOOR_HEIGHT_PX : 0;
-  return {hostedDock, launcherPlacement, floorHeightPx, setFailedScope};
+  return {hostedDock, launcherPlacement, floorHeightPx};
 }
 
 function ApplicationChrome({
@@ -129,10 +129,7 @@ function ApplicationChrome({
     (current, match) => match.staticData.frame ?? current,
     'content',
   );
-  const {hostedDock, launcherPlacement, floorHeightPx, setFailedScope} = useHostedDock(
-    dockScope,
-    frame,
-  );
+  const {hostedDock, launcherPlacement, floorHeightPx} = useHostedDock(dockScope, frame);
 
   const reservedHeightPx = SessionBanner ? bannerHeightPx : 0;
   const chromeHeightPx = 56 + (navigation ? 40 : 0) + reservedHeightPx + floorHeightPx;
@@ -189,13 +186,8 @@ function ApplicationChrome({
           </main>
           {launcherPlacement === 'floating' ? <ShippyLauncher placement="floating" /> : undefined}
         </div>
-        {hostedDock ? (
-          <ProjectDockHost
-            key={dockScope}
-            dock={hostedDock}
-            onFailed={() => setFailedScope(dockScope)}
-            onRecovered={() => setFailedScope(undefined)}
-          />
+        {hostedDock && dockScope ? (
+          <ProjectDockHost key={dockScope} dock={hostedDock} scope={dockScope} />
         ) : undefined}
       </div>
     </div>

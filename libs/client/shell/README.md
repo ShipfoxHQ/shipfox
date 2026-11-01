@@ -124,8 +124,8 @@ composition and collision rules.
   [ADR 0021](../../../docs/adr/0021-required-action-rendering-and-intent-slot.md).
 - `WorkflowRunActionsSlot` renders the optional `WorkflowRunActions` chrome slot with the run and
   project ids. It renders nothing when the slot is absent or throws.
-- `projectDock` adds one component beside every project page. Set `load` to a dynamic import to keep
-  the manifest Node-safe. The component draws its surface with `ProjectDockPanel`, and must render its
+- `projectDock` adds one component beside project pages, except focused frames and the pre-project
+  gate, which unmount it. Set `load` to a dynamic import to keep the manifest Node-safe. The component draws its surface with `ProjectDockPanel`, and must render its
   own close control, because the shell draws none. `useProjectDock()` reads and sets the open state,
   and `useShippyPlacement()` reads and sets Shippy's placement. The shell owns Shippy's launcher, the
   page strip in `floating` mode, and the `Shippy` control in the account menu. None of them render

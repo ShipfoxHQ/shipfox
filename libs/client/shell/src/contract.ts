@@ -59,9 +59,10 @@ export interface ProjectDockContribution {
    * Loads the dock in the browser. Use a dynamic import, so the manifest stays
    * Node-safe. The shell calls this again to retry after a failure.
    *
-   * The component stays mounted on every project page while the panel is closed,
-   * and remounts when the project changes. It draws its panel through
-   * `ProjectDockPanel`, and must render its own close control.
+   * The component stays mounted across project pages while the panel is closed,
+   * and remounts when the project changes. Focused frames and the pre-project
+   * gate unmount it. It draws its panel through `ProjectDockPanel`, and must
+   * render its own close control.
    */
   load: () => Promise<{default: ComponentType}>;
 }

@@ -17,6 +17,7 @@ import {assembleRouteTree} from '#runtime/assemble-route-tree.js';
 import {type AuthStateValue, authStateAtom} from '#runtime/auth.js';
 import {ChromeProvider, type ChromeSlots} from '#runtime/chrome-context.js';
 import {defineRoute} from '#runtime/define-route.js';
+import {useProjectDock} from '#runtime/project-dock.js';
 import {ShellProviders} from '../testing/index.js';
 import {ProjectDockPanel} from './project-dock-panel.js';
 
@@ -59,11 +60,17 @@ const PROJECT_DOCK_FEATURE = defineClientFeature({
 });
 
 function DemoProjectDock() {
+  const {setOpen} = useProjectDock();
   return (
     <ProjectDockPanel label="Shippy">
-      <Text size="sm" className="px-row py-row text-foreground-neutral-muted">
-        Dock content
-      </Text>
+      <div className="flex items-center justify-between gap-cluster px-row py-row">
+        <Text size="sm" className="text-foreground-neutral-muted">
+          Dock content
+        </Text>
+        <Button variant="transparent" size="sm" onClick={() => setOpen(false)}>
+          Close
+        </Button>
+      </div>
     </ProjectDockPanel>
   );
 }

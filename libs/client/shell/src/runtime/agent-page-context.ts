@@ -16,13 +16,13 @@ export type AgentPageContext =
   | {page: 'workflow'; definitionId: string}
   | {page: 'project_settings'; section: string};
 
-// Serialized so a page can pass a fresh object on every render without
-// re-registering, and so a late cleanup can tell its value from a newer page's.
-const registeredPageContextAtom = atom<string | undefined>(undefined);
+// One object per registration, so a late cleanup can tell its entry from a newer
+// page's, even when both pages publish the same values.
+const registeredPageContextAtom = atom<{serialized: string} | undefined>(undefined);
 
 const agentPageContextAtom = atom((get) => {
   const registered = get(registeredPageContextAtom);
-  return registered === undefined ? undefined : (JSON.parse(registered) as AgentPageContext);
+  return registered && (JSON.parse(registered.serialized) as AgentPageContext);
 });
 
 /**
@@ -32,10 +32,12 @@ const agentPageContextAtom = atom((get) => {
  */
 export function useAgentPageContext(context: AgentPageContext): void {
   const register = useSetAtom(registeredPageContextAtom);
+  // Serialized so a page can pass a fresh object on every render without re-registering.
   const serialized = JSON.stringify(context);
   useEffect(() => {
-    register(serialized);
-    return () => register((current) => (current === serialized ? undefined : current));
+    const entry = {serialized};
+    register(entry);
+    return () => register((current) => (current === entry ? undefined : current));
   }, [register, serialized]);
 }
 

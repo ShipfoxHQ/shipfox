@@ -12,8 +12,6 @@ const POSES: readonly ShippyPose[] = [
   'switchboard',
   'cartridge',
   'party',
-  'body',
-  'face',
 ];
 
 const meta = {
@@ -40,6 +38,15 @@ export const Poses: Story = {
           </Text>
         </div>
       ))}
+    </div>
+  ),
+};
+
+export const LauncherSprites: Story = {
+  render: () => (
+    <div className="flex items-end gap-region">
+      <Shippy pose="body" className="h-64 [image-rendering:pixelated]" />
+      <Shippy pose="face" className="h-32 [image-rendering:pixelated]" />
     </div>
   ),
 };

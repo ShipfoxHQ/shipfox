@@ -379,6 +379,48 @@ describe('project dock', () => {
       expect(load).toHaveBeenCalledTimes(2);
     });
 
+    test('brings the launcher back when a failed project is revisited', async () => {
+      const load = vi
+        .fn<ProjectDockContribution['load']>()
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValue({default: Dock});
+      const {router} = await renderDock({features: [pagesFeature(), dockFeature(load)]});
+      await waitFor(() => expect(reportErrorSpy).toHaveBeenCalledTimes(1));
+
+      await (router as AnyRouter).navigate({to: '/w/workspace/p/other/runs' as never});
+      await waitFor(() => expect(dockMounted).toHaveBeenCalledTimes(1));
+      await (router as AnyRouter).navigate({to: '/w/workspace/p/project/runs' as never});
+
+      await waitFor(() => expect(dockMounted).toHaveBeenCalledTimes(2));
+      expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    });
+
+    test('keeps the attempt budget across visits to other projects', async () => {
+      const load = vi
+        .fn<ProjectDockContribution['load']>()
+        .mockRejectedValueOnce(failure)
+        .mockRejectedValueOnce(failure)
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValue({default: Dock});
+      const {router} = await renderDock({features: [pagesFeature(), dockFeature(load)]});
+      const visit = (page: string) =>
+        (router as AnyRouter).navigate({to: `/w/workspace/p/${page}` as never});
+
+      await waitFor(() => expect(reportErrorSpy).toHaveBeenCalledTimes(1));
+      await visit('project/logs');
+      await waitFor(() => expect(reportErrorSpy).toHaveBeenCalledTimes(2));
+      await visit('project/runs');
+      await waitFor(() => expect(reportErrorSpy).toHaveBeenCalledTimes(3));
+      await visit('other/runs');
+      await waitFor(() => expect(dockMounted).toHaveBeenCalledTimes(1));
+      await visit('project/logs');
+
+      expect(await screen.findByRole('heading', {name: 'logs'})).toBeVisible();
+      await waitFor(() => expect(dockUnmounted).toHaveBeenCalledTimes(1));
+      expect(dockMounted).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', {name: LAUNCHER_NAME})).not.toBeInTheDocument();
+    });
+
     test('stops retrying a dock that keeps failing', async () => {
       const load = vi.fn<ProjectDockContribution['load']>().mockRejectedValue(failure);
       const {router} = await renderDock({features: [pagesFeature(), dockFeature(load)]});

@@ -208,8 +208,8 @@ something needs attention, then pointing at exactly what.
 The aesthetic is industrial and utilitarian, in the lineage of Linear, Vercel,
 and Resend. Function first, data dense, monospace used as a structural element and
 not a garnish. It is not brutalist (there is polish: layered shadows, rounded
-corners, tuned contrast), not playful (no bouncy curves, and the mascot keeps to its
-own strip on working surfaces), and not editorial (this is an instrument, not a magazine). Both light and dark are
+corners, tuned contrast), not playful (no bouncy curves, and the mascot keeps to a
+narrow place on working surfaces), and not editorial (this is an instrument, not a magazine). Both light and dark are
 first-class: light leads for most surfaces, dark owns the code-heavy contexts
 (logs, YAML, agent transcripts) and is honored whenever the user picks it.
 
@@ -864,8 +864,8 @@ appending 50 lines a second with an entrance animation is nausea.
   where a screen has nothing else to show: invitation and workspace creation
   screens, first-use empty states, dead-end pages, and the completed setup
   checklist. Show one pose per screen at most. Never place it in a list, a log, a
-  graph, a transcript, a filtered-empty state, or a load error inside a panel.
-  `EmptyState` and `AuthShell` take it through their `illustration` prop.
+  graph, a transcript, a filtered-empty state, a load error inside a panel, or
+  anywhere a run has failed. `EmptyState` and `AuthShell` take it through their `illustration` prop.
 - **Shippy on project pages** is the one exception, because it is the way into
   the project agent. It takes three forms: one floating `body` on a 56px strip
   the page keeps clear, the discreet `face` at the end of the tab strip, and a
