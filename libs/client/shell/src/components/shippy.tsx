@@ -48,6 +48,16 @@ const poses = {
     height: 240,
     src: new URL('../../assets/shippy/party.webp', import.meta.url).href,
   },
+  body: {
+    width: 44,
+    height: 64,
+    src: new URL('../../assets/shippy/body.webp', import.meta.url).href,
+  },
+  face: {
+    width: 32,
+    height: 32,
+    src: new URL('../../assets/shippy/face.webp', import.meta.url).href,
+  },
 } as const;
 
 export type ShippyPose = keyof typeof poses;

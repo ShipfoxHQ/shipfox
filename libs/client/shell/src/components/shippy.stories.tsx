@@ -12,6 +12,8 @@ const POSES: readonly ShippyPose[] = [
   'switchboard',
   'cartridge',
   'party',
+  'body',
+  'face',
 ];
 
 const meta = {

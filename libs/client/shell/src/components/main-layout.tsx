@@ -12,7 +12,7 @@ export function MainLayout({
   hideProjectNavigation?: boolean;
 }) {
   const params = useRouteParams(parseWorkspaceProjectParams);
-  const {projectSlug} = params;
+  const {workspaceSlug, projectSlug} = params;
   const scope = projectSlug ? 'project' : 'workspace';
   const entries = navigation.filter((entry) => entry.scope === scope);
 
@@ -29,6 +29,9 @@ export function MainLayout({
               params,
               projectScoped: !!projectSlug,
             }
+      }
+      dockScope={
+        projectSlug && !hideProjectNavigation ? `${workspaceSlug}/${projectSlug}` : undefined
       }
       requireWorkspace
     >

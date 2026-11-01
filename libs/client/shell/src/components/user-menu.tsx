@@ -16,6 +16,11 @@ import {Link, useLocation} from '@tanstack/react-router';
 import {useMemo} from 'react';
 import {useAuthState} from '#runtime/auth.js';
 import {useChrome} from '#runtime/chrome-context.js';
+import {
+  type ShippyPlacement,
+  useProjectDockContribution,
+  useShippyPlacement,
+} from '#runtime/project-dock.js';
 import {ReportErrorBoundary} from '#runtime/report-error-boundary.js';
 
 const themeOptions: Array<{value: Theme; label: string; icon: IconName}> = [
@@ -24,10 +29,38 @@ const themeOptions: Array<{value: Theme; label: string; icon: IconName}> = [
   {value: 'system', label: 'System', icon: 'computerLine'},
 ];
 
+const shippyPlacementOptions: Array<{value: ShippyPlacement; label: string; icon: IconName}> = [
+  {value: 'floating', label: 'Floating', icon: 'pictureInPicture2Line'},
+  {value: 'tab_bar', label: 'Tab bar', icon: 'layoutTopLine'},
+];
+
+function ShippyPlacementControl() {
+  const {placement, canFloat, setPlacement} = useShippyPlacement();
+  // Narrow screens always use the tab bar, so the choice would do nothing there.
+  if (!canFloat) return null;
+  return (
+    <DropdownMenuSegmentedRadioGroup
+      label="Shippy"
+      value={placement}
+      onValueChange={(value) => setPlacement(value as ShippyPlacement)}
+    >
+      {shippyPlacementOptions.map((option) => (
+        <DropdownMenuSegmentedRadioItem
+          key={option.value}
+          value={option.value}
+          icon={option.icon}
+          label={option.label}
+        />
+      ))}
+    </DropdownMenuSegmentedRadioGroup>
+  );
+}
+
 export function UserMenu() {
   const {user} = useAuthState();
   const {AccountMenuEntry} = useChrome();
   const {theme, setTheme} = useTheme();
+  const dock = useProjectDockContribution();
   const location = useLocation();
   const email = user?.email ?? '';
   // Retry the account-menu slot only when the route or the slot identity
@@ -68,6 +101,7 @@ export function UserMenu() {
             />
           ))}
         </DropdownMenuSegmentedRadioGroup>
+        {dock ? <ShippyPlacementControl /> : undefined}
         {AccountMenuEntry ? (
           <ReportErrorBoundary
             label="Failed to render account menu entry."

@@ -54,6 +54,18 @@ export interface SettingsSectionEntry {
   order?: number;
 }
 
+export interface ProjectDockContribution {
+  /**
+   * Loads the dock in the browser. Use a dynamic import, so the manifest stays
+   * Node-safe. The shell calls this again to retry after a failure.
+   *
+   * The component stays mounted on every project page while the panel is closed,
+   * and remounts when the project changes. It draws its panel through
+   * `ProjectDockPanel`, and must render its own close control.
+   */
+  load: () => Promise<{default: ComponentType}>;
+}
+
 export interface ClientFeature<S extends z.ZodRawShape = z.ZodRawShape> {
   id: string;
   /**
@@ -67,6 +79,8 @@ export interface ClientFeature<S extends z.ZodRawShape = z.ZodRawShape> {
   providers?: readonly FeatureProvider[];
   navigation?: readonly NavTabEntry[];
   settingsSections?: readonly SettingsSectionEntry[];
+  /** One feature in a composition may contribute the project dock. */
+  projectDock?: ProjectDockContribution;
   configShape?: S;
 }
 

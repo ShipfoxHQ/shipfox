@@ -279,8 +279,8 @@ describe('ApplicationLayout', () => {
     expect(await screen.findByRole('heading', {name: 'Empty overview'})).toBeVisible();
     const navigation = screen.getByRole('tablist', {name: 'Empty administration sections'});
     expect(navigation).toBeEmptyDOMElement();
+    expect(navigation.parentElement).toHaveClass('h-40');
     expect(navigation).toHaveClass(
-      'h-40',
       'overflow-x-auto',
       'whitespace-nowrap',
       '[scrollbar-width:none]',

@@ -208,8 +208,8 @@ something needs attention, then pointing at exactly what.
 The aesthetic is industrial and utilitarian, in the lineage of Linear, Vercel,
 and Resend. Function first, data dense, monospace used as a structural element and
 not a garnish. It is not brutalist (there is polish: layered shadows, rounded
-corners, tuned contrast), not playful (no bouncy curves, and the mascot stays off
-working surfaces), and not editorial (this is an instrument, not a magazine). Both light and dark are
+corners, tuned contrast), not playful (no bouncy curves, and the mascot keeps to its
+own strip on working surfaces), and not editorial (this is an instrument, not a magazine). Both light and dark are
 first-class: light leads for most surfaces, dark owns the code-heavy contexts
 (logs, YAML, agent transcripts) and is honored whenever the user picks it.
 
@@ -860,12 +860,22 @@ appending 50 lines a second with an entrance animation is nausea.
   warmer marketing icons, and never mix the two styles in one surface.
 - **`ShipfoxLoader`** is the brand spinner for page-level and blocking loads; the
   inline `Icon name="spinner"` goes inside buttons and small spots.
-- **`Shippy`** is the mascot illustration. It appears only where a screen has
-  nothing else to show: invitation and workspace creation screens, first-use
-  empty states, dead-end pages, and the completed setup checklist. Show one pose
-  per screen at most. Never place it in a list, a log, a graph, a transcript, a
-  filtered-empty state, a load error inside a panel, or anywhere a run has
-  failed. `EmptyState` and `AuthShell` take it through their `illustration` prop.
+- **`Shippy`** is the mascot illustration. As an illustration, it appears only
+  where a screen has nothing else to show: invitation and workspace creation
+  screens, first-use empty states, dead-end pages, and the completed setup
+  checklist. Show one pose per screen at most. Never place it in a list, a log, a
+  graph, a transcript, a filtered-empty state, or a load error inside a panel.
+  `EmptyState` and `AuthShell` take it through their `illustration` prop.
+- **Shippy on project pages** is the one exception, because it is the way into
+  the project agent. It takes three forms: one floating `body` on a 56px strip
+  the page keeps clear, the discreet `face` at the end of the tab strip, and a
+  small mark in the panel header. It moves into the header when the panel opens,
+  so it appears once. These forms are controls, not illustrations, so they don't
+  count toward one pose per screen: an empty Runs page shows its illustration and
+  the launcher together. It never appears on workspace pages or focused frames. A
+  failed run looks the same as an idle page: no celebratory pose and no reaction.
+  It moves only for the agent's own events, as a discrete step and never as a
+  performance, and it stays still under `prefers-reduced-motion`.
 
 ## Do's and Don'ts
 
@@ -905,8 +915,9 @@ appending 50 lines a second with an entrance animation is nausea.
 - **Don't** set a background or a width on a page. Both belong to the frame.
 - **Don't** nest a panel inside a panel, and don't give a navigation rail a border
   or a radius.
-- **Don't** add Shippy to a surface someone works in. A reader who is debugging
-  needs the status, not a joke.
+- **Don't** add Shippy to a surface someone works in, beyond its place on project
+  pages. Keep it out of lists, logs, graphs, and transcripts. A reader who is
+  debugging needs the status, not a joke.
 - **Don't** add a page title or a page description to an app surface. Settings
   sub-pages are the one exception.
 - **Don't** paint a page, panel, or code surface with an alpha token. It

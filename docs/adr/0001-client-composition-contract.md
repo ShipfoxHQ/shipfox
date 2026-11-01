@@ -14,6 +14,7 @@
 - **Amended by:** [ADR 0020: Header actions chrome slot](0020-header-actions-chrome-slot.md)
 - **Amended by:** [ADR 0021: Required action rendering and intent slot](0021-required-action-rendering-and-intent-slot.md)
 - **Amended by:** [ADR 0024: Workflow run actions chrome slot](0024-workflow-run-actions-chrome-slot.md)
+- **Amended by:** [ADR 0025: Project dock contribution](0025-project-dock-contribution.md)
 
 ## Context
 
@@ -355,6 +356,7 @@ id, key, or feature id.
 | Override changes anchor | `Route override for "<path>" from feature "<override>" cannot change anchor from "<base-anchor>" in feature "<base>" to "<override-anchor>".` |
 | Reserved provider | `Provider id "<id>" in feature "<feature>" is reserved by the shell.` |
 | Duplicate provider | `Provider id "<id>" is contributed by both features "<first>" and "<second>".` |
+| Duplicate project dock | `Project dock is contributed by both features "<first>" and "<second>".` |
 | Duplicate navigation | `Navigation entry "<id>" is contributed by both features "<first>" and "<second>".` |
 | Missing navigation target | `Navigation entry "<id>" in feature "<feature>" targets missing route "<path>".` |
 | Invalid navigation layout | `Navigation entry "<id>" in feature "<feature>" has invalid layout metadata. Expected a non-empty layout id.` |

@@ -84,7 +84,7 @@ export function composeClientApp({
                     projectSlugResolver={chrome?.projectSlugResolver}
                     unresolvedWorkspaceAvailable={Boolean(chrome?.UnresolvedWorkspace)}
                   />
-                  <Toaster />
+                  <Toaster position="bottom-left" />
                 </ShellProviderStack>
               </ClientUsagePricingProvider>
             </ClientAnalyticsProvider>

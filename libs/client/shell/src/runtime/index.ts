@@ -7,6 +7,7 @@ export {
   FOCUSED_FRAME_CONTENT_CLASS_NAME,
   FocusedFrame,
 } from '#components/focused-frame.js';
+export {ProjectDockPanel, type ProjectDockPanelProps} from '#components/project-dock-panel.js';
 export {Shippy, type ShippyPose, type ShippyProps} from '#components/shippy.js';
 export {WorkspaceCrumb, type WorkspaceCrumbProps} from '#components/workspace-crumb.js';
 export {WorkspaceSwitcher} from '#components/workspace-switcher.js';
@@ -35,6 +36,7 @@ export * from '../compose/normalize-route-path.js';
 export * from '../compose/validate-providers.js';
 export * from '../compose/validate-registries.js';
 export * from './active-workspace.js';
+export * from './agent-page-context.js';
 export * from './anchor-paths.js';
 export * from './anchors.js';
 export * from './auth.js';
@@ -46,6 +48,7 @@ export * from './define-route.js';
 export * from './last-workspace.js';
 export * from './layout-navigation.js';
 export * from './nav-order.js';
+export * from './project-dock.js';
 export * from './query-client.js';
 export * from './relative-href.js';
 export * from './required-action-link.js';
