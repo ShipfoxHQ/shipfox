@@ -34,13 +34,13 @@ export function Suggestion({
 }: SuggestionProps) {
   return (
     <Button
+      {...props}
       data-slot="suggestion"
       type="button"
       variant="secondary"
       iconLeft={iconLeft}
       className={cn('w-full min-w-0 shrink justify-start [&>svg]:size-16', className)}
       onClick={() => onClick?.(suggestion)}
-      {...props}
     >
       <span className="truncate">{suggestion}</span>
     </Button>

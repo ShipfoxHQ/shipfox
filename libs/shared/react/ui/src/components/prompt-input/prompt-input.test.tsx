@@ -77,6 +77,10 @@ function ControlledDisabled({disabled}: {disabled: boolean}) {
   );
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 function textarea() {
   return screen.getByRole<HTMLTextAreaElement>('textbox', {name: 'Message'});
 }
@@ -176,7 +180,6 @@ describe('PromptInput', () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(notPrevented).toBe(true);
-    vi.unstubAllGlobals();
   });
 
   test('lets a keydown handler take Enter', () => {

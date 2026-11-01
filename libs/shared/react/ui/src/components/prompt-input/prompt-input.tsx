@@ -52,7 +52,8 @@ export interface PromptInputProps extends Omit<ComponentProps<'form'>, 'onSubmit
   /**
    * Called on `Enter` or Send, never with blank text. The caller clears `value`,
    * so a refused message keeps its draft. Return a promise to ignore further
-   * sends until it settles.
+   * sends until it settles. Rejections aren't caught here, so handle send errors
+   * in this callback.
    */
   onSubmit: (value: string) => unknown;
   /** Blocks typing and sending. */

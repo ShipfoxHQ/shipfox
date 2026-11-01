@@ -841,8 +841,9 @@ tooltip. A 6px `Dot` is for pure presence, never for job state.
 
 Multi-line code, log, and YAML content always renders in `font-code`, `text-sm`, on
 the inverted contrast surface (`bg-background-contrast-base`) in both themes, since
-code reads better on near-black even in light mode. Default to no-wrap with
-horizontal scroll (engineers reach for soft-wrap themselves), show line numbers in
+code reads better on near-black even in light mode. `TraceDetail` is the one
+exception at `text-xs`, because the chat panel is only 400px wide. Default to
+no-wrap with horizontal scroll (engineers reach for soft-wrap themselves), show line numbers in
 `text-foreground-neutral-muted`, and surface validation errors as a `Callout` above
 the block with file and line, never color alone. New log lines append silently:
 appending 50 lines a second with an entrance animation is nausea.
