@@ -31,6 +31,7 @@ const TYPEAHEAD_WINDOW_MS = 300;
 const ROW_INSET = 8;
 const LEVEL_INDENT = 16;
 const NO_PATHS: ReadonlySet<string> = new Set();
+const NO_SEARCH = {query: '', typedAt: Number.NEGATIVE_INFINITY};
 
 type FileTreeContextValue = {
   expandedPaths: ReadonlySet<string>;
@@ -68,6 +69,12 @@ function isOpenFolder(item: HTMLElement) {
   return item.getAttribute('aria-expanded') === 'true';
 }
 
+// AltGr types characters, but some layouts report it as Ctrl and Alt together.
+function isShortcut(event: KeyboardEvent) {
+  const hasModifier = event.altKey || event.ctrlKey || event.metaKey;
+  return hasModifier && !event.getModifierState('AltGraph');
+}
+
 function getParentItem(item: HTMLElement) {
   return item.parentElement?.closest<HTMLElement>(TREE_ITEM);
 }
@@ -101,6 +108,7 @@ export type FileTreeProps = Omit<
   | 'onKeyDown'
   | 'onSelect'
   | 'ref'
+  | 'tabIndex'
 > &
   FileTreeLabelProps & {
     expanded?: ReadonlySet<string>;
@@ -139,7 +147,7 @@ export function FileTree({
   );
   const [tabStopPath, setTabStopPath] = useState(selectedPath);
   const treeRef = useRef<HTMLUListElement>(null);
-  const typeaheadRef = useRef({query: '', typedAt: Number.NEGATIVE_INFINITY});
+  const typeaheadRef = useRef(NO_SEARCH);
   const focusTrailRef = useRef<string[]>([]);
   const hasFocusRef = useRef(false);
 
@@ -221,8 +229,7 @@ export function FileTree({
 
   function handleKeyDown(event: KeyboardEvent<HTMLUListElement>) {
     const item = (event.target as Element).closest<HTMLElement>(TREE_ITEM);
-    const hasShortcutModifier = event.altKey || event.ctrlKey || event.metaKey;
-    if (!item || hasShortcutModifier) return;
+    if (!item || isShortcut(event)) return;
 
     const items = getVisibleItems(event.currentTarget);
     const index = items.indexOf(item);
@@ -260,6 +267,7 @@ export function FileTree({
       default:
         return;
     }
+    typeaheadRef.current = NO_SEARCH;
     event.preventDefault();
   }
 

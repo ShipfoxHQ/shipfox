@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {Profiler, useEffect, useState} from 'react';
 import {FileTree, FileTreeFile, FileTreeFolder, type FileTreeProps} from './file-tree.js';
@@ -664,10 +664,14 @@ describe('FileTree', () => {
     test('leaves browser shortcuts alone', async () => {
       const user = renderTree();
       await focusNode(user, 'workflows');
+      const onKeyDown = vi.fn((event: KeyboardEvent) => event.defaultPrevented);
+      document.addEventListener('keydown', onKeyDown);
 
       await user.keyboard('{Control>}r{/Control}{Meta>}r{/Meta}{Alt>}r{/Alt}');
+      document.removeEventListener('keydown', onKeyDown);
 
       expect(document.activeElement).toBe(item('workflows'));
+      expect(onKeyDown.mock.results.map((result) => result.value)).toEqual(Array(6).fill(false));
     });
   });
 
@@ -733,6 +737,35 @@ describe('FileTree', () => {
 
       expect(document.activeElement).toBe(item('my plan.md'));
       expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    test('a navigation key ends the search, so Space activates', async () => {
+      const onSelect = vi.fn();
+      const user = renderTree({onSelect});
+      await focusNode(user, '.shipfox');
+
+      await user.keyboard('r{ArrowDown} ');
+
+      expect(onSelect).toHaveBeenCalledExactlyOnceWith('.shipfox/workflows/runbook.yml');
+    });
+
+    test('accepts characters typed with AltGr on layouts that report Ctrl and Alt', () => {
+      render(
+        <FileTree aria-label="Files">
+          <FileTreeFile path="first" name="first" />
+          <FileTreeFile path="@readme" name="@readme" />
+        </FileTree>,
+      );
+      item('first').focus();
+
+      fireEvent.keyDown(item('first'), {
+        key: '@',
+        ctrlKey: true,
+        altKey: true,
+        modifierAltGraph: true,
+      });
+
+      expect(document.activeElement).toBe(item('@readme'));
     });
 
     test('Space activates again once the search ends', async () => {

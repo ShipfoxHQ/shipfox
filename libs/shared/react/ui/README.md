@@ -414,7 +414,7 @@ and `onSelect`. Each `path` must be unique in the tree.
 | --- | --- |
 | Tab | Enters on the last-focused node, or the selected node the first time, then leaves the tree. |
 | Up and Down | Move through visible nodes. |
-| Right | Opens a closed folder, then moves to its first child. |
+| Right | Opens a closed folder. On an open folder, moves to its first child. |
 | Left | Closes an open folder, otherwise moves to the parent. |
 | Home and End | Move to the first and last visible nodes. |
 | Printable characters | Move to the next visible node whose name starts with them. A space joins a search that's running, and otherwise activates the node. |
