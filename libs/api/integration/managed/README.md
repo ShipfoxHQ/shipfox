@@ -20,7 +20,8 @@ Add the package to a workspace package:
 ```json
 {
   "dependencies": {
-    "@shipfox/api-integration-managed": "workspace:*"
+    "@shipfox/api-integration-managed": "workspace:*",
+    "@shipfox/api-integration-spi": "workspace:*"
   }
 }
 ```
@@ -70,7 +71,7 @@ to the connection's workspace, and answers `repository-not-found` if not.
 | `listFiles` | Sorted by path. `type` is `file`, `symlink`, or `submodule`, and `size` is `null`. The cursor is the last path. |
 | `fetchFile` | Reads a file at a branch or a commit id. A symlink or a submodule answers `file-not-found`. |
 | `resolveRef` | Accepts `refs/heads/x` and `x`. Tags don't exist. |
-| `listCommits` | Follows first parents from a branch or commit id, and keeps a commit when the path's object differs from its first parent. |
+| `listCommits` | Follows first parents from a branch or commit id, and keeps a commit when the path's object or mode differs from its first parent. |
 
 **`listCommits` can return a short page.** One page walks at most 500 commits, so
 a rarely changed path can return fewer commits than `limit`, or none, with a

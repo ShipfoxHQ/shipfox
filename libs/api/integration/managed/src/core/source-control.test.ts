@@ -625,6 +625,7 @@ describe('ManagedSourceControlProvider', () => {
       });
 
       expect(page.commits.map((commit) => commit.oid)).toEqual([oids[4]]);
+      expect(page.nextCursor).toContain(oids[3]);
     });
 
     it('moves the cursor forward with a limit of zero', async () => {
