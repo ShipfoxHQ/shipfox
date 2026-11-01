@@ -206,8 +206,11 @@ describe('agent inter-module presentation', () => {
     });
     const input = {
       workspaceId: crypto.randomUUID(),
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: {
+        kind: 'step_attempt' as const,
+        runId: crypto.randomUUID(),
+        stepAttemptId: crypto.randomUUID(),
+      },
       harness: 'pi' as const,
       provider: 'anthropic' as const,
       model: 'claude-opus-4-8',
@@ -352,8 +355,11 @@ describe('agent inter-module presentation', () => {
         presentation.handlers.resolveRuntimeCredentials(
           {
             workspaceId: crypto.randomUUID(),
-            runId: crypto.randomUUID(),
-            stepAttemptId: crypto.randomUUID(),
+            subject: {
+              kind: 'step_attempt' as const,
+              runId: crypto.randomUUID(),
+              stepAttemptId: crypto.randomUUID(),
+            },
             harness: 'pi',
             provider: 'shipfox',
             model: 'managed-model',

@@ -33,6 +33,24 @@ export const managedProviderJobIdentitySchema = z.object({
 
 export type ManagedProviderJobIdentity = z.infer<typeof managedProviderJobIdentitySchema>;
 
+/** What a model call is attributed to: a leased step attempt, or a conversation with no run. */
+export const inferenceSubjectSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('step_attempt'),
+    runId: z.string().uuid(),
+    stepAttemptId: z.string().uuid(),
+    /** Complete job identity supplied by the leased workflow step when available. */
+    jobIdentity: managedProviderJobIdentitySchema.optional(),
+  }),
+  z.object({
+    kind: z.literal('conversation'),
+    projectId: z.string().uuid(),
+    conversationId: z.string().uuid(),
+  }),
+]);
+
+export type InferenceSubject = z.infer<typeof inferenceSubjectSchema>;
+
 /** Stable provider error code for a managed model that the workspace may not use. */
 export const MODEL_UNAVAILABLE_ERROR_CODE = 'agent-model-unavailable';
 
@@ -155,8 +173,8 @@ export interface ManagedModelProvider {
   /**
    * Locked models for one workspace. Models not in the map are available.
    *
-   * Checked before the first `resolveCredentials` of a step attempt and never on renewal, so a
-   * running step is not cut off. A model in the returned map fails the step with a 422 and its
+   * Checked before the first `resolveCredentials` of a step attempt or a turn and never on renewal,
+   * so running work is not cut off. A model in the returned map fails the step with a 422 and its
    * notice. A rejection is reported as a retryable 503.
    *
    * The lock is a product limit, not a security boundary: the runner marks renewals with a
@@ -165,13 +183,10 @@ export interface ManagedModelProvider {
   readonly availability?:
     | ((params: {workspaceId: string}) => Promise<ReadonlyMap<string, ManagedModelLock>>)
     | undefined;
-  /** Resolves credentials for one leased step attempt. Every runner can renew them. */
+  /** Resolves credentials for one subject. Every runner can renew those of a step attempt. */
   readonly resolveCredentials: (params: {
     workspaceId: string;
-    runId: string;
-    stepAttemptId: string;
-    /** Complete job identity supplied by the leased workflow step when available. */
-    jobIdentity?: ManagedProviderJobIdentity | undefined;
+    subject: InferenceSubject;
     model: string;
   }) => Promise<ManagedProviderRuntimeConfig>;
 }

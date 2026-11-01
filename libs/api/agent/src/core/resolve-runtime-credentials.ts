@@ -2,8 +2,8 @@ import type {
   AgentRuntimeCredentialsResponseDto,
   AgentThinking,
   Harness,
+  InferenceSubject,
   ManagedModelProvider,
-  ManagedProviderJobIdentity,
   ManagedProviderRuntimeConfig,
   ModelProviderRef,
   SupportedModelProviderId,
@@ -32,10 +32,11 @@ import {type AgentSecretsClient, requireAgentSecretsClient} from './secrets-clie
 
 export interface ResolveRuntimeCredentialsParams {
   workspaceId: string;
-  runId: string;
-  stepAttemptId: string;
-  jobIdentity?: ManagedProviderJobIdentity | undefined;
-  /** A credential refresh of a running step, which must not be cut off by model availability. */
+  subject: InferenceSubject;
+  /**
+   * A later credential for admitted work, which model availability must not cut off: a refresh of
+   * a running step, or any model call of a turn after its first.
+   */
   renewal?: boolean | undefined;
   harness: Harness;
   provider: ModelProviderRef;
@@ -101,9 +102,7 @@ async function resolveManagedCredentials(
   if (params.renewal !== true) await assertManagedModelAvailable(params, managedProvider);
   const managedRuntimeConfig = await managedProvider.resolveCredentials({
     workspaceId: params.workspaceId,
-    runId: params.runId,
-    stepAttemptId: params.stepAttemptId,
-    ...(params.jobIdentity === undefined ? {} : {jobIdentity: params.jobIdentity}),
+    subject: params.subject,
     model: params.model,
   });
   recordRuntimeConfigResolution(params, {source: 'instance', outcome: 'resolved'});
@@ -131,7 +130,7 @@ async function assertManagedModelAvailable(
 }
 
 function recordRuntimeConfigResolution(
-  params: Pick<ResolveRuntimeCredentialsParams, 'jobIdentity'>,
+  params: Pick<ResolveRuntimeCredentialsParams, 'subject'>,
   result: {
     source: 'workspace' | 'instance';
     outcome: 'resolved' | 'unavailable' | 'decryption_failed' | 'model_locked';
@@ -139,7 +138,9 @@ function recordRuntimeConfigResolution(
 ): void {
   agentRuntimeConfigResolvedCount.add(1, {
     ...result,
-    has_job_identity: params.jobIdentity !== undefined,
+    subject_kind: params.subject.kind,
+    has_job_identity:
+      params.subject.kind === 'step_attempt' && params.subject.jobIdentity !== undefined,
   });
 }
 

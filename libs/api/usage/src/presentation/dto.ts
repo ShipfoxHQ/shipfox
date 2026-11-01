@@ -1,4 +1,8 @@
-import type {InferenceSegmentUsageHttpDto, JobExecutionUsageHttpDto} from '@shipfox/api-usage-dto';
+import {
+  type InferenceSegmentUsageHttpDto,
+  inferenceSegmentStepIdentity,
+  type JobExecutionUsageHttpDto,
+} from '@shipfox/api-usage-dto';
 import type {UsageInferenceSegmentRow} from '#db/inference-segments.js';
 import type {UsageJobExecutionRow} from '#db/job-executions.js';
 
@@ -45,20 +49,24 @@ export function toJobExecutionUsageDto(row: UsageJobExecutionRow): JobExecutionU
 export function toInferenceSegmentUsageDto(
   row: UsageInferenceSegmentRow,
 ): InferenceSegmentUsageHttpDto {
+  const stepIdentity = inferenceSegmentStepIdentity(row);
+  if (stepIdentity === undefined) {
+    throw new Error(`Cannot expose conversation Usage segment ${row.id} as run usage`);
+  }
   return {
     id: row.id,
     segment_key: row.segmentKey,
     source: row.source,
     workspace_id: row.workspaceId,
     project_id: row.projectId,
-    workflow_run_id: row.workflowRunId,
-    workflow_run_attempt_id: row.workflowRunAttemptId,
-    job_id: row.jobId,
-    job_execution_id: row.jobExecutionId,
+    workflow_run_id: stepIdentity.workflowRunId,
+    workflow_run_attempt_id: stepIdentity.workflowRunAttemptId,
+    job_id: stepIdentity.jobId,
+    job_execution_id: stepIdentity.jobExecutionId,
     workflow_id: row.workflowId,
     workflow_name: row.workflowName,
-    step_id: row.stepId,
-    step_attempt_id: row.stepAttemptId,
+    step_id: stepIdentity.stepId,
+    step_attempt_id: stepIdentity.stepAttemptId,
     model: row.model,
     dialect: row.dialect,
     window_start: row.windowStart.toISOString(),

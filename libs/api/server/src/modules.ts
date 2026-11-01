@@ -388,7 +388,7 @@ export async function defaultModules(
       usage: usageClient,
       projects: projectsClient,
     }),
-    createUsageModule(),
+    createUsageModule({projects: projectsClient}),
     createTriggersModule({
       workflows: workflowsClient,
       definitions: definitionsClient,

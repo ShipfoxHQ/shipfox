@@ -1,7 +1,7 @@
 import type {RunnerJobClaimedEvent, RunnerJobLeaseExpiredEvent} from '@shipfox/api-runners-dto';
 import {
-  type InferenceSegmentInputDto,
   MAX_USAGE_REPLAY_LIMIT,
+  type StepInferenceSegmentInputDto,
   USAGE_JOB_EXECUTION_RECORDED,
   type UsageEventMap,
   type UsageJobExecutionRecordedEvent,
@@ -44,7 +44,7 @@ export interface InferenceWorkflowIdentity {
 export async function resolveInferenceWorkflowIdentity(
   tx: Transaction,
   segment: Pick<
-    InferenceSegmentInputDto,
+    StepInferenceSegmentInputDto,
     | 'workspaceId'
     | 'projectId'
     | 'workflowRunId'

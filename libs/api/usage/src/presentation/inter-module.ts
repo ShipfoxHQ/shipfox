@@ -1,5 +1,6 @@
 import {usageInterModuleContract} from '@shipfox/api-usage-dto/inter-module';
 import {defineInterModulePresentation, type InterModulePresentation} from '@shipfox/inter-module';
+import {assertConversationProjects, type UsageProjectsClient} from '#core/conversation-projects.js';
 import {
   listInferenceSegments,
   recordInferenceSegments,
@@ -17,11 +18,12 @@ import {
   usageStorageSampleRecorded,
 } from '#metrics/instance.js';
 
-export function createUsageInterModulePresentation(): InterModulePresentation<
-  typeof usageInterModuleContract
-> {
+export function createUsageInterModulePresentation(params: {
+  projects: UsageProjectsClient;
+}): InterModulePresentation<typeof usageInterModuleContract> {
   return defineInterModulePresentation(usageInterModuleContract, {
     recordInferenceSegments: async (input) => {
+      await assertConversationProjects({projects: params.projects, segments: input.segments});
       const result = await recordInferenceSegments(input);
       if (result.recorded > 0) {
         addUsageMetric(usageInferenceSegmentRecorded, result.recorded, 'recorded');

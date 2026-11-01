@@ -37,5 +37,5 @@ export async function createWorkspaceAgentDefaultsResolver(
   const snapshot = await getAgentWorkspaceDefaultsSnapshot(workspaceId);
   const ctx = workspaceAgentResolutionContext(snapshot, managedProvider, workspaceProviders);
 
-  return (step) => resolveAgentConfig(step, ctx);
+  return (input) => resolveAgentConfig(input, ctx);
 }

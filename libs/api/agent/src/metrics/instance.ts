@@ -1,4 +1,4 @@
-import type {Harness, SupportedModelProviderId} from '@shipfox/api-agent-dto';
+import type {Harness, InferenceSubject, SupportedModelProviderId} from '@shipfox/api-agent-dto';
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {
@@ -18,10 +18,11 @@ export const modelProviderValidationCount = meter.createCounter<{
 export const agentRuntimeConfigResolvedCount = meter.createCounter<{
   source: 'workspace' | 'instance';
   outcome: 'resolved' | 'unavailable' | 'decryption_failed' | 'model_locked';
+  subject_kind: InferenceSubject['kind'];
   has_job_identity: boolean;
 }>('agent_runtime_config_resolved', {
   description:
-    'Lease-scoped agent runtime credential resolution by source, outcome, and job identity presence',
+    'Agent runtime credential resolution by source, outcome, subject kind, and job identity presence',
 });
 
 export const sessionClaimReleaseCount = meter.createCounter<{

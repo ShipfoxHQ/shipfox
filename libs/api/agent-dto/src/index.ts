@@ -87,6 +87,8 @@ export {
   harnessSchema,
   harnessSupportsProvider,
   harnessSupportsTool,
+  type InferenceSubject,
+  inferenceSubjectSchema,
   isReservedModelProviderId,
   type ListModelProviderConfigsResponseDto,
   listEnabledHarnessTools,

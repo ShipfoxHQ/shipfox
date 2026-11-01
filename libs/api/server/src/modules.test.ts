@@ -1178,6 +1178,7 @@ describe('defaultModules', () => {
     });
     expect(modules.filter((module) => module.name === 'usage')).toHaveLength(1);
     expect(mocks.createUsageModule).toHaveBeenCalledTimes(1);
+    expect(mocks.createUsageModule).toHaveBeenCalledWith({projects: expect.any(Object)});
     expect(modules.at(-1)).toBe(extensionModule);
 
     if (!usage) throw new Error('The extension did not receive the Usage client.');

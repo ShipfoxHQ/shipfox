@@ -6,8 +6,8 @@ import {
   agentSessionDescriptorSchema,
   agentThinkingSchema,
   harnessSchema,
+  inferenceSubjectSchema,
   MODEL_UNAVAILABLE_ERROR_CODE,
-  managedProviderJobIdentitySchema,
   modelPriceSchema,
   modelProviderRefSchema,
   modelReferencesSchema,
@@ -204,10 +204,11 @@ export const agentInterModuleContract = defineInterModuleContract({
     resolveRuntimeCredentials: {
       input: z.object({
         workspaceId: z.string().uuid(),
-        runId: z.string().uuid(),
-        stepAttemptId: z.string().uuid(),
-        jobIdentity: managedProviderJobIdentitySchema.optional(),
-        /** Marks a credential refresh of a running step, which skips the model availability check. */
+        subject: inferenceSubjectSchema,
+        /**
+         * Marks a later credential for admitted work, which skips the model availability check: a
+         * refresh of a running step, or any model call of a turn after its first.
+         */
         renewal: z.boolean().optional(),
         harness: harnessSchema,
         provider: modelProviderRefSchema,

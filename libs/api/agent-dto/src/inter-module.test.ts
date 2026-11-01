@@ -298,15 +298,18 @@ describe('agentInterModuleContract', () => {
   test('carries job identity in the runtime credentials context', () => {
     const input = {
       workspaceId: UUID,
-      runId: '00000000-0000-4000-8000-000000000002',
-      stepAttemptId: '00000000-0000-4000-8000-000000000003',
-      jobIdentity: {
-        projectId: '00000000-0000-4000-8000-000000000004',
-        workflowRunAttemptId: '00000000-0000-4000-8000-000000000005',
-        jobId: '00000000-0000-4000-8000-000000000006',
-        jobExecutionId: '00000000-0000-4000-8000-000000000007',
-        stepId: '00000000-0000-4000-8000-000000000008',
-        attempt: 2,
+      subject: {
+        kind: 'step_attempt' as const,
+        runId: '00000000-0000-4000-8000-000000000002',
+        stepAttemptId: '00000000-0000-4000-8000-000000000003',
+        jobIdentity: {
+          projectId: '00000000-0000-4000-8000-000000000004',
+          workflowRunAttemptId: '00000000-0000-4000-8000-000000000005',
+          jobId: '00000000-0000-4000-8000-000000000006',
+          jobExecutionId: '00000000-0000-4000-8000-000000000007',
+          stepId: '00000000-0000-4000-8000-000000000008',
+          attempt: 2,
+        },
       },
       harness: 'pi' as const,
       provider: 'shipfox' as const,
@@ -319,18 +322,56 @@ describe('agentInterModuleContract', () => {
     expect(parsed).toEqual(input);
   });
 
+  test('accepts a conversation subject with no run identity', () => {
+    const input = {
+      workspaceId: UUID,
+      subject: {
+        kind: 'conversation' as const,
+        projectId: '00000000-0000-4000-8000-000000000004',
+        conversationId: '00000000-0000-4000-8000-000000000009',
+      },
+      harness: 'pi' as const,
+      provider: 'shipfox' as const,
+      model: 'managed-model',
+      thinking: 'default' as const,
+    };
+
+    const parsed = agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse(input);
+
+    expect(parsed).toEqual(input);
+  });
+
+  test('rejects a conversation subject without a project', () => {
+    expect(() =>
+      agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse({
+        workspaceId: UUID,
+        subject: {
+          kind: 'conversation',
+          conversationId: '00000000-0000-4000-8000-000000000009',
+        },
+        harness: 'pi',
+        provider: 'shipfox',
+        model: 'managed-model',
+        thinking: 'default',
+      }),
+    ).toThrow();
+  });
+
   test('rejects a runtime job identity without workflowRunAttemptId', () => {
     expect(() =>
       agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse({
         workspaceId: UUID,
-        runId: '00000000-0000-4000-8000-000000000002',
-        stepAttemptId: '00000000-0000-4000-8000-000000000003',
-        jobIdentity: {
-          projectId: '00000000-0000-4000-8000-000000000004',
-          jobId: '00000000-0000-4000-8000-000000000006',
-          jobExecutionId: '00000000-0000-4000-8000-000000000007',
-          stepId: '00000000-0000-4000-8000-000000000008',
-          attempt: 2,
+        subject: {
+          kind: 'step_attempt',
+          runId: '00000000-0000-4000-8000-000000000002',
+          stepAttemptId: '00000000-0000-4000-8000-000000000003',
+          jobIdentity: {
+            projectId: '00000000-0000-4000-8000-000000000004',
+            jobId: '00000000-0000-4000-8000-000000000006',
+            jobExecutionId: '00000000-0000-4000-8000-000000000007',
+            stepId: '00000000-0000-4000-8000-000000000008',
+            attempt: 2,
+          },
         },
         harness: 'pi',
         provider: 'shipfox',

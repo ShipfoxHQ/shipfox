@@ -1,6 +1,7 @@
 import {type Context, complete, type Model} from '@earendil-works/pi-ai/compat';
 import type {
   AgentRuntimeCredentialsResponseDto,
+  InferenceSubject,
   ManagedModelApi,
   ManagedModelLock,
   ManagedModelProvider,
@@ -8,6 +9,7 @@ import type {
 } from '@shipfox/api-agent-dto';
 import {ManagedModelUnavailableError} from '@shipfox/api-agent-dto';
 import {deleteModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
+import {agentRuntimeConfigResolvedCount} from '#metrics/index.js';
 import {setSecrets} from '#test/fixtures/secrets-client.js';
 import {agentSystemNamespace, customCredentialsToStoreValues} from './credential-fingerprints.js';
 import {ManagedModelAvailabilityError, ModelProviderConfigNotFoundError} from './errors.js';
@@ -61,8 +63,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
@@ -78,17 +79,27 @@ describe('resolveRuntimeCredentials', () => {
     });
   });
 
-  it('resolves managed provider credentials into the pi custom provider contract', async () => {
-    const runId = crypto.randomUUID();
-    const stepAttemptId = crypto.randomUUID();
-    const jobIdentity = {
-      projectId: crypto.randomUUID(),
-      workflowRunAttemptId: crypto.randomUUID(),
-      jobId: crypto.randomUUID(),
-      jobExecutionId: crypto.randomUUID(),
-      stepId: crypto.randomUUID(),
-      attempt: 2,
-    };
+  it('resolves workspace credentials for a conversation with no run', async () => {
+    await saveProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      credentials: {api_key: 'sk-workspace-secret'},
+    });
+
+    const result = await resolveRuntimeCredentials({
+      workspaceId,
+      subject: conversationSubject(),
+      harness: 'pi',
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+    });
+
+    expect(result.credentials).toEqual({api_key: 'sk-workspace-secret'});
+  });
+
+  it('forwards a conversation subject to the managed provider', async () => {
+    const subject = conversationSubject();
     const resolveCredentials = vi.fn<ManagedModelProvider['resolveCredentials']>();
     resolveCredentials.mockResolvedValue({
       api: 'openai-responses',
@@ -99,9 +110,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId,
-        stepAttemptId,
-        jobIdentity,
+        subject,
         harness: 'pi',
         provider: 'shipfox',
         model: 'responses-model',
@@ -112,9 +121,110 @@ describe('resolveRuntimeCredentials', () => {
 
     expect(resolveCredentials).toHaveBeenCalledWith({
       workspaceId,
-      runId,
-      stepAttemptId,
-      jobIdentity,
+      subject,
+      model: 'responses-model',
+    });
+    expect(result.credentials).toEqual({api_key: 'managed-token'});
+  });
+
+  it('checks availability on the first call of a turn and not on later ones', async () => {
+    const subject = conversationSubject();
+    const availability = vi.fn(
+      async (): Promise<ReadonlyMap<string, ManagedModelLock>> =>
+        new Map([
+          [
+            'responses-model',
+            {
+              label: 'Add credits to use',
+              notice: {reason: 'credits-required', message: 'Add credits to use this model.'},
+            },
+          ],
+        ]),
+    );
+    const resolveCredentials = vi.fn<ManagedModelProvider['resolveCredentials']>();
+    resolveCredentials.mockResolvedValue({
+      api: 'openai-responses',
+      baseUrl: 'https://gateway.example.test/inference/',
+      credentials: {api_key: 'managed-token'},
+    });
+    const provider = {...managedProvider(resolveCredentials), availability};
+    const input = {
+      workspaceId,
+      subject,
+      harness: 'pi' as const,
+      provider: 'shipfox',
+      model: 'responses-model',
+      thinking: 'high' as const,
+    };
+
+    await expect(
+      resolveRuntimeCredentials(input, {managedProvider: provider}),
+    ).rejects.toBeInstanceOf(ManagedModelUnavailableError);
+    const later = await resolveRuntimeCredentials(
+      {...input, renewal: true},
+      {managedProvider: provider},
+    );
+
+    expect(availability).toHaveBeenCalledTimes(1);
+    expect(later.credentials).toEqual({api_key: 'managed-token'});
+  });
+
+  it('labels the resolution metric with the subject kind', async () => {
+    const add = vi.spyOn(agentRuntimeConfigResolvedCount, 'add');
+    await saveProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      credentials: {api_key: 'sk-workspace-secret'},
+    });
+
+    await resolveRuntimeCredentials({
+      workspaceId,
+      subject: conversationSubject(),
+      harness: 'pi',
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+    });
+
+    expect(add).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({subject_kind: 'conversation', has_job_identity: false}),
+    );
+  });
+
+  it('resolves managed provider credentials into the pi custom provider contract', async () => {
+    const subject = stepAttemptSubject({
+      jobIdentity: {
+        projectId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        stepId: crypto.randomUUID(),
+        attempt: 2,
+      },
+    });
+    const resolveCredentials = vi.fn<ManagedModelProvider['resolveCredentials']>();
+    resolveCredentials.mockResolvedValue({
+      api: 'openai-responses',
+      baseUrl: 'https://gateway.example.test/inference/',
+      credentials: {api_key: 'managed-token'},
+    });
+
+    const result = await resolveRuntimeCredentials(
+      {
+        workspaceId,
+        subject,
+        harness: 'pi',
+        provider: 'shipfox',
+        model: 'responses-model',
+        thinking: 'high',
+      },
+      {managedProvider: managedProvider(resolveCredentials)},
+    );
+
+    expect(resolveCredentials).toHaveBeenCalledWith({
+      workspaceId,
+      subject,
       model: 'responses-model',
     });
     expect(result).toEqual({
@@ -162,8 +272,7 @@ describe('resolveRuntimeCredentials', () => {
     function resolveParams(overrides: {renewal?: boolean} = {}) {
       return {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi' as const,
         provider: 'shipfox',
         model: 'claude-model',
@@ -260,8 +369,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'shipfox',
         model: 'plain-model',
@@ -298,8 +406,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'shipfox',
         model: 'partial-model',
@@ -330,8 +437,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'shipfox',
         model: 'missing-model',
@@ -344,8 +450,7 @@ describe('resolveRuntimeCredentials', () => {
   });
 
   it('resolves managed provider credentials into the Claude per-step contract', async () => {
-    const runId = crypto.randomUUID();
-    const stepAttemptId = crypto.randomUUID();
+    const subject = stepAttemptSubject();
     const resolveCredentials = vi.fn<ManagedModelProvider['resolveCredentials']>();
     resolveCredentials.mockResolvedValue({
       api: 'anthropic-messages',
@@ -356,8 +461,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId,
-        stepAttemptId,
+        subject,
         harness: 'claude',
         provider: 'shipfox',
         model: 'claude-model',
@@ -368,8 +472,7 @@ describe('resolveRuntimeCredentials', () => {
 
     expect(resolveCredentials).toHaveBeenCalledWith({
       workspaceId,
-      runId,
-      stepAttemptId,
+      subject,
       model: 'claude-model',
     });
     expect(result).toEqual({
@@ -401,8 +504,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'claude',
         provider: 'shipfox',
         model: 'claude-model',
@@ -434,8 +536,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'claude',
         provider: 'shipfox',
         model: 'claude-model',
@@ -463,8 +564,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'claude',
         provider: 'shipfox',
         model: 'claude-model',
@@ -489,8 +589,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'claude',
         provider: 'shipfox',
         model: 'unmapped-claude-model',
@@ -524,8 +623,7 @@ describe('resolveRuntimeCredentials', () => {
       const runtime = await resolveRuntimeCredentials(
         {
           workspaceId,
-          runId: crypto.randomUUID(),
-          stepAttemptId: crypto.randomUUID(),
+          subject: stepAttemptSubject(),
           harness: 'pi',
           provider: 'shipfox',
           model,
@@ -580,8 +678,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'claude',
         provider: 'shipfox',
         model: 'claude-model',
@@ -604,8 +701,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'claude',
         provider: 'shipfox',
         model: 'claude-model',
@@ -626,8 +722,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
@@ -643,8 +738,7 @@ describe('resolveRuntimeCredentials', () => {
     const matching = await resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
@@ -655,8 +749,7 @@ describe('resolveRuntimeCredentials', () => {
     const mismatched = resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'openai',
         model: 'gpt-5.5-pro',
@@ -679,8 +772,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
@@ -699,8 +791,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
@@ -734,8 +825,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'local-vllm',
       model: 'llama-3.1',
@@ -775,8 +865,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'local-ollama',
       model: 'llama-3.1',
@@ -795,8 +884,7 @@ describe('resolveRuntimeCredentials', () => {
   it('throws when no workspace or instance credential is available', async () => {
     const result = resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
@@ -816,8 +904,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
@@ -837,8 +924,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
@@ -863,8 +949,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'cloudflare-ai-gateway',
       model: '@cf/meta/llama-3.1-8b-instruct',
@@ -883,8 +968,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials({
       workspaceId,
-      runId: crypto.randomUUID(),
-      stepAttemptId: crypto.randomUUID(),
+      subject: stepAttemptSubject(),
       harness: 'pi',
       provider: 'anthropic',
       model: 'claude-opus-4-8',
@@ -906,8 +990,7 @@ describe('resolveRuntimeCredentials', () => {
     const result = resolveRuntimeCredentials(
       {
         workspaceId,
-        runId: crypto.randomUUID(),
-        stepAttemptId: crypto.randomUUID(),
+        subject: stepAttemptSubject(),
         harness: 'pi',
         provider: 'anthropic',
         model: 'claude-opus-4-8',
@@ -924,6 +1007,25 @@ describe('resolveRuntimeCredentials', () => {
     }
   });
 });
+
+function stepAttemptSubject(
+  overrides: Partial<Extract<InferenceSubject, {kind: 'step_attempt'}>> = {},
+): InferenceSubject {
+  return {
+    kind: 'step_attempt',
+    runId: crypto.randomUUID(),
+    stepAttemptId: crypto.randomUUID(),
+    ...overrides,
+  };
+}
+
+function conversationSubject(): InferenceSubject {
+  return {
+    kind: 'conversation',
+    projectId: crypto.randomUUID(),
+    conversationId: crypto.randomUUID(),
+  };
+}
 
 function piContext(): Context {
   return {
