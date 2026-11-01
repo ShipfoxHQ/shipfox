@@ -3,4 +3,4 @@
 "@shipfox/api-integration-managed-dto": minor
 ---
 
-Adds a managed git repository stored in Postgres, read through `ManagedSourceControlProvider`.
+Adds the read-only `ManagedSourceControlProvider` for managed git repositories stored in Postgres.

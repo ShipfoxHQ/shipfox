@@ -63,9 +63,17 @@ export const sourceControlContractCases: readonly SourceControlContractCase[] = 
       const {foreignConnection, externalRepositoryId} = await createRepository([
         [{path: 'README.md', content: 'hello'}],
       ]);
+      const foreign = {connection: foreignConnection, externalRepositoryId};
+      const atMain = {...foreign, ref: MAIN};
 
+      await assertProviderError(() => provider.resolveRepository(foreign), 'repository-not-found');
+      await assertProviderError(() => provider.resolveRef(atMain), 'repository-not-found');
       await assertProviderError(
-        () => provider.resolveRepository({connection: foreignConnection, externalRepositoryId}),
+        () => provider.listFiles({...atMain, prefix: '', limit: 10}),
+        'repository-not-found',
+      );
+      await assertProviderError(
+        () => provider.fetchFile({...atMain, path: 'README.md'}),
         'repository-not-found',
       );
     },

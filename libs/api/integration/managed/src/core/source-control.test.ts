@@ -578,6 +578,25 @@ describe('ManagedSourceControlProvider', () => {
       expect(reason).toBe('provider-rejected');
     });
 
+    it('refuses a cursor after its branch moves, and continues from the pinned head', async () => {
+      const {id, connection, externalRepositoryId, oids} = await seedHistory();
+      const head = oids[4] as string;
+      const list = {connection, externalRepositoryId, path: FILE, limit: 1};
+      const first = await provider.listCommits({...list, ref: head});
+      const cursor = first.nextCursor ?? undefined;
+      await seedCommits({
+        repositoryId: id,
+        parent: head,
+        commits: [{message: 'Moves main', files: [{path: 'README.md', content: 'moved'}]}],
+      });
+
+      const moved = await reasonOf(provider.listCommits({...list, ref: 'main', cursor}));
+      const pinned = await provider.listCommits({...list, ref: head, cursor});
+
+      expect(moved).toBe('provider-rejected');
+      expect(pinned.commits.map((commit) => commit.oid)).toEqual([oids[2]]);
+    });
+
     it('hands back a cursor when the scan budget runs out', async () => {
       const {connection, externalRepositoryId, oids} = await seedHistory();
       const budgeted = new ManagedSourceControlProvider({maxCommitsScanned: 2});
@@ -591,6 +610,56 @@ describe('ManagedSourceControlProvider', () => {
       expect(second.commits.map((commit) => commit.oid)).toEqual([oids[2]]);
       expect(third.commits.map((commit) => commit.oid)).toEqual([oids[0]]);
       expect(third.nextCursor).toBeNull();
+    });
+
+    it('moves the cursor forward with no scan budget', async () => {
+      const {connection, externalRepositoryId, oids} = await seedHistory();
+      const budgeted = new ManagedSourceControlProvider({maxCommitsScanned: 0});
+
+      const page = await budgeted.listCommits({
+        connection,
+        externalRepositoryId,
+        ref: 'main',
+        path: FILE,
+        limit: 10,
+      });
+
+      expect(page.commits.map((commit) => commit.oid)).toEqual([oids[4]]);
+    });
+
+    it('moves the cursor forward with a limit of zero', async () => {
+      const {connection, externalRepositoryId, oids} = await seedHistory();
+
+      const page = await provider.listCommits({
+        connection,
+        externalRepositoryId,
+        ref: 'main',
+        path: FILE,
+        limit: 0,
+      });
+
+      expect(page.nextCursor).toContain(oids[3]);
+    });
+
+    it('keeps a commit that only changes the mode of a path', async () => {
+      const {id, connection, externalRepositoryId} = await createRepositoryRow();
+      const oids = await seedCommits({
+        repositoryId: id,
+        commits: [
+          {files: [{path: 'entry', content: 'target'}]},
+          {files: [{path: 'entry', content: {symlink: 'target'}}]},
+        ],
+      });
+
+      const page = await provider.listCommits({
+        connection,
+        externalRepositoryId,
+        ref: 'main',
+        path: 'entry',
+        limit: 10,
+      });
+
+      expect(page.commits.map((commit) => commit.oid)).toEqual([oids[1], oids[0]]);
     });
 
     it('can return an empty page that still has a cursor', async () => {
@@ -676,6 +745,8 @@ describe('ManagedSourceControlProvider', () => {
     it.each([
       ['a path', () => '../../../etc/passwd'],
       ['a head with no next commit', (head: string) => head],
+      ['a malformed next commit', (head: string) => `${head}:not-an-id`],
+      ['an empty next commit', (head: string) => `${head}:`],
       ['a commit that does not exist', (head: string) => `${head}:${'a'.repeat(40)}`],
     ])('refuses a cursor that is %s, with no corruption report', async (_, cursor) => {
       const {connection, externalRepositoryId, oids} = await seedHistory();

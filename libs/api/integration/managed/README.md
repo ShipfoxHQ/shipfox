@@ -33,6 +33,10 @@ Apply the migrations in `drizzle/` under the migration table
 
 ```ts
 import {ManagedSourceControlProvider} from '@shipfox/api-integration-managed';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
+
+declare const connection: IntegrationConnection<'managed'>;
+const externalRepositoryId = 'managed:01890000-0000-7000-8000-000000000001';
 
 const provider = new ManagedSourceControlProvider();
 const {commit} = await provider.resolveRef({connection, externalRepositoryId, ref: 'main'});
@@ -83,8 +87,8 @@ Postgres and pass object ids, so no ref name reaches the library.
 **Storage failures stay typed.** A missing object, unreadable object bytes, or a
 database failure answers `provider-unavailable` and reports the error.
 
-[ADR 0025](../../../../docs/adr/0025-managed-config-repositories.md) records the
-design.
+[ADR 0025](https://github.com/ShipfoxHQ/shipfox/blob/main/docs/adr/0025-managed-config-repositories.md)
+records the design.
 
 ## Development
 

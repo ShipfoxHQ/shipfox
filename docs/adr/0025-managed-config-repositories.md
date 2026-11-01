@@ -34,8 +34,8 @@ backups cover objects and refs together, so a restore can't leave a ref pointing
 object. Objects are not packed, because packs save little at this size and add a compaction job.
 
 **Compare-and-set is the only way to move a ref.** Objects and the ref update commit in one
-transaction. A failed operation leaves nothing behind, so unreachable objects don't exist. A
-composite foreign key ties each ref to its commit object, so the database refuses a ref to a
+transaction. A failed operation leaves nothing behind. Objects stay stored until the repository is
+deleted, even if a later ref move leaves them unreachable. A composite foreign key ties each ref to its commit object, so the database refuses a ref to a
 commit the repository doesn't hold.
 
 ### isomorphic-git sees objects and nothing else

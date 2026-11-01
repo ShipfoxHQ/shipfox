@@ -51,7 +51,7 @@ export class GitReader {
   /** For an id the repository itself holds, where a missing object means corruption. */
   async readCommit(oid: string): Promise<CommitObject> {
     const commit = await this.findCommit(oid);
-    if (!commit) throw this.missingObject(oid);
+    if (!commit) throw this.unreadableObject(oid);
     return commit;
   }
 
@@ -97,15 +97,15 @@ export class GitReader {
     try {
       return await read();
     } catch (error) {
-      if (isMissingObject(error)) throw this.missingObject(oid);
+      if (isMissingObject(error)) throw this.unreadableObject(oid);
       throw error;
     }
   }
 
-  private missingObject(oid: string): IntegrationProviderError {
+  private unreadableObject(oid: string): IntegrationProviderError {
     const error = new IntegrationProviderError(
       'provider-unavailable',
-      `Managed repository ${this.repositoryId} is missing object ${oid}`,
+      `Managed repository ${this.repositoryId} has no readable object ${oid}`,
     );
     reportError(error, {
       boundary: MANAGED_REPOSITORY_BOUNDARY,

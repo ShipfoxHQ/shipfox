@@ -185,17 +185,20 @@ export class ManagedSourceControlProvider implements SourceControlProvider<Manag
     let version: PathVersion | null = await readPathVersion({reader, oid: start, path});
 
     while (version !== null) {
-      const isPageDone = commits.length >= limit || scanned >= this.maxCommitsScanned;
-      if (isPageDone) return {commits, nextCursor: buildCommitCursor(head, version.oid)};
-      scanned += 1;
-
       const parentOid: string | undefined = version.commit.parent[0];
       const parent: PathVersion | null =
         parentOid === undefined
           ? null
           : await readPathVersion({reader, oid: parentOid, path, child: version});
-      if (version.entry?.oid !== parent?.entry?.oid) {
+      if (!isSameEntry(version.entry, parent?.entry)) {
         commits.push(toCommitSummary(version.oid, version.commit));
+      }
+      scanned += 1;
+
+      // Checked after a scan, so a cursor always moves forward.
+      const isPageDone = commits.length >= limit || scanned >= this.maxCommitsScanned;
+      if (parent !== null && isPageDone) {
+        return {commits, nextCursor: buildCommitCursor(head, parent.oid)};
       }
       version = parent;
     }
@@ -289,6 +292,13 @@ async function readPathVersion(params: {
   const hasChildTree = child !== undefined && child.commit.tree === commit.tree;
   const entry = hasChildTree ? child.entry : await reader.findEntry(commit.tree, path);
   return {oid, commit, entry};
+}
+
+function isSameEntry(
+  left: GitEntry | null | undefined,
+  right: GitEntry | null | undefined,
+): boolean {
+  return left?.oid === right?.oid && left?.mode === right?.mode;
 }
 
 function decodeFile(bytes: Uint8Array, path: string): string {

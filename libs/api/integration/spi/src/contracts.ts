@@ -104,6 +104,7 @@ export interface ListCommitsInput<Connection extends IntegrationConnection = Int
   ref: string;
   /** A file or folder. `.shipfox` lists every config change. */
   path: string;
+  /** A positive integer. */
   limit: number;
   cursor?: string | undefined;
 }
