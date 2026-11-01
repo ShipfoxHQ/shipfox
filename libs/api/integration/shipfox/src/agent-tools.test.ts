@@ -1,4 +1,5 @@
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import type {AgentToolCatalogEntry} from '@shipfox/api-integration-spi';
 import {STEP_LOG_READ_CONTENT_MAX_BYTES} from '@shipfox/api-logs-dto';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
@@ -12,6 +13,7 @@ import {Ajv} from 'ajv';
 import {
   createShipfoxAgentToolsProvider,
   SHIPFOX_INPUTS_MAX_BYTES,
+  type ShipfoxAgentToolRequiredScope,
   shipfoxAgentToolCatalog,
   shipfoxAgentToolSelectionCatalog,
   shipfoxConversationToolCatalog,
@@ -1240,10 +1242,13 @@ describe('Shipfox tools for a conversation', () => {
     return {id: parentRunId, number: 7, name: 'Secret parent', project_id: parentProjectId};
   }
 
-  async function openConversationSession(provider: ReturnType<typeof createProvider>['provider']) {
+  async function openConversationSession(
+    provider: ReturnType<typeof createProvider>['provider'],
+    tools: readonly AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope>[] = provider.conversationCatalog(),
+  ) {
     return await provider.openSession({
       connection: {} as never,
-      tools: provider.catalog(),
+      tools,
       scope: {},
       caller: conversationCaller(),
     });
@@ -1295,6 +1300,7 @@ describe('Shipfox tools for a conversation', () => {
     ['both step_id and run_id', {step_id: stepId, run_id: parentRunId, failed_only: true}],
     ['run_id without failed_only', {run_id: parentRunId}],
     ['attempt with run_id', {run_id: parentRunId, failed_only: true, attempt: 1}],
+    ['failed_only with step_id', {step_id: stepId, failed_only: true}],
   ])('still rejects step logs with %s', async (_name, args) => {
     const {logs, provider} = createProvider();
     const session = await openConversationSession(provider);
@@ -1329,7 +1335,7 @@ describe('Shipfox tools for a conversation', () => {
     ['list_workflow_runs', {}],
   ])('rejects an injected project_id on %s', async (toolId, args) => {
     const {definitions, projects, triggers, workflows, provider} = createProvider();
-    const session = await openConversationSession(provider);
+    const session = await openConversationSession(provider, provider.catalog());
 
     const result = await session.call({
       toolId,
@@ -1390,7 +1396,7 @@ describe('Shipfox tools for a conversation', () => {
 
   it('refuses list_projects', async () => {
     const {projects, provider} = createProvider();
-    const session = await openConversationSession(provider);
+    const session = await openConversationSession(provider, provider.catalog());
 
     const result = await session.call({toolId: 'list_projects', arguments: {}});
 
@@ -1400,7 +1406,7 @@ describe('Shipfox tools for a conversation', () => {
 
   it('refuses to start a run', async () => {
     const {definitions, triggers, provider} = createProvider();
-    const session = await openConversationSession(provider);
+    const session = await openConversationSession(provider, provider.catalog());
 
     const result = await session.call({
       toolId: 'start_workflow_run',

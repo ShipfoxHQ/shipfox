@@ -340,6 +340,7 @@ describe('integrationsInterModuleContract', () => {
       conversationId: 'conversation-1',
       turnId: 'turn-1',
       callItemId: 'item-1',
+      actorUserId: 'user-1',
     };
 
     const input = integrationsInterModuleContract.methods.callTool.input.parse({

@@ -218,7 +218,14 @@ describe('integration tool call audit', () => {
       errorCode: 'none',
     });
 
-    expect(recordMetric).toHaveBeenCalledWith(expect.objectContaining({caller: 'conversation'}));
+    expect(recordMetric).toHaveBeenCalledWith({
+      caller: 'conversation',
+      provider: 'github',
+      tool: 'issue_read',
+      method: 'none',
+      outcome: 'success',
+      error_code: 'none',
+    });
     expect(logInfo).toHaveBeenCalledWith(
       expect.objectContaining({
         caller: 'conversation',

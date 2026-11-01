@@ -17,6 +17,7 @@ import {
 } from '#core/repository-authorizer.js';
 import {createSourceControlIntegrationService} from '#core/source-control-service.js';
 import type {
+  IntegrationToolCallAuditRecord,
   IntegrationToolCallCaller,
   IntegrationToolCallRecorder,
 } from '#core/tool-call-audit.js';
@@ -1414,7 +1415,10 @@ describe('integrations inter-module callTool', () => {
       });
       const transport = createInMemoryInterModuleTransport();
       const client = transport.createClient(integrationsInterModuleContract);
-      const recorded: IntegrationToolCallCaller[] = [];
+      const audits: {
+        caller: IntegrationToolCallCaller;
+        record: IntegrationToolCallAuditRecord;
+      }[] = [];
       transport.register(
         createIntegrationsInterModulePresentation({
           registry: createIntegrationProviderRegistry([
@@ -1430,14 +1434,13 @@ describe('integrations inter-module callTool', () => {
             getIntegrationConnectionById: async () => undefined,
           }),
           getIntegrationConnectionById: async () => undefined,
-          createIntegrationToolCallRecorder: (caller) => {
-            recorded.push(caller);
-            return () => undefined;
+          createIntegrationToolCallRecorder: (caller) => (record) => {
+            audits.push({caller, record});
           },
         }),
       );
       transport.seal();
-      return {client, listAnnotationsForRunAttempt, recorded};
+      return {client, listAnnotationsForRunAttempt, audits};
     }
 
     async function conversationTool(
@@ -1468,7 +1471,7 @@ describe('integrations inter-module callTool', () => {
     });
 
     it('calls an offered tool with no lease and audits the conversation', async () => {
-      const {client, listAnnotationsForRunAttempt, recorded} =
+      const {client, listAnnotationsForRunAttempt, audits} =
         createConversationClient(conversationProjectId);
 
       const result = await client.callTool({
@@ -1481,15 +1484,18 @@ describe('integrations inter-module callTool', () => {
 
       expect(result.outcome).toBe('success');
       expect(listAnnotationsForRunAttempt).toHaveBeenCalledOnce();
-      expect(recorded).toEqual([
+      expect(audits).toEqual([
         {
-          caller: 'conversation',
-          workspaceId,
-          projectId: conversationProjectId,
-          conversationId: 'conversation-1',
-          turnId: 'turn-1',
-          callItemId: 'item-1',
-          actorUserId: 'user-1',
+          caller: {
+            caller: 'conversation',
+            workspaceId,
+            projectId: conversationProjectId,
+            conversationId: 'conversation-1',
+            turnId: 'turn-1',
+            callItemId: 'item-1',
+            actorUserId: 'user-1',
+          },
+          record: expect.objectContaining({outcome: 'success', errorCode: 'none'}),
         },
       ]);
     });
