@@ -198,6 +198,7 @@ function createdProjectResponse() {
       name: 'Platform',
       slug: 'platform',
       source: {
+        kind: 'linked',
         connection_id: GITHUB_CONNECTION_ID,
         external_repository_id: 'platform',
       },

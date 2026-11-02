@@ -44,6 +44,7 @@ describe('WorkflowRunList', () => {
           name: 'Platform',
           slug: 'platform',
           source: {
+            kind: 'linked',
             connection_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             external_repository_id: 'platform-repo',
           },

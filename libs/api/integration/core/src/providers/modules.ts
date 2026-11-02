@@ -7,6 +7,7 @@ import {githubProviderModule} from '#providers/github.js';
 import {jamProviderModule} from '#providers/jam.js';
 import {jiraProviderModule} from '#providers/jira.js';
 import {linearProviderModule} from '#providers/linear.js';
+import {managedVcsProviderModule} from '#providers/managed-vcs.js';
 import {notionProviderModule} from '#providers/notion.js';
 import {posthogProviderModule} from '#providers/posthog.js';
 import {sentryProviderModule} from '#providers/sentry.js';
@@ -34,6 +35,7 @@ const providerModules = [
   notionProviderModule,
   sentryProviderModule,
   giteaProviderModule,
+  managedVcsProviderModule,
   testVcsProviderModule,
   shipfoxProviderModule,
   cronProviderModule,

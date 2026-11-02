@@ -28,6 +28,7 @@ interface ProjectStoryResponse {
   name: string;
   slug: string;
   source: {
+    kind: 'linked';
     connection_id: string;
     external_repository_id: string;
   };
@@ -191,6 +192,7 @@ function projectForScenario(
         : 'Platform',
     slug: scenario === 'long-values' ? 'infrastructure-control-plane' : 'platform',
     source: {
+      kind: 'linked' as const,
       connection_id: '33333333-3333-4333-8333-333333333333',
       external_repository_id: 'platform',
     },

@@ -1,3 +1,4 @@
+import type {ManagedSeedFileProblem} from '@shipfox/api-integration-managed-vcs';
 import {
   ConnectionSlugConflictError,
   type IntegrationConnectionProviderAccess,
@@ -94,3 +95,20 @@ export class WebhookProcessorNotConfiguredError extends Error {
 }
 
 export {ConnectionSlugConflictError, IntegrationProviderError, type IntegrationProviderErrorReason};
+
+export class ManagedSeedFileRefusedError extends Error {
+  constructor(
+    public readonly problem: ManagedSeedFileProblem,
+    public readonly path: string,
+  ) {
+    super(`The managed repository refused the seed files: ${problem}`);
+    this.name = 'ManagedSeedFileRefusedError';
+  }
+}
+
+export class ManagedProjectConflictError extends Error {
+  constructor(public readonly projectId: string) {
+    super(`Project ${projectId} already has a managed repository in another workspace`);
+    this.name = 'ManagedProjectConflictError';
+  }
+}

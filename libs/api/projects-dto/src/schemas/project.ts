@@ -1,20 +1,41 @@
 import {displayNameSchema, slugSchema} from '@shipfox/api-common-dto';
 import {z} from 'zod';
 
+/** `managed` is a repository Shipfox hosts for the project. `linked` is one the user connected. */
+export const projectSourceKindSchema = z.enum(['managed', 'linked']);
+export type ProjectSourceKind = z.infer<typeof projectSourceKindSchema>;
+
 export const projectSourceDtoSchema = z.object({
+  kind: projectSourceKindSchema,
   connection_id: z.string().uuid(),
   external_repository_id: z.string(),
 });
 export type ProjectSourceDto = z.infer<typeof projectSourceDtoSchema>;
 
+// Strict, so a body that mixes `kind: 'managed'` with linked fields is refused instead of read as linked.
+export const linkedProjectSourceBodySchema = z
+  .object({
+    connection_id: z.string().uuid(),
+    external_repository_id: z.string().min(1).max(255),
+  })
+  .strict();
+
+export const managedProjectSourceBodySchema = z.object({
+  kind: z.literal('managed'),
+  /** The tree of the first commit. The repository refuses a path outside `.shipfox/`. */
+  files: z
+    .array(z.object({path: z.string().min(1).max(512), content: z.string()}))
+    .max(100)
+    .optional(),
+});
+
+export type ManagedProjectSourceBodyDto = z.infer<typeof managedProjectSourceBodySchema>;
+
 export const createProjectBodySchema = z.object({
   workspace_id: z.string().uuid(),
   name: displayNameSchema,
   slug: slugSchema,
-  source: z.object({
-    connection_id: z.string().uuid(),
-    external_repository_id: z.string().min(1).max(255),
-  }),
+  source: z.union([linkedProjectSourceBodySchema, managedProjectSourceBodySchema]),
 });
 
 export type CreateProjectBodyDto = z.infer<typeof createProjectBodySchema>;

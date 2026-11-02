@@ -29,6 +29,7 @@ import {
 import {defineFlags} from '@shipfox/feature-flags';
 import {defineInterModuleContract, defineInterModulePresentation} from '@shipfox/inter-module';
 import {createFeatureFlags} from '@shipfox/node-feature-flags';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import type {
   DefaultAgentModuleFactory,
   DefaultAgentModuleOptions,
@@ -175,6 +176,8 @@ describe('defaultModules', () => {
             checkTemplateConformance: vi.fn(),
             createCheckoutCredentials: vi.fn(),
             createCheckoutSpec: vi.fn(),
+            createManagedRepository: vi.fn(),
+            deleteManagedRepository: vi.fn(),
             fetchSourceFile: vi.fn(),
             getAgentToolsContext: vi.fn(),
             getConfigSource: vi.fn(),
@@ -513,6 +516,16 @@ describe('defaultModules', () => {
 
     expect(mocks.createDefinitionsModule).toHaveBeenCalledWith(
       expect.objectContaining({registry: expect.any(Object)}),
+    );
+  });
+
+  it('gives Projects the feature flag reader', async () => {
+    const featureFlags = createTestFeatureFlags();
+
+    await defaultModules({featureFlags});
+
+    expect(mocks.createProjectsModule).toHaveBeenCalledWith(
+      expect.objectContaining({flags: featureFlags}),
     );
   });
 

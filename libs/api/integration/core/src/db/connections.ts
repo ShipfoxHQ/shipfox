@@ -30,6 +30,11 @@ export interface UpsertIntegrationConnectionParams {
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
   capabilities?: IntegrationCapability[] | undefined;
   actorUserId?: string | undefined;
+  /**
+   * Set for a connection of an internal provider. Nothing outside the provider should learn it
+   * exists, so no `INTEGRATION_CONNECTION_AVAILABLE` event is written.
+   */
+  internal?: boolean | undefined;
 }
 
 export async function upsertIntegrationConnection(
@@ -95,7 +100,7 @@ export async function upsertIntegrationConnection(
 
   if (!row) throw new Error('Integration connection upsert returned no rows');
   const connection = toIntegrationConnection(row);
-  if (becameAvailable) {
+  if (becameAvailable && !params.internal) {
     await writeConnectionAvailableEvent(
       executor,
       connection,

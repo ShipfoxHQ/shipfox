@@ -4382,6 +4382,9 @@ importers:
       '@shipfox/api-integration-linear':
         specifier: workspace:*
         version: link:../linear
+      '@shipfox/api-integration-managed-vcs':
+        specifier: workspace:*
+        version: link:../managed-vcs
       '@shipfox/api-integration-managed-vcs-dto':
         specifier: workspace:*
         version: link:../managed-vcs-dto
@@ -6039,9 +6042,15 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../integration/core-dto
+      '@shipfox/api-integration-managed-vcs-dto':
+        specifier: workspace:*
+        version: link:../integration/managed-vcs-dto
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/feature-flags':
+        specifier: workspace:*
+        version: link:../../shared/common/feature-flags
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
@@ -6051,6 +6060,9 @@ importers:
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
+      '@shipfox/node-feature-flags':
+        specifier: workspace:*
+        version: link:../../shared/node/feature-flags
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../shared/node/module

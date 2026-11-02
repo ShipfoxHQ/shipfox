@@ -237,6 +237,14 @@ const refErrors = {
   'ref-invalid': z.object({ref: safeRef}),
 };
 
+const managedSeedFile = z.object({path: z.string(), content: z.string()});
+const managedSeedFileProblem = z.enum([
+  'path-not-allowed',
+  'file-too-large',
+  'too-many-files',
+  'seed-too-large',
+]);
+
 /** Producer-owned synchronous operations for the Integrations bounded context. */
 export const integrationsInterModuleContract = defineInterModuleContract({
   module: 'integrations',
@@ -245,6 +253,23 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       input: sourceInput,
       output: z.object({connection, repository}),
       errors: sourceErrors,
+    },
+    /**
+     * Creates the managed repository of a project, and the workspace's hidden connection on first
+     * use. Idempotent on `projectId`: a repeat call ignores `files` and returns the same repository.
+     */
+    createManagedRepository: {
+      input: z.object({workspaceId: id, projectId: id, files: z.array(managedSeedFile).optional()}),
+      output: z.object({connectionId: id, externalRepositoryId: z.string()}),
+      errors: {
+        'invalid-seed-file': z.object({problem: managedSeedFileProblem, path: z.string()}),
+        'project-conflict': z.object({projectId: id}),
+      },
+    },
+    /** Deletes the managed repository of a project, with its objects and refs. */
+    deleteManagedRepository: {
+      input: z.object({workspaceId: id, projectId: id}),
+      output: z.object({deleted: z.boolean()}),
     },
     resolveConnection: {
       input: z.object({workspaceId: id, slug: z.string().min(1)}),

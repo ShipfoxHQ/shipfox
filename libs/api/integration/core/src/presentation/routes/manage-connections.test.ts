@@ -596,3 +596,75 @@ describe('DELETE /integration-connections/:connectionId', () => {
     expect(res.json().code).toBe('not-found');
   });
 });
+
+describe('an internal provider connection', () => {
+  const context = useIntegrationRouteTest();
+
+  async function arrangeInternalConnection() {
+    const app = await createTestApp([sourceProvider({provider: 'managed-vcs', internal: true})]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'managed-vcs',
+      externalAccountId: context.workspaceId,
+      slug: 'shipfox-managed',
+      displayName: 'Shipfox',
+      internal: true,
+    });
+    return {app, connection};
+  }
+
+  it('writes no connection-available event', async () => {
+    const {connection} = await arrangeInternalConnection();
+
+    const events = await db()
+      .select({id: integrationsOutbox.id})
+      .from(integrationsOutbox)
+      .where(
+        sql`${integrationsOutbox.eventType} = ${INTEGRATION_CONNECTION_AVAILABLE} AND ${integrationsOutbox.payload}->>'connectionId' = ${connection.id}`,
+      );
+
+    expect(events).toEqual([]);
+  });
+
+  it('refuses a status change', async () => {
+    const {app, connection} = await arrangeInternalConnection();
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+      payload: {lifecycle_status: 'disabled'},
+    });
+
+    const reloaded = await getIntegrationConnectionById(connection.id);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('integration-connection-internal');
+    expect(reloaded?.lifecycleStatus).toBe('active');
+  });
+
+  it('refuses a delete', async () => {
+    const {app, connection} = await arrangeInternalConnection();
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(await getIntegrationConnectionById(connection.id)).toBeDefined();
+  });
+
+  it('stays out of the connection list', async () => {
+    const {app} = await arrangeInternalConnection();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections).toEqual([]);
+  });
+});

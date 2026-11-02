@@ -8,6 +8,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsEventSchemas} from '@shipfox/api-projects-dto';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
 import {registerProjectsServiceMetrics} from '#metrics/index.js';
@@ -17,6 +18,7 @@ import {createProjectsInterModulePresentation} from '#presentation/inter-module.
 import {onSourceCommitPushed, onSourceRepositoryUpdated} from '#presentation/subscribers/index.js';
 import {createProjectsMaintenanceActivities} from '#temporal/activities/index.js';
 import {PROJECTS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
+import {projectsFlags} from './flags.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
@@ -25,6 +27,7 @@ const subscriber = subscriberFactory<IntegrationsEventMap>();
 
 export type {Project} from '#core/index.js';
 export {
+  createManagedProject,
   createProjectFromSource,
   ProjectAccessDeniedError,
   ProjectAlreadyExistsError,
@@ -49,20 +52,24 @@ export {
   requireProjectForWorkspace,
 } from '#db/index.js';
 export {createProjectRoutes, requireProjectAccess} from '#presentation/index.js';
+export {projectsFlags} from './flags.js';
 
 export interface CreateProjectsModuleOptions {
   integrations: IntegrationsModuleClient;
   auth: AuthInterModuleClient;
+  flags: FeatureFlags;
 }
 
 export function createProjectsModule({
   integrations,
   auth,
+  flags,
 }: CreateProjectsModuleOptions): ShipfoxModule {
   return {
     name: 'projects',
+    flags: projectsFlags,
     database: {db, migrationsPath, databaseNamespace: 'projects'},
-    routes: createProjectRoutes(integrations, auth),
+    routes: createProjectRoutes(integrations, auth, flags),
     e2eRoutes: [projectsE2eRoutes],
     metrics: registerProjectsServiceMetrics,
     publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],

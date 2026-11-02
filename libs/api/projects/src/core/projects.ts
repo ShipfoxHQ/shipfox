@@ -6,8 +6,9 @@ import {
   type ProjectsEventMap,
 } from '@shipfox/api-projects-dto';
 import {isUniqueViolation} from '@shipfox/node-drizzle';
+import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, eq} from 'drizzle-orm';
+import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {updateProject} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
@@ -42,7 +43,71 @@ export async function createProjectFromSource(
     connectionId: params.sourceConnectionId,
     externalRepositoryId: params.sourceExternalRepositoryId,
   });
+  return await insertProject({...params, source});
+}
 
+export interface CreateManagedProjectParams {
+  actorId: string;
+  workspaceId: string;
+  name: string;
+  slug: string;
+  /** The tree of the first commit. Without it, the project starts with no config. */
+  files?: ReadonlyArray<{path: string; content: string}> | undefined;
+  integrations: IntegrationsModuleClient;
+}
+
+/**
+ * Creates a project whose config lives in a repository Shipfox hosts. The repository comes first,
+ * because every project row needs a source. When anything fails afterward, for a slug conflict for
+ * example, the new repository is deleted on a best-effort basis. A failed delete is logged and
+ * leaves a repository with no project: one commit that nothing reads.
+ */
+export async function createManagedProject(params: CreateManagedProjectParams): Promise<Project> {
+  const projectId = await generateProjectId();
+  try {
+    const repository = await params.integrations.createManagedRepository({
+      workspaceId: params.workspaceId,
+      projectId,
+      ...(params.files === undefined ? {} : {files: [...params.files]}),
+    });
+    const source = await params.integrations.resolveSourceRepository({
+      workspaceId: params.workspaceId,
+      connectionId: repository.connectionId,
+      externalRepositoryId: repository.externalRepositoryId,
+    });
+    return await insertProject({...params, projectId, source});
+  } catch (error) {
+    await params.integrations
+      .deleteManagedRepository({workspaceId: params.workspaceId, projectId})
+      .catch((cleanupError: unknown) => {
+        logger().error(
+          {err: cleanupError, projectId, workspaceId: params.workspaceId},
+          'Could not delete the managed repository of a project that was not created',
+        );
+      });
+    throw error;
+  }
+}
+
+// The table's own default, so a project made with its id in hand sorts like any other.
+async function generateProjectId(): Promise<string> {
+  const result = await db().execute<{id: string}>(sql`select uuidv7() as id`);
+  const id = result.rows[0]?.id;
+  if (!id) throw new Error('Postgres returned no project id');
+  return id;
+}
+
+type ResolvedSource = Awaited<ReturnType<IntegrationsModuleClient['resolveSourceRepository']>>;
+
+async function insertProject(params: {
+  actorId: string;
+  workspaceId: string;
+  name: string;
+  slug: string;
+  projectId?: string | undefined;
+  source: ResolvedSource;
+}): Promise<Project> {
+  const {source} = params;
   const project = await db().transaction(async (tx) => {
     let projectRow: typeof projects.$inferSelect | undefined;
     for (let attempt = 0; attempt < 2 && !projectRow; attempt += 1) {
@@ -50,6 +115,7 @@ export async function createProjectFromSource(
         [projectRow] = await tx
           .insert(projects)
           .values({
+            ...(params.projectId === undefined ? {} : {id: params.projectId}),
             workspaceId: params.workspaceId,
             sourceConnectionId: source.connection.id,
             sourceExternalRepositoryId: source.repository.externalRepositoryId,

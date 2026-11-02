@@ -74,6 +74,7 @@ function projectDto({name = 'Platform', slug = 'platform'}: {name?: string; slug
     name,
     slug,
     source: {
+      kind: 'linked',
       connection_id: '33333333-3333-4333-8333-333333333333',
       external_repository_id: 'platform',
     },

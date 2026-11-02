@@ -15,6 +15,7 @@ describe('createProject', () => {
       workspace_id: workspaceId,
       name: 'E2E Project',
       source: {
+        kind: 'linked',
         connection_id: sourceConnectionId,
         external_repository_id: 'e2e:project',
       },

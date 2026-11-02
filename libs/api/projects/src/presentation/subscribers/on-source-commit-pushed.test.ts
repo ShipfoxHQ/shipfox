@@ -7,6 +7,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
@@ -147,6 +148,7 @@ describe('onSourceCommitPushed', () => {
     const module = createProjectsModule({
       integrations: {} as IntegrationsModuleClient,
       auth: {} as AuthInterModuleClient,
+      flags: createTestFeatureFlags(),
     });
 
     const events = module.subscribers?.map((subscriber) => subscriber.event);

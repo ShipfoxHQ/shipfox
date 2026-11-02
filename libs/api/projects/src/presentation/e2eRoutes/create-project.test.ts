@@ -75,6 +75,7 @@ describe('projects E2E routes', () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.json().source).toEqual({
+      kind: 'linked',
       connection_id: sourceConnectionId,
       external_repository_id: 'e2e:explicit',
     });

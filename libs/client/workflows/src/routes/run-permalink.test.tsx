@@ -121,6 +121,7 @@ function projectResponse(slug: string) {
     name: 'Payments',
     slug,
     source: {
+      kind: 'linked',
       connection_id: '44444444-4444-4444-8444-444444444444',
       external_repository_id: 'shipfox/payments',
     },

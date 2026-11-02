@@ -76,6 +76,7 @@ describe('readWorkspaceHasNoProject', () => {
               name: 'Platform',
               slug: 'platform',
               source: {
+                kind: 'linked',
                 connection_id: '33333333-3333-4333-8333-333333333333',
                 external_repository_id: 'platform',
               },
@@ -180,6 +181,7 @@ describe('createProject', () => {
         name: 'Platform',
         slug: 'platform',
         source: {
+          kind: 'linked',
           connection_id: '33333333-3333-4333-8333-333333333333',
           external_repository_id: 'platform',
         },
@@ -441,6 +443,7 @@ function projectResponse(slug: string, id = '33333333-3333-4333-8333-33333333333
     name: slug,
     slug,
     source: {
+      kind: 'linked',
       connection_id: '22222222-2222-4222-8222-222222222222',
       external_repository_id: slug,
     },

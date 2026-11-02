@@ -1,6 +1,14 @@
-export interface ProjectSource {
+/** A repository the user connected. A project created from one carries it in its source. */
+export interface LinkedProjectSource {
   connectionId: string;
   externalRepositoryId: string;
+}
+
+/** `managed` is a repository Shipfox hosts for the project, behind a hidden connection. */
+export type ProjectSourceKind = 'managed' | 'linked';
+
+export interface ProjectSource extends LinkedProjectSource {
+  kind: ProjectSourceKind;
 }
 
 export interface Project {
@@ -22,7 +30,7 @@ export interface CreateProjectCommand {
   workspaceId: string;
   name: string;
   slug: string;
-  source: ProjectSource;
+  source: LinkedProjectSource;
 }
 
 export interface UpdateProjectCommand {

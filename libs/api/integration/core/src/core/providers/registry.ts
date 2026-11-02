@@ -12,8 +12,11 @@ import {
 } from '#core/errors.js';
 
 export interface IntegrationProviderRegistry {
+  /** Registered providers, without the internal ones. */
   list(capability?: IntegrationCapability | undefined): RegisteredIntegrationProvider[];
   get(provider: IntegrationProviderKind): RegisteredIntegrationProvider;
+  /** Finds a provider by kind, internal ones included. */
+  find(provider: IntegrationProviderKind): RegisteredIntegrationProvider | undefined;
   getAdapter<Capability extends IntegrationCapability>(
     provider: IntegrationProviderKind,
     capability: Capability,
@@ -49,9 +52,13 @@ class MapIntegrationProviderRegistry implements IntegrationProviderRegistry {
   }
 
   list(capability?: IntegrationCapability | undefined): RegisteredIntegrationProvider[] {
-    const providers = [...this.providers.values()];
+    const providers = [...this.providers.values()].filter((provider) => !provider.internal);
     if (!capability) return providers;
     return providers.filter((provider) => provider.capabilities.includes(capability));
+  }
+
+  find(provider: IntegrationProviderKind): RegisteredIntegrationProvider | undefined {
+    return this.providers.get(provider);
   }
 
   get(provider: IntegrationProviderKind): RegisteredIntegrationProvider {

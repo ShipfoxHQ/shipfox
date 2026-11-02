@@ -3,6 +3,10 @@ import {
   db as githubDb,
   migrationsPath as githubMigrationsPath,
 } from '@shipfox/api-integration-github';
+import {
+  db as managedDb,
+  migrationsPath as managedMigrationsPath,
+} from '@shipfox/api-integration-managed-vcs';
 import {runMigrations} from '@shipfox/node-drizzle';
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
 import {sql} from 'drizzle-orm';
@@ -14,6 +18,11 @@ export async function setup() {
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_integrations');
   await runMigrations(githubDb(), githubMigrationsPath, '__drizzle_migrations_integrations_github');
+  await runMigrations(
+    managedDb(),
+    managedMigrationsPath,
+    '__drizzle_migrations_integrations_managed_vcs',
+  );
   await db().execute(sql`TRUNCATE integrations_connections CASCADE`);
   await db().execute(sql`TRUNCATE integrations_secret_cleanups CASCADE`);
   await db().execute(sql`TRUNCATE integrations_webhook_deliveries CASCADE`);

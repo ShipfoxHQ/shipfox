@@ -10,6 +10,7 @@ export function toProject(dto: ProjectResponseDto): Project {
     name: dto.name,
     slug: dto.slug,
     source: {
+      kind: dto.source.kind,
       connectionId: dto.source.connection_id,
       externalRepositoryId: dto.source.external_repository_id,
     },

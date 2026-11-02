@@ -274,7 +274,11 @@ export async function defaultModules(
     projects: projectsClient,
     webhookDeliverySource: options.webhookDeliverySource,
   });
-  const projectsModule = createProjectsModule({integrations: integrationsClient, auth: authClient});
+  const projectsModule = createProjectsModule({
+    integrations: integrationsClient,
+    auth: authClient,
+    flags: featureFlags,
+  });
   const definitionsModule = createDefinitionsModule({
     projects: projectsClient,
     agent: agentClient,

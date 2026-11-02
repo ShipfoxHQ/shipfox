@@ -763,6 +763,12 @@ describe('failure annotations', () => {
       fix: 'Enable the connection in the integration settings. Then rerun the job.',
     },
     {
+      code: 'integration-checkout-unsupported',
+      reason: 'checkout_failed',
+      title: 'This repository cannot be checked out',
+      fix: 'The config repository that Shipfox hosts has no checkout. Name a repository and a connection in `checkout`, or set `checkout: false`. Then start a new run.',
+    },
+    {
       code: 'checkout-unavailable',
       reason: 'checkout_failed',
       title: 'The checkout connection or project does not exist',

@@ -67,6 +67,28 @@ describe('integration provider registry', () => {
     expect(result.map((provider) => provider.provider)).toEqual(['gitea']);
   });
 
+  it('leaves an internal provider out of the list and still finds it', () => {
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'managed-vcs',
+        displayName: 'Shipfox',
+        internal: true,
+        adapters: {source_control: sourceControlAdapter()},
+      },
+      {
+        provider: 'gitea',
+        displayName: 'Gitea',
+        adapters: {source_control: sourceControlAdapter()},
+      },
+    ]);
+
+    expect(registry.list().map(({provider}) => provider)).toEqual(['gitea']);
+    expect(registry.list('source_control').map(({provider}) => provider)).toEqual(['gitea']);
+    expect(registry.get('managed-vcs').internal).toBe(true);
+    expect(registry.find('managed-vcs')?.provider).toBe('managed-vcs');
+    expect(registry.getSourceControl('managed-vcs')).toBeDefined();
+  });
+
   it('computes the agent tools capability from the adapter', () => {
     const registry = createIntegrationProviderRegistry([
       {

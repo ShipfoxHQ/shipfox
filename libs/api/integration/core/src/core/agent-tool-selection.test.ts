@@ -120,6 +120,32 @@ describe('createWorkspaceConnectionSnapshotLoader', () => {
   });
 });
 
+describe('the workspace connection snapshot and internal providers', () => {
+  it('leaves out the connection of an internal provider', async () => {
+    const workspaceId = crypto.randomUUID();
+    const registry = createIntegrationProviderRegistry([
+      {...sourceProvider('managed-vcs'), internal: true},
+      sourceProvider('gitea'),
+    ]);
+    await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'managed-vcs',
+      externalAccountId: workspaceId,
+      slug: 'shipfox-managed',
+    });
+    const gitea = await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'gitea',
+      slug: 'gitea_main',
+    });
+
+    const snapshot = await createWorkspaceConnectionSnapshotLoader(registry)(workspaceId);
+
+    expect([...snapshot.keys()]).toEqual(['gitea_main']);
+    expect(snapshot.get('gitea_main')?.id).toBe(gitea.id);
+  });
+});
+
 function sourceProvider(provider: string) {
   return {
     provider,
