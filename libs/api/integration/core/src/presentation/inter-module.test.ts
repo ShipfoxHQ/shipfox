@@ -360,6 +360,42 @@ describe('integrations inter-module presentation', () => {
     expect(result).toEqual({ref: 'refs/heads/main', commit: 'a'.repeat(40)});
   });
 
+  it('maps a refused seed file to the invalid-seed-file known error', async () => {
+    const client = createClient(async (input) => ({ref: input.ref, commit: 'a'.repeat(40)}));
+    const method = integrationsInterModuleContract.methods.createManagedRepository;
+
+    const error = await client
+      .createManagedRepository({
+        workspaceId,
+        projectId: crypto.randomUUID(),
+        files: [{path: 'src/index.ts', content: 'x'}],
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(isInterModuleKnownError(method, error)).toBe(true);
+    if (isInterModuleKnownError(method, error)) {
+      expect(error.code).toBe('invalid-seed-file');
+      expect(error.details).toEqual({problem: 'path-not-allowed', path: 'src/index.ts'});
+    }
+  });
+
+  it('maps a project that belongs to another workspace to the project-conflict known error', async () => {
+    const client = createClient(async (input) => ({ref: input.ref, commit: 'a'.repeat(40)}));
+    const method = integrationsInterModuleContract.methods.createManagedRepository;
+    const projectId = crypto.randomUUID();
+    await client.createManagedRepository({workspaceId: crypto.randomUUID(), projectId});
+
+    const error = await client
+      .createManagedRepository({workspaceId, projectId})
+      .catch((caught: unknown) => caught);
+
+    expect(isInterModuleKnownError(method, error)).toBe(true);
+    if (isInterModuleKnownError(method, error)) {
+      expect(error.code).toBe('project-conflict');
+      expect(error.details).toEqual({projectId});
+    }
+  });
+
   it('maps a missing ref to the ref-not-found known error', async () => {
     const client = createClient(() => {
       throw new IntegrationProviderError('ref-not-found', 'Ref not found');

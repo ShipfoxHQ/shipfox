@@ -21,13 +21,10 @@ export async function createManagedProjectRepository(
 ): Promise<{connectionId: string; externalRepositoryId: string}> {
   const managed = await import('@shipfox/api-integration-managed-vcs');
 
-  const connection = await ensureManagedConnection(params.workspaceId);
+  // The repository comes first, so a refused request leaves no connection behind.
+  let repository: Awaited<ReturnType<typeof managed.createManagedRepository>>;
   try {
-    const repository = await managed.createManagedRepository(params);
-    return {
-      connectionId: connection.id,
-      externalRepositoryId: repository.externalRepositoryId,
-    };
+    repository = await managed.createManagedRepository(params);
   } catch (error) {
     if (error instanceof managed.ManagedSeedFileError) {
       throw new ManagedSeedFileRefusedError(error.problem, error.path);
@@ -37,6 +34,8 @@ export async function createManagedProjectRepository(
     }
     throw error;
   }
+  const connection = await ensureManagedConnection(params.workspaceId);
+  return {connectionId: connection.id, externalRepositoryId: repository.externalRepositoryId};
 }
 
 export async function deleteManagedProjectRepository(params: {

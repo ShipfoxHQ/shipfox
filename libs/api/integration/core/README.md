@@ -8,7 +8,7 @@
 - **Agent-tool services** authorize frozen tool configurations, load provider sessions, and record tool-call outcomes.
 - **Built-in providers** can expose agent tools without an `IntegrationConnection` row. A provider module declares `builtinConnection: {slug, id}`. The integrations context adds that connection to workspace tool snapshots and resolves its fixed active connection during authorized tool calls.
 
-- **Internal providers** set `internal: true`. `registry.list` leaves them out, so no gallery, picker, connection list, or capability snapshot shows them, and `registry.get` and `registry.find` still return them. The managed repository provider is internal. Its hidden connection is created by `createManagedRepository` on first use, writes no `INTEGRATION_CONNECTION_AVAILABLE` event, and refuses `PATCH` and `DELETE` with `403 integration-connection-internal`.
+- **Internal providers** set `internal: true`. `registry.list` leaves them out, so no gallery, picker, connection list, or capability snapshot shows them, and `registry.get` and `registry.find` still return them. The managed repository provider is internal. Its hidden connection is created on first use by `createManagedProjectRepository`, writes no `INTEGRATION_CONNECTION_AVAILABLE` event, and refuses `PATCH` and `DELETE` with `403 integration-connection-internal`.
 
 Built-in connections are YAML-level names. They are not manageable connections, do not appear in connection listings, and their slugs are reserved by the integration DTO package. Providers receive the typed `interModule` clients that the composition root supplies through `IntegrationProviderModuleLoadOptions`.
 

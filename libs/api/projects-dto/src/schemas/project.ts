@@ -12,10 +12,13 @@ export const projectSourceDtoSchema = z.object({
 });
 export type ProjectSourceDto = z.infer<typeof projectSourceDtoSchema>;
 
-export const linkedProjectSourceBodySchema = z.object({
-  connection_id: z.string().uuid(),
-  external_repository_id: z.string().min(1).max(255),
-});
+// Strict, so a body that mixes `kind: 'managed'` with linked fields is refused instead of read as linked.
+export const linkedProjectSourceBodySchema = z
+  .object({
+    connection_id: z.string().uuid(),
+    external_repository_id: z.string().min(1).max(255),
+  })
+  .strict();
 
 export const managedProjectSourceBodySchema = z.object({
   kind: z.literal('managed'),

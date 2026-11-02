@@ -57,8 +57,8 @@ export interface CreateManagedProjectParams {
 
 /**
  * Creates a project whose config lives in a repository Shipfox hosts. The repository comes first,
- * because every project row needs a source. A project insert that fails afterward, for a slug
- * conflict for example, leaves a repository with no project. It holds one commit and nothing reads it.
+ * because every project row needs a source. When the project can't be created afterward, for a slug
+ * conflict for example, the new repository is deleted again.
  */
 export async function createManagedProject(params: CreateManagedProjectParams): Promise<Project> {
   const projectId = await generateProjectId();
@@ -67,12 +67,19 @@ export async function createManagedProject(params: CreateManagedProjectParams): 
     projectId,
     ...(params.files === undefined ? {} : {files: [...params.files]}),
   });
-  const source = await params.integrations.resolveSourceRepository({
-    workspaceId: params.workspaceId,
-    connectionId: repository.connectionId,
-    externalRepositoryId: repository.externalRepositoryId,
-  });
-  return await insertProject({...params, projectId, source});
+  try {
+    const source = await params.integrations.resolveSourceRepository({
+      workspaceId: params.workspaceId,
+      connectionId: repository.connectionId,
+      externalRepositoryId: repository.externalRepositoryId,
+    });
+    return await insertProject({...params, projectId, source});
+  } catch (error) {
+    await params.integrations
+      .deleteManagedRepository({workspaceId: params.workspaceId, projectId})
+      .catch(() => undefined);
+    throw error;
+  }
 }
 
 // The table's own default, so a project made with its id in hand sorts like any other.

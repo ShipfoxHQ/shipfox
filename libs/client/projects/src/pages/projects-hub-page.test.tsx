@@ -301,6 +301,7 @@ describe('ProjectsHubPage', () => {
               kind: 'managed',
               externalRepositoryId: 'managed-vcs:01890000-0000-7000-8000-000000000001',
             }),
+            projectDto({id: '11111111-1111-4111-8111-111111111113', name: 'Linked'}),
           ],
           next_cursor: null,
         }),
@@ -310,11 +311,11 @@ describe('ProjectsHubPage', () => {
 
     renderProjectPage(`/w/${PROJECT_TEST_WSLUG}`, <ProjectsHubPage />);
 
-    expect(await screen.findByText('Managed')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByText('Managed').closest('li')?.querySelector('svg')).toBeInTheDocument();
-    });
-    expect(screen.queryByText('Error')).not.toBeInTheDocument();
+    // The linked card flags its missing connection, so the connections response has been read.
+    const linkedCard = (await screen.findByText('Linked')).closest('li');
+    expect(await within(linkedCard as HTMLElement).findByText('Error')).toBeInTheDocument();
+    const managedCard = screen.getByText('Managed').closest('li');
+    expect(within(managedCard as HTMLElement).queryByText('Error')).not.toBeInTheDocument();
   });
 
   test('keeps cards usable and unflagged when the connections request fails', async () => {

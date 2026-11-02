@@ -17,7 +17,8 @@ pnpm add @shipfox/api-projects
 ```
 
 The module needs an integrations client to resolve the source integration
-connection and an Auth client for module setup.
+connection, an Auth client for module setup, and the feature flag reader from
+`@shipfox/node-feature-flags`.
 
 ## Usage
 
@@ -72,7 +73,9 @@ project asks Integrations for the repository first, because every project row
 needs a source, then inserts the row with the same id. A project insert that
 fails afterward leaves a repository with no project, which costs one commit.
 `files` is the tree of the first commit and must stay under `.shipfox/`; a
-refused file returns `422 invalid-source-file` with the path. The project DTO
+refused file returns `422 invalid-source-file` with the problem and the path.
+The path is empty when the whole seed is refused, for too many files or over
+1 MiB. The project DTO
 derives `source.kind` from the repository id, so no column holds it.
 
 The create form derives an editable default slug from the project name. The API

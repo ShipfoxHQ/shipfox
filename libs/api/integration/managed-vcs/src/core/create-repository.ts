@@ -39,6 +39,9 @@ export interface CreatedManagedRepository {
 export async function createManagedRepository(
   params: CreateManagedRepositoryParams,
 ): Promise<CreatedManagedRepository> {
+  const existing = await findRepositoryForProject(params);
+  if (existing) return toCreated(existing);
+
   const files = params.files ?? [];
   assertSeedFiles(files);
 
@@ -58,24 +61,31 @@ export async function createManagedRepository(
       .values({repositoryId: inserted.id, name: 'refs/heads/main', commitOid});
     return inserted.id;
   });
+  if (repositoryId) return toCreated(repositoryId);
 
-  const existing = repositoryId ?? (await findRepositoryForProject(params));
+  // Another call created it between the lookup and the insert.
+  const raced = await findRepositoryForProject(params);
+  if (!raced) throw new Error('The managed repository insert conflicted, but no row was found');
+  return toCreated(raced);
+}
+
+function toCreated(repositoryId: string): CreatedManagedRepository {
   return {
-    repositoryId: existing,
-    externalRepositoryId: buildProviderRepositoryId(MANAGED_VCS_PROVIDER, existing),
+    repositoryId,
+    externalRepositoryId: buildProviderRepositoryId(MANAGED_VCS_PROVIDER, repositoryId),
   };
 }
 
 async function findRepositoryForProject(params: {
   workspaceId: string;
   projectId: string;
-}): Promise<string> {
+}): Promise<string | undefined> {
   const [row] = await db()
     .select({id: managedRepositories.id, workspaceId: managedRepositories.workspaceId})
     .from(managedRepositories)
     .where(eq(managedRepositories.projectId, params.projectId))
     .limit(1);
-  if (!row) throw new Error('The managed repository insert conflicted, but no row was found');
+  if (!row) return undefined;
   if (row.workspaceId !== params.workspaceId) {
     throw new ManagedRepositoryProjectConflictError(params.projectId);
   }

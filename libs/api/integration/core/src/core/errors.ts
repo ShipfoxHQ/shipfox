@@ -1,3 +1,4 @@
+import type {ManagedSeedFileProblem} from '@shipfox/api-integration-managed-vcs';
 import {
   ConnectionSlugConflictError,
   type IntegrationConnectionProviderAccess,
@@ -97,11 +98,7 @@ export {ConnectionSlugConflictError, IntegrationProviderError, type IntegrationP
 
 export class ManagedSeedFileRefusedError extends Error {
   constructor(
-    public readonly problem:
-      | 'path-not-allowed'
-      | 'file-too-large'
-      | 'too-many-files'
-      | 'seed-too-large',
+    public readonly problem: ManagedSeedFileProblem,
     public readonly path: string,
   ) {
     super(`The managed repository refused the seed files: ${problem}`);

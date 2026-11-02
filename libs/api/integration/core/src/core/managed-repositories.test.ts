@@ -83,6 +83,18 @@ describe('createManagedProjectRepository', () => {
     await expect(attempt).rejects.toBeInstanceOf(ManagedSeedFileRefusedError);
   });
 
+  it('leaves no connection behind when the seed is refused', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await createManagedProjectRepository({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      files: [{path: 'src/index.ts', content: 'x'}],
+    }).catch(() => undefined);
+
+    expect(await listIntegrationConnections({workspaceId})).toEqual([]);
+  });
+
   it('reports a project that belongs to another workspace', async () => {
     const projectId = crypto.randomUUID();
     await createManagedProjectRepository({workspaceId: crypto.randomUUID(), projectId});

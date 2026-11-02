@@ -79,7 +79,9 @@ export function createWorkspaceConnectionSnapshotLoader(
   );
 
   return async (workspaceId) => {
-    const connections = await listIntegrationConnections({workspaceId});
+    const connections = (await listIntegrationConnections({workspaceId})).filter(
+      (connection) => !registry.find(connection.provider)?.internal,
+    );
     const snapshot = new Map(
       connections.map((connection) => [
         connection.slug,

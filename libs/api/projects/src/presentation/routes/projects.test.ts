@@ -50,7 +50,7 @@ describe('project routes', () => {
   let sourceConnectionId: string;
   let integrations: Pick<
     IntegrationsModuleClient,
-    'resolveSourceRepository' | 'createManagedRepository'
+    'resolveSourceRepository' | 'createManagedRepository' | 'deleteManagedRepository'
   >;
   let flags: ReturnType<typeof createTestFeatureFlags>;
   let auth: Pick<AuthInterModuleClient, 'requireAdminRole'>;
@@ -64,6 +64,7 @@ describe('project routes', () => {
     flags = createTestFeatureFlags();
     integrations = {
       createManagedRepository: vi.fn(),
+      deleteManagedRepository: vi.fn().mockResolvedValue({deleted: true}),
       resolveSourceRepository: vi.fn(async () => {
         await Promise.resolve();
         return {
@@ -170,7 +171,7 @@ describe('project routes', () => {
       expect(integrations.createManagedRepository).not.toHaveBeenCalled();
     });
 
-    test('creates the repository first and binds the project to it', async () => {
+    test('creates a managed repository and binds the project to it', async () => {
       flags = createTestFeatureFlags({'managed-config-repos': true});
       await closeApp();
       app = await createApp({
@@ -194,6 +195,45 @@ describe('project routes', () => {
         projectId: res.json().id,
         files,
       });
+    });
+
+    test('deletes the new repository when the project can not be created', async () => {
+      flags = createTestFeatureFlags({'managed-config-repos': true});
+      await closeApp();
+      app = await createApp({
+        auth: [fakeUserAuth],
+        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        swagger: false,
+      });
+      const request = arrangeManagedSource();
+      vi.mocked(integrations.resolveSourceRepository).mockRejectedValue(new Error('boom'));
+
+      const res = await app.inject(request);
+
+      expect(res.statusCode).toBe(500);
+      expect(integrations.deleteManagedRepository).toHaveBeenCalledWith({
+        workspaceId,
+        projectId: vi.mocked(integrations.createManagedRepository).mock.calls[0]?.[0].projectId,
+      });
+    });
+
+    test('reads a body that mixes a managed kind with linked fields as managed, not linked', async () => {
+      const request = arrangeManagedSource();
+
+      const res = await app.inject({
+        ...request,
+        payload: {
+          ...request.payload,
+          source: {
+            kind: 'managed',
+            connection_id: sourceConnectionId,
+            external_repository_id: 'gitea:gitea-owner/platform',
+          },
+        },
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('managed-source-unavailable');
     });
 
     test('maps a refused seed file to a stable error', async () => {

@@ -85,6 +85,20 @@ describe('createManagedRepository', () => {
     expect(file.content).toBe('name: First\n');
   });
 
+  it('returns the existing repository even when the repeat call carries an invalid seed', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const first = await createManagedRepository({workspaceId, projectId});
+
+    const second = await createManagedRepository({
+      workspaceId,
+      projectId,
+      files: [{path: 'src/index.ts', content: 'x'}],
+    });
+
+    expect(second).toEqual(first);
+  });
+
   it('creates one repository when two calls race for a project', async () => {
     const workspaceId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
