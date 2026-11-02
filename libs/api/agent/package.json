@@ -84,6 +84,7 @@
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@opentelemetry/api": "catalog:",
+    "@shipfox/agent-transcript": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",

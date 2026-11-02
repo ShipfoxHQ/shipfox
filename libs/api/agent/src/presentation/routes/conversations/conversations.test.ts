@@ -16,6 +16,7 @@ import {conversations} from '#db/schema/conversations.js';
 import {sessionDataKeys} from '#db/schema/data-keys.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {turnFactory} from '#test/factories/turn.js';
+import {appendConversationEntry} from '#test/fixtures/conversation-entries.js';
 import {createTestProjectsClient} from '#test/fixtures/projects-client.js';
 import {createAgentRoutes} from '../index.js';
 
@@ -119,11 +120,13 @@ describe('conversation routes', () => {
       });
       expect(res.json().item).toMatchObject({
         seq: null,
-        kind: 'user_message',
+        entry_type: 'message',
         author_user_id: owner.userId,
         client_message_id: payload.client_message_id,
-        body: 'Why did this fail?',
-        meta: {page_context: pageContext},
+        content: {
+          type: 'rows',
+          rows: [{kind: 'message', role: 'user', text: 'Why did this fail?'}],
+        },
       });
       expect(stored[0]).toMatchObject({
         workspaceId,
@@ -611,7 +614,7 @@ describe('conversation routes', () => {
       });
 
       expect(seqs(res)).toEqual([1]);
-      expect(res.json().queued).toMatchObject([{seq: null, body: 'queued'}]);
+      expect(res.json().queued).toMatchObject([{seq: null, content: {rows: [{text: 'queued'}]}}]);
     });
 
     it('returns every queued input, whatever the page limit', async () => {
@@ -651,9 +654,9 @@ describe('conversation routes', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json().items.map((item: {body: string | null}) => item.body)).toEqual([
-        null,
-        'message 2',
+      expect(res.json().items).toMatchObject([
+        {seq: 1, content: null},
+        {seq: 2, content: {rows: [{text: 'message 2'}]}},
       ]);
     });
 
@@ -667,6 +670,192 @@ describe('conversation routes', () => {
       });
 
       expect(res.statusCode).toBe(400);
+    });
+
+    describe('what a client sees', () => {
+      async function arrangeEntry(entry: string | Record<string, unknown>) {
+        const {workspaceId, projectId} = arrangeProject();
+        const owner = member({workspaceId});
+        const {conversation} = await conversationFactory.create({
+          workspaceId,
+          projectId,
+          ownerUserId: owner.userId,
+        });
+        await claimQueuedConversationItems(conversation.id);
+        await appendConversationEntry({conversation, entry});
+        const res = await app.inject({
+          method: 'GET',
+          url: `/conversations/${conversation.id}/items`,
+          headers: {authorization: owner.authorization},
+        });
+        return {res, last: res.json().items.at(-1)};
+      }
+
+      it('drops the pinned system entry', async () => {
+        const {res} = await arrangeEntry({
+          type: 'message',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          message: {
+            role: 'system',
+            content: 'the-base-prompt',
+            toolsAdded: [{name: 'the_tool_name', description: 'd', parameters: {}}],
+          },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json().items).toHaveLength(1);
+        expect(res.body).not.toContain('the-base-prompt');
+        expect(res.body).not.toContain('the_tool_name');
+      });
+
+      it('removes the page note from a user message', async () => {
+        const {workspaceId, projectId} = arrangeProject();
+        const owner = member({workspaceId});
+        const {conversation} = await conversationFactory.create({
+          workspaceId,
+          projectId,
+          ownerUserId: owner.userId,
+          body: 'Why did this fail?',
+          pageContext: {page: 'run', run_id: crypto.randomUUID(), attempt: 2},
+        });
+        await claimQueuedConversationItems(conversation.id);
+
+        const res = await app.inject({
+          method: 'GET',
+          url: `/conversations/${conversation.id}/items`,
+          headers: {authorization: owner.authorization},
+        });
+
+        expect(res.json().items[0].content.rows).toMatchObject([{text: 'Why did this fail?'}]);
+        expect(res.body).not.toContain('page_context');
+      });
+
+      it('returns thinking and text, with no signature', async () => {
+        const {res, last} = await arrangeEntry({
+          type: 'message',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          message: {
+            role: 'assistant',
+            content: [
+              {type: 'thinking', thinking: 'Reasoning', thinkingSignature: 'secret-signature'},
+              {type: 'text', text: 'Answer', textSignature: 'secret-signature'},
+              {
+                type: 'toolCall',
+                id: 'c',
+                name: 'read',
+                arguments: {},
+                thoughtSignature: 'secret-signature',
+              },
+            ],
+          },
+        });
+
+        expect(last.content.rows.map((row: {kind: string}) => row.kind)).toEqual(
+          expect.arrayContaining(['thinking', 'message', 'tool-call']),
+        );
+        expect(res.body).not.toContain('secret-signature');
+      });
+
+      it('keeps a signature out of the fallback for a reply with nothing to show', async () => {
+        const {res} = await arrangeEntry({
+          type: 'message',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'thinking',
+                thinking: '',
+                thinkingSignature: 'secret-signature',
+                redacted: true,
+              },
+            ],
+          },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).not.toContain('secret-signature');
+      });
+
+      it('keeps the system prompt out of a compaction with no summary', async () => {
+        const {res} = await arrangeEntry({
+          type: 'compaction',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          firstKeptEntryId: 'a',
+          tokensBefore: 10,
+          systemMessage: {role: 'system', content: 'the-base-prompt'},
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).not.toContain('the-base-prompt');
+      });
+
+      it('returns an unknown entry as a raw row with no content', async () => {
+        const {res, last} = await arrangeEntry({
+          type: 'future_entry',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          thinkingSignature: 'secret-signature',
+        });
+
+        expect(last.entry_type).toBe('future_entry');
+        expect(last.content.rows).toMatchObject([{kind: 'raw', raw: ''}]);
+        expect(res.body).not.toContain('secret-signature');
+      });
+
+      it('returns a malformed entry as a raw row with no content', async () => {
+        const {last} = await arrangeEntry('{not json secret-signature');
+
+        expect(last.content.rows).toMatchObject([{kind: 'raw', raw: ''}]);
+      });
+
+      it('returns a run result through its own DTO', async () => {
+        const details = {
+          workflow_run_id: crypto.randomUUID(),
+          run_attempt_id: crypto.randomUUID(),
+          status: 'succeeded',
+          job_keys: ['build'],
+          outputs: {pr_url: 'https://example.com/1'},
+        };
+
+        const {last} = await arrangeEntry({
+          type: 'custom_message',
+          customType: 'run_result',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          content: '<untrusted>result</untrusted>',
+          display: true,
+          details,
+        });
+
+        expect(last.content).toEqual({type: 'run_result', run_result: details});
+      });
+
+      it('returns a turn notice through its own DTO', async () => {
+        const data = {
+          code: 'admission-denied',
+          message: null,
+          required_action: {reason: 'depleted', message: 'Add credits', url: '/billing'},
+        };
+
+        const {last} = await arrangeEntry({
+          type: 'custom',
+          customType: 'turn_notice',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          data,
+        });
+
+        expect(last.content).toEqual({type: 'turn_notice', turn_notice: data});
+      });
+
+      it('falls back to rows for a notice it cannot read', async () => {
+        const {last} = await arrangeEntry({
+          type: 'custom',
+          customType: 'turn_notice',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          data: {unexpected: true},
+        });
+
+        expect(last.content.type).toBe('rows');
+      });
     });
 
     it('rejects both directions at once', async () => {
@@ -708,8 +897,7 @@ describe('conversation routes', () => {
       expect(res.statusCode).toBe(201);
       expect(res.json()).toMatchObject({
         seq: null,
-        body: 'Next question',
-        meta: {page_context: pageContext},
+        content: {rows: [{text: 'Next question'}]},
       });
     });
 

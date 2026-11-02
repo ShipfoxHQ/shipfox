@@ -13,6 +13,13 @@ import {turnStreamChunks} from '#db/schema/turn-stream-chunks.js';
 import {turns} from '#db/schema/turns.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {turnFactory} from '#test/factories/turn.js';
+import {appendConversationEntry} from '#test/fixtures/conversation-entries.js';
+import {
+  CONVERSATION_SESSION_VERSION,
+  conversationPageNote,
+  isSystemEntry,
+  userMessageEntry,
+} from './conversation-entries.js';
 import {
   aadForConversationItem,
   aadForConversationTitle,
@@ -28,7 +35,16 @@ import {
   listOpenConversationItems,
   postWebConversationMessage,
 } from './conversations.js';
+import type {OpenConversationItem} from './entities/conversation.js';
 import {ConversationNotFoundError, ConversationTurnRunningError} from './errors.js';
+
+function storedContent(item: OpenConversationItem): Array<{type: string; text: string}> {
+  return JSON.parse(item.entry as string).message.content;
+}
+
+function storedText(item: OpenConversationItem): string | undefined {
+  return item.entry === null ? undefined : storedContent(item)[0]?.text;
+}
 
 async function requireConversation(conversationId: string, userId: string) {
   const conversation = await loadWebConversation({conversationId, userId});
@@ -51,6 +67,61 @@ describe('conversationTitleFromMessage', () => {
   });
 });
 
+describe('userMessageEntry', () => {
+  const runId = '11111111-1111-4111-8111-111111111111';
+
+  it('stores a pi message entry with the text as its only block', () => {
+    const entry = JSON.parse(userMessageEntry({body: 'Hello'}));
+
+    expect(entry).toEqual({
+      type: 'message',
+      timestamp: expect.any(String),
+      message: {
+        role: 'user',
+        content: [{type: 'text', text: 'Hello'}],
+        timestamp: expect.any(Number),
+      },
+    });
+  });
+
+  it('adds the page note as the second block', () => {
+    const pageContext = {page: 'run' as const, run_id: runId, attempt: 2};
+
+    const entry = JSON.parse(userMessageEntry({body: 'Why?', pageContext}));
+
+    expect(entry.message.content).toEqual([
+      {type: 'text', text: 'Why?'},
+      {type: 'text', text: `<page_context page="run" run_id="${runId}" attempt="2"/>`},
+    ]);
+  });
+
+  it('leaves the status out of the note', () => {
+    const note = conversationPageNote({page: 'run', run_id: runId, status: 'failed'});
+
+    expect(note).toBe(`<page_context page="run" run_id="${runId}"/>`);
+  });
+
+  it('writes a note for a page with no fields', () => {
+    const note = conversationPageNote({page: 'runs'});
+
+    expect(note).toBe('<page_context page="runs"/>');
+  });
+});
+
+describe('isSystemEntry', () => {
+  it.each([
+    {entry: '{"type":"message","message":{"role":"system"}}', expected: true},
+    {entry: '{"type":"message","message":{"role":"user"}}', expected: false},
+    {entry: '{"type":"custom","customType":"system"}', expected: false},
+    {entry: 'not json', expected: false},
+    {entry: null, expected: false},
+  ])('returns $expected for $entry', ({entry, expected}) => {
+    const result = isSystemEntry(entry);
+
+    expect(result).toBe(expected);
+  });
+});
+
 describe('sealed conversation data', () => {
   const secret = 'the-plaintext-marker';
 
@@ -67,7 +138,7 @@ describe('sealed conversation data', () => {
       .where(eq(conversationItems.id, item.id));
 
     expect(conversation.title).toBe(`${secret} in a message`);
-    expect(item.body).toBe(`${secret} in a message`);
+    expect(storedText(item)).toBe(`${secret} in a message`);
     expect(conversationRow?.title?.toString('latin1')).not.toContain(secret);
     expect(itemRow?.body.toString('latin1')).not.toContain(secret);
     expect(JSON.stringify(itemRow?.meta)).not.toContain(secret);
@@ -141,7 +212,7 @@ describe('createWebConversation', () => {
       .where(eq(conversations.projectId, params.projectId));
     expect(repeat.conversation.id).toBe(first.conversation.id);
     expect(repeat.item.id).toBe(first.item.id);
-    expect(repeat.item.body).toBe(params.body);
+    expect(storedText(repeat.item)).toBe(params.body);
     expect(rows).toHaveLength(1);
   });
 
@@ -199,7 +270,9 @@ describe('postWebConversationMessage', () => {
     });
 
     expect(item.seq).toBeNull();
-    expect(item.kind).toBe('user_message');
+    expect(item.entryType).toBe('message');
+    expect(item.sessionVersion).toBe(CONVERSATION_SESSION_VERSION);
+    expect(item.meta).toEqual({role: 'user'});
     expect(item.authorUserId).toBe(owner);
   });
 
@@ -308,7 +381,7 @@ describe('claimQueuedConversationItems', () => {
     const {items, queued} = await listOpenConversationItems({conversation, limit: 50});
     const reloaded = await requireConversation(conversation.id, owner);
     expect(claimed).toBe(3);
-    expect(items.map((item) => [item.seq, item.body])).toEqual([
+    expect(items.map((item) => [item.seq, storedText(item)])).toEqual([
       [1, 'message 0'],
       [2, 'message 1'],
       [3, 'message 2'],
@@ -397,6 +470,46 @@ describe('listOpenConversationItems', () => {
     expect(queuedHasMore).toBe(true);
   });
 
+  it('returns an entry byte for byte, with thinking, a signature, and an unknown block', async () => {
+    const owner = crypto.randomUUID();
+    const {conversation} = await conversationFactory.create({ownerUserId: owner});
+    const loaded = await requireConversation(conversation.id, owner);
+    const entry =
+      '{"type":"message","zLater":1,"timestamp":"2026-11-02T00:00:00.000Z","message":{"role":"assistant",' +
+      '"content":[{"type":"thinking","thinking":"hm","thinkingSignature":"sig-1"},' +
+      '{"type":"future_block","payload":[1, 2],"nested":{"b":1,"a":2}}]}}';
+    await appendConversationEntry({conversation, entry});
+
+    const {items} = await listOpenConversationItems({conversation: loaded, limit: 50});
+
+    expect(items.map((item) => item.entry)).toEqual([entry]);
+  });
+
+  it('reads an entry that is sealed but not gzipped as null', async () => {
+    const owner = crypto.randomUUID();
+    const {conversation, item} = await conversationFactory.create({ownerUserId: owner});
+    const loaded = await requireConversation(conversation.id, owner);
+    const key = await conversationDataKey(conversation.workspaceId);
+    await db()
+      .update(conversationItems)
+      .set({
+        body: sealConversationText({
+          key,
+          aad: aadForConversationItem({
+            workspaceId: conversation.workspaceId,
+            conversationId: conversation.id,
+            itemId: item.id,
+          }),
+          text: 'not gzipped',
+        }),
+      })
+      .where(eq(conversationItems.id, item.id));
+
+    const {queued} = await listOpenConversationItems({conversation: loaded, limit: 50});
+
+    expect(queued.map((entry) => entry.entry)).toEqual([null]);
+  });
+
   it('reads an unreadable body as null, and keeps the other items', async () => {
     const owner = crypto.randomUUID();
     const {conversation, item} = await conversationFactory.create({ownerUserId: owner});
@@ -414,7 +527,10 @@ describe('listOpenConversationItems', () => {
 
     const {queued} = await listOpenConversationItems({conversation: loaded, limit: 50});
 
-    expect(queued.map((entry) => entry.body)).toEqual([null, 'still readable']);
+    expect(queued.map((entry) => [entry.entry, storedText(entry)])).toEqual([
+      [null, undefined],
+      [expect.any(String), 'still readable'],
+    ]);
   });
 });
 
@@ -450,6 +566,46 @@ describe('deleteWebConversation', () => {
 
     await expect(deletion).rejects.toBeInstanceOf(ConversationTurnRunningError);
     expect((await getRunningTurn(conversation.id))?.id).toBe(turn.id);
+  });
+});
+
+describe('agent_conversation_items write position', () => {
+  it('allows one assistant entry per model call', async () => {
+    const {conversation} = await conversationFactory.create();
+    const turn = await turnFactory.create({conversationId: conversation.id});
+    const position = {turnId: turn.id, modelCallIndex: 0};
+    await appendConversationEntry({conversation, entry: {type: 'message'}, ...position});
+
+    const second = appendConversationEntry({conversation, entry: {type: 'message'}, ...position});
+
+    await expect(second).rejects.toThrow();
+  });
+
+  it('allows one tool result per call', async () => {
+    const {conversation} = await conversationFactory.create();
+    const turn = await turnFactory.create({conversationId: conversation.id});
+    const position = {turnId: turn.id, modelCallIndex: 0, callIndex: 1};
+    await appendConversationEntry({conversation, entry: {type: 'message'}, ...position});
+
+    const second = appendConversationEntry({conversation, entry: {type: 'message'}, ...position});
+
+    await expect(second).rejects.toThrow();
+  });
+
+  it('keeps an assistant entry and its tool results apart', async () => {
+    const {conversation} = await conversationFactory.create();
+    const turn = await turnFactory.create({conversationId: conversation.id});
+    const position = {turnId: turn.id, modelCallIndex: 0};
+    await appendConversationEntry({conversation, entry: {type: 'message'}, ...position});
+
+    const result = appendConversationEntry({
+      conversation,
+      entry: {type: 'message'},
+      ...position,
+      callIndex: 0,
+    });
+
+    await expect(result).resolves.toEqual(expect.any(String));
   });
 });
 

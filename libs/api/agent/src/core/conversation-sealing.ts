@@ -1,4 +1,6 @@
 import {Buffer} from 'node:buffer';
+import {gunzipSync, gzipSync} from 'node:zlib';
+import {AgentSessionUnavailableError} from './errors.js';
 import {sessionDekManager} from './session-artifacts/composition.js';
 import {openSessionBlob, sealSessionBlob} from './session-artifacts/crypto.js';
 
@@ -47,4 +49,22 @@ export function sealConversationText(params: {key: Buffer; aad: string; text: st
 
 export function openConversationText(params: {key: Buffer; aad: string; sealed: Buffer}): string {
   return openSessionBlob(params).toString('utf8');
+}
+
+// Sealed bytes don't compress, so an entry is gzipped first.
+export function sealConversationEntry(params: {key: Buffer; aad: string; entry: string}): Buffer {
+  return sealSessionBlob({
+    key: params.key,
+    plaintext: gzipSync(Buffer.from(params.entry, 'utf8')),
+    aad: params.aad,
+  });
+}
+
+export function openConversationEntry(params: {key: Buffer; aad: string; sealed: Buffer}): string {
+  const compressed = openSessionBlob(params);
+  try {
+    return gunzipSync(compressed).toString('utf8');
+  } catch {
+    throw new AgentSessionUnavailableError('decryption_failed');
+  }
 }

@@ -1,5 +1,4 @@
 import type {Buffer} from 'node:buffer';
-import type {ConversationItemMetaDto} from '@shipfox/api-agent-dto';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
@@ -19,7 +18,12 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm';
-import type {AgentTurn, Conversation, ConversationItem} from '#core/entities/conversation.js';
+import type {
+  AgentTurn,
+  Conversation,
+  ConversationItem,
+  ConversationItemMeta,
+} from '#core/entities/conversation.js';
 import {db} from './db.js';
 import {conversationItems, toConversationItem} from './schema/conversation-items.js';
 import {conversations, toConversation} from './schema/conversations.js';
@@ -28,8 +32,9 @@ import {toAgentTurn, turns} from './schema/turns.js';
 export interface NewConversationInput {
   id: string;
   clientMessageId: string;
-  sealedBody: Buffer;
-  meta: ConversationItemMetaDto;
+  sessionVersion: number;
+  sealedEntry: Buffer;
+  meta: ConversationItemMeta;
 }
 
 export interface InsertWebConversationParams {
@@ -192,10 +197,11 @@ export async function insertWebConversation(
           .values({
             id: firstInput.id,
             conversationId: conversation.id,
-            kind: 'user_message',
+            entryType: 'message',
+            sessionVersion: firstInput.sessionVersion,
             authorUserId: params.ownerUserId,
             clientMessageId: firstInput.clientMessageId,
-            body: firstInput.sealedBody,
+            body: firstInput.sealedEntry,
             meta: firstInput.meta,
           })
           .returning()
@@ -237,10 +243,11 @@ export async function insertQueuedUserMessage(
       .values({
         id: params.id,
         conversationId: params.conversationId,
-        kind: 'user_message',
+        entryType: 'message',
+        sessionVersion: params.sessionVersion,
         authorUserId: params.authorUserId,
         clientMessageId: params.clientMessageId,
-        body: params.sealedBody,
+        body: params.sealedEntry,
         meta: params.meta,
       })
       .onConflictDoNothing({

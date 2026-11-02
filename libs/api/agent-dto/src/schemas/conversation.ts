@@ -1,21 +1,11 @@
+import {sessionViewRowSchema} from '@shipfox/api-logs-dto';
+import {requiredActionSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
 
 export const CONVERSATION_MESSAGE_MAX_BYTES = 32 * 1024;
 
 // `seq` columns are int4, so a larger value would reach Postgres and fail as a 500.
 const CONVERSATION_SEQ_MAX = 2_147_483_647;
-
-export const conversationItemKindSchema = z.enum([
-  'user_message',
-  'assistant_message',
-  'tool_call',
-  'tool_result',
-  'run_result',
-  'compaction',
-  'turn_notice',
-]);
-
-export type ConversationItemKind = z.infer<typeof conversationItemKindSchema>;
 
 export const agentTurnStatusSchema = z.enum(['running', 'succeeded', 'failed', 'stopped']);
 
@@ -67,23 +57,43 @@ export const createConversationBodySchema = postConversationMessageBodySchema;
 
 export type CreateConversationBodyDto = z.infer<typeof createConversationBodySchema>;
 
-export const conversationItemMetaSchema = z.object({
-  page_context: pageContextSchema.optional(),
+export const conversationRunResultDtoSchema = z.object({
+  workflow_run_id: z.string().uuid(),
+  run_attempt_id: z.string().uuid(),
+  status: z.string(),
+  job_keys: z.array(z.string()),
+  outputs: z.record(z.string(), z.unknown()).nullable(),
 });
 
-export type ConversationItemMetaDto = z.infer<typeof conversationItemMetaSchema>;
+export type ConversationRunResultDto = z.infer<typeof conversationRunResultDtoSchema>;
+
+export const conversationTurnNoticeDtoSchema = z.object({
+  code: z.string(),
+  message: z.string().nullable(),
+  required_action: requiredActionSchema.nullable(),
+});
+
+export type ConversationTurnNoticeDto = z.infer<typeof conversationTurnNoticeDtoSchema>;
+
+export const conversationItemContentDtoSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('rows'), rows: z.array(sessionViewRowSchema)}),
+  z.object({type: z.literal('run_result'), run_result: conversationRunResultDtoSchema}),
+  z.object({type: z.literal('turn_notice'), turn_notice: conversationTurnNoticeDtoSchema}),
+]);
+
+export type ConversationItemContentDto = z.infer<typeof conversationItemContentDtoSchema>;
 
 export const conversationItemDtoSchema = z.object({
   id: z.string().uuid(),
   /** Null while the item is queued. A claim assigns it. */
   seq: z.number().int().min(1).nullable(),
-  kind: conversationItemKindSchema,
+  /** pi's entry type. A new type needs no contract change. */
+  entry_type: z.string(),
   turn_id: z.string().uuid().nullable(),
   author_user_id: z.string().uuid().nullable(),
   client_message_id: z.string().uuid().nullable(),
-  /** Null when the stored body can't be opened. The rest of the timeline stays readable. */
-  body: z.string().nullable(),
-  meta: conversationItemMetaSchema,
+  /** Null when the stored entry can't be opened. The rest of the timeline stays readable. */
+  content: conversationItemContentDtoSchema.nullable(),
   created_at: z.string().datetime(),
 });
 

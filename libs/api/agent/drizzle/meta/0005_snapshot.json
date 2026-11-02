@@ -1,5 +1,5 @@
 {
-  "id": "d33bed62-b788-4d4c-9da5-9390fcaf9ef7",
+  "id": "6fb58ead-a102-4d28-bfac-7ca816287973",
   "prevId": "2ba15141-ccfa-4791-abf6-b760f88e22f9",
   "version": "7",
   "dialect": "postgresql",
@@ -72,15 +72,33 @@
           "primaryKey": false,
           "notNull": false
         },
-        "kind": {
-          "name": "kind",
+        "entry_type": {
+          "name": "entry_type",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_version": {
+          "name": "session_version",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
         "turn_id": {
           "name": "turn_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_call_index": {
+          "name": "model_call_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "call_index": {
+          "name": "call_index",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -157,6 +175,56 @@
           ],
           "isUnique": true,
           "where": "\"agent_conversation_items\".\"client_message_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_conversation_items_model_call_unique": {
+          "name": "agent_conversation_items_model_call_unique",
+          "columns": [
+            {
+              "expression": "turn_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "model_call_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"agent_conversation_items\".\"model_call_index\" is not null and \"agent_conversation_items\".\"call_index\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_conversation_items_tool_call_unique": {
+          "name": "agent_conversation_items_tool_call_unique",
+          "columns": [
+            {
+              "expression": "turn_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "model_call_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "call_index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"agent_conversation_items\".\"call_index\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -282,12 +350,12 @@
           "notNull": true,
           "default": 0
         },
-        "compaction_through_seq": {
-          "name": "compaction_through_seq",
+        "context_start_seq": {
+          "name": "context_start_seq",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": 0
+          "default": 1
         },
         "retry_requested_at": {
           "name": "retry_requested_at",

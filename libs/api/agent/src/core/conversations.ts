@@ -12,10 +12,17 @@ import {
   newConversationRecordId,
 } from '#db/conversations.js';
 import {
+  CONVERSATION_SESSION_VERSION,
+  isSystemEntry,
+  userMessageEntry,
+} from './conversation-entries.js';
+import {
   aadForConversationItem,
   aadForConversationTitle,
   conversationDataKey,
+  openConversationEntry,
   openConversationText,
+  sealConversationEntry,
   sealConversationText,
 } from './conversation-sealing.js';
 import type {
@@ -55,12 +62,12 @@ export function isConversationUnread(
 }
 
 // Clients poll lists and timelines, so one unreadable row must not fail them all.
-function openRowText(
-  params: {key: Buffer; aad: string; sealed: Buffer},
+function openRow(
+  open: () => string,
   row: {conversationId: string; itemId?: string},
 ): string | null {
   try {
-    return openConversationText(params);
+    return open();
   } catch (error) {
     if (!(error instanceof AgentSessionUnavailableError)) throw error;
     logger().error({err: error, ...row}, 'Failed to open a sealed conversation row');
@@ -73,15 +80,16 @@ function openConversation(conversation: Conversation, key: Buffer): OpenConversa
   const {sealedTitle, ...rest} = conversation;
   const title =
     sealedTitle &&
-    openRowText(
-      {
-        key,
-        aad: aadForConversationTitle({
-          workspaceId: conversation.workspaceId,
-          conversationId: conversation.id,
+    openRow(
+      () =>
+        openConversationText({
+          key,
+          aad: aadForConversationTitle({
+            workspaceId: conversation.workspaceId,
+            conversationId: conversation.id,
+          }),
+          sealed: sealedTitle,
         }),
-        sealed: sealedTitle,
-      },
       {conversationId: conversation.id},
     );
   return {...rest, title};
@@ -91,24 +99,25 @@ function openConversationItem(
   item: ConversationItem,
   params: {key: Buffer; workspaceId: string},
 ): OpenConversationItem {
-  const {sealedBody, ...rest} = item;
-  const body = openRowText(
-    {
-      key: params.key,
-      aad: aadForConversationItem({
-        workspaceId: params.workspaceId,
-        conversationId: item.conversationId,
-        itemId: item.id,
+  const {sealedEntry, ...rest} = item;
+  const entry = openRow(
+    () =>
+      openConversationEntry({
+        key: params.key,
+        aad: aadForConversationItem({
+          workspaceId: params.workspaceId,
+          conversationId: item.conversationId,
+          itemId: item.id,
+        }),
+        sealed: sealedEntry,
       }),
-      sealed: sealedBody,
-    },
     {conversationId: item.conversationId, itemId: item.id},
   );
-  return {...rest, body};
+  return {...rest, entry};
 }
 
 function inputMeta(pageContext: PageContextDto | undefined) {
-  return pageContext ? {page_context: pageContext} : {};
+  return {role: 'user', ...(pageContext ? {page_context: pageContext} : {})};
 }
 
 export async function createWebConversation(
@@ -133,10 +142,11 @@ export async function createWebConversation(
     firstInput: {
       id: itemId,
       clientMessageId: params.clientMessageId,
-      sealedBody: sealConversationText({
+      sessionVersion: CONVERSATION_SESSION_VERSION,
+      sealedEntry: sealConversationEntry({
         key,
         aad: aadForConversationItem({...scope, itemId}),
-        text: params.body,
+        entry: userMessageEntry({body: params.body, pageContext: params.pageContext}),
       }),
       meta: inputMeta(params.pageContext),
     },
@@ -164,10 +174,11 @@ export async function postWebConversationMessage(params: {
     conversationId,
     authorUserId: params.authorUserId,
     clientMessageId: params.clientMessageId,
-    sealedBody: sealConversationText({
+    sessionVersion: CONVERSATION_SESSION_VERSION,
+    sealedEntry: sealConversationEntry({
       key,
       aad: aadForConversationItem({workspaceId, conversationId, itemId}),
-      text: params.body,
+      entry: userMessageEntry({body: params.body, pageContext: params.pageContext}),
     }),
     meta: inputMeta(params.pageContext),
   });
@@ -221,7 +232,10 @@ export async function listOpenConversationItems(params: {
   });
 
   return {
-    items: timeline.items.map((item) => openConversationItem(item, {key, workspaceId})),
+    // The pinned prompt and tool names stay on the server.
+    items: timeline.items
+      .map((item) => openConversationItem(item, {key, workspaceId}))
+      .filter((item) => !isSystemEntry(item.entry)),
     hasMore: timeline.hasMore,
     queued: timeline.queued.map((item) => openConversationItem(item, {key, workspaceId})),
     queuedHasMore: timeline.queuedHasMore,

@@ -3099,6 +3099,9 @@ importers:
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
+      '@shipfox/agent-transcript':
+        specifier: workspace:*
+        version: link:../../shared/agent/transcript
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../agent-dto
@@ -3351,6 +3354,9 @@ importers:
 
   libs/api/agent-dto:
     dependencies:
+      '@shipfox/api-logs-dto':
+        specifier: workspace:*
+        version: link:../logs-dto
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module

@@ -1,8 +1,13 @@
-import type {
-  ConversationActiveTurnDto,
-  ConversationItemDto,
-  ConversationSummaryDto,
+import {parseSessionRecord} from '@shipfox/agent-transcript';
+import {
+  type ConversationActiveTurnDto,
+  type ConversationItemContentDto,
+  type ConversationItemDto,
+  type ConversationSummaryDto,
+  conversationRunResultDtoSchema,
+  conversationTurnNoticeDtoSchema,
 } from '@shipfox/api-agent-dto';
+import {isRecord, parseConversationEntry} from '#core/conversation-entries.js';
 import {isConversationUnread} from '#core/conversations.js';
 import type {
   AgentTurn,
@@ -25,16 +30,64 @@ export function toConversationSummaryDto(conversation: OpenConversation): Conver
   };
 }
 
+// The parser's fallback prints a whole message, so signatures have to go first.
+const SERVER_ONLY_ENTRY_FIELDS = new Set([
+  'signature',
+  'textSignature',
+  'thinkingSignature',
+  'thoughtSignature',
+]);
+
+function withoutServerOnlyFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutServerOnlyFields);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([name]) => !SERVER_ONLY_ENTRY_FIELDS.has(name))
+      .map(([name, field]) => [name, withoutServerOnlyFields(field)]),
+  );
+}
+
+function withoutPageNote(entry: Record<string, unknown>): Record<string, unknown> {
+  const {message} = entry;
+  if (!isRecord(message) || message.role !== 'user' || !Array.isArray(message.content)) {
+    return entry;
+  }
+  return {...entry, message: {...message, content: message.content.slice(0, 1)}};
+}
+
+function toRowsContent(item: OpenConversationItem, entry: string): ConversationItemContentDto {
+  const parsed = parseConversationEntry(entry);
+  const data = parsed ? JSON.stringify(withoutServerOnlyFields(withoutPageNote(parsed))) : entry;
+  const rows = parseSessionRecord({data, ts: item.createdAt.getTime()}, 'pi');
+  // A `raw` row is the unparsed entry, and the chat ignores it, so only its label leaves.
+  return {type: 'rows', rows: rows.map((row) => (row.kind === 'raw' ? {...row, raw: ''} : row))};
+}
+
+function toConversationItemContent(item: OpenConversationItem): ConversationItemContentDto | null {
+  if (item.entry === null) return null;
+
+  const parsed = parseConversationEntry(item.entry);
+  if (parsed?.type === 'custom_message' && parsed.customType === 'run_result') {
+    const runResult = conversationRunResultDtoSchema.safeParse(parsed.details);
+    if (runResult.success) return {type: 'run_result', run_result: runResult.data};
+  }
+  if (parsed?.type === 'custom' && parsed.customType === 'turn_notice') {
+    const turnNotice = conversationTurnNoticeDtoSchema.safeParse(parsed.data);
+    if (turnNotice.success) return {type: 'turn_notice', turn_notice: turnNotice.data};
+  }
+  return toRowsContent(item, item.entry);
+}
+
 export function toConversationItemDto(item: OpenConversationItem): ConversationItemDto {
   return {
     id: item.id,
     seq: item.seq,
-    kind: item.kind,
+    entry_type: item.entryType,
     turn_id: item.turnId,
     author_user_id: item.authorUserId,
     client_message_id: item.clientMessageId,
-    body: item.body,
-    meta: item.meta,
+    content: toConversationItemContent(item),
     created_at: item.createdAt.toISOString(),
   };
 }

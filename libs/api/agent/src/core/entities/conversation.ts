@@ -1,9 +1,5 @@
 import type {Buffer} from 'node:buffer';
-import type {
-  AgentTurnStatus,
-  ConversationItemKind,
-  ConversationItemMetaDto,
-} from '@shipfox/api-agent-dto';
+import type {AgentTurnStatus, PageContextDto} from '@shipfox/api-agent-dto';
 
 export type ConversationOriginKind = 'web' | 'integration';
 
@@ -25,7 +21,7 @@ export interface Conversation {
   lastAgentSeq: number;
   lastReadSeq: number;
   runStartsSinceHuman: number;
-  compactionThroughSeq: number;
+  contextStartSeq: number;
   retryRequestedAt: Date | null;
   lastActivityAt: Date;
   createdAt: Date;
@@ -35,26 +31,35 @@ export interface OpenConversation extends Omit<Conversation, 'sealedTitle'> {
   title: string | null;
 }
 
+/** Plain facts about an entry. It holds nothing a user typed. */
+export interface ConversationItemMeta {
+  role?: string;
+  page_context?: PageContextDto;
+}
+
 /**
- * One timeline entry. A queued input has a null `seq`, and a claim assigns it.
- * That is the only change an item ever sees.
+ * One pi session entry on the timeline. A queued input has a null `seq`, and a
+ * claim assigns it. That is the only change an item ever sees.
  */
 export interface ConversationItem {
   id: string;
   conversationId: string;
   seq: number | null;
-  kind: ConversationItemKind;
+  entryType: string;
+  sessionVersion: number;
   turnId: string | null;
+  modelCallIndex: number | null;
+  callIndex: number | null;
   authorUserId: string | null;
   clientMessageId: string | null;
-  sealedBody: Buffer;
-  meta: ConversationItemMetaDto;
+  sealedEntry: Buffer;
+  meta: ConversationItemMeta;
   createdAt: Date;
 }
 
-export interface OpenConversationItem extends Omit<ConversationItem, 'sealedBody'> {
-  /** Null when the stored body can't be opened. */
-  body: string | null;
+export interface OpenConversationItem extends Omit<ConversationItem, 'sealedEntry'> {
+  /** The pi entry as stored, or null when it can't be opened. */
+  entry: string | null;
 }
 
 export interface AgentTurn {
