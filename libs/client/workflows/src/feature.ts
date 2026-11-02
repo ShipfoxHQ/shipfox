@@ -9,10 +9,10 @@ export const workflowsNavigation = [
     order: 100,
   },
   {
-    id: 'nav.workflows',
+    id: 'nav.automations',
     scope: 'project',
-    label: 'Workflows',
-    to: '/w/$workspaceSlug/p/$projectSlug/workflows',
+    label: 'Automations',
+    to: '/w/$workspaceSlug/p/$projectSlug/automations',
     order: 200,
   },
 ] as const satisfies readonly NavTabEntry[];
@@ -26,9 +26,9 @@ export const workflowsFeature = defineClientFeature({
       impl: '@shipfox/client-workflows/routes/run-permalink',
     },
     {
-      path: '/w/$workspaceSlug/p/$projectSlug/workflows',
+      path: '/w/$workspaceSlug/p/$projectSlug/automations',
       parent: 'projectLayout',
-      impl: '@shipfox/client-workflows/routes/workflows',
+      impl: '@shipfox/client-workflows/routes/automations',
     },
     {
       path: '/w/$workspaceSlug/p/$projectSlug/runs',

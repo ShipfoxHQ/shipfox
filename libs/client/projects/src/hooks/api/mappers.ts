@@ -1,7 +1,14 @@
 import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
+import type {ProjectConfigResponseDto} from '@shipfox/api-integration-core-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
-import type {Definition, DefinitionList, DefinitionSyncSummary} from '#core/definition.js';
+import type {
+  Definition,
+  DefinitionList,
+  DefinitionSyncSummary,
+  DefinitionTrigger,
+} from '#core/definition.js';
 import type {Project, ProjectList} from '#core/project.js';
+import type {ProjectConfig} from '#core/project-config.js';
 
 export function toProject(dto: ProjectResponseDto): Project {
   return {
@@ -38,10 +45,32 @@ export function toDefinition(dto: DefinitionDto): Definition {
     workflowDocument: dto.workflow_document,
     workflowModel: dto.workflow_model,
     manualTrigger: dto.manual_trigger,
+    triggers: toDefinitionTriggers(dto.workflow_model),
     fetchedAt: dto.fetched_at,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   };
+}
+
+/** The list route types the model as unknown, so this reads only the trigger fields it shows. */
+export function toDefinitionTriggers(workflowModel: unknown): DefinitionTrigger[] {
+  if (!isRecord(workflowModel) || !Array.isArray(workflowModel.triggers)) return [];
+  return workflowModel.triggers.flatMap((trigger: unknown, index: number) => {
+    if (!isRecord(trigger) || typeof trigger.source !== 'string') return [];
+    const schedule = isRecord(trigger.config) ? trigger.config.schedule : undefined;
+    return [
+      {
+        key: typeof trigger.key === 'string' ? trigger.key : String(index),
+        source: trigger.source,
+        event: typeof trigger.event === 'string' ? trigger.event : null,
+        schedule: typeof schedule === 'string' ? schedule : null,
+      },
+    ];
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function toDefinitionSyncSummary(dto: DefinitionSyncSummaryDto): DefinitionSyncSummary {
@@ -72,5 +101,21 @@ export function toDefinitionList(dto: {
     definitions: dto.definitions.map(toDefinition),
     sync: dto.sync && toDefinitionSyncSummary(dto.sync),
     nextCursor: dto.next_cursor,
+  };
+}
+
+export function toProjectConfig(dto: ProjectConfigResponseDto): ProjectConfig {
+  return {
+    source: {
+      kind: dto.source.kind,
+      provider: dto.source.provider,
+      connectionId: dto.source.connection_id,
+      externalRepositoryId: dto.source.external_repository_id,
+      owner: dto.source.owner,
+      name: dto.source.name,
+      defaultBranch: dto.source.default_branch,
+    },
+    head: dto.head,
+    historySupported: dto.history_supported,
   };
 }

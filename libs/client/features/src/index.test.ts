@@ -44,7 +44,7 @@ describe('defaultFeatures', () => {
     expect(composition.navigation.map(({id}) => id)).toEqual([
       'nav.projects',
       'nav.runs',
-      'nav.workflows',
+      'nav.automations',
       'nav.settings',
     ]);
     expect(composition.settingsSections.map(({id}) => id)).toEqual([

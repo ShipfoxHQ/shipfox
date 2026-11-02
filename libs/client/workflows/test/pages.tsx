@@ -97,9 +97,9 @@ function createTestRouter(
       });
     },
   });
-  const workflowsRoute = createRoute({
+  const automationsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/w/$workspaceSlug/p/$projectSlug/workflows',
+    path: '/w/$workspaceSlug/p/$projectSlug/automations',
     component: () => renderPage({search: {}}),
   });
   const modelProviderSettingsRoute = createRoute({
@@ -118,7 +118,7 @@ function createTestRouter(
       runsRoute,
       runDetailRoute,
       jobDetailRoute,
-      workflowsRoute,
+      automationsRoute,
       modelProviderSettingsRoute,
     ]),
   });

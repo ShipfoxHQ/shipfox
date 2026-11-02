@@ -20,6 +20,7 @@ const definition: Definition = {
   workflowDocument: {},
   workflowModel: {},
   manualTrigger: {name: 'on_demand'},
+  triggers: [{key: 'on_demand', source: 'manual', event: 'fire', schedule: null}],
   fetchedAt: '2026-05-07T01:00:00.000Z',
   createdAt: '2026-05-07T01:00:00.000Z',
   updatedAt: '2026-05-07T01:00:00.000Z',
@@ -41,6 +42,8 @@ const defaultProps: WorkflowDefinitionsTableProps = {
   onRefreshDefinitions: vi.fn(),
   runError: null,
   runningDefinitionId: null,
+  searchQuery: '',
+  onSearchChange: vi.fn(),
   sync: null,
   workspaceSlug: 'acme',
 };
@@ -73,5 +76,30 @@ describe('WorkflowDefinitionsTable navigation states', () => {
     expect(screen.getByText(REFRESH_ERROR)).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('1 row loaded');
     expect(screen.queryByText(NEXT_PAGE_ERROR)).not.toBeInTheDocument();
+  });
+});
+
+describe('WorkflowDefinitionsTable search', () => {
+  test('keeps filtering the cached list after a refresh fails', () => {
+    const archive = {...definition, id: 'archive', name: 'Archive artifacts'};
+
+    render(
+      table({
+        definitions: [definition, archive],
+        hasNextPage: false,
+        isError: true,
+        searchQuery: 'archive',
+      }),
+    );
+
+    expect(screen.getByRole('textbox', {name: 'Search workflows'})).toBeEnabled();
+    expect(screen.getByText('Archive artifacts')).toBeInTheDocument();
+    expect(screen.queryByText('Deploy production')).not.toBeInTheDocument();
+  });
+
+  test('offers to clear a search once the list is empty', () => {
+    render(table({definitions: [], hasNextPage: false, searchQuery: 'archive'}));
+
+    expect(screen.getByRole('button', {name: 'Show all workflows'})).toBeInTheDocument();
   });
 });

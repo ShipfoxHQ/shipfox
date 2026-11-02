@@ -381,7 +381,7 @@ describe('WorkflowRunListView', () => {
 
       expect(await screen.findByText('No runs yet')).toBeInTheDocument();
       expect(document.querySelectorAll('[data-slot="panel"]')).toHaveLength(1);
-      expect(screen.getByRole('link', {name: 'View workflows'})).toBeInTheDocument();
+      expect(screen.getByRole('link', {name: 'View automations'})).toBeInTheDocument();
       expect(screen.queryByRole('button', {name: 'Show all runs'})).not.toBeInTheDocument();
     });
 

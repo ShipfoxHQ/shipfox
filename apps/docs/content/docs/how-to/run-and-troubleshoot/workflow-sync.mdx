@@ -4,8 +4,8 @@ sidebarTitle: "Workflow Didn't Sync"
 description: "Find why workflow YAML did not produce a usable definition and verify the corrected sync."
 ---
 
-Use this guide when a workflow is missing from the Workflows tab. It also applies
-when the project reports **Workflow sync failed**.
+Use this guide when a workflow is missing from the project's **Automations**
+page. It also applies when the project reports **Workflow sync failed**.
 
 ## Before you begin
 
@@ -14,8 +14,8 @@ default branch.
 
 ## Inspect the sync result
 
-Open the project and select **Workflows**. Read the sync badge and failure
-message before changing the workflow.
+Open the project and select **Automations**. Read the sync badge next to the
+config source and the failure message before changing the workflow.
 
 | Result | What to check |
 | --- | --- |
@@ -49,8 +49,8 @@ Correct it in one of two ways:
 
 1. Fix the reported problem on the repository's default branch.
 2. Commit and push the correction.
-3. Return to the Workflows tab.
-4. Wait for the sync badge to reach **succeeded**.
+3. Return to the **Automations** page.
+4. Wait for the sync badge to reach **Synced**.
 5. Open the workflow and confirm that its source matches the committed YAML.
 
 A successful sync changes only future runs. It does not change an active run. It

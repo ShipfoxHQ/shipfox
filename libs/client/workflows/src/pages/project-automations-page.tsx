@@ -3,11 +3,11 @@ import {
   type Definition,
   type DefinitionSyncDiagnostic,
   type DefinitionSyncSummary,
-  SourceStrip,
   useDefinitionsInfiniteQuery,
+  useProjectConfigQuery,
   useProjectQuery,
 } from '@shipfox/client-projects';
-import {parseWorkspaceParams, useChrome, useRouteParams} from '@shipfox/client-shell/runtime';
+import {useChrome} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -23,7 +23,9 @@ import {
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
-import {type ReactNode, useState} from 'react';
+import {Link} from '@tanstack/react-router';
+import {type ReactNode, useEffect, useState} from 'react';
+import {ConfigSourceHeader} from '#components/automations/config-source-header.js';
 import {DefinitionPackagesPanel} from '#components/definition-packages-panel/definition-packages-panel.js';
 import {
   WorkflowDefinitionsTable,
@@ -33,21 +35,34 @@ import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
-export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
+export interface ProjectAutomationsPageProps {
+  projectId: string;
+  workspaceSlug: string;
+  projectSlug: string;
+}
+
+export function ProjectAutomationsPage(props: ProjectAutomationsPageProps) {
   return (
     <RelativeTimeProvider>
-      <ProjectWorkflowsPageInner projectId={projectId} />
+      {/* A new project starts with fresh search, selection, and no placeholder rows. */}
+      <ProjectAutomationsPageInner key={props.projectId} {...props} />
     </RelativeTimeProvider>
   );
 }
 
-function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
+function ProjectAutomationsPageInner({
+  projectId,
+  workspaceSlug,
+  projectSlug,
+}: ProjectAutomationsPageProps) {
   const projectQuery = useProjectQuery(projectId);
+  const configQuery = useProjectConfigQuery(projectId);
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
   const fireManual = useFireManualWorkflowMutation();
   const [selectedDefinition, setSelectedDefinition] = useState<Definition | null>(null);
-  const {workspaceSlug} = useRouteParams(parseWorkspaceParams);
   const [runError, setRunError] = useState<WorkflowRunError | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  useLoadEveryDefinitionPage(definitionsQuery);
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const sync = definitionsQuery.data?.pages[0]?.sync;
 
@@ -80,7 +95,7 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
     <div className="min-h-0 w-full flex-1 overflow-y-auto">
       <div className="flex flex-col gap-section">
         <Header variant="h1" className="sr-only">
-          Workflows
+          Automations
         </Header>
 
         {projectQuery.isPending ? (
@@ -94,51 +109,59 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
 
         {projectQuery.data ? (
           <>
-            <SourceStrip
-              connectionId={projectQuery.data.source.connectionId}
-              externalRepositoryId={projectQuery.data.source.externalRepositoryId}
+            <ConfigSourceHeader
+              config={configQuery.data}
+              isConfigPending={configQuery.isPending}
               sync={sync}
-              isPending={definitionsQuery.isPending}
+              isSyncPending={definitionsQuery.isPending}
             />
 
             <WorkflowSyncAlert sync={sync} hasDefinitions={definitions.length > 0} />
-            <WorkflowSyncDiagnostics sync={sync} />
 
-            <FirstWorkflowSlot
-              projectId={projectId}
-              definitionsLoaded={definitionsQuery.isSuccess && !definitionsQuery.isPlaceholderData}
-              definitionCount={definitions.length}
-              sync={sync}
-            >
-              <WorkflowDefinitionsTable
-                definitions={definitions}
-                isPending={definitionsQuery.isPending}
-                isError={definitionsQuery.isError}
-                isRefreshing={definitionsQuery.isRefetching}
-                sync={sync ?? null}
-                runError={runError}
-                runningDefinitionId={
-                  fireManual.isPending && fireManual.variables
-                    ? fireManual.variables.definitionId
-                    : null
+            <div className="flex flex-col gap-group">
+              <AutomationsTabs workspaceSlug={workspaceSlug} projectSlug={projectSlug} />
+              <WorkflowSyncDiagnostics sync={sync} />
+
+              <FirstWorkflowSlot
+                projectId={projectId}
+                definitionsLoaded={
+                  definitionsQuery.isSuccess && !definitionsQuery.isPlaceholderData
                 }
-                hasNextPage={definitionsQuery.hasNextPage}
-                isFetchingNextPage={definitionsQuery.isFetchingNextPage}
-                isFetchNextPageError={definitionsQuery.isFetchNextPageError}
-                onRetry={() => definitionsQuery.refetch()}
-                onLoadMore={() => definitionsQuery.fetchNextPage()}
-                onOpenDefinition={setSelectedDefinition}
-                onRun={(definition) => {
-                  void handleRun(definition);
-                }}
-                onDismissRunError={() => setRunError(null)}
-                onRefreshDefinitions={() => {
-                  setRunError(null);
-                  void definitionsQuery.refetch();
-                }}
-                workspaceSlug={workspaceSlug}
-              />
-            </FirstWorkflowSlot>
+                definitionCount={definitions.length}
+                sync={sync}
+              >
+                <WorkflowDefinitionsTable
+                  definitions={definitions}
+                  isPending={definitionsQuery.isPending}
+                  isError={definitionsQuery.isError}
+                  isRefreshing={definitionsQuery.isRefetching}
+                  sync={sync ?? null}
+                  runError={runError}
+                  runningDefinitionId={
+                    fireManual.isPending && fireManual.variables
+                      ? fireManual.variables.definitionId
+                      : null
+                  }
+                  hasNextPage={definitionsQuery.hasNextPage}
+                  isFetchingNextPage={definitionsQuery.isFetchingNextPage}
+                  isFetchNextPageError={definitionsQuery.isFetchNextPageError}
+                  onRetry={() => definitionsQuery.refetch()}
+                  onLoadMore={() => definitionsQuery.fetchNextPage()}
+                  onOpenDefinition={setSelectedDefinition}
+                  onRun={(definition) => {
+                    void handleRun(definition);
+                  }}
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  onDismissRunError={() => setRunError(null)}
+                  onRefreshDefinitions={() => {
+                    setRunError(null);
+                    void definitionsQuery.refetch();
+                  }}
+                  workspaceSlug={workspaceSlug}
+                />
+              </FirstWorkflowSlot>
+            </div>
           </>
         ) : null}
 
@@ -151,6 +174,55 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Search runs over the whole project, so the page keeps reading pages until none remain. A
+ * failed page stops the walk, and the table's footer offers the retry.
+ */
+function useLoadEveryDefinitionPage(
+  definitionsQuery: ReturnType<typeof useDefinitionsInfiniteQuery>,
+) {
+  const {hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage} = definitionsQuery;
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage || isFetchNextPageError) return;
+    void fetchNextPage();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError]);
+}
+
+const AUTOMATIONS_TAB_CLASS_NAME =
+  'inline-flex h-40 items-center border-b-2 text-sm font-medium outline-none transition-colors focus-visible:shadow-border-interactive-with-active';
+
+/** Files joins Workflows here once the config file views ship. */
+function AutomationsTabs({
+  workspaceSlug,
+  projectSlug,
+}: {
+  workspaceSlug: string;
+  projectSlug: string;
+}) {
+  return (
+    <nav
+      aria-label="Automations"
+      className="flex items-end gap-cluster border-b border-border-neutral-base"
+    >
+      <Link
+        to="/w/$workspaceSlug/p/$projectSlug/automations"
+        params={{workspaceSlug, projectSlug}}
+        activeOptions={{exact: true}}
+        activeProps={{
+          className: 'border-border-highlights-interactive text-foreground-neutral-base',
+        }}
+        inactiveProps={{
+          className:
+            'border-transparent text-foreground-neutral-subtle hover:text-foreground-neutral-base',
+        }}
+        className={AUTOMATIONS_TAB_CLASS_NAME}
+      >
+        Workflows
+      </Link>
+    </nav>
   );
 }
 

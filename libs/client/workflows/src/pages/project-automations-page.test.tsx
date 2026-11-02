@@ -8,63 +8,82 @@ import {
   PROJECT_TEST_WSLUG,
   renderProjectPage,
 } from '#test/pages.js';
-import {ProjectWorkflowsPage} from './project-workflows-page.js';
+import {ProjectAutomationsPage} from './project-automations-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
+const HEAD_COMMIT = '3f9a21c0d6e4b8a17c2e5f9d0b3a6c8e1f4d7a20';
 const DEPLOY_WORKFLOW_ROW_REGEX = /Deploy production/;
 
-describe('ProjectWorkflowsPage', () => {
-  test('renders workflow definitions and their panel regions', async () => {
+describe('ProjectAutomationsPage', () => {
+  test('renders the config source above the workflow definitions', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
-    expect(screen.getByRole('heading', {name: 'Workflows'})).toHaveClass('sr-only');
-    expect(
-      screen.queryByText('Synced workflow definitions for this project source.'),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', {name: 'Automations'})).toHaveClass('sr-only');
     expect(screen.getAllByText('.shipfox/workflows/deploy.yml')[0]).toBeInTheDocument();
-    const sourcePanel = screen
-      .getByRole('region', {name: 'Project source'})
-      .closest('[data-slot="panel"]');
+    const source = screen.getByRole('region', {name: 'Config source'});
+    expect(await within(source).findByText('acme/platform')).toBeInTheDocument();
+    expect(within(source).getByText('main')).toBeInTheDocument();
+    expect(within(source).getByText('3f9a21c')).toHaveAttribute('title', HEAD_COMMIT);
+    expect(within(source).getByText('Synced')).toBeInTheDocument();
+    expect(within(source).getByRole('link', {name: 'Open on GitHub'})).toHaveAttribute(
+      'href',
+      'https://github.com/acme/platform',
+    );
+    expect(screen.getByRole('link', {name: 'Workflows'})).toHaveAttribute('aria-current', 'page');
     const definitionsRegion = screen.getByRole('region', {name: 'Workflow definitions'});
-    const definitionsPanel = within(definitionsRegion)
-      .getByRole('table', {name: 'Workflow definitions table'})
-      .closest('[data-slot="panel"]');
-    expect(sourcePanel).toBeInTheDocument();
-    expect(definitionsRegion).toBeInTheDocument();
-    expect(definitionsPanel).toBeInTheDocument();
-    expect(sourcePanel).not.toBe(definitionsPanel);
-    expect(screen.getByRole('table').closest('[data-slot="panel"]')).toBe(definitionsPanel);
+    expect(
+      within(definitionsRegion).getByRole('table', {name: 'Workflow definitions table'}),
+    ).toBeInTheDocument();
     expect(screen.getByRole('row', {name: DEPLOY_WORKFLOW_ROW_REGEX})).toHaveAttribute(
       'data-row-id',
       '55555555-5555-4555-8555-555555555555',
     );
-    // Source strip resolves connection display_name from the integrations
-    // workspace cache; external_repository_id renders as a Code chip.
-    expect(await screen.findByText('Acme GitHub')).toBeInTheDocument();
-    expect(screen.getAllByText('platform')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('succeeded')[0]).toBeInTheDocument();
-    expect(screen.queryByRole('heading', {name: 'Source identity'})).not.toBeInTheDocument();
   });
 
-  test('shows definitions error while keeping the source strip visible', async () => {
+  test('keeps the source visible when the head commit cannot be read', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({config: jsonResponse(configDto({head: null}))}),
+    });
+
+    renderAutomationsPage();
+
+    const source = await screen.findByRole('region', {name: 'Config source'});
+    expect(await within(source).findByText('acme/platform')).toBeInTheDocument();
+    expect(within(source).queryByText('Latest commit')).not.toBeInTheDocument();
+  });
+
+  test('lists what starts each workflow', async () => {
+    configureApiClient({fetchImpl: createProjectDetailFetch()});
+
+    renderAutomationsPage();
+
+    const row = await screen.findByRole('row', {name: DEPLOY_WORKFLOW_ROW_REGEX});
+    const triggers = within(row).getByRole('list', {name: 'Triggers'});
+    expect(
+      within(triggers)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['manual', 'cron0 3 * * 1-5', 'sentryissue.created']);
+  });
+
+  test('shows definitions error while keeping the source header visible', async () => {
     configureApiClient({
       fetchImpl: createProjectDetailFetch({
         definitions: jsonResponse({code: 'server-error'}, {status: 500}),
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect(await screen.findByText("Couldn't load workflows")).toBeInTheDocument();
-    // SyncBadge in the strip falls back to Unavailable when sync is undefined
-    // (definitions errored before providing one).
+    // The sync badge falls back to Unavailable when definitions errored before providing a sync.
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
-    expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Config source'})).toBeInTheDocument();
   });
 
   test('shows the sync failure and its diagnostics when definitions are invalid', async () => {
@@ -103,7 +122,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect(await screen.findByText('Workflow sync failed')).toBeInTheDocument();
     expect(screen.getAllByText('Workflow definitions are invalid').length).toBeGreaterThan(0);
@@ -137,7 +156,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect(
       await screen.findByText('No workflow files found under .shipfox/workflows/.'),
@@ -165,7 +184,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
     expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
@@ -202,10 +221,10 @@ describe('ProjectWorkflowsPage', () => {
         fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions(status)}),
       });
 
-      renderWorkflowsPage({FirstWorkflowPanel});
+      renderAutomationsPage({FirstWorkflowPanel});
 
       expect(await screen.findByText(`First workflow panel for ${PROJECT_ID}`)).toBeInTheDocument();
-      expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
+      expect(screen.getByRole('region', {name: 'Config source'})).toBeInTheDocument();
       expect(screen.queryByRole('region', {name: 'Workflow definitions'})).not.toBeInTheDocument();
       expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
     });
@@ -231,7 +250,7 @@ describe('ProjectWorkflowsPage', () => {
         }),
       });
 
-      renderWorkflowsPage({FirstWorkflowPanel});
+      renderAutomationsPage({FirstWorkflowPanel});
 
       expect(await screen.findByText(`First workflow panel for ${PROJECT_ID}`)).toBeInTheDocument();
       expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
@@ -240,7 +259,7 @@ describe('ProjectWorkflowsPage', () => {
     test('does not render the slot when the project has definitions', async () => {
       configureApiClient({fetchImpl: createProjectDetailFetch()});
 
-      renderWorkflowsPage({FirstWorkflowPanel});
+      renderAutomationsPage({FirstWorkflowPanel});
 
       expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
       expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
@@ -254,7 +273,7 @@ describe('ProjectWorkflowsPage', () => {
         fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions(status)}),
       });
 
-      renderWorkflowsPage({FirstWorkflowPanel});
+      renderAutomationsPage({FirstWorkflowPanel});
 
       expect(await screen.findByText('No workflows')).toBeInTheDocument();
       expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
@@ -267,7 +286,7 @@ describe('ProjectWorkflowsPage', () => {
         }),
       });
 
-      renderWorkflowsPage({FirstWorkflowPanel});
+      renderAutomationsPage({FirstWorkflowPanel});
 
       expect(await screen.findByText("Couldn't load workflows")).toBeInTheDocument();
       expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
@@ -299,11 +318,15 @@ describe('ProjectWorkflowsPage', () => {
             <button type="button" onClick={() => setProjectId(PROJECT_ID)}>
               Switch project
             </button>
-            <ProjectWorkflowsPage projectId={projectId} />
+            <ProjectAutomationsPage
+              projectId={projectId}
+              workspaceSlug={PROJECT_TEST_WSLUG}
+              projectSlug="project"
+            />
           </>
         );
       }
-      renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/workflows`, () => <SwitchingPage />, {
+      renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/automations`, () => <SwitchingPage />, {
         FirstWorkflowPanel,
       });
 
@@ -317,9 +340,8 @@ describe('ProjectWorkflowsPage', () => {
           screen.queryByText(`First workflow panel for ${emptyProjectId}`),
         ).not.toBeInTheDocument(),
       );
-      // The new project's page renders with the previous project's empty list
-      // as placeholder data while its own definitions load.
-      expect(await screen.findByText('No workflows')).toBeInTheDocument();
+      // The new project loads from scratch instead of showing the previous project's rows.
+      expect(await screen.findByRole('textbox', {name: 'Search workflows'})).toBeDisabled();
       expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
     });
 
@@ -328,7 +350,7 @@ describe('ProjectWorkflowsPage', () => {
         fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions('succeeded')}),
       });
 
-      renderWorkflowsPage();
+      renderAutomationsPage();
 
       expect(await screen.findByText('No workflow definitions found.')).toBeInTheDocument();
       expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
@@ -370,7 +392,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect(await screen.findByText('Workflow definition warnings')).toBeInTheDocument();
     // Both warnings group under the shared workflow file; the file label renders once.
@@ -411,7 +433,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     const title = await screen.findByText('Workflow definition errors');
     const callout = title.closest('[data-slot="callout"]');
@@ -467,7 +489,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect(await screen.findByText('Workflow definition diagnostics')).toBeInTheDocument();
     const diagnosticsCallout = screen
@@ -503,70 +525,71 @@ describe('ProjectWorkflowsPage', () => {
     ).toBeInTheDocument();
   });
 
-  test('renders definitions without client-side sorting or filtering controls', async () => {
+  test('searches every workflow once all pages have loaded', async () => {
     const deployDefinition = baseDefinitionsDto().definitions[0];
     if (!deployDefinition) throw new Error('Deploy definition fixture is missing');
+    const archiveDefinition = {
+      ...deployDefinition,
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Archive artifacts',
+      config_path: '.shipfox/workflows/archive.yml',
+      workflow_model: {kind: 'workflow', name: 'Archive artifacts', triggers: []},
+      manual_trigger: null,
+    };
     configureApiClient({
       fetchImpl: createProjectDetailFetch({
-        definitions: jsonResponse(
-          definitionsDto({
-            definitions: [
-              deployDefinition,
-              {
-                ...deployDefinition,
-                id: '77777777-7777-4777-8777-777777777777',
-                name: 'Archive artifacts',
-                config_path: '.shipfox/workflows/archive.yml',
-                updated_at: '2026-05-06T01:00:00.000Z',
-              },
-            ],
-          }),
+        definitions: jsonResponse(definitionsDto({next_cursor: 'cursor-1'})),
+        definitionsAfterCursor: jsonResponse(
+          definitionsDto({definitions: [archiveDefinition], next_cursor: null}),
         ),
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     const table = await screen.findByRole('table', {name: 'Workflow definitions table'});
-    const workflowHeader = within(table).getByRole('columnheader', {name: 'Workflow'});
-    const updatedHeader = within(table).getByRole('columnheader', {name: 'Updated'});
-    expect(workflowHeader).toHaveTextContent('Workflow');
-    expect(updatedHeader).toHaveTextContent('Updated');
-    expect(within(workflowHeader).queryByRole('button')).not.toBeInTheDocument();
-    expect(within(updatedHeader).queryByRole('button')).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox', {name: 'Search workflows'})).not.toBeInTheDocument();
-    expect(within(table).getAllByRole('row')).toHaveLength(3);
-    expect(within(table).getByText('Deploy production')).toBeInTheDocument();
+    expect(await within(table).findByText('Archive artifacts')).toBeInTheDocument();
+    expect(await screen.findByText('2 workflows')).toBeInTheDocument();
+    expect(screen.queryByRole('region', {name: 'Table navigation'})).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Search workflows'}), {
+      target: {value: 'archive'},
+    });
+
+    expect(within(table).queryByText('Deploy production')).not.toBeInTheDocument();
     expect(within(table).getByText('Archive artifacts')).toBeInTheDocument();
+    expect(screen.getByText('1 workflow')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Search workflows'}), {
+      target: {value: 'nothing matches'},
+    });
+    fireEvent.click(await screen.findByRole('button', {name: 'Show all workflows'}));
+
+    expect(within(table).getByText('Deploy production')).toBeInTheDocument();
+    expect(screen.getByText('2 workflows')).toBeInTheDocument();
   });
 
-  test('renders append navigation inside the definitions panel', async () => {
+  test('keeps search off and offers a retry when a later page fails', async () => {
     configureApiClient({
       fetchImpl: createProjectDetailFetch({
         definitions: jsonResponse(definitionsDto({next_cursor: 'cursor-1'})),
+        definitionsAfterCursor: jsonResponse({code: 'server-error'}, {status: 500}),
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     const table = await screen.findByRole('table', {name: 'Workflow definitions table'});
-    const panel = table.closest('[data-slot="panel"]');
-
-    expect(panel).not.toBeNull();
-    expect(
-      within(panel as HTMLElement).getByRole('region', {name: 'Table navigation'}),
-    ).toBeInTheDocument();
-    expect(
-      within(panel as HTMLElement).getByRole('button', {name: 'Load more'}),
-    ).toBeInTheDocument();
-    expect(within(panel as HTMLElement).getByRole('status')).toHaveTextContent('1 row loaded');
-    expect(screen.queryByText('Could not load more workflows.')).not.toBeInTheDocument();
+    const panel = table.closest('[data-slot="panel"]') as HTMLElement;
+    expect(await within(panel).findByRole('button', {name: 'Retry'})).toBeInTheDocument();
+    expect(within(panel).getByRole('region', {name: 'Table navigation'})).toBeInTheDocument();
+    expect(screen.getByRole('textbox', {name: 'Search workflows'})).toBeDisabled();
   });
 
   test('opens and closes the definition drawer from the workflow action', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     const workflowName = (await screen.findAllByText('Deploy production'))[0];
     if (!workflowName) throw new Error('Workflow row was not rendered');
@@ -603,7 +626,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     const workflowName = (await screen.findAllByText('Deploy production'))[0];
     if (!workflowName) throw new Error('Workflow row was not rendered');
@@ -616,7 +639,7 @@ describe('ProjectWorkflowsPage', () => {
   test('queues a run from a workflow definition', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     const [runButton] = await screen.findAllByRole('button', {name: 'Run'});
     if (!runButton) throw new Error('Run button was not rendered');
@@ -649,7 +672,7 @@ describe('ProjectWorkflowsPage', () => {
         }),
       });
 
-      renderWorkflowsPage();
+      renderAutomationsPage();
       await clickRun();
 
       const callout = await screen.findByRole('alert');
@@ -670,7 +693,7 @@ describe('ProjectWorkflowsPage', () => {
         }),
       });
 
-      renderWorkflowsPage();
+      renderAutomationsPage();
       await clickRun();
 
       const callout = await screen.findByRole('alert');
@@ -697,7 +720,7 @@ describe('ProjectWorkflowsPage', () => {
         }),
       });
 
-      renderWorkflowsPage();
+      renderAutomationsPage();
       await clickRun();
 
       const callout = await screen.findByRole('alert');
@@ -717,7 +740,7 @@ describe('ProjectWorkflowsPage', () => {
         }),
       });
 
-      renderWorkflowsPage();
+      renderAutomationsPage();
       await clickRun();
 
       const callout = await screen.findByRole('alert');
@@ -733,7 +756,7 @@ describe('ProjectWorkflowsPage', () => {
         }),
       });
 
-      renderWorkflowsPage();
+      renderAutomationsPage();
       await clickRun();
 
       fireEvent.click(await screen.findByRole('button', {name: 'Dismiss error'}));
@@ -747,7 +770,7 @@ describe('ProjectWorkflowsPage', () => {
       });
       configureApiClient({fetchImpl});
 
-      renderWorkflowsPage();
+      renderAutomationsPage();
       await clickRun();
       const definitionRequests = () =>
         fetchImpl.mock.calls.filter(
@@ -769,64 +792,66 @@ describe('ProjectWorkflowsPage', () => {
         if (url.pathname === `/projects/${PROJECT_ID}`) {
           return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
         }
-        if (url.pathname === '/integration-connections') {
-          return Promise.resolve(jsonResponse(connectionsDto()));
-        }
         return Promise.resolve(jsonResponse(definitionsDto()));
       }),
     });
 
-    renderWorkflowsPage();
+    renderAutomationsPage();
 
     expect(await screen.findByText('Project not found')).toBeInTheDocument();
   });
 });
 
-function renderWorkflowsPage(chrome: Partial<ChromeSlots> = {}) {
+function renderAutomationsPage(chrome: Partial<ChromeSlots> = {}) {
   return renderProjectPage(
-    `/w/${PROJECT_TEST_WSLUG}/p/project/workflows`,
-    () => <ProjectWorkflowsPage projectId={PROJECT_ID} />,
+    `/w/${PROJECT_TEST_WSLUG}/p/project/automations`,
+    () => (
+      <ProjectAutomationsPage
+        projectId={PROJECT_ID}
+        workspaceSlug={PROJECT_TEST_WSLUG}
+        projectSlug="project"
+      />
+    ),
     chrome,
   );
 }
 
 function createProjectDetailFetch({
   project = jsonResponse(projectDto()),
+  config = jsonResponse(configDto()),
   definitions = jsonResponse(definitionsDto()),
+  definitionsAfterCursor,
   run = jsonResponse(runDto(), {status: 201}),
-  connections = jsonResponse(connectionsDto()),
   packageUpdates = jsonResponse({updates: []}),
 }: {
   project?: Response;
+  config?: Response;
   definitions?: Response;
+  /** The page after the first, when `definitions` returns a cursor. */
+  definitionsAfterCursor?: Response;
   run?: Response;
-  connections?: Response;
   packageUpdates?: Response;
 } = {}) {
+  const responsesByPath: Record<string, Response> = {
+    [`/projects/${PROJECT_ID}`]: project,
+    [`/projects/${PROJECT_ID}/config`]: config,
+    [`/workspaces/${PROJECT_TEST_WID}/definitions/${DEFINITION_ID}/package-updates`]:
+      packageUpdates,
+  };
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(requestInputUrl(input));
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
 
-    if (url.pathname === `/projects/${PROJECT_ID}`) {
-      return Promise.resolve(project.clone());
-    }
+    const response = responsesByPath[url.pathname];
+    if (response) return Promise.resolve(response.clone());
     if (url.pathname === '/definitions') {
-      return Promise.resolve(definitions.clone());
+      const page =
+        url.searchParams.has('cursor') && definitionsAfterCursor
+          ? definitionsAfterCursor
+          : definitions;
+      return Promise.resolve(page.clone());
     }
-    if (url.pathname === '/integration-connections') {
-      return Promise.resolve(connections.clone());
-    }
-    if (
-      url.pathname ===
-      `/workspaces/${PROJECT_TEST_WID}/definitions/${DEFINITION_ID}/package-updates`
-    ) {
-      return Promise.resolve(packageUpdates.clone());
-    }
-    if (
-      url.pathname.startsWith('/workflow-definitions/') &&
-      url.pathname.endsWith('/fire-manual') &&
-      method === 'POST'
-    ) {
+    if (url.pathname.endsWith('/fire-manual') && method === 'POST') {
       return Promise.resolve(run.clone());
     }
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
@@ -854,22 +879,20 @@ function projectDto() {
   };
 }
 
-function connectionsDto() {
+function configDto(overrides: Partial<{head: {ref: string; commit: string} | null}> = {}) {
   return {
-    connections: [
-      {
-        id: CONNECTION_ID,
-        workspace_id: PROJECT_TEST_WID,
-        provider: 'github',
-        external_account_id: 'acme',
-        slug: 'github_acme',
-        display_name: 'Acme GitHub',
-        lifecycle_status: 'active',
-        capabilities: ['source_control'],
-        created_at: '2026-05-07T00:00:00.000Z',
-        updated_at: '2026-05-07T00:00:00.000Z',
-      },
-    ],
+    source: {
+      kind: 'linked',
+      provider: 'github',
+      connection_id: CONNECTION_ID,
+      external_repository_id: 'platform',
+      owner: 'acme',
+      name: 'platform',
+      default_branch: 'main',
+    },
+    head: {ref: 'refs/heads/main', commit: HEAD_COMMIT},
+    history_supported: true,
+    ...overrides,
   };
 }
 
@@ -895,7 +918,21 @@ function baseDefinitionsDto() {
           triggers: {on_demand: {source: 'manual', event: 'fire'}},
           jobs: {deploy: {steps: [{run: './deploy.sh'}]}},
         },
-        workflow_model: {kind: 'workflow', name: 'Deploy production'},
+        workflow_model: {
+          kind: 'workflow',
+          name: 'Deploy production',
+          triggers: [
+            {id: 't1', key: 'on_demand', source: 'manual', event: 'fire'},
+            {
+              id: 't2',
+              key: 'nightly',
+              source: 'cron',
+              event: 'tick',
+              config: {schedule: '0 3 * * 1-5'},
+            },
+            {id: 't3', key: 'on_issue', source: 'sentry', event: 'issue.created'},
+          ],
+        },
         manual_trigger: {name: 'on_demand'},
         fetched_at: '2026-05-07T01:00:00.000Z',
         created_at: '2026-05-07T01:00:00.000Z',

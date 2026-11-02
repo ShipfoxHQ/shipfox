@@ -91,16 +91,16 @@ function createTestRouter(path: string, element: ReactElement) {
       return <h1>Runs</h1>;
     },
   });
-  const projectWorkflowsRoute = createRoute({
+  const projectAutomationsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/w/$workspaceSlug/p/$projectSlug/workflows',
+    path: '/w/$workspaceSlug/p/$projectSlug/automations',
     component: () => {
       const params = useParams({strict: false}) as {projectSlug?: string};
-      if (initialPath === `/w/${PROJECT_TEST_WSLUG}/p/${params.projectSlug}/workflows`) {
+      if (initialPath === `/w/${PROJECT_TEST_WSLUG}/p/${params.projectSlug}/automations`) {
         return element;
       }
 
-      return <h1>Workflows</h1>;
+      return <h1>Automations</h1>;
     },
   });
 
@@ -114,7 +114,7 @@ function createTestRouter(path: string, element: ReactElement) {
       modelProviderSettingsRoute,
       projectSettingsGeneralRoute,
       projectDetailRoute,
-      projectWorkflowsRoute,
+      projectAutomationsRoute,
     ]),
   });
 }

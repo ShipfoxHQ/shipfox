@@ -14,12 +14,18 @@ const definitions: Definition[] = [
     name: 'Deploy production',
     configPath: '.shipfox/workflows/deploy.yml',
     updatedAt: '2026-09-18T18:15:00.000Z',
+    triggers: [
+      {key: 'on_demand', source: 'manual', event: 'fire', schedule: null},
+      {key: 'on_push', source: 'github', event: 'push', schedule: null},
+    ],
   }),
   createDefinition({
     id: 'nightly-verification',
     name: 'Nightly verification',
     configPath: '.shipfox/workflows/nightly.yml',
     updatedAt: '2026-09-17T06:30:00.000Z',
+    manualTrigger: null,
+    triggers: [{key: 'nightly', source: 'cron', event: 'tick', schedule: '0 3 * * 1-5'}],
   }),
   createDefinition({
     id: 'manual-release',
@@ -27,6 +33,8 @@ const definitions: Definition[] = [
     configPath: null,
     source: 'manual',
     updatedAt: '2026-09-16T12:00:00.000Z',
+    manualTrigger: null,
+    triggers: [],
   }),
 ];
 
@@ -57,6 +65,8 @@ const defaultArgs = {
   onRefreshDefinitions: () => undefined,
   runError: null,
   runningDefinitionId: null,
+  searchQuery: '',
+  onSearchChange: () => undefined,
   sync,
   workspaceSlug: 'acme',
 } satisfies WorkflowDefinitionsTableProps;
@@ -90,6 +100,8 @@ export const DataStates: Story = {
       <WorkflowDefinitionsTable {...args} definitions={[]} isError />
       <WorkflowDefinitionsTable {...args} isRefreshing />
       <WorkflowDefinitionsTable {...args} isError />
+      <WorkflowDefinitionsTable {...args} searchQuery="cron" />
+      <WorkflowDefinitionsTable {...args} searchQuery="nothing matches" />
     </div>
   ),
 };
@@ -173,6 +185,7 @@ function createDefinition(
     workflowDocument: {},
     workflowModel: {},
     manualTrigger: {name: 'on_demand'},
+    triggers: [{key: 'on_demand', source: 'manual', event: 'fire', schedule: null}],
     fetchedAt: '2026-09-18T18:15:00.000Z',
     createdAt: '2026-09-18T18:15:00.000Z',
     updatedAt: overrides.updatedAt ?? '2026-09-18T18:15:00.000Z',
