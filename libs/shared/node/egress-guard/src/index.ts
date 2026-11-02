@@ -57,6 +57,8 @@ export async function assertEgressAllowed(
   const hostname = normalizeHostname(parsed.hostname);
   const hostAddress = parseIpAddress(hostname);
   const addresses = hostAddress ? [hostAddress] : await resolveHostname(hostname, options.lookup);
+  // A host with nothing to check must not pass, whichever resolver answered.
+  if (addresses.length === 0) throw new EgressDeniedError('private-network', hostname);
   const denylist = parseDenylist(policy.hostDenylist ?? []);
 
   assertNotDenylisted(hostname, addresses, denylist);

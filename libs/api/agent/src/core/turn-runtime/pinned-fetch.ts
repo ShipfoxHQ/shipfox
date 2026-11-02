@@ -60,12 +60,14 @@ function decoderFor(encoding: string | undefined): Transform | undefined {
 
 async function readBody(input: FetchInput, init: RequestInit | undefined) {
   if (input instanceof Request) {
+    // The init overrides the request, as it does in `fetch`.
+    const request = init === undefined ? input : new Request(input, init);
     return {
-      url: new URL(input.url),
-      method: input.method,
-      headers: new Headers(input.headers),
-      body: input.body === null ? undefined : Buffer.from(await input.arrayBuffer()),
-      signal: init?.signal ?? input.signal,
+      url: new URL(request.url),
+      method: request.method,
+      headers: new Headers(request.headers),
+      body: request.body === null ? undefined : Buffer.from(await request.arrayBuffer()),
+      signal: request.signal,
     };
   }
   const body = init?.body;
@@ -149,9 +151,20 @@ export function createPinnedFetch(params: {policy: EgressPolicy; lookup?: Lookup
             reject(new PinnedFetchRedirectError(incoming.statusCode ?? 0));
             return;
           }
-          resolve(toResponse(incoming));
+          try {
+            resolve(toResponse(incoming));
+          } catch (error) {
+            incoming.destroy();
+            reject(error);
+          }
         },
       );
+      outgoing.on('upgrade', (_incoming, socket) => {
+        socket.destroy();
+        reject(
+          new Error('Custom model provider answered with a protocol upgrade, which is refused'),
+        );
+      });
       outgoing.on('error', reject);
       outgoing.end(body);
     });

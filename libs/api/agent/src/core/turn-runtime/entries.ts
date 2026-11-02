@@ -1,9 +1,5 @@
 import type {AssistantMessage, Tool} from '@earendil-works/pi-ai';
-
-// pi stores a session as entries, and an entry is a timestamped wrapper around one message.
-function messageEntry(message: object, timestamp: number): string {
-  return JSON.stringify({type: 'message', timestamp: new Date(timestamp).toISOString(), message});
-}
+import {messageEntry} from '../conversation-entries.js';
 
 /** The pinned leading entry: the base prompt, and the tools in `toolsAdded`. */
 export function systemMessageEntry(params: {prompt: string; tools: Tool[]}): string {

@@ -116,6 +116,6 @@ describe('createServerModelRuntime', () => {
       renewal: false,
     });
 
-    await expect(runtime).rejects.toMatchObject({code: 'internal_error'});
+    await expect(runtime).rejects.toMatchObject({code: 'model_unavailable'});
   });
 });

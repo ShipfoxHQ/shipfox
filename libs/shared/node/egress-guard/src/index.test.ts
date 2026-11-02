@@ -32,6 +32,14 @@ describe('assertEgressAllowed', () => {
     expect(lookupMock).not.toHaveBeenCalled();
   });
 
+  it('refuses a host the injected lookup resolves to nothing', async () => {
+    const probe = assertEgressAllowed('http://models.example.test/v1', lockedPolicy(), {
+      lookup: () => Promise.resolve([]),
+    });
+
+    await expect(probe).rejects.toBeInstanceOf(EgressDeniedError);
+  });
+
   it('rejects non-http URL schemes', async () => {
     const probe = assertEgressAllowed('ftp://models.example.test/v1', lockedPolicy());
 

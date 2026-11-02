@@ -41,7 +41,8 @@ export async function listConversationToolSet(
   }
   const readSkill = createReadSkillTool();
   tools.push({kind: 'local', name: readSkill.name, tool: readSkill});
-  tools.sort((left, right) => left.name.localeCompare(right.name));
+  // Code-unit order, not localeCompare, so the pinned bytes never depend on the runtime locale.
+  tools.sort((left, right) => Number(left.name > right.name) - Number(left.name < right.name));
 
   return {
     tools,

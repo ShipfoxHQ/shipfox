@@ -89,8 +89,8 @@ transaction.
 API startup.
 
 **A failed call stores nothing.** Only the turn's `failure_code` records the cause. A transient
-provider error becomes a Temporal retry, up to 3 attempts. A 4xx, a denial, or a context overflow
-fails the turn at once. A retry before the commit repeats a model call, which costs tokens only.
+provider error, such as a 429, a 5xx, or a network failure, becomes a Temporal retry, up to 3
+attempts. Any other 4xx, a denial, or a context overflow fails the turn at once. A retry before the commit repeats a model call, which costs tokens only.
 
 **Credentials take a subject.** Every call passes `{kind: 'conversation', projectId,
 conversationId, agentKey}`, so Usage attributes tokens to the conversation and the agent. Once a
@@ -103,8 +103,12 @@ the turn off.
 `<assistant item ID>:<call_index>`, so a retried call can't change its idempotency key. The owner
 of a web conversation is the actor.
 
-**A result is capped at 64 KiB and wrapped as untrusted data when written.** The wrapper is part
-of the stored bytes, so every later prompt carries it. A result can't close the tag early, because
+**The pinned definitions tell the model what it may call, and the live catalog runs the call.**
+Dispatch needs the provider and sensitivity, which only the catalog has. A tool that a release
+removed answers with an error the model reads.
+
+**A result is capped at 64 KiB and wrapped as untrusted data when written.** The cap counts the
+wrapper, so the stored bytes stay within it. The wrapper is part of the stored bytes, so every later prompt carries it. A result can't close the tag early, because
 its closing tags are defanged first. A failure with no retries left becomes an error result, and
 the model decides what to do.
 
@@ -116,16 +120,18 @@ runner's sandbox limit doesn't apply here.
 
 **The pinned `fetch` checks the address the socket connects to.** It resolves the host inside the
 socket's own lookup, checks every address against the egress policy, and connects to one of them.
-It refuses redirects. The managed gateway is an operator-configured URL and uses the default
+It refuses redirects. It is built to carry the `options.fetch` that pi passes to its providers.
+Whether the `google-generative-ai` API honors that option is unverified, so a custom provider on
+that API may bypass the policy until someone checks. The managed gateway is an operator-configured URL and uses the default
 `fetch`. Cloud disables workspace providers, so this applies to other deployments.
 
 ### Limits
 
 | Limit | Value | At the limit |
 | --- | --- | --- |
-| Model calls per turn | 25 | The turn fails with `step_limit` |
+| Model calls per turn | 25 | A turn that needs another call fails with `step_limit` |
 | Tool result stored | 64 KiB | Truncated, with a notice in the result |
-| Concurrent activities per process | 50 | Temporal queues the rest |
+| Concurrent activities per process on the conversation queue | 50 | Temporal queues the rest |
 
 The task queue boundary lets a dedicated worker process take the load later with no design change.
 
@@ -165,7 +171,8 @@ reports. A rising count means a conversation's prefix changed.
 - **The API process runs inference.** Its memory and concurrency now matter. pi adds about 211 MB
   of resident memory and a first-call import of about 1.1 s per process.
 - **Admission, stop, retry, and the recovery sweep come next.** Until they land, nothing re-wakes
-  a conversation after a failed signal, and a failed turn stays failed.
+  a conversation after a failed signal, and a failed turn stays failed. A message sent after a
+  failed turn starts a new turn, with the model-call count back at 0.
 - **Compaction comes next.** A prompt over the context window fails with `context_overflow`.
 - **A pi upgrade needs no data migration**, because rows are never rewritten. A change to pi's
   session format needs a migration step in the loader.

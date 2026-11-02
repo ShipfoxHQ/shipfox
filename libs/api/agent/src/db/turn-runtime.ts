@@ -95,8 +95,8 @@ export async function pinSystemEntry(params: {
  */
 export async function openTurn(params: {
   conversationId: string;
-  model: string;
-  provider: string;
+  model: string | null;
+  provider: string | null;
 }): Promise<{turn: AgentTurn; resumed: boolean} | undefined> {
   return await db().transaction(async (tx) => {
     const conversation = await lockConversation(tx, params.conversationId);
@@ -140,16 +140,21 @@ export async function finishTurnRow(params: {
   status: Exclude<AgentTurn['status'], 'running'>;
   failureCode?: string | undefined;
 }): Promise<AgentTurn | undefined> {
-  const [row] = await db()
-    .update(turns)
-    .set({
-      status: params.status,
-      failureCode: params.failureCode ?? null,
-      finishedAt: sql`NOW()`,
-    })
-    .where(and(eq(turns.id, params.turnId), eq(turns.status, 'running')))
-    .returning();
-  return row ? toAgentTurn(row) : undefined;
+  return await db().transaction(async (tx) => {
+    const [row] = await tx
+      .update(turns)
+      .set({
+        status: params.status,
+        failureCode: params.failureCode ?? null,
+        finishedAt: sql`NOW()`,
+      })
+      .where(and(eq(turns.id, params.turnId), eq(turns.status, 'running')))
+      .returning();
+    if (!row) return undefined;
+    // A failed call leaves its partial text behind. Nothing reads it once the turn is over.
+    await tx.delete(turnStreamChunks).where(eq(turnStreamChunks.turnId, params.turnId));
+    return toAgentTurn(row);
+  });
 }
 
 /** The entries a prompt is built from, oldest first, starting at `context_start_seq`. */
@@ -191,15 +196,6 @@ export async function getTurnEntry(
   return row ? toConversationItem(row) : undefined;
 }
 
-export async function hasQueuedInputs(conversationId: string): Promise<boolean> {
-  const rows = await db()
-    .select({id: conversationItems.id})
-    .from(conversationItems)
-    .where(and(eq(conversationItems.conversationId, conversationId), isNull(conversationItems.seq)))
-    .limit(1);
-  return rows.length > 0;
-}
-
 /**
  * Appends an entry the turn produced. It gets its `seq` here, under the conversation row lock,
  * so it lands after everything already claimed. A repeat at the same position returns the stored
@@ -211,12 +207,20 @@ export async function appendTurnEntry(params: {
   entry: NewTimelineEntry;
   /** An assistant reply ends a model call: it clears the call's chunks and counts the call. */
   completesModelCall: boolean;
-}): Promise<{item: ConversationItem; stored: boolean}> {
+}): Promise<{item: ConversationItem; stored: boolean} | undefined> {
   return await db().transaction(async (tx) => {
     const conversation = await lockConversation(tx, params.conversationId);
     if (!conversation) throw new Error(`Conversation ${params.conversationId} no longer exists`);
 
     const {position} = params;
+    // A call that outlives its turn, such as one that timed out, must not add to the timeline.
+    const running = await tx
+      .select({id: turns.id})
+      .from(turns)
+      .where(and(eq(turns.id, position.turnId), eq(turns.status, 'running')))
+      .limit(1);
+    if (running.length === 0) return undefined;
+
     const existing = await tx
       .select()
       .from(conversationItems)
@@ -306,13 +310,4 @@ export async function deleteStreamChunks(params: {
         eq(turnStreamChunks.modelCallIndex, params.modelCallIndex),
       ),
     );
-}
-
-export async function isStopRequested(turnId: string): Promise<boolean> {
-  const rows = await db()
-    .select({stopRequestedAt: turns.stopRequestedAt})
-    .from(turns)
-    .where(eq(turns.id, turnId))
-    .limit(1);
-  return rows[0]?.stopRequestedAt != null;
 }

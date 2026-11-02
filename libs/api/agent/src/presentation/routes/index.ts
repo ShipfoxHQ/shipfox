@@ -47,9 +47,12 @@ export function createAgentRoutes(
     workflows?: WorkflowsModuleClient | undefined;
     /** Encrypted session artifact store backing the transcript routes. */
     sessionArtifactStore?: SessionArtifactStore | undefined;
-    /** Projects client behind the conversation routes, which are omitted without it. */
+    /** Projects client behind the conversation routes. */
     projects?: ProjectsModuleClient | undefined;
-    /** Wakes a conversation's turn workflow after an input commits. Defaults to doing nothing. */
+    /**
+     * Wakes a conversation's turn workflow after an input commits. The conversation routes are
+     * omitted without it, because a message accepted with nothing to run it would never get a reply.
+     */
     wakeConversation?: WakeConversation | undefined;
   } = {},
 ): RouteGroup[] {
@@ -121,12 +124,9 @@ export function createAgentRoutes(
       ],
     },
     ...sessionRoutes,
-    ...(options.projects === undefined
+    ...(options.projects === undefined || options.wakeConversation === undefined
       ? []
-      : createConversationRoutes(
-          options.projects,
-          options.wakeConversation ?? (() => Promise.resolve()),
-        )),
+      : createConversationRoutes(options.projects, options.wakeConversation)),
   ];
 }
 

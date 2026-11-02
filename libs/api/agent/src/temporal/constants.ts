@@ -15,7 +15,7 @@ export function agentConversationWorkflowId(conversationId: string): string {
   return `agent-conversation:${conversationId}`;
 }
 
-/** Model calls a turn makes before it fails with `step_limit`. Retry continues it. */
+/** Model calls a turn makes. A turn that needs another one fails with `step_limit`. */
 export const MODEL_CALLS_PER_TURN = 25;
 
 /** Concurrent activities one API process runs on the conversation queue. Temporal queues the rest. */

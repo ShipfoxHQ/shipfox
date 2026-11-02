@@ -9,8 +9,8 @@ import {
 
 /**
  * Tells a conversation to look at its inputs again, starting its workflow when none runs. The
- * input is already in Postgres, so a failure is logged and never fails the caller. The recovery
- * sweep picks up what a failed wake missed.
+ * input is already in Postgres, so a failure is logged and never fails the caller. Nothing
+ * re-wakes the conversation until the recovery sweep lands.
  */
 export async function wakeConversation(conversationId: string): Promise<void> {
   try {

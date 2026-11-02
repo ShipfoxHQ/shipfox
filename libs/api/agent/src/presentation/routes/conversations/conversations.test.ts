@@ -1283,4 +1283,12 @@ describe('conversation routes', () => {
 
     expect(groups.some((group) => group.prefix === '/conversations')).toBe(false);
   });
+
+  it('omits the routes without a wake handler, so no message is accepted that nothing would run', () => {
+    const groups = createAgentRoutes(undefined as never, {
+      projects: createTestProjectsClient({projects}),
+    });
+
+    expect(groups.some((group) => group.prefix === '/conversations')).toBe(false);
+  });
 });

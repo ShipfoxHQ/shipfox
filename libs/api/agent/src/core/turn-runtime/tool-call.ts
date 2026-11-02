@@ -205,7 +205,7 @@ export async function runToolCall(params: ToolCallParams): Promise<ToolCallResul
   }
 
   const itemId = await newConversationRecordId();
-  await appendTurnEntry({
+  const appended = await appendTurnEntry({
     conversationId: conversation.id,
     position,
     completesModelCall: false,
@@ -235,6 +235,7 @@ export async function runToolCall(params: ToolCallParams): Promise<ToolCallResul
       },
     },
   });
+  if (!appended) throw new TurnFailure('internal_error', 'The turn ended before its result', false);
   conversationToolCallCount.add(1, {
     sensitivity: output.sensitivity,
     outcome: output.isError ? 'error' : 'success',

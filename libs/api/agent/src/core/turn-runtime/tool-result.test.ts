@@ -18,17 +18,19 @@ describe('wrapToolResultText', () => {
     expect(wrapped.endsWith('</untrusted_data>')).toBe(true);
   });
 
-  it('cuts a result at 64 KiB and says so', () => {
+  it('cuts a result so the stored bytes, wrapper included, stay within 64 KiB', () => {
     const wrapped = wrapToolResultText({toolName: 'get_step_logs', text: 'a'.repeat(100_000)});
 
     expect(wrapped).toContain('[Result truncated at 64 KiB]');
-    expect(Buffer.byteLength(wrapped)).toBeLessThan(TOOL_RESULT_MAX_BYTES + 200);
+    expect(Buffer.byteLength(wrapped)).toBeLessThanOrEqual(TOOL_RESULT_MAX_BYTES);
   });
 
   it('never cuts a multi-byte character in half', () => {
-    const wrapped = wrapToolResultText({toolName: 'get_step_logs', text: 'é'.repeat(40_000)});
+    // 3-byte characters, so the cut falls inside one unless the back-up runs.
+    const wrapped = wrapToolResultText({toolName: 'get_step_logs', text: '€'.repeat(40_000)});
 
-    expect(wrapped).not.toContain('�');
+    expect(wrapped).not.toContain(String.fromCharCode(0xfffd));
+    expect(Buffer.byteLength(wrapped)).toBeLessThanOrEqual(TOOL_RESULT_MAX_BYTES);
   });
 
   it('does not rely on the tool name being safe', () => {

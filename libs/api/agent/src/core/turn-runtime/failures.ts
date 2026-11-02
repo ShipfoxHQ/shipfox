@@ -18,9 +18,10 @@ export class TurnFailure extends Error {
   }
 }
 
-// Provider errors reach pi as text, so the transient ones are recognized by their wording.
+// Provider errors reach pi as text, so the transient ones are recognized by their wording. A
+// status counts only at the start of the message or after "status" or "HTTP", not as any number.
 const TRANSIENT_PROVIDER_ERROR =
-  /\b(429|5\d\d)\b|rate.?limit|overloaded|timed? ?out|econnreset|econnrefused|enotfound|eai_again|fetch failed|socket hang up|stream.*interrupted/i;
+  /^\s*(429|5\d\d)\b|\b(status|http)\W{0,3}(429|5\d\d)\b|\brate[ _-]?limit|\boverloaded\b|\btimed? ?out\b|\b(econnreset|econnrefused|enotfound|eai_again)\b|fetch failed|socket hang up|stream.*interrupted/i;
 
 export function classifyProviderError(errorMessage: string | undefined): TurnFailure {
   const message = errorMessage?.length ? errorMessage : 'The model provider returned an error';

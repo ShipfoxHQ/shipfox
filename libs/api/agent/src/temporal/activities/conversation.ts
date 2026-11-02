@@ -39,9 +39,12 @@ export interface ModelCallActivityResult {
  */
 function toActivityFailure(error: unknown): never {
   if (error instanceof TurnFailure) {
-    throw error.retryable
-      ? ApplicationFailure.retryable(error.message, error.code, undefined, {cause: error})
-      : ApplicationFailure.nonRetryable(error.message, error.code, undefined, {cause: error});
+    throw ApplicationFailure.create({
+      message: error.message,
+      type: error.code,
+      nonRetryable: !error.retryable,
+      cause: error,
+    });
   }
   if (
     error instanceof ConversationEntryUnreadableError ||

@@ -33,11 +33,11 @@ export function createScriptedModel(replies: ScriptedReply[]) {
         const message = typeof reply === 'function' ? reply(context) : reply;
         const stream = createAssistantMessageEventStream();
         queueMicrotask(() => {
-          for (const block of message.content) {
+          for (const [contentIndex, block] of message.content.entries()) {
             if (block.type === 'text') {
               stream.push({
                 type: 'text_delta',
-                contentIndex: 0,
+                contentIndex,
                 delta: block.text,
                 partial: message,
               });

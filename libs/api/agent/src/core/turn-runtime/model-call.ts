@@ -141,6 +141,7 @@ function createChunkWriter(params: {
     },
     async close() {
       clearInterval(timer);
+      flush();
       await pending;
     },
   };
@@ -220,7 +221,7 @@ async function storeReply(params: {
 }): Promise<ModelCallResult> {
   const {conversation, message} = params;
   const itemId = await newConversationRecordId();
-  const {item} = await appendTurnEntry({
+  const appended = await appendTurnEntry({
     conversationId: conversation.id,
     position: params.position,
     completesModelCall: true,
@@ -240,11 +241,12 @@ async function storeReply(params: {
       meta: {role: 'assistant', stop_reason: message.stopReason, model: message.model},
     },
   });
-  conversationModelCallCount.add(1, {outcome: 'stored'});
+  if (!appended) throw new TurnFailure('internal_error', 'The turn ended before its reply', false);
+  conversationModelCallCount.add(1, {outcome: appended.stored ? 'stored' : 'replayed'});
   // A concurrent attempt may have stored first, and its reply is the one the timeline holds.
-  return item.id === itemId
+  return appended.stored
     ? toCallResult(message)
-    : await storedResult(item, conversation.workspaceId);
+    : await storedResult(appended.item, conversation.workspaceId);
 }
 
 /**

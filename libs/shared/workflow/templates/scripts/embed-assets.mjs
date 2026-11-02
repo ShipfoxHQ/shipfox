@@ -69,11 +69,16 @@ for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byNam
 }
 
 const agentPromptRoot = join(assetsRoot, 'agents');
-const agentPrompts = {};
+const agentPromptEntries = [];
 for (const entry of (await readdir(agentPromptRoot, {withFileTypes: true})).sort(byName)) {
   if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-  agentPrompts[entry.name.slice(0, -3)] = await readFile(join(agentPromptRoot, entry.name), 'utf8');
+  agentPromptEntries.push([
+    entry.name.slice(0, -3),
+    await readFile(join(agentPromptRoot, entry.name), 'utf8'),
+  ]);
 }
+// Object.fromEntries defines own properties, so no file name reaches an inherited setter.
+const agentPrompts = Object.fromEntries(agentPromptEntries);
 
 const templates = [];
 const templateIds = new Set();

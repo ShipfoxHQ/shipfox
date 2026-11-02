@@ -1,7 +1,8 @@
 import type {ManagedModelProvider, WorkspaceProvidersPolicy} from '@shipfox/api-agent-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
-import {newConversationRecordId} from '#db/conversations.js';
+import {logger} from '@shipfox/node-opentelemetry';
+import {getRunningTurn, newConversationRecordId} from '#db/conversations.js';
 import {
   claimPendingInputs,
   finishTurnRow,
@@ -17,6 +18,7 @@ import {
   sealConversationEntry,
 } from '../conversation-sealing.js';
 import type {Conversation} from '../entities/conversation.js';
+import {isAgentConfigResolutionError} from '../errors.js';
 import {builtInAgentConfigInput} from '../resolve-agent-config.js';
 import {createWorkspaceAgentDefaultsResolver} from '../workspace-agent-defaults-resolver.js';
 import {listConversationToolSet} from './conversation-tools.js';
@@ -76,6 +78,32 @@ async function pinConversationPrompt(
 }
 
 /**
+ * The model a new turn uses. Defaults that no longer resolve open the turn with no model, and its
+ * first model call fails it with a recorded cause. Throwing here would retry without end.
+ */
+async function resolveTurnModel(
+  conversation: Conversation,
+  deps: TurnLifecycleDeps,
+): Promise<{provider: string | null; model: string | null}> {
+  try {
+    const resolveConfig = await createWorkspaceAgentDefaultsResolver(
+      conversation.workspaceId,
+      deps.managedProvider,
+      deps.workspaceProviders,
+    );
+    const {provider, model} = resolveConfig(builtInAgentConfigInput);
+    return {provider, model};
+  } catch (error) {
+    if (!isAgentConfigResolutionError(error)) throw error;
+    logger().warn(
+      {err: error, conversationId: conversation.id},
+      'No model resolves for a conversation',
+    );
+    return {provider: null, model: null};
+  }
+}
+
+/**
  * Starts a turn for the queued inputs, or returns the one already running. The prompt is pinned
  * first. A repeat after a crash finds the entry and the turn it wrote.
  */
@@ -88,12 +116,11 @@ export async function beginConversationTurn(params: {
 
   await pinConversationPrompt(conversation, params.deps);
 
-  const resolveConfig = await createWorkspaceAgentDefaultsResolver(
-    conversation.workspaceId,
-    params.deps.managedProvider,
-    params.deps.workspaceProviders,
-  );
-  const {provider, model} = resolveConfig(builtInAgentConfigInput);
+  // A running turn keeps the model it started with, whatever the workspace defaults are now.
+  const running = await getRunningTurn(conversation.id);
+  if (running) return {turnId: running.id};
+
+  const {provider, model} = await resolveTurnModel(conversation, params.deps);
   const opened = await openTurn({conversationId: conversation.id, model, provider});
   return opened ? {turnId: opened.turn.id} : undefined;
 }

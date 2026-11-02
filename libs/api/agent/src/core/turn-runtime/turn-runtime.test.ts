@@ -200,6 +200,63 @@ describe('turn runtime', () => {
   });
 
   describe('runModelCall', () => {
+    it('flushes the last text before it ends, and clears it when the turn finishes', async () => {
+      const {begin, conversation} = await setup();
+      const turnId = await begin();
+      const failed = fauxAssistantMessage('Partial text', {
+        stopReason: 'error',
+        errorMessage: '400 invalid request',
+      });
+      const model = createScriptedModel([failed]);
+
+      await runModelCall({
+        conversationId: conversation.id,
+        turnId,
+        modelCallIndex: 0,
+        createModelRuntime: model.createModelRuntime,
+      }).catch(() => undefined);
+      const left = await db()
+        .select()
+        .from(turnStreamChunks)
+        .where(eq(turnStreamChunks.turnId, turnId));
+      await finishConversationTurn({
+        conversationId: conversation.id,
+        turnId,
+        status: 'failed',
+        failureCode: 'provider_error',
+      });
+      const after = await db()
+        .select()
+        .from(turnStreamChunks)
+        .where(eq(turnStreamChunks.turnId, turnId));
+
+      expect(left).toHaveLength(1);
+      expect(after).toHaveLength(0);
+    });
+
+    it('stores nothing for a call that outlives its turn', async () => {
+      const {begin, items, conversation} = await setup();
+      const turnId = await begin();
+      await finishConversationTurn({
+        conversationId: conversation.id,
+        turnId,
+        status: 'failed',
+        failureCode: 'timeout',
+      });
+      const model = createScriptedModel([textReply('too late')]);
+
+      const call = runModelCall({
+        conversationId: conversation.id,
+        turnId,
+        modelCallIndex: 0,
+        createModelRuntime: model.createModelRuntime,
+      });
+
+      await expect(call).rejects.toMatchObject({code: 'internal_error'});
+      expect(await items()).toHaveLength(2);
+      expect((await getTurnById(turnId))?.modelCallCount).toBe(0);
+    });
+
     it('stores the whole reply as one entry and counts the call', async () => {
       const {begin, items, conversation} = await setup();
       const turnId = await begin();
@@ -500,12 +557,16 @@ describe('turn runtime', () => {
     });
 
     it('lets a message posted during the call land after its result', async () => {
-      const {run, items, conversation, ownerUserId, workspaceId} = await afterToolRequest();
-      await postWebConversationMessage({
-        conversation: (await getConversationById(conversation.id)) as never,
-        authorUserId: ownerUserId,
-        clientMessageId: crypto.randomUUID(),
-        body: 'Also check run 8',
+      const {run, items, conversation, ownerUserId, workspaceId, integrations} =
+        await afterToolRequest();
+      integrations.callTool.mockImplementationOnce(async () => {
+        await postWebConversationMessage({
+          conversation: (await getConversationById(conversation.id)) as never,
+          authorUserId: ownerUserId,
+          clientMessageId: crypto.randomUUID(),
+          body: 'Also check run 8',
+        });
+        return {outcome: 'success', result: null, content: [{type: 'text', text: 'run 7 failed'}]};
       });
 
       await run();

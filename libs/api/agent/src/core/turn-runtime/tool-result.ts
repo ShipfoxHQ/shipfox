@@ -22,7 +22,15 @@ function truncateUtf8(text: string, maxBytes: number): {text: string; truncated:
  */
 export function wrapToolResultText(params: {toolName: string; text: string}): string {
   const defanged = params.text.replace(CLOSING_TAG, '<\\/untrusted_data');
-  const {text, truncated} = truncateUtf8(defanged, TOOL_RESULT_MAX_BYTES);
   const tool = params.toolName.replace(/[^A-Za-z0-9_.-]/g, '_');
-  return `<untrusted_data source="tool:${tool}">\n${text}${truncated ? TRUNCATION_NOTICE : ''}\n</untrusted_data>`;
+  const open = `<untrusted_data source="tool:${tool}">\n`;
+  const close = '\n</untrusted_data>';
+  // The cap covers the stored bytes, so the wrapper and the notice come out of the budget.
+  const budget =
+    TOOL_RESULT_MAX_BYTES -
+    Buffer.byteLength(open) -
+    Buffer.byteLength(close) -
+    Buffer.byteLength(TRUNCATION_NOTICE);
+  const {text, truncated} = truncateUtf8(defanged, budget);
+  return `${open}${text}${truncated ? TRUNCATION_NOTICE : ''}${close}`;
 }

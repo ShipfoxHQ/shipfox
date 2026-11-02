@@ -34,7 +34,7 @@ The package does not evaluate expressions or implement conditionals and loops. I
 pnpm add @shipfox/workflow-templates
 ```
 
-The package build reads `assets/skills/`, `assets/agents/`, and the first-party template packages in `libs/shared/workflow/catalog/templates/`. It embeds the skill files, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy these files at runtime.
+The package build reads `assets/skills/`, `assets/agents/`, and the first-party template packages in `libs/shared/workflow/catalog/templates/`. It embeds the skill files, built-in agent prompts, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy these files at runtime.
 
 ## Usage
 

@@ -56,7 +56,7 @@ describe('createPinnedFetch', () => {
     );
   });
 
-  it('connects to the address its lookup answered, so a later DNS change has no effect', async () => {
+  it('connects to the address its lookup answered', async () => {
     const port = new URL(baseUrl).port;
     const lookup = ((
       _hostname: string,
@@ -71,6 +71,48 @@ describe('createPinnedFetch', () => {
     });
 
     expect(await response.json()).toEqual({method: 'POST', body: '{"hello":"world"}'});
+  });
+
+  it('refuses a host whose answer turns private after the first lookup', async () => {
+    const port = new URL(baseUrl).port;
+    const addresses = ['8.8.8.8', '127.0.0.1'];
+    let answered = 0;
+    const lookup = ((
+      _hostname: string,
+      _options: unknown,
+      callback: (...args: unknown[]) => void,
+    ) => callback(null, [{address: addresses[answered++] ?? '127.0.0.1', family: 4}])) as never;
+    const pinned = createPinnedFetch({policy: {allowPrivateNetworks: false}, lookup});
+
+    // A host of its own, because Node reuses a pooled socket and then does no new lookup.
+    const call = pinned(`http://rebind.example.com:${port}/echo`);
+
+    await expect(call).rejects.toBeInstanceOf(EgressDeniedError);
+  });
+
+  it('applies the init over a Request', async () => {
+    const pinned = createPinnedFetch({policy: {allowPrivateNetworks: true}});
+
+    const response = await pinned(new Request(`${baseUrl}/echo`), {
+      method: 'POST',
+      body: 'from init',
+    });
+
+    expect(await response.json()).toEqual({method: 'POST', body: 'from init'});
+  });
+
+  it('rejects a status fetch can not represent instead of hanging', async () => {
+    const odd = createServer((_request, response) => {
+      response.writeHead(600);
+      response.end();
+    });
+    await new Promise<void>((resolve) => odd.listen(0, '127.0.0.1', resolve));
+    const pinned = createPinnedFetch({policy: {allowPrivateNetworks: true}});
+
+    const call = pinned(`http://127.0.0.1:${(odd.address() as AddressInfo).port}/`);
+
+    await expect(call).rejects.toThrow();
+    await new Promise((resolve) => odd.close(resolve));
   });
 
   it('refuses a redirect instead of following it', async () => {

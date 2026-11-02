@@ -103,7 +103,7 @@ async function assertCustomProviderEgress(url: string, label: string): Promise<v
 export function createServerModelRuntime(deps: ServerModelRuntimeDeps): CreateModelRuntime {
   return async ({conversation, turn, renewal}) => {
     if (turn.provider === null || turn.model === null) {
-      throw new TurnFailure('internal_error', 'The turn has no model', false);
+      throw new TurnFailure('model_unavailable', 'No model resolves for this workspace', false);
     }
     try {
       const resolveConfig = await createWorkspaceAgentDefaultsResolver(
