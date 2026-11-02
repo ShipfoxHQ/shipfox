@@ -151,8 +151,9 @@ export function WorkflowDefinitionsTable({
   sync,
   workspaceSlug,
 }: WorkflowDefinitionsTableProps) {
-  // Every page must be loaded before a local search can claim to cover the project.
-  const isComplete = !isPending && !isError && !hasNextPage;
+  // Every page must be loaded before a local search can claim to cover the project. A failed
+  // refresh keeps the cached list, so the search keeps filtering it.
+  const isComplete = !isPending && !hasNextPage && definitions.length > 0;
   const hasSearch = isComplete && searchQuery.trim() !== '';
   const visibleDefinitions = useMemo(
     () =>

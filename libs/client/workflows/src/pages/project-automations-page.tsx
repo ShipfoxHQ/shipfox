@@ -44,7 +44,8 @@ export interface ProjectAutomationsPageProps {
 export function ProjectAutomationsPage(props: ProjectAutomationsPageProps) {
   return (
     <RelativeTimeProvider>
-      <ProjectAutomationsPageInner {...props} />
+      {/* A new project starts with fresh search, selection, and no placeholder rows. */}
+      <ProjectAutomationsPageInner key={props.projectId} {...props} />
     </RelativeTimeProvider>
   );
 }
@@ -183,13 +184,11 @@ function ProjectAutomationsPageInner({
 function useLoadEveryDefinitionPage(
   definitionsQuery: ReturnType<typeof useDefinitionsInfiniteQuery>,
 ) {
-  const {hasNextPage, isFetchingNextPage, isFetchNextPageError, isPlaceholderData, fetchNextPage} =
-    definitionsQuery;
+  const {hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage} = definitionsQuery;
   useEffect(() => {
-    // Placeholder pages belong to the previous project.
-    if (!hasNextPage || isFetchingNextPage || isFetchNextPageError || isPlaceholderData) return;
+    if (!hasNextPage || isFetchingNextPage || isFetchNextPageError) return;
     void fetchNextPage();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isPlaceholderData]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError]);
 }
 
 const AUTOMATIONS_TAB_CLASS_NAME =

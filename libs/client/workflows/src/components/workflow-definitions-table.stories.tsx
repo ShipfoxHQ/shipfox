@@ -33,6 +33,7 @@ const definitions: Definition[] = [
     configPath: null,
     source: 'manual',
     updatedAt: '2026-09-16T12:00:00.000Z',
+    manualTrigger: null,
     triggers: [],
   }),
 ];

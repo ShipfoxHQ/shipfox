@@ -340,9 +340,8 @@ describe('ProjectAutomationsPage', () => {
           screen.queryByText(`First workflow panel for ${emptyProjectId}`),
         ).not.toBeInTheDocument(),
       );
-      // The new project's page renders with the previous project's empty list
-      // as placeholder data while its own definitions load.
-      expect(await screen.findByText('No workflows')).toBeInTheDocument();
+      // The new project loads from scratch instead of showing the previous project's rows.
+      expect(await screen.findByRole('textbox', {name: 'Search workflows'})).toBeDisabled();
       expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
     });
 
