@@ -22,6 +22,7 @@ describe('recoverConversationsCron', () => {
 
     await recoverConversationsCron();
 
+    expect(mocks.recoverConversations).toHaveBeenCalledOnce();
     expect(mocks.logInfo).toHaveBeenCalledWith('Woke agent conversations with pending work', {
       woken: 3,
     });
@@ -30,6 +31,7 @@ describe('recoverConversationsCron', () => {
   it('stays silent when nothing was pending', async () => {
     await recoverConversationsCron();
 
+    expect(mocks.recoverConversations).toHaveBeenCalledOnce();
     expect(mocks.logInfo).not.toHaveBeenCalled();
   });
 });

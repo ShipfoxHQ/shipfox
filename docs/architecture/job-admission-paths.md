@@ -56,9 +56,10 @@ queued and running jobs can finish normally.
   status.
 - A conversation has no run start, so each turn start is an admission moment.
   The gate checks the workspace operating state, then the optional
-  `admission.policy` of `createAgentModule`, which receives the workspace and
+  `admission.policy` of `createAgentModule`, which receives the workspace ID and
   the source `agent`. A denial opens no turn. It claims the queued inputs and writes a
-  `turn_notice`, so the recovery sweep does not return to them. A turn that is
+  `turn_notice`, so the recovery sweep does not return to them. An owner who
+  left the workspace gets the same settlement without a notice. A turn that is
   already running is not stopped by admission.
 - Admission failures are permanent. Triggers records and skips the event
   instead of replaying it, so webhook events received while a workspace is

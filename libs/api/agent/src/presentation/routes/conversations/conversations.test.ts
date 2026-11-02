@@ -14,6 +14,7 @@ import {db} from '#db/db.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
 import {conversations} from '#db/schema/conversations.js';
 import {sessionDataKeys} from '#db/schema/data-keys.js';
+import {getTurnById} from '#db/turn-runtime.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {turnFactory} from '#test/factories/turn.js';
 import {appendConversationEntry} from '#test/fixtures/conversation-entries.js';
@@ -1263,6 +1264,10 @@ describe('conversation routes', () => {
         projectId,
         ownerUserId: owner.userId,
       });
+      const finished = await turnFactory.create({
+        conversationId: conversation.id,
+        status: 'succeeded',
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -1271,7 +1276,7 @@ describe('conversation routes', () => {
       });
 
       expect(res.statusCode).toBe(204);
-      expect(wake).not.toHaveBeenCalled();
+      expect(await getTurnById(finished.id)).toMatchObject({stopRequestedAt: null});
     });
   });
 
