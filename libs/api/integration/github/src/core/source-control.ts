@@ -7,6 +7,7 @@ import {
   type CheckoutRepositoryAuthorizationState,
   type CheckoutSpec,
   type CheckoutTarget,
+  type CommitPage,
   type CreateCheckoutCredentialsInput,
   type CreateCheckoutSpecInput,
   type FetchFileInput,
@@ -18,6 +19,7 @@ import {
   isValidGitObjectId,
   isValidResolvableRef,
   isValidTriggerRef,
+  type ListCommitsInput,
   type ListFilesInput,
   type ListRepositoriesInput,
   MAX_REPOSITORY_FILE_BYTES,
@@ -263,6 +265,36 @@ export class GithubSourceControlProvider
     }
 
     return {ref: input.ref, commit};
+  }
+
+  async listCommits(input: ListCommitsInput<GithubIntegrationConnection>): Promise<CommitPage> {
+    if (!isValidGitObjectId(input.ref) && !isValidResolvableRef(input.ref)) {
+      throw new GithubIntegrationProviderError(
+        'ref-invalid',
+        `GitHub ref ${formatRefForMessage(input.ref)} is not a commit id or a resolvable branch or tag name`,
+      );
+    }
+    const installationId = await this.installationId(input.connection.id);
+    const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const page = await this.github.listCommits({
+      installationId,
+      repositoryId,
+      ref: input.ref,
+      path: input.path,
+      limit: input.limit,
+      cursor: input.cursor,
+    });
+
+    return {
+      commits: page.commits.map((commit) => ({
+        oid: commit.sha,
+        message: commit.message,
+        authorName: commit.authorName,
+        authoredAt: commit.authoredAt,
+        htmlUrl: commit.htmlUrl,
+      })),
+      nextCursor: page.nextCursor,
+    };
   }
 
   async createCheckoutSpec(

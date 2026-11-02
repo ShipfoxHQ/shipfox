@@ -60,6 +60,12 @@ export class IntegrationCheckoutUnsupportedError extends Error {
   }
 }
 
+export class IntegrationHistoryUnsupportedError extends Error {
+  constructor(public readonly provider: IntegrationProviderKind) {
+    super(`Integration provider ${provider} does not keep commit history`);
+  }
+}
+
 export class IntegrationProviderUnavailableError extends Error {
   constructor(public readonly provider: IntegrationProviderKind) {
     super(`No integration provider registered for ${provider}`);

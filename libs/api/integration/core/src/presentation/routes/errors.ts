@@ -6,6 +6,7 @@ import {
   IntegrationConnectionNotFoundError,
   IntegrationConnectionProviderChangedError,
   IntegrationConnectionWorkspaceMismatchError,
+  IntegrationHistoryUnsupportedError,
   IntegrationProviderError,
   type IntegrationProviderErrorReason,
   IntegrationProviderUnavailableError,
@@ -59,6 +60,9 @@ export function integrationRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof IntegrationCapabilityUnavailableError) {
     throw new ClientError(error.message, 'integration-capability-unavailable', {status: 422});
+  }
+  if (error instanceof IntegrationHistoryUnsupportedError) {
+    throw new ClientError(error.message, 'integration-history-unsupported', {status: 422});
   }
   if (error instanceof IntegrationCheckoutUnsupportedError) {
     throw new ClientError(error.message, 'integration-checkout-unsupported', {status: 422});

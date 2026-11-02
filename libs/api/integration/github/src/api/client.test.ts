@@ -450,6 +450,96 @@ describe('OctokitGithubApiClient.listRepositoryCommits', () => {
   });
 });
 
+describe('OctokitGithubApiClient.listCommits', () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    listRepositoryCommitsMock.mockReset();
+    requestMock.mockReset();
+    authMock.mockResolvedValue({token: 'ghs_installationtoken'});
+    requestMock.mockResolvedValue(REPOSITORY_RESPONSE);
+  });
+
+  it('lists the commits that changed a path and follows the next link', async () => {
+    listRepositoryCommitsMock.mockResolvedValue({
+      data: [
+        {
+          sha: 'a'.repeat(40),
+          html_url: `https://github.com/shipfox/platform/commit/${'a'.repeat(40)}`,
+          commit: {message: 'Add CI', author: {name: 'Ada', date: '2026-10-01T10:00:00Z'}},
+        },
+      ],
+      headers: {
+        link: '<https://api.github.com/repositories/42/commits?page=3>; rel="next", <https://api.github.com/repositories/42/commits?page=9>; rel="last"',
+      },
+    });
+    const client = createGithubApiClient();
+
+    const page = await client.listCommits({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      path: '.shipfox/workflows/ci.yml',
+      limit: 20,
+      cursor: '2',
+    });
+
+    expect(page).toEqual({
+      commits: [
+        {
+          sha: 'a'.repeat(40),
+          message: 'Add CI',
+          authorName: 'Ada',
+          authoredAt: new Date('2026-10-01T10:00:00Z'),
+          htmlUrl: `https://github.com/shipfox/platform/commit/${'a'.repeat(40)}`,
+        },
+      ],
+      nextCursor: '3',
+    });
+    expect(listRepositoryCommitsMock).toHaveBeenCalledWith({
+      owner: 'shipfox',
+      repo: 'platform',
+      sha: 'refs/heads/main',
+      path: '.shipfox/workflows/ci.yml',
+      per_page: 20,
+      page: 2,
+      request: {signal: expect.any(AbortSignal)},
+    });
+  });
+
+  it('has no next cursor on the last page', async () => {
+    listRepositoryCommitsMock.mockResolvedValue({data: [], headers: {}});
+    const client = createGithubApiClient();
+
+    const page = await client.listCommits({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      path: '.shipfox',
+      limit: 20,
+    });
+
+    expect(page).toEqual({commits: [], nextCursor: null});
+  });
+
+  it('rejects a commit without an author date', async () => {
+    listRepositoryCommitsMock.mockResolvedValue({
+      data: [{sha: 'a'.repeat(40), html_url: 'https://github.com/x', commit: {message: 'm'}}],
+      headers: {},
+    });
+    const client = createGithubApiClient();
+
+    const result = client.listCommits({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      path: '.shipfox',
+      limit: 20,
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});
+
 const REPOSITORY_RESPONSE = {
   data: {
     id: 42,

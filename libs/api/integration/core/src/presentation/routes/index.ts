@@ -2,6 +2,7 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {WorkspaceBuiltinConnection} from '#core/agent-tool-selection.js';
+import type {ProjectConfigService} from '#core/project-config-service.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {RepositoryAuthorizer} from '#core/repository-authorizer.js';
 import type {IntegrationSourceControlService} from '#core/source-control-service.js';
@@ -17,6 +18,7 @@ import {
   createDeleteIntegrationConnectionRoute,
   createUpdateIntegrationConnectionRoute,
 } from './manage-connections.js';
+import {createProjectConfigRoutes} from './project-config.js';
 import {
   createRepositoryAccessMutationRoutes,
   createRepositoryAccessReadRoute,
@@ -24,6 +26,7 @@ import {
 
 export interface CreateIntegrationRoutesOptions {
   projects?: ProjectsModuleClient | undefined;
+  projectConfig?: ProjectConfigService | undefined;
   repositoryAuthorization?:
     | {
         invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
@@ -57,6 +60,14 @@ export function createIntegrationRoutes(
       ]
     : [];
 
+  const projectConfigRoutes =
+    options.projects && options.projectConfig
+      ? createProjectConfigRoutes({
+          projects: options.projects,
+          projectConfig: options.projectConfig,
+        })
+      : [];
+
   return [
     createListIntegrationProvidersRoute(registry),
     createListIntegrationConnectionsRoute(registry),
@@ -72,6 +83,7 @@ export function createIntegrationRoutes(
         options.repositoryAuthorization?.invalidateRepositoryAuthorizationCache,
     }),
     createListRepositoriesRoute(sourceControl),
+    ...projectConfigRoutes,
     ...agentToolsRoutes,
     ...providerRoutes,
   ];

@@ -7,6 +7,7 @@ import {
   PROVIDER_MESSAGE_MAX_LENGTH,
 } from '@shipfox/api-integration-core-dto/inter-module';
 import {agentToolResultKind} from '@shipfox/api-integration-spi';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
@@ -30,12 +31,18 @@ import {
   IntegrationConnectionNotFoundError,
   IntegrationConnectionProviderChangedError,
   IntegrationConnectionWorkspaceMismatchError,
+  IntegrationHistoryUnsupportedError,
   IntegrationProviderError,
   IntegrationProviderUnavailableError,
   IntegrationRepositoryAuthorizationError,
   RepositoryAuthorizerConfigurationError,
 } from '#core/errors.js';
 import {buildFixedEventProviders, buildProviderEventCatalogs} from '#core/event-catalogs.js';
+import {
+  type ConfigProject,
+  type ProjectConfigService,
+  toConfigProject,
+} from '#core/project-config-service.js';
 import type {AgentToolCatalogEntry} from '#core/providers/agent-tools.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {CheckoutSpec, CheckoutTarget} from '#core/providers/source-control.js';
@@ -138,6 +145,9 @@ function toCheckoutSpecDto(spec: AuthorizedCheckoutSpec): CheckoutSpecDto {
 export function createIntegrationsInterModulePresentation(params: {
   registry: IntegrationProviderRegistry;
   sourceControl: IntegrationSourceControlService;
+  /** Config reads need the project row, so they fail without it. */
+  projects?: ProjectsModuleClient | undefined;
+  projectConfig?: ProjectConfigService | undefined;
   getIntegrationConnectionById?: GetIntegrationConnectionByIdFn | undefined;
   /** Test seam that mirrors the MCP gateway's `recordCall`: audit and metrics must not affect outcomes. */
   createIntegrationToolCallRecorder?: (
@@ -150,6 +160,32 @@ export function createIntegrationsInterModulePresentation(params: {
   const getConnectionById = params.getIntegrationConnectionById ?? getIntegrationConnectionById;
   const createRecorder =
     params.createIntegrationToolCallRecorder ?? createIntegrationToolCallRecorder;
+  // A project in another workspace is indistinguishable from a missing one.
+  async function configOperation<Output>(
+    method: InterModuleMethodContract,
+    input: {workspaceId: string; projectId: string},
+    run: (project: ConfigProject, config: ProjectConfigService) => Promise<Output>,
+  ): Promise<Output> {
+    if (!params.projects || !params.projectConfig) {
+      throw new Error('Config reads require the Projects client');
+    }
+    const {project} = await params.projects.getProjectById({projectId: input.projectId});
+    if (project?.workspaceId !== input.workspaceId) {
+      throw createInterModuleKnownError(method, 'project-not-found', {projectId: input.projectId});
+    }
+    const configProject = toConfigProject(project);
+    const config = params.projectConfig;
+    return await known(
+      method,
+      {
+        workspaceId: input.workspaceId,
+        connectionId: configProject.connectionId,
+        externalRepositoryId: configProject.externalRepositoryId,
+      },
+      async () => await run(configProject, config),
+    );
+  }
+
   return defineInterModulePresentation(contract, {
     listConnectionsByWorkspace: async (input) => {
       const providers = params.registry.list(input.capability);
@@ -277,6 +313,37 @@ export function createIntegrationsInterModulePresentation(params: {
         input,
         async () => await params.sourceControl.fetchFile(input),
       ),
+    getConfigSource: async (input) =>
+      await configOperation(
+        contract.methods.getConfigSource,
+        input,
+        async (project, config) => await config.getConfigSource(project),
+      ),
+    listConfigFiles: async (input) =>
+      await configOperation(
+        contract.methods.listConfigFiles,
+        input,
+        async (project, config) => await config.listConfigFiles(project, input),
+      ),
+    readConfigFile: async (input) =>
+      await configOperation(
+        contract.methods.readConfigFile,
+        input,
+        async (project, config) => await config.readConfigFile(project, input),
+      ),
+    listConfigCommits: async (input) =>
+      await configOperation(contract.methods.listConfigCommits, input, async (project, config) => {
+        const page = await config.listConfigCommits(project, input);
+        return {
+          commit: page.commit,
+          commits: page.commits.map(({authoredAt, htmlUrl, ...commit}) => ({
+            ...commit,
+            authoredAt: authoredAt.toISOString(),
+            ...(htmlUrl === undefined ? {} : {htmlUrl}),
+          })),
+          nextCursor: page.nextCursor,
+        };
+      }),
     createCheckoutSpec: async (input) =>
       await known(contract.methods.createCheckoutSpec, input, async () => {
         const spec = await params.sourceControl.createCheckoutSpec(input);
@@ -745,6 +812,8 @@ function mapConnectionError(
     });
   if (error instanceof IntegrationCheckoutUnsupportedError)
     return createInterModuleKnownError(method, 'checkout-unsupported', {provider: error.provider});
+  if (error instanceof IntegrationHistoryUnsupportedError)
+    return createInterModuleKnownError(method, 'history-unsupported', {provider: error.provider});
   return undefined;
 }
 

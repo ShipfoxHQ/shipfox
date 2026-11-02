@@ -2,6 +2,11 @@ import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-
 import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
 import {integrationConnectionProviderAccessSchema} from './schemas/integrations.js';
+import {
+  configFilePathSchema,
+  configHistoryPathSchema,
+  configSourceKindSchema,
+} from './schemas/project-config.js';
 
 const id = z.string().uuid();
 const connectionInactive = z.object({
@@ -209,6 +214,18 @@ const sourceErrors = {
   'checkout-unsupported': z.object({provider}),
   'provider-failure': providerError,
 };
+const configReadErrors = {
+  'project-not-found': z.object({projectId: id}),
+  'connection-not-found': z.object({connectionId: id}),
+  'connection-inactive': connectionInactive,
+  'connection-workspace-mismatch': z.object({connectionId: id}),
+  'provider-unavailable': z.object({provider}),
+  'capability-unavailable': z.object({provider, capability}),
+  'provider-failure': providerError,
+};
+const configInput = z.object({workspaceId: id, projectId: id});
+// Omitting the ref reads the default branch.
+const configRef = z.object({ref: safeRef.optional()});
 const checkoutErrors = {
   ...sourceErrors,
   ...repositoryAuthorizationErrors,
@@ -270,6 +287,70 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       input: sourceInput.extend({ref: z.string(), path: z.string()}),
       output: z.object({path: z.string(), ref: z.string(), content: z.string()}),
       errors: sourceErrors,
+    },
+    /** Where a project's config lives. Reads the project row, so it still answers during a provider outage. */
+    getConfigSource: {
+      input: configInput,
+      output: z.object({
+        source: z.object({
+          kind: configSourceKindSchema,
+          provider,
+          connectionId: id,
+          externalRepositoryId: z.string(),
+          owner: z.string().nullable(),
+          name: z.string().nullable(),
+          defaultBranch: z.string(),
+        }),
+        head: z.object({ref: z.string(), commit: z.string()}).nullable(),
+        historySupported: z.boolean(),
+      }),
+      errors: configReadErrors,
+    },
+    /** Lists the files under `.shipfox/` at one commit of the project's active repo. */
+    listConfigFiles: {
+      input: configInput.extend(configRef.shape).extend({
+        limit: z.number().int().positive(),
+        cursor: z.string().optional(),
+      }),
+      output: z.object({
+        commit: z.string(),
+        files: z.array(
+          z.object({
+            path: z.string(),
+            type: z.enum(['file', 'symlink', 'submodule']),
+            size: z.number().int().nullable(),
+          }),
+        ),
+        nextCursor: z.string().nullable(),
+      }),
+      errors: configReadErrors,
+    },
+    readConfigFile: {
+      input: configInput.extend(configRef.shape).extend({path: configFilePathSchema}),
+      output: z.object({path: z.string(), commit: z.string(), content: z.string()}),
+      errors: configReadErrors,
+    },
+    /** Lists the commits that changed a path, newest first. Needs a provider that keeps history. */
+    listConfigCommits: {
+      input: configInput.extend(configRef.shape).extend({
+        path: configHistoryPathSchema,
+        limit: z.number().int().positive(),
+        cursor: z.string().optional(),
+      }),
+      output: z.object({
+        commit: z.string(),
+        commits: z.array(
+          z.object({
+            oid: z.string(),
+            message: z.string(),
+            authorName: z.string(),
+            authoredAt: z.string().datetime(),
+            htmlUrl: z.string().optional(),
+          }),
+        ),
+        nextCursor: z.string().nullable(),
+      }),
+      errors: {...configReadErrors, 'history-unsupported': z.object({provider})},
     },
     createCheckoutSpec: {
       input: checkoutInput
