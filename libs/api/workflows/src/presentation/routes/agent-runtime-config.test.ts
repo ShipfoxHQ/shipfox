@@ -132,15 +132,18 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
     expect(resolveRuntimeCredentials).toHaveBeenCalledWith({
       workspaceId: run.workspaceId,
-      runId: run.id,
-      stepAttemptId: expect.any(String),
-      jobIdentity: {
-        projectId: run.projectId,
-        workflowRunAttemptId: job.workflowRunAttemptId,
-        jobId: job.id,
-        jobExecutionId: step.jobExecutionId,
-        stepId: step.id,
-        attempt: step.currentAttempt,
+      subject: {
+        kind: 'step_attempt',
+        runId: run.id,
+        stepAttemptId: expect.any(String),
+        jobIdentity: {
+          projectId: run.projectId,
+          workflowRunAttemptId: job.workflowRunAttemptId,
+          jobId: job.id,
+          jobExecutionId: step.jobExecutionId,
+          stepId: step.id,
+          attempt: step.currentAttempt,
+        },
       },
       harness: 'pi',
       provider: 'anthropic',
@@ -170,7 +173,9 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.json().credentials.api_key).toBe('sk-correct-workspace-secret');
     expect(resolveRuntimeCredentials).toHaveBeenCalledWith(
       expect.objectContaining({
-        jobIdentity: expect.objectContaining({projectId: run.projectId}),
+        subject: expect.objectContaining({
+          jobIdentity: expect.objectContaining({projectId: run.projectId}),
+        }),
       }),
     );
   });

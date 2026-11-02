@@ -72,15 +72,18 @@ export function createAgentRuntimeConfigRoute(params: {
 
       const runtimeConfig = await params.agent.resolveRuntimeCredentials({
         workspaceId,
-        runId: stepAttempt.workflowRunId,
-        stepAttemptId: stepAttempt.attempt.id,
-        jobIdentity: {
-          projectId,
-          workflowRunAttemptId: stepAttempt.workflowRunAttemptId,
-          jobId: stepAttempt.jobId,
-          jobExecutionId: stepAttempt.jobExecutionId,
-          stepId: stepAttempt.attempt.stepId,
-          attempt: stepAttempt.attempt.attempt,
+        subject: {
+          kind: 'step_attempt',
+          runId: stepAttempt.workflowRunId,
+          stepAttemptId: stepAttempt.attempt.id,
+          jobIdentity: {
+            projectId,
+            workflowRunAttemptId: stepAttempt.workflowRunAttemptId,
+            jobId: stepAttempt.jobId,
+            jobExecutionId: stepAttempt.jobExecutionId,
+            stepId: stepAttempt.attempt.stepId,
+            attempt: stepAttempt.attempt.attempt,
+          },
         },
         harness: agentConfig.harness,
         provider: agentConfig.provider,

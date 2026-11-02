@@ -15,10 +15,31 @@ import {
   WorkspaceProvidersDisabledError,
 } from './errors.js';
 import * as harnessCatalog from './harness/index.js';
-import {catalogDefaultAgentResolver, resolveAgentConfig} from './resolve-agent-config.js';
+import {
+  builtInAgentConfigInput,
+  catalogDefaultAgentResolver,
+  resolveAgentConfig,
+} from './resolve-agent-config.js';
 import {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';
 
 describe('resolveAgentConfig', () => {
+  test('resolves a built-in agent from workspace defaults on the pi harness', () => {
+    const resolved = resolveAgentConfig(builtInAgentConfigInput, {
+      workspaceDefaultHarnessId: 'claude',
+      workspaceDefaultProviderId: 'openai',
+      workspaceProviderConfigs: new Map([
+        ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],
+      ]),
+    });
+
+    expect(resolved).toEqual({
+      harness: 'pi',
+      provider: 'openai',
+      model: 'gpt-5.5-pro',
+      thinking: 'medium',
+    });
+  });
+
   test('resolves model provider from explicit step, workspace, instance, then catalog default', () => {
     const workspaceProviderConfigs = new Map([
       ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],

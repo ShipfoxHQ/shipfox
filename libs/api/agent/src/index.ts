@@ -35,6 +35,7 @@ export {
   AgentSessionKekVersionStrandedError,
   type AgentWorkspaceSettings,
   buildModelProviderCatalog,
+  builtInAgentConfigInput,
   type ContextualAgentConfig,
   catalogDefaultAgentResolver,
   createCustomModelProviderConfig,

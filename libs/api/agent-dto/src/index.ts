@@ -108,6 +108,8 @@ export {
   harnessSchema,
   harnessSupportsProvider,
   harnessSupportsTool,
+  type InferenceSubject,
+  inferenceSubjectSchema,
   isReservedModelProviderId,
   type ListConversationItemsQueryDto,
   type ListConversationItemsResponseDto,

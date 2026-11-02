@@ -216,6 +216,33 @@ existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` s
 
 ### Amendments
 
+**2026-10-31: an inference segment belongs to a step attempt or a conversation.** A server-side
+agent turn calls a model with no run, so a segment no longer always has ids down to the step
+attempt. It now names exactly one subject: those ids, or a conversation id with the key of the agent
+the conversation talks to. The schemas and a database check reject a segment with neither, with
+both, with part of the step attempt ids, or with an agent key on one side only: a conversation with
+no agent key, or a step attempt with one. The project id stays required on every segment. A
+conversation has no job execution, so its segments skip the projection check and carry no workflow
+identity.
+
+The agent key travels with every conversation segment, so a composing application can measure
+usage per agent, and tell workflow inference from agent inference with no lookup. A lookup at
+report time would cross a database boundary, and a deleted conversation would lose its agent.
+
+`usage.inference_segment.recorded` orders on the conversation id for these segments and on the
+step attempt id for the others. A consumer that reads events or list cursors must accept null run
+ids. The run and job execution routes still return only step segments. A composing application
+meters both subjects from the same event, and Usage still holds quantities, never amounts.
+
+**Conversation segments are the one exception to "calls no peer contract".** The projection check
+was the only proof that a project belongs to a workspace. Usage now confirms this through
+`requireProjectForWorkspace` on the Projects contract before it records a conversation segment. A
+project event can't replace the call, because a projection would have no row for a project created
+before it. A project in another workspace fails the batch, as a step identity mismatch does. An
+unknown project passes, because a project deleted before its usage is recorded still owes its last
+tokens and names no other tenant. Usage doesn't verify the conversation id itself, so the producer
+must take it from the conversation's owner.
+
 **2026-10-13: storage becomes a third usage record.** [ADR 0023](0023-cache-context.md) adds
 the storage sample for stored bytes, recorded once an hour by the Cache context. The `usagePricing`
 seam gains the optional `describeStorage` operation, so a client can show an allowance and an

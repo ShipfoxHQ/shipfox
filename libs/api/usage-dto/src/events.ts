@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {
-  inferenceSegmentUsageSchema,
+  recordedInferenceSegmentUsageSchema,
   recordedJobExecutionUsageSchema,
   storageSampleUsageSchema,
 } from './schemas/usage.js';
@@ -12,9 +12,7 @@ export const USAGE_STORAGE_SAMPLE_RECORDED = 'usage.storage_sample.recorded' as 
 export const usageJobExecutionRecordedEventSchema = recordedJobExecutionUsageSchema;
 export type UsageJobExecutionRecordedEvent = z.infer<typeof usageJobExecutionRecordedEventSchema>;
 
-export const usageInferenceSegmentRecordedEventSchema = inferenceSegmentUsageSchema
-  .extend({version: z.literal(1)})
-  .strict();
+export const usageInferenceSegmentRecordedEventSchema = recordedInferenceSegmentUsageSchema;
 export type UsageInferenceSegmentRecordedEvent = z.infer<
   typeof usageInferenceSegmentRecordedEventSchema
 >;

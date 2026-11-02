@@ -1,6 +1,15 @@
 import {inferenceSegmentDialects} from '@shipfox/api-usage-dto';
 import {sql} from 'drizzle-orm';
-import {bigint, index, integer, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  check,
+  index,
+  integer,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import {pgTable} from './common.js';
 
 export const usageInferenceSegments = pgTable(
@@ -11,14 +20,16 @@ export const usageInferenceSegments = pgTable(
     source: text('source', {enum: ['gateway']}).notNull(),
     workspaceId: uuid('workspace_id').notNull(),
     projectId: uuid('project_id').notNull(),
-    workflowRunId: uuid('workflow_run_id').notNull(),
-    workflowRunAttemptId: uuid('workflow_run_attempt_id').notNull(),
-    jobId: uuid('job_id').notNull(),
-    jobExecutionId: uuid('job_execution_id').notNull(),
+    workflowRunId: uuid('workflow_run_id'),
+    workflowRunAttemptId: uuid('workflow_run_attempt_id'),
+    jobId: uuid('job_id'),
+    jobExecutionId: uuid('job_execution_id'),
     workflowId: uuid('workflow_id'),
     workflowName: text('workflow_name'),
-    stepId: uuid('step_id').notNull(),
-    stepAttemptId: uuid('step_attempt_id').notNull(),
+    stepId: uuid('step_id'),
+    stepAttemptId: uuid('step_attempt_id'),
+    conversationId: uuid('conversation_id'),
+    agentKey: text('agent_key'),
     upstream: text('upstream').notNull(),
     model: text('model').notNull(),
     dialect: text('dialect', {enum: inferenceSegmentDialects}).notNull(),
@@ -46,6 +57,29 @@ export const usageInferenceSegments = pgTable(
     index('usage_inference_segments_workflow_run_idx').on(table.workflowRunId),
     index('usage_inference_segments_job_execution_idx').on(table.jobExecutionId),
     index('usage_inference_segments_step_attempt_idx').on(table.stepAttemptId),
+    // Unqualified columns: Postgres re-parses this check for each partition, under its own name.
+    check(
+      'usage_inference_segments_subject_ck',
+      sql`(
+        conversation_id IS NULL
+        AND agent_key IS NULL
+        AND workflow_run_id IS NOT NULL
+        AND workflow_run_attempt_id IS NOT NULL
+        AND job_id IS NOT NULL
+        AND job_execution_id IS NOT NULL
+        AND step_id IS NOT NULL
+        AND step_attempt_id IS NOT NULL
+      ) OR (
+        conversation_id IS NOT NULL
+        AND agent_key IS NOT NULL
+        AND workflow_run_id IS NULL
+        AND workflow_run_attempt_id IS NULL
+        AND job_id IS NULL
+        AND job_execution_id IS NULL
+        AND step_id IS NULL
+        AND step_attempt_id IS NULL
+      )`,
+    ),
   ],
 );
 

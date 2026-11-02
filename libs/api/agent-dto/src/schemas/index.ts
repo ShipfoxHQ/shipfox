@@ -132,6 +132,8 @@ export {
   parsePiEnabledToolPackages,
 } from './harness.js';
 export {
+  type InferenceSubject,
+  inferenceSubjectSchema,
   type ManagedModelApi,
   type ManagedModelCompat,
   type ManagedModelEntry,

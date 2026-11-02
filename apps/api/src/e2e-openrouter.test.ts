@@ -1,5 +1,6 @@
 import {createServer, type IncomingMessage, type Server} from 'node:http';
 import type {AddressInfo} from 'node:net';
+import type {InferenceSubject} from '@shipfox/api-agent-dto';
 import {inferenceSegmentInputSchema} from '@shipfox/api-usage-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {afterEach, describe, expect, it, vi} from '@shipfox/vitest/vi';
@@ -133,6 +134,37 @@ describe('OpenRouter backend', () => {
     });
   });
 
+  it('records usage under a conversation with no run identity', async () => {
+    const conversationId = '00000000-0000-4000-8000-00000000000a';
+    const upstream = await startUpstream((_request, response) => {
+      response.writeHead(200, {'content-type': 'application/json'});
+      response.end(
+        JSON.stringify({
+          id: 'gen-1',
+          choices: [{index: 0, message: {role: 'assistant', content: 'from openrouter'}}],
+          usage: {prompt_tokens: 120, completion_tokens: 30},
+        }),
+      );
+    });
+    const {app, recorded, runtime} = await startOpenRouterProject(upstream.baseUrl, {
+      kind: 'conversation',
+      projectId: PROJECT_ID,
+      conversationId,
+      agentKey: 'shippy',
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: COMPLETIONS_URL,
+      headers: {authorization: `Bearer ${runtime.credentials.api_key}`},
+      payload: {model: 'gpt-6-luna', messages: [{role: 'user', content: 'hi'}]},
+    });
+
+    const segment = inferenceSegmentInputSchema.parse(recorded[0]);
+    expect(segment).toMatchObject({conversationId, agentKey: 'shippy'});
+    expect(segment.stepAttemptId).toBeUndefined();
+  });
+
   it('streams a completion, asks for usage, and records the final usage chunk', async () => {
     const upstream = await startUpstream((_request, response) => {
       response.writeHead(200, {'content-type': 'text/event-stream'});
@@ -252,6 +284,25 @@ describe('OpenRouter backend', () => {
     expect(upstream.requests).toEqual([]);
   });
 
+  it('refuses a conversation that moves to a model without an OpenRouter mapping', async () => {
+    const upstream = await startUpstream((_request, response) => response.end());
+    const subject = {
+      kind: 'conversation' as const,
+      projectId: PROJECT_ID,
+      conversationId: '00000000-0000-4000-8000-00000000000a',
+      agentKey: 'shippy',
+    };
+    const {fixture} = await startOpenRouterProject(upstream.baseUrl, subject);
+
+    expect(() =>
+      fixture.provider.resolveCredentials({
+        workspaceId: WORKSPACE_ID,
+        subject,
+        model: 'e2e-renewable-pi',
+      }),
+    ).toThrow('no OpenRouter model for e2e-renewable-pi');
+  });
+
   it('rejects a model without an OpenRouter mapping', async () => {
     const upstream = await startUpstream((_request, response) => response.end('{}'));
     const {fixture} = await startOpenRouterProject(upstream.baseUrl);
@@ -259,9 +310,12 @@ describe('OpenRouter backend', () => {
     await expect(async () =>
       fixture.provider.resolveCredentials({
         workspaceId: WORKSPACE_ID,
-        runId: RUN_ID,
-        stepAttemptId: '00000000-0000-4000-8000-000000000009',
-        jobIdentity: JOB_IDENTITY,
+        subject: {
+          kind: 'step_attempt',
+          runId: RUN_ID,
+          stepAttemptId: '00000000-0000-4000-8000-000000000009',
+          jobIdentity: JOB_IDENTITY,
+        },
         model: 'e2e-renewable-pi',
       }),
     ).rejects.toThrow('no OpenRouter model for e2e-renewable-pi');
@@ -280,9 +334,12 @@ describe('OpenRouter backend', () => {
     });
     const runtime = await fixture.provider.resolveCredentials({
       workspaceId: WORKSPACE_ID,
-      runId: RUN_ID,
-      stepAttemptId: STEP_ATTEMPT_ID,
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: RUN_ID,
+        stepAttemptId: STEP_ATTEMPT_ID,
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'gpt-6-sol',
     });
 
@@ -334,7 +391,15 @@ describe('OpenRouter backend', () => {
   });
 });
 
-async function startOpenRouterProject(baseUrl: string) {
+async function startOpenRouterProject(
+  baseUrl: string,
+  subject: InferenceSubject = {
+    kind: 'step_attempt',
+    runId: RUN_ID,
+    stepAttemptId: STEP_ATTEMPT_ID,
+    jobIdentity: JOB_IDENTITY,
+  },
+) {
   const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key', {
     openRouter: {apiKey: API_KEY, baseUrl},
   });
@@ -359,9 +424,7 @@ async function startOpenRouterProject(baseUrl: string) {
   expect(registration.statusCode).toBe(201);
   const runtime = await fixture.provider.resolveCredentials({
     workspaceId: WORKSPACE_ID,
-    runId: RUN_ID,
-    stepAttemptId: STEP_ATTEMPT_ID,
-    jobIdentity: JOB_IDENTITY,
+    subject,
     model: 'gpt-6-luna',
   });
   expect(runtime.api).toBe('openai-completions');

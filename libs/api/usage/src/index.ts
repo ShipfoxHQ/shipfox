@@ -12,6 +12,7 @@ import {
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
+import type {UsageProjectsClient} from '#core/conversation-projects.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/index.js';
 import {usageOutbox} from '#db/schema/outbox.js';
@@ -32,12 +33,12 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
-export function createUsageModule(): ShipfoxModule {
+export function createUsageModule({projects}: {projects: UsageProjectsClient}): ShipfoxModule {
   return {
     name: 'usage',
     database: {db, migrationsPath, databaseNamespace: 'usage'},
     routes: usageRoutes,
-    interModulePresentations: [createUsageInterModulePresentation()],
+    interModulePresentations: [createUsageInterModulePresentation({projects})],
     publishers: [
       {
         name: 'usage',

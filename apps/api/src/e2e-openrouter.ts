@@ -19,17 +19,23 @@ export interface OpenRouterBackend {
   baseUrl?: string | undefined;
 }
 
-export type InferenceUsageIdentity = Pick<
-  InferenceSegmentInputDto,
-  | 'workspaceId'
-  | 'projectId'
-  | 'workflowRunId'
-  | 'workflowRunAttemptId'
-  | 'jobId'
-  | 'jobExecutionId'
-  | 'stepId'
-  | 'stepAttemptId'
->;
+type SegmentIdentity<Segment> = Segment extends InferenceSegmentInputDto
+  ? Pick<
+      Segment,
+      | 'workspaceId'
+      | 'projectId'
+      | 'workflowRunId'
+      | 'workflowRunAttemptId'
+      | 'jobId'
+      | 'jobExecutionId'
+      | 'stepId'
+      | 'stepAttemptId'
+      | 'conversationId'
+      | 'agentKey'
+    >
+  : never;
+
+export type InferenceUsageIdentity = SegmentIdentity<InferenceSegmentInputDto>;
 
 export type RecordInferenceSegment = (segment: InferenceSegmentInputDto) => Promise<void>;
 

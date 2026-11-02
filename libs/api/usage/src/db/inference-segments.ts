@@ -2,8 +2,10 @@ import {
   type InferenceSegmentInputDto,
   type InferenceSegmentUsageDto,
   inferenceSegmentInputSchema,
+  inferenceSegmentStepIdentity,
   MAX_INFERENCE_SEGMENTS_BATCH_SIZE,
   MAX_USAGE_REPLAY_LIMIT,
+  type StepInferenceSegmentInputDto,
   USAGE_INFERENCE_SEGMENT_RECORDED,
   type UsageEventMap,
 } from '@shipfox/api-usage-dto';
@@ -34,15 +36,18 @@ export interface ListInferenceSegmentsResult {
 }
 
 type CachedWorkflowIdentity = {
-  segment: InferenceSegmentInputDto;
+  segment: StepInferenceSegmentInputDto;
   identity: Awaited<ReturnType<typeof resolveInferenceWorkflowIdentity>>;
 };
 
+/** A conversation has no job execution to project, so it carries no workflow identity. */
 async function resolveWorkflowIdentityForSegment(
   tx: Transaction,
   segment: InferenceSegmentInputDto,
   cache: Map<string, CachedWorkflowIdentity>,
-): Promise<CachedWorkflowIdentity['identity']> {
+): Promise<{workflowId: string | null; workflowName: string | null}> {
+  if (typeof segment.conversationId === 'string') return {workflowId: null, workflowName: null};
+
   const cached = cache.get(segment.jobExecutionId);
   if (cached) {
     if (!sameJobExecutionIdentity(cached.segment, segment)) {
@@ -116,6 +121,8 @@ export function recordInferenceSegments(params: {
           workflowName: workflowIdentity.workflowName,
           stepId: segment.stepId,
           stepAttemptId: segment.stepAttemptId,
+          conversationId: segment.conversationId,
+          agentKey: segment.agentKey,
           upstream: segment.upstream,
           model: segment.model,
           dialect: segment.dialect,
@@ -132,10 +139,14 @@ export function recordInferenceSegments(params: {
         })
         .returning();
       if (!row) throw new Error('Usage inference segment was not inserted');
+      const payload = toRecordedInferenceSegment(row);
       events.push({
         type: USAGE_INFERENCE_SEGMENT_RECORDED,
-        orderingKey: row.stepAttemptId,
-        payload: toRecordedInferenceSegment(row),
+        orderingKey:
+          typeof payload.conversationId === 'string'
+            ? payload.conversationId
+            : payload.stepAttemptId,
+        payload,
       });
     }
 
@@ -233,20 +244,14 @@ export function toRecordedInferenceSegment(
 }
 
 export function toInferenceSegmentUsage(row: UsageInferenceSegmentRow): InferenceSegmentUsageDto {
-  return {
+  const fields = {
     id: row.id,
     segmentKey: row.segmentKey,
     source: row.source,
     workspaceId: row.workspaceId,
     projectId: row.projectId,
-    workflowRunId: row.workflowRunId,
-    workflowRunAttemptId: row.workflowRunAttemptId,
-    jobId: row.jobId,
-    jobExecutionId: row.jobExecutionId,
     workflowId: row.workflowId,
     workflowName: row.workflowName,
-    stepId: row.stepId,
-    stepAttemptId: row.stepAttemptId,
     upstream: row.upstream,
     model: row.model,
     dialect: row.dialect,
@@ -261,11 +266,29 @@ export function toInferenceSegmentUsage(row: UsageInferenceSegmentRow): Inferenc
     webSearchRequests: row.webSearchRequests,
     recordedAt: row.recordedAt.toISOString(),
   };
+  const stepIdentity = inferenceSegmentStepIdentity(row);
+  if (stepIdentity !== undefined) {
+    return {...fields, ...stepIdentity, conversationId: null, agentKey: null};
+  }
+  if (row.conversationId === null || row.agentKey === null) {
+    throw new Error(`Usage inference segment ${row.id} has no subject`);
+  }
+  return {
+    ...fields,
+    workflowRunId: null,
+    workflowRunAttemptId: null,
+    jobId: null,
+    jobExecutionId: null,
+    stepId: null,
+    stepAttemptId: null,
+    conversationId: row.conversationId,
+    agentKey: row.agentKey,
+  };
 }
 
 function sameJobExecutionIdentity(
-  first: InferenceSegmentInputDto,
-  second: InferenceSegmentInputDto,
+  first: StepInferenceSegmentInputDto,
+  second: StepInferenceSegmentInputDto,
 ): boolean {
   return (
     first.workspaceId === second.workspaceId &&

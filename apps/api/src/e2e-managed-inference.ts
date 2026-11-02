@@ -1,10 +1,10 @@
 import {randomUUID, timingSafeEqual} from 'node:crypto';
 import {
+  type InferenceSubject,
   type ManagedModelApi,
   type ManagedModelProvider,
   type ManagedModelThinkingLevel,
   type ManagedModelThinkingLevelMap,
-  type ManagedProviderJobIdentity,
   type ManagedProviderRuntimeConfig,
   managedModelThinkingLevelSchema,
 } from '@shipfox/api-agent-dto';
@@ -142,7 +142,8 @@ interface ScriptedEntry {
 interface ScriptedRequest {
   index: number;
   project_id: string;
-  step_attempt_id: string;
+  step_attempt_id: string | null;
+  conversation_id: string | null;
   model: string;
   prompt: string;
   surprise: boolean;
@@ -163,7 +164,7 @@ interface ScriptedAttempt {
 }
 
 interface CredentialState {
-  stepAttemptId: string;
+  subject: InferenceSubject;
   nextGeneration: number;
   model: string;
   projectId: string;
@@ -256,25 +257,29 @@ function resolveE2eCredentials(
   baseUrl: string,
   params: Parameters<ManagedModelProvider['resolveCredentials']>[0],
 ): ManagedProviderRuntimeConfig {
-  if (params.jobIdentity === undefined) {
-    throw new Error('E2E managed provider requires the leased job identity');
-  }
-
+  const projectId = subjectProjectId(params.subject);
   const model = E2E_MODELS.find((candidate) => candidate.id === params.model);
   if (model === undefined) {
     throw new Error(`E2E managed provider does not know model ${params.model}`);
   }
 
-  const key = params.stepAttemptId;
+  const key = subjectKey(params.subject);
   const now = Date.now();
   pruneCredentialStates(state, now);
-  const projectId = params.jobIdentity.projectId;
   const credentialState =
     state.credentials.get(key) ??
     state.tombstones.get(key) ??
-    createCredentialState({state, params, jobIdentity: params.jobIdentity, now});
+    createCredentialState({state, params, projectId, now});
+  // The workspace default can change between the turns of a conversation.
+  if (params.subject.kind === 'conversation') credentialState.model = model.id;
   if (credentialState.model !== model.id) {
     throw new Error('E2E managed provider model changed during credential renewal');
+  }
+  if (
+    credentialState.openRouterIdentity !== undefined &&
+    !Object.hasOwn(OPENROUTER_MODEL_IDS, model.id)
+  ) {
+    throw new Error(`E2E managed provider has no OpenRouter model for ${model.id}`);
   }
   if (credentialState.projectId !== projectId) {
     throw new Error('E2E managed provider project changed during credential renewal');
@@ -287,13 +292,13 @@ function resolveE2eCredentials(
   state.stats.resolutions += 1;
   state.stats.resolutionsByModel[model.id] = (state.stats.resolutionsByModel[model.id] ?? 0) + 1;
 
-  const token = `shipfox-e2e-${params.stepAttemptId}-g${generation}`;
+  const token = `shipfox-e2e-${key}-g${generation}`;
   const runtimeConfig: ManagedProviderRuntimeConfig = {
     api: credentialState.openRouterIdentity === undefined ? model.api : 'openai-completions',
     baseUrl,
     credentials: {api_key: token},
   };
-  if (!isRenewalModel(model.id)) return runtimeConfig;
+  if (!mustRenew({model: model.id, subject: params.subject})) return runtimeConfig;
 
   return {
     ...runtimeConfig,
@@ -311,37 +316,70 @@ function resolveE2eCredentials(
 function createCredentialState(params: {
   state: InferenceState;
   params: Parameters<ManagedModelProvider['resolveCredentials']>[0];
-  jobIdentity: ManagedProviderJobIdentity;
+  projectId: string;
   now: number;
 }): CredentialState {
-  const {jobIdentity} = params;
-  const scriptedAttempt = createScriptedAttempt(params.state, jobIdentity.projectId);
+  const {projectId} = params;
+  const scriptedAttempt = createScriptedAttempt(params.state, projectId);
   const openRouter =
     scriptedAttempt === undefined &&
     params.state.openRouter !== undefined &&
-    params.state.openRouterProjects.has(jobIdentity.projectId);
-  if (openRouter && !Object.hasOwn(OPENROUTER_MODEL_IDS, params.params.model)) {
-    throw new Error(`E2E managed provider has no OpenRouter model for ${params.params.model}`);
-  }
+    params.state.openRouterProjects.has(projectId);
   return {
-    stepAttemptId: params.params.stepAttemptId,
+    subject: params.params.subject,
     nextGeneration: 1,
     model: params.params.model,
-    projectId: jobIdentity.projectId,
+    projectId,
     scriptedAttempt,
     openRouterIdentity: openRouter
-      ? {
+      ? subjectUsageIdentity({
           workspaceId: params.params.workspaceId,
-          projectId: jobIdentity.projectId,
-          workflowRunId: params.params.runId,
-          workflowRunAttemptId: jobIdentity.workflowRunAttemptId,
-          jobId: jobIdentity.jobId,
-          jobExecutionId: jobIdentity.jobExecutionId,
-          stepId: jobIdentity.stepId,
-          stepAttemptId: params.params.stepAttemptId,
-        }
+          projectId,
+          subject: params.params.subject,
+        })
       : undefined,
     lastTouchedAt: params.now,
+  };
+}
+
+function subjectKey(subject: InferenceSubject): string {
+  return subject.kind === 'conversation' ? subject.conversationId : subject.stepAttemptId;
+}
+
+function subjectProjectId(subject: InferenceSubject): string {
+  if (subject.kind === 'conversation') return subject.projectId;
+  if (subject.jobIdentity === undefined) {
+    throw new Error('E2E managed provider requires the leased job identity');
+  }
+  return subject.jobIdentity.projectId;
+}
+
+function subjectUsageIdentity(params: {
+  workspaceId: string;
+  projectId: string;
+  subject: InferenceSubject;
+}): InferenceUsageIdentity {
+  const {workspaceId, projectId, subject} = params;
+  if (subject.kind === 'conversation') {
+    return {
+      workspaceId,
+      projectId,
+      conversationId: subject.conversationId,
+      agentKey: subject.agentKey,
+    };
+  }
+  if (subject.jobIdentity === undefined) {
+    throw new Error('E2E managed provider requires the leased job identity');
+  }
+  return {
+    workspaceId,
+    projectId,
+    workflowRunId: subject.runId,
+    workflowRunAttemptId: subject.jobIdentity.workflowRunAttemptId,
+    jobId: subject.jobIdentity.jobId,
+    jobExecutionId: subject.jobIdentity.jobExecutionId,
+    stepId: subject.jobIdentity.stepId,
+    stepAttemptId: subject.stepAttemptId,
   };
 }
 
@@ -549,7 +587,7 @@ function createInferenceAuth(state: InferenceState, adminApiKey: string | undefi
       const credentialState =
         tokenDetails === undefined
           ? undefined
-          : currentCredentialState(state, tokenDetails.stepAttemptId);
+          : currentCredentialState(state, tokenDetails.subjectId);
       const credential = {tokenDetails, credentialState};
       if (!isCurrentCredential(credential)) {
         state.stats.expiredRequests += 1;
@@ -638,7 +676,7 @@ function credentialStateForRequest(
   const tokenDetails = parseToken(token);
   return tokenDetails === undefined
     ? undefined
-    : currentCredentialState(state, tokenDetails.stepAttemptId);
+    : currentCredentialState(state, tokenDetails.subjectId);
 }
 
 function createScriptedAttempt(
@@ -649,8 +687,12 @@ function createScriptedAttempt(
   return project === undefined ? undefined : {project, entry: undefined, cursor: 0};
 }
 
-function credentialStateKey(state: CredentialState): string {
-  return state.stepAttemptId;
+function requestSubjectIds(
+  subject: InferenceSubject,
+): Pick<ScriptedRequest, 'step_attempt_id' | 'conversation_id'> {
+  return subject.kind === 'conversation'
+    ? {step_attempt_id: null, conversation_id: subject.conversationId}
+    : {step_attempt_id: subject.stepAttemptId, conversation_id: null};
 }
 
 function requestPrompt(body: unknown): string {
@@ -680,13 +722,13 @@ function scriptedCompletion(params: {
   model: string;
   reply: ScriptedReply;
   requestIndex: number;
-  stepAttemptId: string;
+  subjectId: string;
 }) {
   const toolCall =
     params.reply.tool === undefined
       ? undefined
       : {
-          id: `call-${params.stepAttemptId}-${params.requestIndex}`,
+          id: `call-${params.subjectId}-${params.requestIndex}`,
           type: 'function' as const,
           function: {
             name: params.reply.tool,
@@ -746,7 +788,7 @@ function respondWithScriptedOpenAiCompletion(
     attempt.project.requests.push({
       index: requestIndex,
       project_id: credentialState.projectId,
-      step_attempt_id: credentialStateKey(credentialState),
+      ...requestSubjectIds(credentialState.subject),
       model,
       prompt,
       surprise: true,
@@ -767,12 +809,12 @@ function respondWithScriptedOpenAiCompletion(
     model,
     reply: replyDefinition,
     requestIndex,
-    stepAttemptId: credentialStateKey(credentialState),
+    subjectId: subjectKey(credentialState.subject),
   });
   attempt.project.requests.push({
     index: requestIndex,
     project_id: credentialState.projectId,
-    step_attempt_id: credentialStateKey(credentialState),
+    ...requestSubjectIds(credentialState.subject),
     model,
     prompt,
     surprise: false,
@@ -987,25 +1029,25 @@ function tokensMatch(actual: string, expected: string): boolean {
 
 function parseToken(
   token: string | undefined,
-): {stepAttemptId: string; generation: number} | undefined {
+): {subjectId: string; generation: number} | undefined {
   const match = token === undefined ? undefined : TOKEN_PATTERN.exec(token);
   if (match === null || match === undefined) return undefined;
-  const stepAttemptId = match[1];
+  const subjectId = match[1];
   const rawGeneration = match[2];
-  if (stepAttemptId === undefined || rawGeneration === undefined) return undefined;
+  if (subjectId === undefined || rawGeneration === undefined) return undefined;
   const generation = Number(rawGeneration);
-  return stepAttemptId.length > 0 && Number.isSafeInteger(generation) && generation > 0
-    ? {stepAttemptId, generation}
+  return subjectId.length > 0 && Number.isSafeInteger(generation) && generation > 0
+    ? {subjectId, generation}
     : undefined;
 }
 
 function currentCredentialState(
   state: InferenceState,
-  stepAttemptId: string,
+  subjectId: string,
 ): CredentialState | undefined {
   const now = Date.now();
   pruneCredentialStates(state, now);
-  const credentialState = state.credentials.get(stepAttemptId);
+  const credentialState = state.credentials.get(subjectId);
   if (credentialState !== undefined) credentialState.lastTouchedAt = now;
   return credentialState;
 }
@@ -1028,7 +1070,7 @@ function isCurrentCredential(
     tokenDetails !== undefined &&
     credentialState !== undefined &&
     tokenDetails.generation === credentialState.nextGeneration - 1 &&
-    (!isRenewalModel(credentialState.model) || tokenDetails.generation !== 1)
+    (!mustRenew(credentialState) || tokenDetails.generation !== 1)
   );
 }
 
@@ -1110,6 +1152,11 @@ function rememberCredentialTombstone(
     if (oldestKey === undefined) return;
     state.tombstones.delete(oldestKey);
   }
+}
+
+/** The server mints a token per model call, so only a step attempt ever renews one. */
+function mustRenew(params: {model: string; subject: InferenceSubject}): boolean {
+  return params.subject.kind === 'step_attempt' && isRenewalModel(params.model);
 }
 
 /** The models whose first credential is rejected, so a step on one must renew to finish. */

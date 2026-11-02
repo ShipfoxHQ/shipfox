@@ -131,6 +131,103 @@ describe('Usage event contracts', () => {
     });
   });
 
+  it('accepts a conversation segment with no run identity', () => {
+    const {
+      workflowRunId,
+      workflowRunAttemptId,
+      jobId,
+      jobExecutionId,
+      stepId,
+      stepAttemptId,
+      ...base
+    } = validSegment;
+    const conversationSegment = {
+      ...base,
+      workflowId: null,
+      workflowName: null,
+      conversationId: crypto.randomUUID(),
+      agentKey: 'shippy',
+    };
+
+    expect(
+      usageInferenceSegmentRecordedEventSchema.parse({...conversationSegment, version: 1}),
+    ).toEqual({...conversationSegment, webSearchRequests: 1, version: 1});
+  });
+
+  it('keeps reading a recorded step event that has no conversation field', () => {
+    const parsed = usageInferenceSegmentRecordedEventSchema.parse({...validSegment, version: 1});
+
+    expect(parsed.stepAttemptId).toBe(ids.stepAttemptId);
+    expect(parsed).not.toHaveProperty('conversationId');
+  });
+
+  it.each([
+    [
+      'a segment with no subject',
+      {
+        workflowRunId: null,
+        workflowRunAttemptId: null,
+        jobId: null,
+        jobExecutionId: null,
+        stepId: null,
+        stepAttemptId: null,
+      },
+    ],
+    ['a partial step identity', {stepAttemptId: undefined}],
+    ['a conversation with run identity', {conversationId: crypto.randomUUID()}],
+    ['a step that names an agent', {agentKey: 'shippy'}],
+  ])('rejects %s', (_name, overrides) => {
+    const result = usageInferenceSegmentRecordedEventSchema.safeParse({
+      ...validSegment,
+      ...overrides,
+      version: 1,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a conversation segment with no agent key', () => {
+    const {
+      workflowRunId,
+      workflowRunAttemptId,
+      jobId,
+      jobExecutionId,
+      stepId,
+      stepAttemptId,
+      ...base
+    } = validSegment;
+
+    const result = usageInferenceSegmentRecordedEventSchema.safeParse({
+      ...base,
+      conversationId: crypto.randomUUID(),
+      version: 1,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an inverted window on a conversation segment', () => {
+    const {
+      workflowRunId,
+      workflowRunAttemptId,
+      jobId,
+      jobExecutionId,
+      stepId,
+      stepAttemptId,
+      ...base
+    } = validSegment;
+
+    expect(() =>
+      usageInferenceSegmentRecordedEventSchema.parse({
+        ...base,
+        conversationId: crypto.randomUUID(),
+        agentKey: 'shippy',
+        windowEnd: '2026-09-04T09:00:00.000Z',
+        version: 1,
+      }),
+    ).toThrow('windowEnd must be at or after windowStart');
+  });
+
   it('rejects unknown fields and non-v1 event versions', () => {
     expect(() =>
       usageJobExecutionRecordedEventSchema.parse({...validJobExecution, version: 2}),

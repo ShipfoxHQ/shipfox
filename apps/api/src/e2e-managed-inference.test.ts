@@ -19,6 +19,121 @@ afterEach(async () => {
 });
 
 describe('E2E managed inference fixture', () => {
+  it('accepts the first token of a conversation on a renewal model', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: fixture.module.routes ?? [],
+      swagger: false,
+    });
+
+    const runtimeConfig = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject: {
+        kind: 'conversation',
+        projectId: JOB_IDENTITY.projectId,
+        conversationId: 'conversation',
+        agentKey: 'shippy',
+      },
+      model: 'e2e-renewable-pi',
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/__e2e-managed-inference/v1/chat/completions',
+      headers: {authorization: `Bearer ${runtimeConfig.credentials.api_key}`},
+      payload: {model: 'e2e-renewable-pi'},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(runtimeConfig.renewal).toBeUndefined();
+  });
+
+  it('accepts a model change between conversation calls and only the latest token', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: fixture.module.routes ?? [],
+      swagger: false,
+    });
+    const subject = {
+      kind: 'conversation' as const,
+      projectId: JOB_IDENTITY.projectId,
+      conversationId: 'conversation',
+      agentKey: 'shippy',
+    };
+
+    const first = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject,
+      model: 'gpt-6-sol',
+    });
+    const second = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject,
+      model: 'glm-5.3-flash',
+    });
+    const request = (runtime: typeof first) =>
+      app.inject({
+        method: 'POST',
+        url: '/__e2e-managed-inference/v1/chat/completions',
+        headers: {authorization: `Bearer ${runtime.credentials.api_key}`},
+        payload: {model: 'glm-5.3-flash'},
+      });
+
+    expect((await request(first)).statusCode).toBe(401);
+    expect((await request(second)).statusCode).toBe(200);
+  });
+
+  it('records the conversation of a scripted request', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+    const projectId = JOB_IDENTITY.projectId;
+    await app.inject({
+      method: 'POST',
+      url: '/managed-inference/scripts',
+      payload: {
+        project_id: projectId,
+        entries: [{match: {prompt_contains: 'hello'}, replies: [{text: 'hi'}]}],
+      },
+    });
+
+    const runtimeConfig = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject: {
+        kind: 'conversation',
+        projectId,
+        conversationId: 'conversation',
+        agentKey: 'shippy',
+      },
+      model: 'gpt-6-sol',
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/__e2e-managed-inference/v1/chat/completions',
+      headers: {authorization: `Bearer ${runtimeConfig.credentials.api_key}`},
+      payload: {model: 'gpt-6-sol', messages: [{role: 'user', content: 'hello'}]},
+    });
+    const requests = await app.inject({
+      method: 'GET',
+      url: `/managed-inference/scripts/${projectId}/requests`,
+    });
+
+    expect(requests.json().requests).toEqual([
+      expect.objectContaining({
+        conversation_id: 'conversation',
+        step_attempt_id: null,
+        served_reply: 'hi',
+      }),
+    ]);
+  });
+
   it('accepts generation one for a model without forced renewal', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
@@ -29,9 +144,12 @@ describe('E2E managed inference fixture', () => {
     });
     const runtimeConfig = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'static-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'static-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'gpt-6-sol',
     });
 
@@ -82,9 +200,12 @@ describe('E2E managed inference fixture', () => {
 
     const first = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'scripted-step-one',
-      jobIdentity: {...JOB_IDENTITY, projectId},
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'scripted-step-one',
+        jobIdentity: {...JOB_IDENTITY, projectId},
+      },
       model: 'gpt-6-sol',
     });
     const firstResponse = await app.inject({
@@ -122,9 +243,12 @@ describe('E2E managed inference fixture', () => {
 
     const second = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'scripted-step-two',
-      jobIdentity: {...JOB_IDENTITY, projectId},
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'scripted-step-two',
+        jobIdentity: {...JOB_IDENTITY, projectId},
+      },
       model: 'gpt-6-sol',
     });
     const retry = await app.inject({
@@ -172,9 +296,12 @@ describe('E2E managed inference fixture', () => {
     });
     const runtime = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'surprise-step',
-      jobIdentity: {...JOB_IDENTITY, projectId},
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'surprise-step',
+        jobIdentity: {...JOB_IDENTITY, projectId},
+      },
       model: 'glm-5.3-flash',
     });
     const headers = {authorization: `Bearer ${runtime.credentials.api_key}`};
@@ -220,9 +347,12 @@ describe('E2E managed inference fixture', () => {
     for (const [index, model] of ['gpt-6-luna', 'gpt-6-sol', 'glm-5.3-flash'].entries()) {
       const runtime = await fixture.provider.resolveCredentials({
         workspaceId: 'workspace',
-        runId: 'run',
-        stepAttemptId: `catalog-step-${index}`,
-        jobIdentity: JOB_IDENTITY,
+        subject: {
+          kind: 'step_attempt',
+          runId: 'run',
+          stepAttemptId: `catalog-step-${index}`,
+          jobIdentity: JOB_IDENTITY,
+        },
         model,
       });
       expect(runtime.api).toBe('openai-completions');
@@ -261,9 +391,12 @@ describe('E2E managed inference fixture', () => {
     });
     const first = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'renewable-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'renewable-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'e2e-renewable-pi',
     });
     expect(first.generation).toMatch(UUID_V4_PATTERN);
@@ -279,9 +412,12 @@ describe('E2E managed inference fixture', () => {
 
     const refreshed = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'renewable-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'renewable-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'e2e-renewable-pi',
     });
     const accepted = await app.inject({
@@ -305,9 +441,12 @@ describe('E2E managed inference fixture', () => {
 
     const firstClaude = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'claude-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'claude-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'e2e-renewable-claude',
     });
     const rejectedClaude = await app.inject({
@@ -324,9 +463,12 @@ describe('E2E managed inference fixture', () => {
 
     const refreshedClaude = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'claude-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'claude-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'e2e-renewable-claude',
     });
     const acceptedClaude = await app.inject({
@@ -339,9 +481,12 @@ describe('E2E managed inference fixture', () => {
 
     const firstRefreshAt = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'refresh-at-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'refresh-at-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'e2e-refresh-renewable-claude',
     });
     if (firstRefreshAt.renewal?.mode !== 'refresh-at' || firstRefreshAt.expiresAt === undefined) {
@@ -360,9 +505,12 @@ describe('E2E managed inference fixture', () => {
 
     const refreshedRefreshAt = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'refresh-at-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'refresh-at-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'e2e-refresh-renewable-claude',
     });
     const acceptedRefreshAt = await app.inject({
@@ -388,9 +536,12 @@ describe('E2E managed inference fixture', () => {
     for (let index = 0; index <= 1_000; index += 1) {
       const runtimeConfig = await fixture.provider.resolveCredentials({
         workspaceId: 'workspace',
-        runId: 'run',
-        stepAttemptId: `bounded-step-${index}`,
-        jobIdentity: JOB_IDENTITY,
+        subject: {
+          kind: 'step_attempt',
+          runId: 'run',
+          stepAttemptId: `bounded-step-${index}`,
+          jobIdentity: JOB_IDENTITY,
+        },
         model: 'gpt-6-sol',
       });
       const token = runtimeConfig.credentials.api_key;
@@ -411,9 +562,12 @@ describe('E2E managed inference fixture', () => {
       Promise.resolve().then(() =>
         fixture.provider.resolveCredentials({
           workspaceId: 'workspace',
-          runId: 'run',
-          stepAttemptId: 'bounded-step-0',
-          jobIdentity: JOB_IDENTITY,
+          subject: {
+            kind: 'step_attempt',
+            runId: 'run',
+            stepAttemptId: 'bounded-step-0',
+            jobIdentity: JOB_IDENTITY,
+          },
           model: 'e2e-renewable-claude',
         }),
       ),
@@ -461,9 +615,12 @@ describe('E2E managed inference fixture', () => {
     });
     const runtimeConfig = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'static-retention-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt',
+        runId: 'run',
+        stepAttemptId: 'static-retention-step',
+        jobIdentity: JOB_IDENTITY,
+      },
       model: 'gpt-6-sol',
     });
 
@@ -483,9 +640,12 @@ describe('E2E managed inference fixture', () => {
     if (fixture === undefined) throw new Error('fixture should be configured');
     const credentialParams = {
       workspaceId: 'workspace',
-      runId: 'run',
-      stepAttemptId: 'guard-step',
-      jobIdentity: JOB_IDENTITY,
+      subject: {
+        kind: 'step_attempt' as const,
+        runId: 'run',
+        stepAttemptId: 'guard-step',
+        jobIdentity: JOB_IDENTITY,
+      },
     };
     await fixture.provider.resolveCredentials({
       ...credentialParams,

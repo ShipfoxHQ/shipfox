@@ -79,48 +79,118 @@ export const recordedJobExecutionUsageSchema = jobExecutionUsageSchema
   .strict();
 export type RecordedJobExecutionUsageDto = z.infer<typeof recordedJobExecutionUsageSchema>;
 
-const inferenceSegmentInputObjectSchema = z
+const inferenceSegmentFields = {
+  segmentKey: nonEmptyStringSchema.max(512),
+  source: z.literal('gateway'),
+  workspaceId: idSchema,
+  projectId: idSchema,
+  upstream: nonEmptyStringSchema,
+  model: nonEmptyStringSchema,
+  dialect: inferenceSegmentDialectSchema,
+  windowStart: inferenceWindowDateTimeSchema,
+  windowEnd: inferenceWindowDateTimeSchema,
+  requestCount: usageCountSchema,
+  inputTokens: usageCountSchema,
+  outputTokens: usageCountSchema,
+  cacheCreationTokens: usageCountSchema,
+  cacheReadTokens: usageCountSchema,
+  reasoningTokens: usageCountSchema,
+  webSearchRequests: webSearchRequestCountSchema,
+};
+
+// A union, so a producer that omits part of an identity fails to compile, not at parse time.
+const absentIdSchema = z.null().optional();
+
+const stepInferenceSegmentObjectSchema = z
   .object({
-    segmentKey: nonEmptyStringSchema.max(512),
-    source: z.literal('gateway'),
-    workspaceId: idSchema,
-    projectId: idSchema,
+    ...inferenceSegmentFields,
     workflowRunId: idSchema,
     workflowRunAttemptId: idSchema,
     jobId: idSchema,
     jobExecutionId: idSchema,
     stepId: idSchema,
     stepAttemptId: idSchema,
-    upstream: nonEmptyStringSchema,
-    model: nonEmptyStringSchema,
-    dialect: inferenceSegmentDialectSchema,
-    windowStart: inferenceWindowDateTimeSchema,
-    windowEnd: inferenceWindowDateTimeSchema,
-    requestCount: usageCountSchema,
-    inputTokens: usageCountSchema,
-    outputTokens: usageCountSchema,
-    cacheCreationTokens: usageCountSchema,
-    cacheReadTokens: usageCountSchema,
-    reasoningTokens: usageCountSchema,
-    webSearchRequests: webSearchRequestCountSchema,
+    conversationId: absentIdSchema,
+    agentKey: z.null().optional(),
   })
   .strict();
 
-export const inferenceSegmentInputSchema =
-  inferenceSegmentInputObjectSchema.superRefine(validateInferenceWindow);
+const conversationInferenceSegmentObjectSchema = z
+  .object({
+    ...inferenceSegmentFields,
+    workflowRunId: absentIdSchema,
+    workflowRunAttemptId: absentIdSchema,
+    jobId: absentIdSchema,
+    jobExecutionId: absentIdSchema,
+    stepId: absentIdSchema,
+    stepAttemptId: absentIdSchema,
+    conversationId: idSchema,
+    agentKey: nonEmptyStringSchema,
+  })
+  .strict();
+
+export const inferenceSegmentInputSchema = z
+  .union([stepInferenceSegmentObjectSchema, conversationInferenceSegmentObjectSchema])
+  .superRefine(validateInferenceWindow);
 export type InferenceSegmentInputDto = z.infer<typeof inferenceSegmentInputSchema>;
+export type StepInferenceSegmentInputDto = z.infer<typeof stepInferenceSegmentObjectSchema>;
 
-const inferenceSegmentUsageObjectSchema = inferenceSegmentInputObjectSchema
-  .extend({
-    id: idSchema,
-    workflowId: idSchema.nullable().optional(),
-    workflowName: nonEmptyStringSchema.nullable().optional(),
-    recordedAt: dateTimeSchema,
-  })
-  .strict();
-export const inferenceSegmentUsageSchema =
-  inferenceSegmentUsageObjectSchema.superRefine(validateInferenceWindow);
+const inferenceSegmentUsageFields = {
+  id: idSchema,
+  workflowId: idSchema.nullable().optional(),
+  workflowName: nonEmptyStringSchema.nullable().optional(),
+  recordedAt: dateTimeSchema,
+};
+
+export const inferenceSegmentUsageSchema = z
+  .union([
+    stepInferenceSegmentObjectSchema.extend(inferenceSegmentUsageFields).strict(),
+    conversationInferenceSegmentObjectSchema.extend(inferenceSegmentUsageFields).strict(),
+  ])
+  .superRefine(validateInferenceWindow);
 export type InferenceSegmentUsageDto = z.infer<typeof inferenceSegmentUsageSchema>;
+
+const recordedInferenceSegmentFields = {
+  ...inferenceSegmentUsageFields,
+  version: z.literal(1),
+};
+
+export const recordedInferenceSegmentUsageSchema = z
+  .union([
+    stepInferenceSegmentObjectSchema.extend(recordedInferenceSegmentFields).strict(),
+    conversationInferenceSegmentObjectSchema.extend(recordedInferenceSegmentFields).strict(),
+  ])
+  .superRefine(validateInferenceWindow);
+
+type InferenceStepIdentityKey =
+  | 'workflowRunId'
+  | 'workflowRunAttemptId'
+  | 'jobId'
+  | 'jobExecutionId'
+  | 'stepId'
+  | 'stepAttemptId';
+
+/** The run identity of a segment that belongs to a step attempt. */
+export type InferenceSegmentStepIdentity = Record<InferenceStepIdentityKey, string>;
+
+/** Returns the complete run identity of a segment, or `undefined` for a conversation segment. */
+export function inferenceSegmentStepIdentity(
+  segment: {[Key in InferenceStepIdentityKey]?: string | null | undefined},
+): InferenceSegmentStepIdentity | undefined {
+  const {workflowRunId, workflowRunAttemptId, jobId, jobExecutionId, stepId, stepAttemptId} =
+    segment;
+  if (
+    !workflowRunId ||
+    !workflowRunAttemptId ||
+    !jobId ||
+    !jobExecutionId ||
+    !stepId ||
+    !stepAttemptId
+  ) {
+    return undefined;
+  }
+  return {workflowRunId, workflowRunAttemptId, jobId, jobExecutionId, stepId, stepAttemptId};
+}
 
 const HOUR_MS = 60 * 60 * 1_000;
 

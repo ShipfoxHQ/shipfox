@@ -59,8 +59,8 @@ export function createAgentInterModulePresentation(params: {
       try {
         const resolve =
           workspaceId === null
-            ? (step: Parameters<typeof resolveAgentConfig>[0]) =>
-                resolveAgentConfig(step, {
+            ? (input: Parameters<typeof resolveAgentConfig>[0]) =>
+                resolveAgentConfig(input, {
                   managedProvider: params.managedProvider,
                   workspaceProviders: params.workspaceProviders,
                 })

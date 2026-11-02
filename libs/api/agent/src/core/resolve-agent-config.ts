@@ -28,6 +28,9 @@ export interface ContextualAgentConfig {
   readonly thinking?: string | undefined;
 }
 
+/** A built-in agent has no step: it pins the harness and takes the rest from workspace defaults. */
+export const builtInAgentConfigInput = {harness: 'pi'} as const satisfies ContextualAgentConfig;
+
 export interface ResolvedAgentConfig {
   readonly harness: Harness;
   readonly provider: ModelProviderRef;
@@ -35,7 +38,7 @@ export interface ResolvedAgentConfig {
   readonly thinking: AgentThinking;
 }
 
-export type AgentDefaultsResolver = (step: ContextualAgentConfig) => ResolvedAgentConfig;
+export type AgentDefaultsResolver = (input: ContextualAgentConfig) => ResolvedAgentConfig;
 
 export interface AgentConfigResolutionContext {
   readonly workspaceDefaultHarnessId?: Harness | null | undefined;
@@ -67,39 +70,39 @@ type ProviderDefaults = WorkspaceProviderDefaults | ManagedProviderDefaults;
 type ModelCandidateResolver = () => string | null | undefined;
 
 export function resolveAgentConfig(
-  step: ContextualAgentConfig,
+  input: ContextualAgentConfig,
   ctx: AgentConfigResolutionContext = {},
 ): ResolvedAgentConfig {
-  const harness = step.harness ?? ctx.workspaceDefaultHarnessId ?? DEFAULT_HARNESS;
-  const provider = resolveProvider(step, ctx, harness);
+  const harness = input.harness ?? ctx.workspaceDefaultHarnessId ?? DEFAULT_HARNESS;
+  const provider = resolveProvider(input, ctx, harness);
   const providerConfig = getProviderConfig(provider, ctx);
   const model = resolveModel({
-    step,
+    input,
     ctx,
     harness,
     provider,
     providerConfig,
   });
-  const thinking = resolveThinking({step, ctx, harness, provider, providerConfig});
+  const thinking = resolveThinking({input, ctx, harness, provider, providerConfig});
 
   return {harness, provider, model, thinking};
 }
 
-export const catalogDefaultAgentResolver: AgentDefaultsResolver = (step) =>
-  resolveAgentConfig(step);
+export const catalogDefaultAgentResolver: AgentDefaultsResolver = (input) =>
+  resolveAgentConfig(input);
 
 function resolveProvider(
-  step: ContextualAgentConfig,
+  input: ContextualAgentConfig,
   ctx: AgentConfigResolutionContext,
   harness: Harness,
 ): ModelProviderRef {
   const descriptor = getHarnessDescriptor(harness);
   if (ctx.workspaceProviders === 'disabled') {
-    return resolveManagedProvider(step, ctx, harness, descriptor);
+    return resolveManagedProvider(input, ctx, harness, descriptor);
   }
 
-  if (step.provider !== undefined) {
-    return resolveExplicitProvider(step.provider, ctx, harness, descriptor);
+  if (input.provider !== undefined) {
+    return resolveExplicitProvider(input.provider, ctx, harness, descriptor);
   }
 
   const candidates = [
@@ -121,7 +124,7 @@ function resolveProvider(
 }
 
 function resolveManagedProvider(
-  step: ContextualAgentConfig,
+  input: ContextualAgentConfig,
   ctx: AgentConfigResolutionContext,
   harness: Harness,
   descriptor: ReturnType<typeof getHarnessDescriptor>,
@@ -132,7 +135,7 @@ function resolveManagedProvider(
       'workspace provider configuration is disabled but no managed provider is registered',
     );
   }
-  if (step.provider !== undefined && step.provider !== managedProvider.id) {
+  if (input.provider !== undefined && input.provider !== managedProvider.id) {
     throw new WorkspaceProvidersDisabledError(managedProvider.id);
   }
   if (
@@ -181,7 +184,7 @@ function resolveSupportedProvider(
 }
 
 function resolveModel(params: {
-  step: ContextualAgentConfig;
+  input: ContextualAgentConfig;
   ctx: AgentConfigResolutionContext;
   harness: Harness;
   provider: ModelProviderRef;
@@ -189,9 +192,9 @@ function resolveModel(params: {
 }): string {
   const providerConfig = params.providerConfig;
 
-  if (params.step.model !== undefined) {
-    validateModel(params.harness, params.provider, params.step.model, params.providerConfig);
-    return params.step.model;
+  if (params.input.model !== undefined) {
+    validateModel(params.harness, params.provider, params.input.model, params.providerConfig);
+    return params.input.model;
   }
 
   const candidates: ModelCandidateResolver[] = [];
@@ -319,7 +322,7 @@ function isHarnessCompatible(
 }
 
 function resolveThinking(params: {
-  step: ContextualAgentConfig;
+  input: ContextualAgentConfig;
   ctx: AgentConfigResolutionContext;
   harness: Harness;
   provider: ModelProviderRef;
@@ -328,12 +331,12 @@ function resolveThinking(params: {
   const thinkingSchema = agentThinkingByHarness[params.harness];
   const descriptor = getHarnessDescriptor(params.harness);
 
-  if (params.step.thinking !== undefined) {
-    const parsed = thinkingSchema.safeParse(params.step.thinking);
+  if (params.input.thinking !== undefined) {
+    const parsed = thinkingSchema.safeParse(params.input.thinking);
     if (!parsed.success) {
       throw new UnsupportedHarnessThinkingError(
         params.harness,
-        params.step.thinking,
+        params.input.thinking,
         descriptor.thinkingLevels,
       );
     }

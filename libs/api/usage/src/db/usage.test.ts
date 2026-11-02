@@ -1,5 +1,8 @@
 import type {RunnerJobClaimedEvent, RunnerJobLeaseExpiredEvent} from '@shipfox/api-runners-dto';
-import {inferenceSegmentUsageHttpSchema} from '@shipfox/api-usage-dto';
+import {
+  inferenceSegmentUsageHttpSchema,
+  usageInferenceSegmentRecordedEventSchema,
+} from '@shipfox/api-usage-dto';
 import type {
   WorkflowsJobExecutionQueuedEventDto,
   WorkflowsJobExecutionTerminatedEventDto,
@@ -21,6 +24,7 @@ import {
   recordJobExecutionTerminated,
 } from './job-executions.js';
 import {dropExpiredUsagePartitions} from './retention.js';
+import {usageInferenceSegments} from './schema/inference-segments.js';
 import {usageOutbox} from './schema/outbox.js';
 import {listStorageSamples, recordStorageSamples} from './storage-samples.js';
 
@@ -166,6 +170,19 @@ function storageSample(
     storedBytes: 5_000_000_000,
     objectCount: 4,
   };
+}
+
+function conversationSegment(overrides: {workspaceId?: string} = {}) {
+  const {
+    workflowRunId,
+    workflowRunAttemptId,
+    jobId,
+    jobExecutionId,
+    stepId,
+    stepAttemptId,
+    ...segment
+  } = inferenceSegment();
+  return {...segment, ...overrides, conversationId: crypto.randomUUID(), agentKey: 'shippy'};
 }
 
 async function outboxFor(eventType: string, field: 'jobExecutionId' | 'segmentKey', value: string) {
@@ -348,6 +365,107 @@ describe('Usage projections', () => {
       workflowId: events.queued.workflowId,
       workflowName: events.queued.workflowName,
     });
+  });
+
+  it('records a conversation segment with no run identity or job projection', async () => {
+    const segment = conversationSegment();
+    const recordedAt = new Date('2026-09-04T10:05:00.000Z');
+
+    await expect(recordInferenceSegments({segments: [segment], now: recordedAt})).resolves.toEqual({
+      recorded: 1,
+      duplicates: 0,
+    });
+    await expect(recordInferenceSegments({segments: [segment], now: recordedAt})).resolves.toEqual({
+      recorded: 0,
+      duplicates: 1,
+    });
+
+    const [outbox, ...others] = await outboxFor(
+      'usage.inference_segment.recorded',
+      'segmentKey',
+      segment.segmentKey,
+    );
+    expect(others).toHaveLength(0);
+    expect(outbox?.orderingKey).toBe(segment.conversationId);
+    expect(usageInferenceSegmentRecordedEventSchema.parse(outbox?.payload)).toMatchObject({
+      conversationId: segment.conversationId,
+      agentKey: 'shippy',
+      workflowRunId: null,
+      stepAttemptId: null,
+      workflowId: null,
+      workflowName: null,
+    });
+
+    const page = await listInferenceSegments({workspaceId: segment.workspaceId});
+    const [row] = page.segments;
+    if (!row) throw new Error('Expected a conversation segment');
+    expect(toInferenceSegmentUsage(row)).toMatchObject({
+      projectId: segment.projectId,
+      conversationId: segment.conversationId,
+      jobExecutionId: null,
+    });
+    expect(() => toInferenceSegmentUsageDto(row)).toThrow('Cannot expose conversation');
+  });
+
+  it('records two conversations in one batch', async () => {
+    const first = conversationSegment();
+    const second = conversationSegment({workspaceId: first.workspaceId});
+
+    await expect(recordInferenceSegments({segments: [first, second]})).resolves.toEqual({
+      recorded: 2,
+      duplicates: 0,
+    });
+  });
+
+  it('records a step segment in a batch with a conversation segment', async () => {
+    const events = jobEvents();
+    await recordJobExecutionQueued(events.queued);
+    const step = inferenceSegment(events.queued);
+    const conversation = conversationSegment({workspaceId: events.queued.workspaceId});
+
+    await recordInferenceSegments({segments: [step, conversation]});
+
+    expect(
+      (await outboxFor('usage.inference_segment.recorded', 'segmentKey', step.segmentKey))[0],
+    ).toMatchObject({orderingKey: step.stepAttemptId});
+    const page = await listInferenceSegments({workspaceId: events.queued.workspaceId});
+    expect(page.segments.map((row) => row.conversationId)).toEqual(
+      expect.arrayContaining([null, conversation.conversationId]),
+    );
+  });
+
+  it.each([
+    ['no identity', {}],
+    ['a partial step identity', {stepAttemptId: crypto.randomUUID()}],
+    ['a conversation with no agent key', {conversationId: crypto.randomUUID()}],
+    ['an agent key with no conversation', {agentKey: 'shippy'}],
+    [
+      'both identities',
+      {
+        conversationId: crypto.randomUUID(),
+        agentKey: 'shippy',
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        stepId: crypto.randomUUID(),
+        stepAttemptId: crypto.randomUUID(),
+      },
+    ],
+  ])('rejects a stored segment with %s', async (_name, identity) => {
+    const {conversationId, agentKey, ...segment} = conversationSegment();
+
+    await expect(
+      db()
+        .insert(usageInferenceSegments)
+        .values({
+          ...segment,
+          ...identity,
+          windowStart: new Date(segment.windowStart),
+          windowEnd: new Date(segment.windowEnd),
+          recordedAt: new Date(),
+        }),
+    ).rejects.toMatchObject({cause: {constraint: 'usage_inference_segments_subject_ck'}});
   });
 
   it('records inference segments idempotently and exposes replay cursors', async () => {

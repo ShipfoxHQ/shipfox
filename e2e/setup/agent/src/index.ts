@@ -187,7 +187,8 @@ export interface RegisterScriptedManagedProviderParams {
 export interface ScriptedManagedProviderRequest {
   index: number;
   project_id: string;
-  step_attempt_id: string;
+  step_attempt_id: string | null;
+  conversation_id: string | null;
   model: string;
   prompt: string;
   surprise: boolean;

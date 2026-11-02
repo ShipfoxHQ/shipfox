@@ -243,8 +243,14 @@ function surpriseFailures(requests: ScriptedManagedProviderRequest[] | undefined
     .filter((request) => request.surprise)
     .map(
       (request) =>
-        `Unexpected model request ${request.index} from step attempt ${request.step_attempt_id}: ${request.error ?? 'no reply'}`,
+        `Unexpected model request ${request.index} from ${requestSubject(request)}: ${request.error ?? 'no reply'}`,
     );
+}
+
+function requestSubject(request: ScriptedManagedProviderRequest): string {
+  return request.conversation_id === null
+    ? `step attempt ${request.step_attempt_id}`
+    : `conversation ${request.conversation_id}`;
 }
 
 /** The script's recorded requests and the end of the runner log, so a failure can be read. */

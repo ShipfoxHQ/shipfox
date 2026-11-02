@@ -64,6 +64,7 @@ export {
 export {
   type AgentConfigResolutionContext,
   type AgentDefaultsResolver,
+  builtInAgentConfigInput,
   type ContextualAgentConfig,
   catalogDefaultAgentResolver,
   type ResolvedAgentConfig,
