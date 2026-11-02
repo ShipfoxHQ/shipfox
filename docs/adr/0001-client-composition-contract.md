@@ -14,7 +14,7 @@
 - **Amended by:** [ADR 0020: Header actions chrome slot](0020-header-actions-chrome-slot.md)
 - **Amended by:** [ADR 0021: Required action rendering and intent slot](0021-required-action-rendering-and-intent-slot.md)
 - **Amended by:** [ADR 0024: Workflow run actions chrome slot](0024-workflow-run-actions-chrome-slot.md)
-- **Amended by:** [ADR 0025: Project dock contribution](0025-project-dock-contribution.md)
+- **Amended by:** [ADR 0026: Project dock contribution](0026-project-dock-contribution.md)
 
 ## Context
 

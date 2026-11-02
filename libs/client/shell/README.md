@@ -131,7 +131,7 @@ composition and collision rules.
   page strip in `floating` mode, and the `Shippy` control in the account menu. None of them render
   without a contribution. A failed dock loses its launcher and strip, and the shell retries it on
   navigation up to three times per project. See
-  [ADR 0025](../../../docs/adr/0025-project-dock-contribution.md).
+  [ADR 0026](../../../docs/adr/0026-project-dock-contribution.md).
 - `useAgentPageContext()` publishes the current page until it unmounts, and
   `useCurrentAgentPageContext()` reads it. Call it once per page, not from a nested layout.
 - Consumers import browser components from `@shipfox/client-shell/runtime`.

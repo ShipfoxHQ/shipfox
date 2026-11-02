@@ -1,4 +1,4 @@
-# ADR 0025: Project dock contribution
+# ADR 0026: Project dock contribution
 
 - **Status:** Accepted.
 - **Date:** 2026-10-31.
