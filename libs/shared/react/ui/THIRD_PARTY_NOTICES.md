@@ -1,7 +1,8 @@
 # Third-party notices
 
-The `prompt-input`, `suggestion`, and `trace` components are adapted from the
-Radix variants of [shadcn/ui](https://github.com/shadcn-ui/ui).
+The `bubble`, `message`, `message-scroller`, `prompt-input`, `suggestion`, and
+`trace` components are adapted from the Radix variants of
+[shadcn/ui](https://github.com/shadcn-ui/ui).
 
 ```text
 MIT License

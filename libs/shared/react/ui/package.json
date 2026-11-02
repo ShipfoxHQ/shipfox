@@ -105,6 +105,7 @@
     "@radix-ui/react-tabs": "catalog:",
     "@radix-ui/react-tooltip": "catalog:",
     "@remixicon/react": "catalog:",
+    "@shadcn/react": "catalog:",
     "@swc/helpers": "catalog:",
     "@tanstack/react-table": "catalog:",
     "class-variance-authority": "catalog:",

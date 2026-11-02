@@ -293,6 +293,8 @@
   --background-inspector-base: var(--background-neutral-base);
   --background-inspector-band: var(--background-subtle-base);
   --background-inspector-value: var(--background-contrast-base);
+  /* The agent's chat bubble sits one step below the panel, like a panel header strip. */
+  --background-bubble-muted: var(--background-subtle-base);
   --background-neutral-disabled: var(--color-neutral-100);
   --background-field-hover: var(--color-neutral-100);
   --background-switch-off: var(--color-neutral-200);
@@ -556,6 +558,7 @@
   --background-inspector-base: var(--background-neutral-base);
   --background-inspector-band: var(--background-subtle-base);
   --background-inspector-value: var(--background-contrast-base);
+  --background-bubble-muted: var(--background-subtle-base);
   --background-neutral-disabled: var(--color-neutral-800);
   --background-field-hover: var(--color-alpha-white-8);
   --background-switch-off: var(--color-neutral-700);
@@ -913,6 +916,7 @@
   --color-background-subtle-base: var(--background-subtle-base);
   --color-background-inspector-base: var(--background-inspector-base);
   --color-background-inspector-band: var(--background-inspector-band);
+  --color-background-bubble-muted: var(--background-bubble-muted);
   --color-background-inspector-value: var(--background-inspector-value);
   --color-background-neutral-disabled: var(--background-neutral-disabled);
   --color-background-field-hover: var(--background-field-hover);
