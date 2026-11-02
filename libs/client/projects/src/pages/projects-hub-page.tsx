@@ -221,7 +221,7 @@ function EmptyProjects({workspaceSlug}: {workspaceSlug: string}) {
       icon="folderLine"
       illustration={<Shippy pose="lot" className="h-96" />}
       title="Create your first project"
-      description="Connect a repository-backed project to start building workflows."
+      description="Create a project to start building workflows."
       variant="panel"
       action={
         <Button asChild iconRight="chevronRight">
@@ -263,10 +263,14 @@ function ProjectCell({
   connectionsSettled: boolean;
   workspaceSlug: string;
 }) {
+  // A managed project's connection is hidden from the connection list, so its absence says nothing
+  // about health. Its card shows the Shipfox mark and never a badge.
+  const isManaged = project.source.kind === 'managed';
   // On a resolved fetch, `active` carries no badge while a missing connection
   // reads as an error so a broken source is still flagged. An unresolved or
   // failed fetch shows nothing, so a fetch failure never flags every card.
-  const status = connectionsResolved ? (connection?.lifecycleStatus ?? 'error') : undefined;
+  const status =
+    connectionsResolved && !isManaged ? (connection?.lifecycleStatus ?? 'error') : undefined;
 
   return (
     <PanelCell>
@@ -277,9 +281,9 @@ function ProjectCell({
         >
           {/* Settle on success or error: a failed fetch falls back to the
               neutral provider icon rather than spinning forever. */}
-          {connectionsSettled ? (
+          {isManaged || connectionsSettled ? (
             <IntegrationIcon
-              source={connection?.provider}
+              source={isManaged ? 'shipfox' : connection?.provider}
               aria-hidden
               className="size-24 shrink-0 text-foreground-neutral-base"
             />

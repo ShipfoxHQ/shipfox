@@ -290,6 +290,33 @@ describe('ProjectsHubPage', () => {
     expect(screen.queryByRole('link', {name: 'Reconnect'})).not.toBeInTheDocument();
   });
 
+  test('shows no error badge for a managed project whose connection the list hides', async () => {
+    configureApiClient({
+      fetchImpl: createHubFetch({
+        projects: jsonResponse({
+          projects: [
+            projectDto({
+              id: '11111111-1111-4111-8111-111111111112',
+              name: 'Managed',
+              kind: 'managed',
+              externalRepositoryId: 'managed-vcs:01890000-0000-7000-8000-000000000001',
+            }),
+          ],
+          next_cursor: null,
+        }),
+        connections: jsonResponse({connections: []}),
+      }),
+    });
+
+    renderProjectPage(`/w/${PROJECT_TEST_WSLUG}`, <ProjectsHubPage />);
+
+    expect(await screen.findByText('Managed')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Managed').closest('li')?.querySelector('svg')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Error')).not.toBeInTheDocument();
+  });
+
   test('keeps cards usable and unflagged when the connections request fails', async () => {
     configureApiClient({
       fetchImpl: createHubFetch({
@@ -352,11 +379,13 @@ function projectDto({
   name,
   connectionId = CONNECTION_ID,
   externalRepositoryId = 'github:octo/platform',
+  kind = 'linked',
 }: {
   id: string;
   name: string;
   connectionId?: string;
   externalRepositoryId?: string;
+  kind?: 'managed' | 'linked';
 }) {
   return {
     id,
@@ -364,6 +393,7 @@ function projectDto({
     name,
     slug: name.toLowerCase(),
     source: {
+      kind,
       connection_id: connectionId,
       external_repository_id: externalRepositoryId,
     },

@@ -175,6 +175,8 @@ describe('defaultModules', () => {
             checkTemplateConformance: vi.fn(),
             createCheckoutCredentials: vi.fn(),
             createCheckoutSpec: vi.fn(),
+            createManagedRepository: vi.fn(),
+            deleteManagedRepository: vi.fn(),
             fetchSourceFile: vi.fn(),
             getAgentToolsContext: vi.fn(),
             getConfigSource: vi.fn(),

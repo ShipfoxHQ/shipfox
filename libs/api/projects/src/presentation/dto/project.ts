@@ -1,3 +1,4 @@
+import {isManagedRepositoryId} from '@shipfox/api-integration-managed-vcs-dto';
 import type {Project} from '#core/entities/index.js';
 import type {AdminProjectSummary} from '#db/projects.js';
 
@@ -8,6 +9,9 @@ export function toProjectDto(project: Project) {
     name: project.name,
     slug: project.slug,
     source: {
+      kind: isManagedRepositoryId(project.sourceExternalRepositoryId)
+        ? ('managed' as const)
+        : ('linked' as const),
       connection_id: project.sourceConnectionId,
       external_repository_id: project.sourceExternalRepositoryId,
     },

@@ -5,6 +5,7 @@ import {
 } from '@shipfox/api-integration-spi';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
+import type {RegisteredIntegrationProvider} from '#core/entities/provider.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {processIntegrationSecretCleanups} from '#core/secret-cleanup.js';
 import {
@@ -15,6 +16,18 @@ import {
 import {db} from '#db/db.js';
 import {enqueueIntegrationSecretCleanup} from '#db/secret-cleanups.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
+
+// An internal provider's connection backs every managed project in the workspace, so a user can't
+// disable or delete it.
+function assertConnectionIsNotInternal(provider: RegisteredIntegrationProvider | undefined): void {
+  if (provider?.internal) {
+    throw new ClientError(
+      'This integration connection is managed by Shipfox',
+      'integration-connection-internal',
+      {status: 403},
+    );
+  }
+}
 
 const connectionParamsSchema = z.object({
   connectionId: z.string().uuid(),
@@ -40,9 +53,8 @@ export function createUpdateIntegrationConnectionRoute(registry: IntegrationProv
       }
 
       requireWorkspaceAccess({request, workspaceId: connection.workspaceId});
-      const provider = registry
-        .list()
-        .find((candidate) => candidate.provider === connection.provider);
+      const provider = registry.find(connection.provider);
+      assertConnectionIsNotInternal(provider);
       const capabilities = provider?.capabilities ?? [];
       if (request.body.lifecycle_status === 'active') {
         const providerAccess = await provider?.connectionProviderAccess?.(connection);
@@ -87,9 +99,8 @@ export function createDeleteIntegrationConnectionRoute(registry: IntegrationProv
       }
 
       requireWorkspaceAccess({request, workspaceId: connection.workspaceId});
-      const provider = registry
-        .list()
-        .find((candidate) => candidate.provider === connection.provider);
+      const provider = registry.find(connection.provider);
+      assertConnectionIsNotInternal(provider);
       const hasCleanupHooks =
         provider?.deleteConnectionRemoteResources !== undefined ||
         provider?.deleteConnectionRecords !== undefined ||

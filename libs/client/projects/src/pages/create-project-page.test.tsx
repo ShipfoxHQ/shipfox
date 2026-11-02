@@ -665,6 +665,7 @@ function projectDto({id, slug = 'project-detail'}: {id: string; slug?: string}) 
     name: 'Project Detail',
     slug,
     source: {
+      kind: 'linked',
       connection_id: CONNECTION_ID,
       external_repository_id: 'platform',
     },

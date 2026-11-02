@@ -7,6 +7,7 @@ import {closeDb as closeGithubDb} from '@shipfox/api-integration-github';
 import {closeDb as closeJamDb} from '@shipfox/api-integration-jam';
 import {closeDb as closeJiraDb} from '@shipfox/api-integration-jira';
 import {closeDb as closeLinearDb} from '@shipfox/api-integration-linear';
+import {closeDb as closeManagedDb} from '@shipfox/api-integration-managed-vcs';
 import {closeDb as closePosthogDb} from '@shipfox/api-integration-posthog';
 import {closeDb as closeSentryDb} from '@shipfox/api-integration-sentry';
 import {closeDb as closeSlackDb} from '@shipfox/api-integration-slack';
@@ -37,5 +38,6 @@ afterAll(async () => {
   closeJiraDb();
   closeSentryDb();
   closeGiteaDb();
+  closeManagedDb();
   await closePostgresClient();
 });

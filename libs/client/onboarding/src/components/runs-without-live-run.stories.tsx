@@ -403,7 +403,7 @@ function projectDto() {
     workspace_id: WORKSPACE_ID,
     name: 'Platform',
     slug: 'platform',
-    source: {connection_id: CONNECTION_ID, external_repository_id: 'platform'},
+    source: {kind: 'linked', connection_id: CONNECTION_ID, external_repository_id: 'platform'},
     created_at: '2026-10-19T09:00:00.000Z',
     updated_at: '2026-10-19T09:00:00.000Z',
   };

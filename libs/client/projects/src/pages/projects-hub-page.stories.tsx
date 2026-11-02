@@ -188,6 +188,7 @@ function projectForStory(name: string, id: string) {
     name,
     slug: name.toLowerCase(),
     source: {
+      kind: 'linked',
       connection_id: CONNECTION_ID,
       external_repository_id: `github:octo/${name.toLowerCase()}`,
     },

@@ -3,15 +3,23 @@ import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
 } from '@shipfox/api-integration-core-dto/inter-module';
-import {createProjectBodySchema, projectResponseSchema} from '@shipfox/api-projects-dto';
+import {
+  type CreateProjectBodyDto,
+  createProjectBodySchema,
+  type ManagedProjectSourceBodyDto,
+  projectResponseSchema,
+} from '@shipfox/api-projects-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {
+  createManagedProject,
   createProjectFromSource,
   ProjectAlreadyExistsError,
   ProjectSlugConflictError,
 } from '#core/index.js';
 import {toProjectDto} from '#presentation/dto/index.js';
+import {projectsFlags} from '../../flags.js';
 
 function providerStatus(reason: string): number {
   if (reason === 'rate-limited') return 429;
@@ -19,12 +27,13 @@ function providerStatus(reason: string): number {
   return 422;
 }
 
-export function createProjectRoute(integrations: IntegrationsModuleClient) {
+export function createProjectRoute(integrations: IntegrationsModuleClient, flags: FeatureFlags) {
   return defineRoute({
     method: 'POST',
     path: '/',
     auth: AUTH_USER,
-    description: 'Create a project bound to a source repository.',
+    description:
+      'Create a project bound to a source repository, or to a repository Shipfox hosts when the source is managed.',
     schema: {
       body: createProjectBodySchema,
       response: {
@@ -52,6 +61,7 @@ export function createProjectRoute(integrations: IntegrationsModuleClient) {
       if (error instanceof ProjectSlugConflictError) {
         throw new ClientError('Project slug already exists', 'slug-conflict', {status: 409});
       }
+      handleCreateManagedRepositoryError(error);
       if (known?.code === 'provider-failure') {
         throw new ClientError('Integration provider request failed', known.details.reason, {
           details: {retry_after_seconds: known.details.retryAfterSeconds},
@@ -65,15 +75,24 @@ export function createProjectRoute(integrations: IntegrationsModuleClient) {
       const actor = requireUserContext(request);
 
       requireWorkspaceAccess({request, workspaceId});
-      const project = await createProjectFromSource({
-        actorId: actor.userId,
-        workspaceId,
-        name,
-        slug,
-        sourceConnectionId: source.connection_id,
-        sourceExternalRepositoryId: source.external_repository_id,
-        integrations,
-      });
+      const project =
+        'kind' in source
+          ? await createManagedProjectFromBody({
+              flags,
+              integrations,
+              actor,
+              body: request.body,
+              source,
+            })
+          : await createProjectFromSource({
+              actorId: actor.userId,
+              workspaceId,
+              name,
+              slug,
+              sourceConnectionId: source.connection_id,
+              sourceExternalRepositoryId: source.external_repository_id,
+              integrations,
+            });
 
       reply.status(201);
       return toProjectDto(project);
@@ -115,4 +134,50 @@ function handleResolveSourceRepositoryError(error: unknown): void {
       {status: 422},
     );
   }
+}
+
+async function createManagedProjectFromBody(params: {
+  flags: FeatureFlags;
+  integrations: IntegrationsModuleClient;
+  actor: {userId: string};
+  body: CreateProjectBodyDto;
+  source: ManagedProjectSourceBodyDto;
+}) {
+  const {body, source} = params;
+  // Not available reads the same as a feature this workspace doesn't have.
+  const enabled = await params.flags.boolean(projectsFlags['managed-config-repos'], {
+    workspaceId: body.workspace_id,
+  });
+  if (!enabled) {
+    throw new ClientError(
+      'Projects without a repository are not available for this workspace',
+      'managed-source-unavailable',
+      {status: 422},
+    );
+  }
+  return await createManagedProject({
+    actorId: params.actor.userId,
+    workspaceId: body.workspace_id,
+    name: body.name,
+    slug: body.slug,
+    files: source.files,
+    integrations: params.integrations,
+  });
+}
+
+function handleCreateManagedRepositoryError(error: unknown): void {
+  if (
+    !isInterModuleKnownError(integrationsInterModuleContract.methods.createManagedRepository, error)
+  ) {
+    return;
+  }
+  if (error.code === 'invalid-seed-file') {
+    throw new ClientError('A starting file is not valid', 'invalid-source-file', {
+      details: {problem: error.details.problem, path: error.details.path},
+      status: 422,
+    });
+  }
+  throw new ClientError('Project already has a repository', 'project-already-exists', {
+    status: 409,
+  });
 }

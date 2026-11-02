@@ -35,9 +35,15 @@ import {
   IntegrationProviderError,
   IntegrationProviderUnavailableError,
   IntegrationRepositoryAuthorizationError,
+  ManagedProjectConflictError,
+  ManagedSeedFileRefusedError,
   RepositoryAuthorizerConfigurationError,
 } from '#core/errors.js';
 import {buildFixedEventProviders, buildProviderEventCatalogs} from '#core/event-catalogs.js';
+import {
+  createManagedProjectRepository,
+  deleteManagedProjectRepository,
+} from '#core/managed-repositories.js';
 import {
   type ConfigProject,
   type ProjectConfigService,
@@ -272,6 +278,28 @@ export function createIntegrationsInterModulePresentation(params: {
           repository: resolved.repository,
         };
       }),
+    createManagedRepository: async (input) => {
+      const method = contract.methods.createManagedRepository;
+      try {
+        return await createManagedProjectRepository(input);
+      } catch (error) {
+        if (error instanceof ManagedSeedFileRefusedError) {
+          throw createInterModuleKnownError(method, 'invalid-seed-file', {
+            problem: error.problem,
+            path: error.path,
+          });
+        }
+        if (error instanceof ManagedProjectConflictError) {
+          throw createInterModuleKnownError(method, 'project-conflict', {
+            projectId: error.projectId,
+          });
+        }
+        throw error;
+      }
+    },
+    deleteManagedRepository: async (input) => ({
+      deleted: await deleteManagedProjectRepository(input),
+    }),
     resolveConnection: async (input) => {
       const resolved = await getIntegrationConnectionBySlug(input);
       return resolved ? {id: resolved.id, provider: resolved.provider, slug: resolved.slug} : null;

@@ -15,6 +15,7 @@ import {
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {Project} from '#core/entities/project.js';
@@ -47,7 +48,11 @@ describe('project routes', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let sourceConnectionId: string;
-  let integrations: Pick<IntegrationsModuleClient, 'resolveSourceRepository'>;
+  let integrations: Pick<
+    IntegrationsModuleClient,
+    'resolveSourceRepository' | 'createManagedRepository'
+  >;
+  let flags: ReturnType<typeof createTestFeatureFlags>;
   let auth: Pick<AuthInterModuleClient, 'requireAdminRole'>;
 
   beforeEach(async () => {
@@ -56,7 +61,9 @@ describe('project routes', () => {
     sourceConnectionId = crypto.randomUUID();
     authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
     authenticatedImpersonatorId = undefined;
+    flags = createTestFeatureFlags();
     integrations = {
+      createManagedRepository: vi.fn(),
       resolveSourceRepository: vi.fn(async () => {
         await Promise.resolve();
         return {
@@ -83,7 +90,7 @@ describe('project routes', () => {
     };
     app = await createApp({
       auth: [fakeUserAuth],
-      routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth),
+      routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
       swagger: false,
     });
     await app.ready();
@@ -113,8 +120,103 @@ describe('project routes', () => {
     expect(res.json().name).toBe('Platform');
     expect(res.json().slug).toBe('platform');
     expect(res.json().source).toEqual({
+      kind: 'linked',
       connection_id: sourceConnectionId,
       external_repository_id: 'gitea:gitea-owner/platform',
+    });
+  });
+
+  describe('with a managed source', () => {
+    const managedRepositoryId = `managed-vcs:${crypto.randomUUID()}`;
+
+    function arrangeManagedSource(files?: Array<{path: string; content: string}>) {
+      vi.mocked(integrations.createManagedRepository).mockResolvedValue({
+        connectionId: sourceConnectionId,
+        externalRepositoryId: managedRepositoryId,
+      });
+      vi.mocked(integrations.resolveSourceRepository).mockResolvedValue({
+        connection: {id: sourceConnectionId, provider: 'managed-vcs', slug: 'shipfox-managed'},
+        repository: {
+          externalRepositoryId: managedRepositoryId,
+          owner: 'shipfox',
+          name: managedRepositoryId,
+          fullName: `shipfox/${managedRepositoryId}`,
+          defaultBranch: 'main',
+          visibility: 'private',
+          cloneUrl: '',
+          htmlUrl: '',
+        },
+      });
+      return {
+        method: 'POST' as const,
+        url: '/projects',
+        headers: {authorization: 'Bearer user'},
+        payload: {
+          workspace_id: workspaceId,
+          name: 'Managed',
+          slug: 'managed',
+          source: {kind: 'managed', ...(files ? {files} : {})},
+        },
+      };
+    }
+
+    test('refuses it while the flag is off', async () => {
+      const request = arrangeManagedSource();
+
+      const res = await app.inject(request);
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('managed-source-unavailable');
+      expect(integrations.createManagedRepository).not.toHaveBeenCalled();
+    });
+
+    test('creates the repository first and binds the project to it', async () => {
+      flags = createTestFeatureFlags({'managed-config-repos': true});
+      await closeApp();
+      app = await createApp({
+        auth: [fakeUserAuth],
+        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        swagger: false,
+      });
+      const files = [{path: '.shipfox/workflows/triage.yml', content: 'name: Triage\n'}];
+      const request = arrangeManagedSource(files);
+
+      const res = await app.inject(request);
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().source).toEqual({
+        kind: 'managed',
+        connection_id: sourceConnectionId,
+        external_repository_id: managedRepositoryId,
+      });
+      expect(integrations.createManagedRepository).toHaveBeenCalledWith({
+        workspaceId,
+        projectId: res.json().id,
+        files,
+      });
+    });
+
+    test('maps a refused seed file to a stable error', async () => {
+      flags = createTestFeatureFlags({'managed-config-repos': true});
+      await closeApp();
+      app = await createApp({
+        auth: [fakeUserAuth],
+        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        swagger: false,
+      });
+      const request = arrangeManagedSource();
+      vi.mocked(integrations.createManagedRepository).mockRejectedValue(
+        createInterModuleKnownError(
+          integrationsInterModuleContract.methods.createManagedRepository,
+          'invalid-seed-file',
+          {problem: 'path-not-allowed', path: 'src/index.ts'},
+        ),
+      );
+
+      const res = await app.inject(request);
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('invalid-source-file');
     });
   });
 

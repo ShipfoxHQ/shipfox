@@ -7,6 +7,7 @@ repository in Postgres and reads it through `SourceControlProvider`.
 
 - **`ManagedSourceControlProvider`** resolves repositories and refs, lists
   files, reads files, and lists the commits that changed a path.
+- **`createManagedRepository`** creates a project's repository with `main` at a commit of the seed files, and **`deleteManagedRepository`** deletes it with its objects and refs.
 - **`db`, `closeDb`, and `migrationsPath`** give the composing module the
   package's database and its migrations.
 
@@ -72,6 +73,8 @@ to the connection's workspace, and answers `repository-not-found` if not.
 | `fetchFile` | Reads a file at a branch or a commit id. A symlink or a submodule answers `file-not-found`. |
 | `resolveRef` | Accepts `refs/heads/x` and `x`. Tags don't exist. |
 | `listCommits` | Follows first parents from a branch or commit id, and keeps a commit when the path's object or mode differs from its first parent. |
+
+**`createManagedRepository` is idempotent on the project.** A repeat call returns the existing repository and ignores the files, because `main` only moves through a merge. Without files, `main` points at a commit with the empty tree. A seed file must sit under `.shipfox/`, have no empty, `.`, `..`, or `.git` segment, no backslash or control character, and share its path with no directory. A file is at most 1 MB, and a seed is at most 100 files and 1 MiB. A refused seed throws `ManagedSeedFileError` and writes nothing. A project that has a repository in another workspace throws `ManagedRepositoryProjectConflictError`.
 
 **`listCommits` can return a short page.** One page walks at most 500 commits, so
 a rarely changed path can return fewer commits than `limit`, or none, with a

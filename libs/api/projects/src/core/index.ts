@@ -5,5 +5,9 @@ export {
   ProjectNotFoundError,
   ProjectSlugConflictError,
 } from './errors.js';
-export type {CreateProjectFromSourceParams, UpdateProjectDetailsParams} from './projects.js';
-export {createProjectFromSource, updateProjectDetails} from './projects.js';
+export type {
+  CreateManagedProjectParams,
+  CreateProjectFromSourceParams,
+  UpdateProjectDetailsParams,
+} from './projects.js';
+export {createManagedProject, createProjectFromSource, updateProjectDetails} from './projects.js';

@@ -460,6 +460,12 @@ export interface IntegrationProvider<
 > {
   provider: ProviderKind;
   displayName: string;
+  /**
+   * Marks a provider Shipfox runs for itself. `registry.list` leaves it out, so no gallery, picker,
+   * connection list, or capability snapshot shows it. `registry.get` still finds it, because source
+   * reads need its adapters.
+   */
+  internal?: boolean | undefined;
   /** Whether this provider has completed repository-scope classification. */
   repositoryAuthorization?: AgentToolRepositoryAuthorizationState | undefined;
   /**

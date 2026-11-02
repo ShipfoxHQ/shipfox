@@ -94,3 +94,24 @@ export class WebhookProcessorNotConfiguredError extends Error {
 }
 
 export {ConnectionSlugConflictError, IntegrationProviderError, type IntegrationProviderErrorReason};
+
+export class ManagedSeedFileRefusedError extends Error {
+  constructor(
+    public readonly problem:
+      | 'path-not-allowed'
+      | 'file-too-large'
+      | 'too-many-files'
+      | 'seed-too-large',
+    public readonly path: string,
+  ) {
+    super(`The managed repository refused the seed files: ${problem}`);
+    this.name = 'ManagedSeedFileRefusedError';
+  }
+}
+
+export class ManagedProjectConflictError extends Error {
+  constructor(public readonly projectId: string) {
+    super(`Project ${projectId} already has a managed repository in another workspace`);
+    this.name = 'ManagedProjectConflictError';
+  }
+}

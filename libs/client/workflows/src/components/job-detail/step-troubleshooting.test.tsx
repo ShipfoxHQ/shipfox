@@ -953,6 +953,11 @@ describe('StepInspectorSheet', () => {
       fix: 'Enable the connection in the integration settings. Then rerun the job.',
     },
     {
+      code: 'integration-checkout-unsupported',
+      title: 'This repository cannot be checked out',
+      fix: 'The config repository that Shipfox hosts has no checkout. Name a repository and a connection in checkout, or set checkout: false. Then start a new run.',
+    },
+    {
       code: 'checkout-unavailable',
       title: 'The checkout connection or project does not exist',
       fix: 'Fix checkout.connection or checkout.project in the workflow. Then start a new run.',
