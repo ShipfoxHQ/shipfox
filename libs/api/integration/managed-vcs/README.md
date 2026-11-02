@@ -1,6 +1,6 @@
 # Shipfox API Integration Managed VCS
 
-Shipfox API Integration Managed stores a project's `.shipfox/` tree in a git
+Shipfox API Integration Managed VCS stores a project's `.shipfox/` tree in a git
 repository in Postgres and reads it through `SourceControlProvider`.
 
 ## What it does
@@ -57,7 +57,7 @@ cascade from their repository, so deleting a repository is one statement.
 | Table | Holds |
 | --- | --- |
 | `integrations_managed_vcs_repositories` | One repository per project, with its workspace. |
-| `integrations_managed_vcs_refs` | Branch names and their commit. A foreign key ties each ref to a commit object in the same repository. |
+| `integrations_managed_vcs_refs` | Branch names and their commit. A foreign key ties each ref to an object in the same repository. |
 | `integrations_managed_vcs_objects` | Standard deflated git objects, by repository and object id. |
 
 ## Behavior notes
