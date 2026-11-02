@@ -1,4 +1,4 @@
-import {toDefinitionSyncSummary, toDefinitionTriggers} from './mappers.js';
+import {toConfigCommitPage, toDefinitionSyncSummary, toDefinitionTriggers} from './mappers.js';
 
 describe('toDefinitionSyncSummary', () => {
   it('maps diagnostics with severity and file path while preserving an absent path', () => {
@@ -83,5 +83,49 @@ describe('toDefinitionTriggers', () => {
     const triggers = toDefinitionTriggers(workflowModel);
 
     expect(triggers).toEqual([{key: '1', source: 'manual', event: 'fire', schedule: null}]);
+  });
+});
+
+describe('toConfigCommitPage', () => {
+  it('keeps a commit page link only when the provider has one', () => {
+    const page = toConfigCommitPage({
+      commit: 'a'.repeat(40),
+      commits: [
+        {
+          oid: 'b'.repeat(40),
+          message: 'Pin the checkout action',
+          author_name: 'Mira Okafor',
+          authored_at: '2026-10-30T12:00:00.000Z',
+          html_url: 'https://github.com/acme/payments/commit/bbb',
+        },
+        {
+          oid: 'c'.repeat(40),
+          message: 'Add Shipfox config',
+          author_name: 'Shipfox',
+          authored_at: '2026-10-24T12:00:00.000Z',
+        },
+      ],
+      next_cursor: 'c'.repeat(40),
+    });
+
+    expect(page).toEqual({
+      commits: [
+        {
+          oid: 'b'.repeat(40),
+          message: 'Pin the checkout action',
+          authorName: 'Mira Okafor',
+          authoredAt: '2026-10-30T12:00:00.000Z',
+          htmlUrl: 'https://github.com/acme/payments/commit/bbb',
+        },
+        {
+          oid: 'c'.repeat(40),
+          message: 'Add Shipfox config',
+          authorName: 'Shipfox',
+          authoredAt: '2026-10-24T12:00:00.000Z',
+          htmlUrl: null,
+        },
+      ],
+      nextCursor: 'c'.repeat(40),
+    });
   });
 });

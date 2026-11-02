@@ -38,6 +38,7 @@ import * as projectSettingsIndexRouteModule from "@shipfox/client-projects/route
 import * as projectSettingsRouteModule from "@shipfox/client-projects/routes/project-settings";
 import * as runPermalinkRouteModule from "@shipfox/client-workflows/routes/run-permalink";
 import * as automationsRouteModule from "@shipfox/client-workflows/routes/automations";
+import * as automationsFilesRouteModule from "@shipfox/client-workflows/routes/automations-files";
 import * as runsRouteModule from "@shipfox/client-workflows/routes/runs";
 import * as runDetailRouteModule from "@shipfox/client-workflows/routes/run-detail";
 import * as jobDetailRouteModule from "@shipfox/client-workflows/routes/job-detail";
@@ -394,6 +395,12 @@ const automationsRoute = createRoute({
   ...routeOptions(automationsRouteModule.default, "@shipfox/client-workflows/routes/automations", "/w/$workspaceSlug/p/$projectSlug/automations"),
 });
 
+const automationsFilesRoute = createRoute({
+  getParentRoute: () => skeleton.projectLayout,
+  path: "/automations/files/$",
+  ...routeOptions(automationsFilesRouteModule.default, "@shipfox/client-workflows/routes/automations-files", "/w/$workspaceSlug/p/$projectSlug/automations/files/$"),
+});
+
 const runsRoute = createRoute({
   getParentRoute: () => skeleton.projectLayout,
   path: "/runs",
@@ -491,7 +498,7 @@ const generalRoute = createRoute({
 });
 
 const projectSettings = skeleton.projectSettings.addChildren([projectSettingsIndexRoute, projectSettingsRoute]);
-const projectLayout = skeleton.projectLayout.addChildren([projectIndexRoute, automationsRoute, runsRoute, runDetailRoute, jobDetailRoute,
+const projectLayout = skeleton.projectLayout.addChildren([projectIndexRoute, automationsRoute, automationsFilesRoute, runsRoute, runDetailRoute, jobDetailRoute,
   projectSettings]);
 const workspaceSettings = skeleton.workspaceSettings.addChildren([integrationsSettingsRoute, connectionDetailsRoute, agentsSettingsRoute, agentAccessSettingsRoute, runnersSettingsRoute, provisionersSettingsRoute, secretsSettingsRoute, variablesSettingsRoute, eventsSettingsRoute, workspaceSettingsIndexRoute, workspaceSettingsMembersRoute, generalRoute]);
 const workspaceLayout = skeleton.workspaceLayout.addChildren([

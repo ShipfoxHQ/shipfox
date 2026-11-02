@@ -22,7 +22,11 @@ import {
 import {type RenderResult, render} from '@testing-library/react';
 import {createStore, Provider as JotaiProvider} from 'jotai';
 import type {ReactElement} from 'react';
-import {validateWorkflowJobSearch, validateWorkflowRunsSearch} from '#routes/inputs.js';
+import {
+  validateAutomationsFilesSearch,
+  validateWorkflowJobSearch,
+  validateWorkflowRunsSearch,
+} from '#routes/inputs.js';
 
 // The workflow run page navigates with the router (run rows are links and the page redirects
 // to the first run), so the harness mounts the page under a memory router whose route tree
@@ -43,7 +47,16 @@ const authState: AuthState = {
 
 type TestPageSearch =
   | ReturnType<typeof validateWorkflowRunsSearch>
-  | ReturnType<typeof validateWorkflowJobSearch>;
+  | ReturnType<typeof validateWorkflowJobSearch>
+  | ReturnType<typeof validateAutomationsFilesSearch>;
+
+interface TestPageParams {
+  workflowRunId?: string | undefined;
+  jobId?: string | undefined;
+  /** The Files tab's splat path. */
+  path?: string | undefined;
+  search: TestPageSearch;
+}
 
 export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -53,14 +66,7 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-function createTestRouter(
-  path: string,
-  renderPage: (params: {
-    workflowRunId?: string | undefined;
-    jobId?: string | undefined;
-    search: TestPageSearch;
-  }) => ReactElement,
-) {
+function createTestRouter(path: string, renderPage: (params: TestPageParams) => ReactElement) {
   const rootRoute = createRootRoute({component: Outlet});
   const runsRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -102,6 +108,19 @@ function createTestRouter(
     path: '/w/$workspaceSlug/p/$projectSlug/automations',
     component: () => renderPage({search: {}}),
   });
+  const automationsFilesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/w/$workspaceSlug/p/$projectSlug/automations/files/$',
+    component: function AutomationsFilesRoute() {
+      const {_splat} = useParams({strict: false}) as {_splat?: string};
+      return renderPage({
+        path: _splat,
+        search: validateAutomationsFilesSearch(
+          useSearch({strict: false}) as Record<string, unknown>,
+        ),
+      });
+    },
+  });
   const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/w/$workspaceSlug/settings/agents',
@@ -119,6 +138,7 @@ function createTestRouter(
       runDetailRoute,
       jobDetailRoute,
       automationsRoute,
+      automationsFilesRoute,
       modelProviderSettingsRoute,
     ]),
   });
@@ -126,11 +146,7 @@ function createTestRouter(
 
 export function renderProjectPage(
   path: string,
-  renderPage: (params: {
-    workflowRunId?: string | undefined;
-    jobId?: string | undefined;
-    search: TestPageSearch;
-  }) => ReactElement,
+  renderPage: (params: TestPageParams) => ReactElement,
   chromeOverrides: Partial<ChromeSlots> = {},
 ): RenderResult & {
   queryClient: QueryClient;
