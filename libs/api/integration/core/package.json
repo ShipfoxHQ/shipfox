@@ -65,7 +65,6 @@
     "@shipfox/api-integration-jira": "workspace:*",
     "@shipfox/api-integration-linear": "workspace:*",
     "@shipfox/api-integration-managed-vcs": "workspace:*",
-    "@shipfox/api-integration-managed-vcs-dto": "workspace:*",
     "@shipfox/api-integration-posthog": "workspace:*",
     "@shipfox/api-integration-shipfox": "workspace:*",
     "@shipfox/api-integration-sentry": "workspace:*",
