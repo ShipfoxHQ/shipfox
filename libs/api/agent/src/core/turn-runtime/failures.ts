@@ -19,9 +19,10 @@ export class TurnFailure extends Error {
 }
 
 // Provider errors reach pi as text, so the transient ones are recognized by their wording. A
-// status counts only at the start of the message or after "status" or "HTTP", not as any number.
+// status counts only at the start of the message, after "status" or "HTTP", or in parentheses as
+// in "OpenAI API error (503)", not as any number.
 const TRANSIENT_PROVIDER_ERROR =
-  /^\s*(429|5\d\d)\b|\b(status|http)\W{0,3}(429|5\d\d)\b|\brate[ _-]?limit|\boverloaded\b|\btimed? ?out\b|\b(econnreset|econnrefused|enotfound|eai_again)\b|fetch failed|socket hang up|stream.*interrupted/i;
+  /^\s*(429|5\d\d)\b|\b(status|http)\W{0,3}(429|5\d\d)\b|\(\s*(429|5\d\d)\s*\)|\brate[ _-]?limit|\boverloaded\b|\btimed? ?out\b|\b(econnreset|econnrefused|enotfound|eai_again)\b|fetch failed|socket hang up|stream.*interrupted/i;
 
 export function classifyProviderError(errorMessage: string | undefined): TurnFailure {
   const message = errorMessage?.length ? errorMessage : 'The model provider returned an error';

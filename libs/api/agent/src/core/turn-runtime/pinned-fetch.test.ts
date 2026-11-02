@@ -111,7 +111,7 @@ describe('createPinnedFetch', () => {
 
     const call = pinned(`http://127.0.0.1:${(odd.address() as AddressInfo).port}/`);
 
-    await expect(call).rejects.toThrow();
+    await expect(call).rejects.toBeInstanceOf(RangeError);
     await new Promise((resolve) => odd.close(resolve));
   });
 

@@ -236,6 +236,11 @@ export async function runToolCall(params: ToolCallParams): Promise<ToolCallResul
     },
   });
   if (!appended) throw new TurnFailure('internal_error', 'The turn ended before its result', false);
+  // A concurrent attempt may have stored first, and its result is the one the timeline holds.
+  if (!appended.stored) {
+    conversationToolCallCount.add(1, {sensitivity: output.sensitivity, outcome: 'replayed'});
+    return {status: appended.item.meta.is_error ? 'error' : 'success'};
+  }
   conversationToolCallCount.add(1, {
     sensitivity: output.sensitivity,
     outcome: output.isError ? 'error' : 'success',

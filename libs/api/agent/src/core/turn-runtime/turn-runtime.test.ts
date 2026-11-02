@@ -214,7 +214,7 @@ describe('turn runtime', () => {
         turnId,
         modelCallIndex: 0,
         createModelRuntime: model.createModelRuntime,
-      }).catch(() => undefined);
+      }).catch((error: unknown) => expect(error).toMatchObject({code: 'provider_error'}));
       const left = await db()
         .select()
         .from(turnStreamChunks)
