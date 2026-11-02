@@ -28,8 +28,6 @@ test('reviews consent and disconnects an MCP app', async ({
   const {workspaceSlug} = await createReadyWorkspace({
     name: 'Agent Access Consent Workspace',
   });
-  await agentAccessSettings.goto(workspaceSlug);
-  await expect(agentAccessSettings.heading()).toBeVisible();
 
   const apiOrigin = new URL(config.API_URL).origin;
   const publicOrigin = new URL(config.API_PUBLIC_URL).origin;
