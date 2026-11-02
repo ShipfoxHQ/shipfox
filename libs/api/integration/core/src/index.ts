@@ -15,6 +15,7 @@ import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {WebhookProcessorNotConfiguredError} from '#core/errors.js';
+import {createProjectConfigService} from '#core/project-config-service.js';
 import {
   createIntegrationProviderRegistry,
   type IntegrationProviderRegistry,
@@ -354,6 +355,11 @@ export async function createIntegrationsContext(
     getIntegrationConnectionById: resolveIntegrationConnectionById,
     repositoryAuthorizer,
   });
+  const projectConfig = createProjectConfigService({
+    registry,
+    sourceControl,
+    getIntegrationConnectionById: resolveIntegrationConnectionById,
+  });
   const webhookProcessor = createComposedWebhookProcessor(
     parts.flatMap((part) => part.webhookProcessors ?? []),
   );
@@ -385,6 +391,8 @@ export async function createIntegrationsContext(
       createIntegrationsInterModulePresentation({
         registry,
         sourceControl,
+        projects: options.projects,
+        projectConfig,
         getIntegrationConnectionById: resolveIntegrationConnectionById,
         repositoryAuthorizer,
         builtinConnections,
@@ -397,6 +405,7 @@ export async function createIntegrationsContext(
     ],
     routes: createIntegrationRoutes(registry, sourceControl, {
       projects: options.projects,
+      projectConfig,
       repositoryAuthorization: repositoryAuthorizer,
       agentTools: options.agentTools
         ? {

@@ -80,6 +80,19 @@ export interface GithubCommit {
   sha: string;
 }
 
+export interface GithubCommitSummary {
+  sha: string;
+  message: string;
+  authorName: string;
+  authoredAt: Date;
+  htmlUrl: string;
+}
+
+export interface GithubCommitPage {
+  commits: GithubCommitSummary[];
+  nextCursor: string | null;
+}
+
 export interface GithubUserInstallation {
   id: number;
   account: GithubAccount;
@@ -136,6 +149,14 @@ export interface GithubApiClient extends Partial<GithubBotUserClient> {
     repositoryId: number;
     ref: string;
   }): Promise<GithubCommit[]>;
+  listCommits(input: {
+    installationId: number;
+    repositoryId: number;
+    ref: string;
+    path: string;
+    limit: number;
+    cursor?: string | undefined;
+  }): Promise<GithubCommitPage>;
   createInstallationAccessToken(
     input: GithubInstallationAccessTokenInput,
   ): Promise<GithubInstallationAccessToken>;
@@ -508,6 +529,41 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     });
   }
 
+  async listCommits(input: {
+    installationId: number;
+    repositoryId: number;
+    ref: string;
+    path: string;
+    limit: number;
+    cursor?: string | undefined;
+  }): Promise<GithubCommitPage> {
+    const octokit = await mapGithubError(
+      () => getGithubInstallationOctokit(this.getApp(), input.installationId),
+      'installation-not-found',
+    );
+    const repository = await this.getRepository({
+      installationId: input.installationId,
+      repositoryId: input.repositoryId,
+    });
+    const response = await mapGithubError(
+      () =>
+        octokit.rest.repos.listCommits({
+          owner: repository.ownerLogin,
+          repo: repository.name,
+          sha: input.ref,
+          path: input.path,
+          per_page: input.limit,
+          page: cursorToPage(input.cursor),
+          request: {signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)},
+        }),
+      'ref-not-found',
+    );
+    return {
+      commits: response.data.map(toGithubCommitSummary),
+      nextCursor: nextCursorFromLink(response.headers.link),
+    };
+  }
+
   async createInstallationAccessToken(
     input: GithubInstallationAccessTokenInput,
   ): Promise<GithubInstallationAccessToken> {
@@ -871,6 +927,39 @@ function githubFileEntryType(entry: GithubContentEntry): FileEntryType | null {
   if (entry.type !== 'file') return null;
   // Directory listings report submodules as `file` entries without a download URL.
   return entry.download_url === null ? 'submodule' : 'file';
+}
+
+function toGithubCommitSummary(commit: {
+  sha?: unknown;
+  html_url?: unknown;
+  commit?: {message?: unknown; author?: {name?: string; date?: string} | null} | undefined;
+}): GithubCommitSummary {
+  const author = commit.commit?.author;
+  const message = commit.commit?.message;
+  const authoredAt = author?.date === undefined ? Number.NaN : Date.parse(author.date);
+  if (
+    typeof commit.sha !== 'string' ||
+    typeof commit.html_url !== 'string' ||
+    typeof message !== 'string'
+  ) {
+    throw new GithubIntegrationProviderError(
+      'malformed-provider-response',
+      'GitHub commit response is missing the commit sha, url, or message',
+    );
+  }
+  if (Number.isNaN(authoredAt)) {
+    throw new GithubIntegrationProviderError(
+      'malformed-provider-response',
+      'GitHub commit response is missing the author date',
+    );
+  }
+  return {
+    sha: commit.sha,
+    message,
+    authorName: author?.name ?? 'Unknown',
+    authoredAt: new Date(authoredAt),
+    htmlUrl: commit.html_url,
+  };
 }
 
 function cursorToPage(cursor: string | undefined): number {

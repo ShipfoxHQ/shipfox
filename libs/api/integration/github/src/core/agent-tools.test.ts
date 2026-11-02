@@ -5055,6 +5055,7 @@ function githubClient(): GithubApiClient {
     listRepositoryFiles: vi.fn(() => Promise.reject(new Error('not used'))),
     fetchRepositoryFile: vi.fn(() => Promise.reject(new Error('not used'))),
     listRepositoryCommits: vi.fn(() => Promise.reject(new Error('not used'))),
+    listCommits: vi.fn(() => Promise.reject(new Error('not used'))),
     createInstallationAccessToken: vi.fn(() => Promise.reject(new Error('not used'))),
   };
 }

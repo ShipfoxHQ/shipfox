@@ -65,6 +65,7 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     listRepositoryFiles: vi.fn(() => Promise.resolve({files: [], nextCursor: null})),
     fetchRepositoryFile: vi.fn(),
     listRepositoryCommits: vi.fn(),
+    listCommits: vi.fn(),
     createInstallationAccessToken: vi.fn(),
     ...overrides,
   };

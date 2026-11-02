@@ -49,6 +49,7 @@
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
+    "@shipfox/api-integration-managed-vcs-dto": "workspace:*",
     "@shipfox/api-integration-shipfox-dto": "workspace:*",
     "@shipfox/api-integration-claap": "workspace:*",
     "@shipfox/api-integration-clickup": "workspace:*",

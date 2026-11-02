@@ -75,6 +75,20 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     listRepositoryCommits: vi.fn(() =>
       Promise.resolve([{sha: 'a'.repeat(40)}, {sha: 'b'.repeat(40)}]),
     ),
+    listCommits: vi.fn(() =>
+      Promise.resolve({
+        commits: [
+          {
+            sha: 'a'.repeat(40),
+            message: 'Add CI',
+            authorName: 'Ada',
+            authoredAt: new Date('2026-10-01T10:00:00.000Z'),
+            htmlUrl: `https://github.com/shipfox/platform/commit/${'a'.repeat(40)}`,
+          },
+        ],
+        nextCursor: '2',
+      }),
+    ),
     createInstallationAccessToken: vi.fn(() =>
       Promise.resolve({
         token: 'ghs_installationtoken',
@@ -343,6 +357,59 @@ describe('GithubSourceControlProvider', () => {
       repositoryId: 42,
       ref: 'refs/heads/main',
     });
+  });
+
+  it('lists the commits that changed a path', async () => {
+    await createInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.listCommits({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+      ref: VALID_COMMIT,
+      path: '.shipfox',
+      limit: 20,
+      cursor: '2',
+    });
+
+    expect(result).toEqual({
+      commits: [
+        {
+          oid: 'a'.repeat(40),
+          message: 'Add CI',
+          authorName: 'Ada',
+          authoredAt: new Date('2026-10-01T10:00:00.000Z'),
+          htmlUrl: `https://github.com/shipfox/platform/commit/${'a'.repeat(40)}`,
+        },
+      ],
+      nextCursor: '2',
+    });
+    expect(github.listCommits).toHaveBeenCalledWith({
+      installationId,
+      repositoryId: 42,
+      ref: VALID_COMMIT,
+      path: '.shipfox',
+      limit: 20,
+      cursor: '2',
+    });
+  });
+
+  it('rejects a commit list ref that is neither a commit id nor a resolvable ref', async () => {
+    await createInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = provider.listCommits({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+      ref: 'refs/pull/17/head',
+      path: '.shipfox',
+      limit: 20,
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'ref-invalid'});
+    expect(github.listCommits).not.toHaveBeenCalled();
   });
 
   it('resolves a tag ref to the commit it points at', async () => {
