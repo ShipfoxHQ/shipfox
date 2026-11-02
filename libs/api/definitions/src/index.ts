@@ -118,7 +118,7 @@ export function createDefinitionsModule({
         taskQueue: DEFINITIONS_TASK_QUEUE,
         workflowsPath,
         activities: () =>
-          createDefinitionSyncActivities(sourceControl, agent, integrations, {
+          createDefinitionSyncActivities(sourceControl, agent, projects, integrations, {
             workflowPath: definitionWorkflowPath,
             registry,
             flags,

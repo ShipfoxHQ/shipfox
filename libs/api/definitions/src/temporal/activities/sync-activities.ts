@@ -1,5 +1,6 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import {markErrorReported} from '@shipfox/node-error-monitoring';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
@@ -23,6 +24,7 @@ import {loadIntegrationValidationContext} from '#core/integrations.js';
 import {
   applyVcsDefinitionsBatch,
   markDefinitionSyncState,
+  moveVcsDefinitionsToRef,
   upsertActionSnapshot,
 } from '#db/index.js';
 
@@ -80,12 +82,14 @@ export interface DefinitionSyncActivityOptions {
 export function createDefinitionSyncActivities(
   sourceControl: DefinitionsSourceControl,
   agent: AgentInterModuleClient,
+  projects: Pick<ProjectsModuleClient, 'getProjectById'>,
   integrations?: IntegrationsModuleClient | undefined,
   options?: DefinitionSyncActivityOptions | undefined,
 ) {
   const fetchAndApplyDefinitionWorkflows = createFetchAndApplyActivity(
     sourceControl,
     agent,
+    projects,
     integrations,
     options?.registry,
     options?.flags,
@@ -94,7 +98,7 @@ export function createDefinitionSyncActivities(
   const markDefinitionSyncFailed = createMarkSyncFailedActivity();
 
   return {
-    prepareDefinitionSync: createPrepareDefinitionSyncActivity(sourceControl),
+    prepareDefinitionSync: createPrepareDefinitionSyncActivity(sourceControl, projects),
     discoverDefinitionWorkflows: createDiscoverDefinitionWorkflowsActivity(
       sourceControl,
       options?.workflowPath,
@@ -109,7 +113,28 @@ export function createDefinitionSyncActivities(
   };
 }
 
-function createPrepareDefinitionSyncActivity(sourceControl: DefinitionsSourceControl) {
+/**
+ * A sync is superseded once its project points at another source, or is gone.
+ * It must then change nothing, or it could move rows back to its old ref or
+ * delete rows from the new source. The read is not transactional: a move
+ * happens once per project, so the remaining window is accepted.
+ */
+async function isSyncSuperseded(
+  projects: Pick<ProjectsModuleClient, 'getProjectById'>,
+  input: SyncWorkflowInput,
+): Promise<boolean> {
+  const {project} = await projects.getProjectById({projectId: input.projectId});
+  return (
+    project === null ||
+    project.sourceConnectionId !== input.sourceConnectionId ||
+    project.sourceExternalRepositoryId !== input.sourceExternalRepositoryId
+  );
+}
+
+function createPrepareDefinitionSyncActivity(
+  sourceControl: DefinitionsSourceControl,
+  projects: Pick<ProjectsModuleClient, 'getProjectById'>,
+) {
   return async function prepareDefinitionSync(
     input: SyncWorkflowInput,
   ): Promise<PrepareSyncResult> {
@@ -128,6 +153,15 @@ function createPrepareDefinitionSyncActivity(sourceControl: DefinitionsSourceCon
         startedAt: new Date(),
         finishedAt: null,
       });
+
+      // Live rows follow the default branch, so lookups by it keep answering while a first sync on a new source fails.
+      if (!(await isSyncSuperseded(projects, input))) {
+        await moveVcsDefinitionsToRef({
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+          ref: sourceRef,
+        });
+      }
 
       return {sourceRef, sourceCommitSha: input.sourceCommitSha};
     });
@@ -155,6 +189,7 @@ function createDiscoverDefinitionWorkflowsActivity(
 function createFetchAndApplyActivity(
   sourceControl: DefinitionsSourceControl,
   agent: AgentInterModuleClient,
+  projects: Pick<ProjectsModuleClient, 'getProjectById'>,
   integrations?: IntegrationsModuleClient | undefined,
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined,
   flags?: FeatureFlags | undefined,
@@ -185,6 +220,10 @@ function createFetchAndApplyActivity(
                 );
               },
       });
+
+      if (await isSyncSuperseded(projects, input)) {
+        return {appliedCount: 0, deletedCount: 0, diagnostics: []};
+      }
 
       // Snapshots go first, so every stored definition can resolve its digests.
       for (const action of actions) {

@@ -13,6 +13,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
   notInArray,
   or,
   type SQL,
@@ -539,6 +540,80 @@ export async function softDeleteVcsDefinitionsNotIn(
   params: SoftDeleteVcsDefinitionsParams,
 ): Promise<number> {
   return await db().transaction((tx) => softDeleteVcsDefinitionsNotInTx(tx, params));
+}
+
+export interface MoveVcsDefinitionsToRefParams {
+  projectId: string;
+  workspaceId: string;
+  ref: string;
+}
+
+/**
+ * Re-keys live VCS definitions from other refs onto `ref`, keeping their ids so
+ * trigger subscriptions, cron schedules, and run numbers carry over. A path that
+ * `ref` already holds keeps its row, and the old one is soft-deleted instead.
+ */
+export async function moveVcsDefinitionsToRef(
+  params: MoveVcsDefinitionsToRefParams,
+): Promise<{movedCount: number; deletedCount: number}> {
+  return await db().transaction(async (tx) => {
+    const stale = await tx
+      .select({id: workflowDefinitions.id, configPath: workflowDefinitions.configPath})
+      .from(workflowDefinitions)
+      .where(
+        and(
+          eq(workflowDefinitions.projectId, params.projectId),
+          eq(workflowDefinitions.source, 'vcs'),
+          isNotNull(workflowDefinitions.ref),
+          ne(workflowDefinitions.ref, params.ref),
+          isNull(workflowDefinitions.deletedAt),
+        ),
+      )
+      .orderBy(asc(workflowDefinitions.createdAt), asc(workflowDefinitions.id));
+
+    let movedCount = 0;
+    let deletedCount = 0;
+    for (const row of stale) {
+      if (row.configPath === null) continue;
+      // A soft-deleted row at the new ref holds the path too, because the unique index ignores deletedAt.
+      const occupied = await tx
+        .select({id: workflowDefinitions.id})
+        .from(workflowDefinitions)
+        .where(
+          and(
+            eq(workflowDefinitions.projectId, params.projectId),
+            eq(workflowDefinitions.ref, params.ref),
+            eq(workflowDefinitions.configPath, row.configPath),
+          ),
+        )
+        .limit(1);
+
+      if (occupied.length === 0) {
+        await tx
+          .update(workflowDefinitions)
+          .set({ref: params.ref, updatedAt: sql`now()`})
+          .where(eq(workflowDefinitions.id, row.id));
+        movedCount += 1;
+        continue;
+      }
+
+      await tx
+        .update(workflowDefinitions)
+        .set({deletedAt: sql`now()`, updatedAt: sql`now()`})
+        .where(eq(workflowDefinitions.id, row.id));
+      await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
+        type: DEFINITION_DELETED,
+        payload: {
+          definitionId: row.id,
+          projectId: params.projectId,
+          workspaceId: params.workspaceId,
+        },
+      });
+      deletedCount += 1;
+    }
+
+    return {movedCount, deletedCount};
+  });
 }
 
 export interface ApplyVcsDefinitionsBatchParams {

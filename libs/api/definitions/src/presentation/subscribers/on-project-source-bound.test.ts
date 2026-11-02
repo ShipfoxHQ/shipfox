@@ -28,7 +28,7 @@ describe('onProjectSourceBound', () => {
     startMock.mockResolvedValue({});
   });
 
-  it('starts a definition sync workflow keyed on project + bind', async () => {
+  it('starts a definition sync workflow keyed on project + source repository', async () => {
     const payload = buildPayload();
 
     const result = onProjectSourceBound(payload);
@@ -37,7 +37,7 @@ describe('onProjectSourceBound', () => {
     expect(startMock).toHaveBeenCalledTimes(1);
     expect(startMock).toHaveBeenCalledWith('definitionSyncWorkflow', {
       taskQueue: 'definitions-sync',
-      workflowId: `definition-sync:${payload.projectId}:bind`,
+      workflowId: `definition-sync:${payload.projectId}:${payload.externalRepositoryId}`,
       workflowIdConflictPolicy: 'USE_EXISTING',
       workflowIdReusePolicy: 'ALLOW_DUPLICATE',
       args: [

@@ -1,4 +1,4 @@
-import {DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
+import {DEFINITION_DELETED, DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
 import {
   BATCH_SIZE,
   countPendingOutboxRows as countPendingOutboxRowsFromRegistry,
@@ -28,6 +28,7 @@ import {
   getWorkflowLineageById,
   invalidateCache,
   listDefinitionsByProject,
+  moveVcsDefinitionsToRef,
   softDeleteVcsDefinitionsNotIn,
   upsertDefinition,
 } from './definitions.js';
@@ -1044,6 +1045,126 @@ describe('definition queries', () => {
         projectId,
         workspaceId,
       });
+    });
+  });
+
+  describe('moveVcsDefinitionsToRef', () => {
+    async function upsertVcs(configPath: string, ref: string) {
+      return await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath,
+        name: configPath,
+        ...definitionFields(configPath),
+        ref,
+        source: 'vcs',
+      });
+    }
+
+    test('moves live rows to the new ref and keeps their ids and lineage', async () => {
+      const ci = await upsertVcs('ci.yml', 'master');
+      const deploy = await upsertVcs('deploy.yml', 'master');
+
+      const result = await moveVcsDefinitionsToRef({projectId, workspaceId, ref: 'main'});
+
+      expect(result).toEqual({movedCount: 2, deletedCount: 0});
+      const rows = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
+      expect(rows.map((row) => [row.id, row.ref, row.workflowId, row.deletedAt]).sort()).toEqual(
+        [
+          [ci.id, 'main', ci.workflowId, null],
+          [deploy.id, 'main', deploy.workflowId, null],
+        ].sort(),
+      );
+      expect(
+        await getDefinitionByConfigPath({projectId, configPath: 'ci.yml', ref: 'main'}),
+      ).toMatchObject({id: ci.id});
+    });
+
+    test('soft-deletes the old row when the new ref already holds the path', async () => {
+      const old = await upsertVcs('ci.yml', 'master');
+      const current = await upsertVcs('ci.yml', 'main');
+      const moved = await upsertVcs('only-old.yml', 'master');
+
+      const result = await moveVcsDefinitionsToRef({projectId, workspaceId, ref: 'main'});
+
+      expect(result).toEqual({movedCount: 1, deletedCount: 1});
+      const live = await listDefinitionsByProject(projectId);
+      expect(live.map((definition) => definition.id).sort()).toEqual([current.id, moved.id].sort());
+      const [oldRow] = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.id} = ${old.id}`);
+      expect(oldRow?.deletedAt).not.toBeNull();
+      expect(oldRow?.ref).toBe('master');
+    });
+
+    test('soft-deletes the old row when the new ref holds the path as a deleted row', async () => {
+      const old = await upsertVcs('ci.yml', 'master');
+      await upsertVcs('ci.yml', 'main');
+      await softDeleteVcsDefinitionsNotIn({
+        projectId,
+        workspaceId,
+        ref: 'main',
+        keepConfigPaths: [],
+      });
+
+      const result = await moveVcsDefinitionsToRef({projectId, workspaceId, ref: 'main'});
+
+      expect(result).toEqual({movedCount: 0, deletedCount: 1});
+      expect(await getDefinitionById(old.id)).toBeUndefined();
+    });
+
+    test('writes DEFINITION_DELETED only for the soft-deleted row', async () => {
+      const old = await upsertVcs('ci.yml', 'master');
+      await upsertVcs('ci.yml', 'main');
+      const movedOnly = await upsertVcs('only-old.yml', 'master');
+      await db()
+        .delete(definitionsOutbox)
+        .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+
+      await moveVcsDefinitionsToRef({projectId, workspaceId, ref: 'main'});
+
+      const events = (await listOutboxRowsForProject(projectId)).map((event) => ({
+        type: event.eventType,
+        definitionId: (event.payload as {definitionId?: unknown}).definitionId,
+      }));
+      expect(events).toEqual([{type: DEFINITION_DELETED, definitionId: old.id}]);
+      expect(events.some((event) => event.definitionId === movedOnly.id)).toBe(false);
+    });
+
+    test('leaves rows already on the ref, manual rows, and other projects alone', async () => {
+      const onRef = await upsertVcs('ci.yml', 'main');
+      const manual = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'manual.yml',
+        name: 'Manual',
+        ...definitionFields('Manual'),
+      });
+      const otherProjectId = crypto.randomUUID();
+      const other = await upsertDefinition({
+        projectId: otherProjectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'Other',
+        ...definitionFields('Other'),
+        ref: 'master',
+        source: 'vcs',
+      });
+
+      const result = await moveVcsDefinitionsToRef({projectId, workspaceId, ref: 'main'});
+
+      expect(result).toEqual({movedCount: 0, deletedCount: 0});
+      const rows = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.id} IN (${onRef.id}, ${manual.id}, ${other.id})`);
+      expect(rows.find((row) => row.id === onRef.id)?.ref).toBe('main');
+      expect(rows.find((row) => row.id === manual.id)?.ref).toBeNull();
+      expect(rows.find((row) => row.id === other.id)?.ref).toBe('master');
     });
   });
 

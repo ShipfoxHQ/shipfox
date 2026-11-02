@@ -25,6 +25,7 @@ export {
   invalidateCache,
   listDefinitions,
   listDefinitionsByProject,
+  moveVcsDefinitionsToRef,
   softDeleteVcsDefinitionsNotIn,
   upsertDefinition,
 } from './definitions.js';

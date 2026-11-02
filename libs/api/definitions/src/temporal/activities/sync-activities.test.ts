@@ -17,6 +17,23 @@ import {createDefinitionSyncActivities} from './sync-activities.js';
 const getValidationCatalogV2 = vi.fn(() => agentValidationCatalog);
 const agent = {getValidationCatalogV2} as never;
 
+const SOURCE_REPOSITORY_ID = 'gitea:gitea-owner/platform';
+
+function projectsClient(
+  source: {sourceConnectionId: string; sourceExternalRepositoryId: string} | null,
+) {
+  return {
+    getProjectById: vi.fn(({projectId}: {projectId: string}) =>
+      Promise.resolve({
+        project:
+          source === null
+            ? null
+            : {id: projectId, workspaceId: crypto.randomUUID(), name: 'Project', ...source},
+      }),
+    ),
+  };
+}
+
 vi.mock('@temporalio/activity', () => ({
   Context: {
     current: () => ({heartbeat: vi.fn()}),
@@ -99,15 +116,20 @@ function sourceControl(
 describe('definition sync activities', () => {
   let projectId: string;
   let sourceConnectionId: string;
+  let projects: ReturnType<typeof projectsClient>;
 
   beforeEach(() => {
     projectId = crypto.randomUUID();
     sourceConnectionId = crypto.randomUUID();
+    projects = projectsClient({
+      sourceConnectionId,
+      sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+    });
   });
 
   describe('prepareDefinitionSync', () => {
     it('marks the sync state as syncing and returns the resolved ref', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl(), agent);
+      const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
 
       const result = await activities.prepareDefinitionSync({
         projectId,
@@ -128,7 +150,7 @@ describe('definition sync activities', () => {
 
     it('keeps source ref and source commit sha separate for commit-triggered sync', async () => {
       const source = sourceControl();
-      const activities = createDefinitionSyncActivities(source, agent);
+      const activities = createDefinitionSyncActivities(source, agent, projects);
 
       const result = await activities.prepareDefinitionSync({
         projectId,
@@ -156,6 +178,7 @@ describe('definition sync activities', () => {
           }),
         }),
         agent,
+        projects,
       );
 
       const result = activities.prepareDefinitionSync({
@@ -189,6 +212,7 @@ describe('definition sync activities', () => {
           }),
         }),
         agent,
+        projects,
       );
 
       const result = activities.prepareDefinitionSync({
@@ -206,6 +230,106 @@ describe('definition sync activities', () => {
       const error = await result.catch((error: unknown) => error);
       expect(isErrorReported(error)).toBe(true);
     });
+
+    describe('when the project source changed', () => {
+      async function seedDefinitionOnRef(ref: string) {
+        const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
+        const workspaceId = crypto.randomUUID();
+        await activities.fetchAndApplyDefinitionWorkflows({
+          projectId,
+          workspaceId,
+          sourceConnectionId,
+          sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+          sourceRef: ref,
+          paths: ['.shipfox/workflows/ci.yml'],
+        });
+        return workspaceId;
+      }
+
+      async function definitionRows() {
+        return await db()
+          .select({
+            id: workflowDefinitions.id,
+            ref: workflowDefinitions.ref,
+            deletedAt: workflowDefinitions.deletedAt,
+          })
+          .from(workflowDefinitions)
+          .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
+      }
+
+      it('keeps definition ids when the default branch is renamed', async () => {
+        const workspaceId = await seedDefinitionOnRef('master');
+        const before = await definitionRows();
+        const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
+
+        await activities.prepareDefinitionSync({
+          projectId,
+          workspaceId,
+          sourceConnectionId,
+          sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        });
+
+        const after = await definitionRows();
+        expect(after).toEqual([{id: before[0]?.id, ref: 'main', deletedAt: null}]);
+      });
+
+      it('moves no rows when the project points at another repository', async () => {
+        const workspaceId = await seedDefinitionOnRef('master');
+        const before = await definitionRows();
+        const moved = projectsClient({
+          sourceConnectionId,
+          sourceExternalRepositoryId: 'github:acme/config',
+        });
+        const activities = createDefinitionSyncActivities(sourceControl(), agent, moved);
+
+        await activities.prepareDefinitionSync({
+          projectId,
+          workspaceId,
+          sourceConnectionId,
+          sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        });
+
+        expect(await definitionRows()).toEqual(before);
+      });
+
+      it('moves no rows when the project points at another connection', async () => {
+        const workspaceId = await seedDefinitionOnRef('master');
+        const before = await definitionRows();
+        const moved = projectsClient({
+          sourceConnectionId: crypto.randomUUID(),
+          sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        });
+        const activities = createDefinitionSyncActivities(sourceControl(), agent, moved);
+
+        await activities.prepareDefinitionSync({
+          projectId,
+          workspaceId,
+          sourceConnectionId,
+          sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        });
+
+        expect(await definitionRows()).toEqual(before);
+      });
+
+      it('moves no rows when the project no longer exists', async () => {
+        const workspaceId = await seedDefinitionOnRef('master');
+        const before = await definitionRows();
+        const activities = createDefinitionSyncActivities(
+          sourceControl(),
+          agent,
+          projectsClient(null),
+        );
+
+        await activities.prepareDefinitionSync({
+          projectId,
+          workspaceId,
+          sourceConnectionId,
+          sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        });
+
+        expect(await definitionRows()).toEqual(before);
+      });
+    });
   });
 
   describe('discoverDefinitionWorkflows', () => {
@@ -218,7 +342,7 @@ describe('definition sync activities', () => {
           }),
         ),
       });
-      const activities = createDefinitionSyncActivities(source, agent, undefined, {
+      const activities = createDefinitionSyncActivities(source, agent, projects, undefined, {
         workflowPath: '.shipfox/staging/workflows/',
       });
 
@@ -239,7 +363,7 @@ describe('definition sync activities', () => {
 
   describe('fetchAndApplyDefinitionWorkflows', () => {
     it('upserts workflow definitions and soft-deletes orphans', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl(), agent);
+      const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
       const workspaceId = crypto.randomUUID();
 
       const result = await activities.fetchAndApplyDefinitionWorkflows({
@@ -255,6 +379,52 @@ describe('definition sync activities', () => {
       expect(result.deletedCount).toBe(0);
       expect(result.diagnostics).toEqual([]);
       expect(getValidationCatalogV2).toHaveBeenLastCalledWith({workspaceId});
+    });
+
+    it('changes nothing when the project points at another source', async () => {
+      const workspaceId = crypto.randomUUID();
+      const current = createDefinitionSyncActivities(sourceControl(), agent, projects);
+      await current.fetchAndApplyDefinitionWorkflows({
+        projectId,
+        workspaceId,
+        sourceConnectionId,
+        sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        sourceRef: 'main',
+        paths: ['.shipfox/workflows/ci.yml'],
+      });
+      const before = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
+      const outboxBefore = await db().select().from(definitionsOutbox);
+      const source = sourceControl({
+        listFiles: vi.fn(() => Promise.resolve({files: [], nextCursor: null})),
+      });
+      const superseded = createDefinitionSyncActivities(
+        source,
+        agent,
+        projectsClient({
+          sourceConnectionId,
+          sourceExternalRepositoryId: 'github:acme/config',
+        }),
+      );
+
+      const result = await superseded.fetchAndApplyDefinitionWorkflows({
+        projectId,
+        workspaceId,
+        sourceConnectionId,
+        sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        sourceRef: 'main',
+        paths: [],
+      });
+
+      expect(result).toEqual({appliedCount: 0, deletedCount: 0, diagnostics: []});
+      const after = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
+      expect(after).toEqual(before);
+      expect(await db().select().from(definitionsOutbox)).toHaveLength(outboxBefore.length);
     });
 
     it('stores action snapshots and re-applies a definition when only action code changes', async () => {
@@ -284,7 +454,7 @@ describe('definition sync activities', () => {
           Promise.resolve({path, ref, content: repository[path] ?? ''}),
         ),
       });
-      const activities = createDefinitionSyncActivities(source, agent, undefined, {
+      const activities = createDefinitionSyncActivities(source, agent, projects, undefined, {
         workflowPath: '.shipfox/workflows/',
         flags: createTestFeatureFlags({'definitions-actions': true}),
       });
@@ -354,7 +524,7 @@ describe('definition sync activities', () => {
           }),
         ),
       });
-      const activities = createDefinitionSyncActivities(source, agent, undefined, {
+      const activities = createDefinitionSyncActivities(source, agent, projects, undefined, {
         workflowPath: '.shipfox/workflows/',
         flags: createTestFeatureFlags(),
       });
@@ -384,7 +554,7 @@ describe('definition sync activities', () => {
           }),
         ),
       });
-      const activities = createDefinitionSyncActivities(source, agent);
+      const activities = createDefinitionSyncActivities(source, agent, projects);
 
       const result = await activities.fetchAndApplyDefinitionWorkflows({
         projectId,
@@ -412,7 +582,7 @@ describe('definition sync activities', () => {
       const source = sourceControl({
         fetchFile: vi.fn(({path}) => Promise.resolve({path, ref: 'main', content: warningYaml})),
       });
-      const activities = createDefinitionSyncActivities(source, agent);
+      const activities = createDefinitionSyncActivities(source, agent, projects);
 
       const result = await activities.fetchAndApplyDefinitionWorkflows({
         projectId,
@@ -438,6 +608,7 @@ describe('definition sync activities', () => {
           ),
         }),
         agent,
+        projects,
       );
 
       const result = activities.fetchAndApplyDefinitionWorkflows({
@@ -466,6 +637,7 @@ describe('definition sync activities', () => {
           ),
         }),
         agent,
+        projects,
       );
 
       const result = activities.fetchAndApplyDefinitionWorkflows({
@@ -498,7 +670,7 @@ describe('definition sync activities', () => {
 
     it('fetches from source commit sha while persisting under source ref', async () => {
       const source = sourceControl();
-      const activities = createDefinitionSyncActivities(source, agent);
+      const activities = createDefinitionSyncActivities(source, agent, projects);
 
       const result = await activities.fetchAndApplyDefinitionWorkflows({
         projectId,
@@ -524,7 +696,7 @@ describe('definition sync activities', () => {
 
   describe('markDefinitionSyncFailed', () => {
     it('persists last_error_code and last_error_message verbatim', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl(), agent);
+      const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
       await activities.prepareDefinitionSync({
         projectId,
         workspaceId: crypto.randomUUID(),
@@ -555,7 +727,7 @@ describe('definition sync activities', () => {
     });
 
     it('persists validation diagnostics with a failed sync state', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl(), agent);
+      const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
       const diagnostics = [
         {
           code: 'invalid-definition',
@@ -586,7 +758,7 @@ describe('definition sync activities', () => {
     });
 
     it('persists failures with the unresolved sentinel ref when no ref was produced', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl(), agent);
+      const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
 
       const result = activities.markDefinitionSyncFailed({
         projectId,
@@ -613,7 +785,7 @@ describe('definition sync activities', () => {
 
   describe('markDefinitionSyncSucceeded', () => {
     it('clears stale error fields when transitioning to succeeded', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl(), agent);
+      const activities = createDefinitionSyncActivities(sourceControl(), agent, projects);
       await activities.prepareDefinitionSync({
         projectId,
         workspaceId: crypto.randomUUID(),
