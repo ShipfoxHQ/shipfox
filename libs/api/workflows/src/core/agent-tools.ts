@@ -6,6 +6,7 @@ import {flattenJobSteps, type WorkflowModel} from '@shipfox/api-definitions-dto'
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {AgentIntegrationMaterializationError} from './errors.js';
+import {isManagedProject} from './managed-source.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelAgentStep = Extract<WorkflowModelJob['steps'][number], {kind: 'agent'}>;
@@ -32,11 +33,12 @@ type WorkspaceConnectionSnapshot = ReadonlyMap<
 export interface AgentToolMaterializationContext {
   readonly catalogs: AgentToolCatalogs;
   readonly workspaceConnectionSnapshot: WorkspaceConnectionSnapshot;
+  /** Null on a managed project whose workspace has no single source-control connection. */
   readonly defaultConnection: {
     readonly id: string;
     readonly slug: string;
     readonly provider: IntegrationProviderKind;
-  };
+  } | null;
 }
 
 export interface AgentToolMaterializationSnapshot {
@@ -111,6 +113,15 @@ export async function loadAgentToolMaterializationContext(params: {
     context.workspaceConnections.map(({slug, ...connection}) => [slug, connection]),
   );
   const defaultConnection = context.defaultConnection;
+  // A managed project has no source connection of its own, so a step that names a connection
+  // still works without a default.
+  if (defaultConnection === null && isManagedProject(project)) {
+    return {
+      catalogs: new Map(context.catalogs.map(({provider, tools}) => [provider, tools])),
+      workspaceConnectionSnapshot,
+      defaultConnection: null,
+    };
+  }
   if (defaultConnection === null) {
     throw new AgentIntegrationMaterializationError(
       `Source connection ${project.sourceConnectionId} was not found while materializing agent integrations`,
@@ -490,8 +501,16 @@ function resolveConnection(params: {
   readonly connectionSlug: string | undefined;
   readonly context: AgentToolMaterializationContext;
   readonly missingMessage: string;
-}): AgentToolMaterializationContext['defaultConnection'] {
-  if (params.connectionSlug === undefined) return params.context.defaultConnection;
+}): NonNullable<AgentToolMaterializationContext['defaultConnection']> {
+  if (params.connectionSlug === undefined) {
+    if (params.context.defaultConnection === null) {
+      throw new AgentIntegrationMaterializationError(
+        'The workspace has no single source-control connection to use by default. Name a `connection`.',
+        {reason: 'source-connection-missing'},
+      );
+    }
+    return params.context.defaultConnection;
+  }
 
   const connection = params.context.workspaceConnectionSnapshot.get(params.connectionSlug);
   if (connection === undefined) {

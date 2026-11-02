@@ -955,7 +955,7 @@ describe('StepInspectorSheet', () => {
     {
       code: 'integration-checkout-unsupported',
       title: 'This repository cannot be checked out',
-      fix: 'The config repository that Shipfox hosts has no checkout. Name a repository and a connection in checkout, or set checkout: false. Then start a new run.',
+      fix: 'This connection or repository has no checkout, such as the config repository that Shipfox hosts. Name a repository in checkout, written as owner/name, and a connection when the workspace has none or several source-control connections. Or set checkout: false. Then start a new run.',
     },
     {
       code: 'checkout-unavailable',

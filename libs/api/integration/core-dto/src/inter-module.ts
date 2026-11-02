@@ -275,6 +275,14 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       input: z.object({workspaceId: id, slug: z.string().min(1)}),
       output: connection.nullable(),
     },
+    /**
+     * The workspace's only active source-control connection. Null when it has none or several,
+     * which is when a managed project has no default connection.
+     */
+    resolveSourceControlConnection: {
+      input: z.object({workspaceId: id}),
+      output: connection.nullable(),
+    },
     resolveConnectionById: {
       input: z.object({connectionId: id}),
       output: connectionById.nullable(),

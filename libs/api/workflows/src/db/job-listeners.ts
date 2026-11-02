@@ -40,6 +40,7 @@ import {
   materializeListenerExecution,
 } from '#core/listener-execution-materialization.js';
 import {planListenerPriorExecutionContext} from '#core/listener-prior-execution-context.js';
+import {loadManagedSource} from '#core/managed-source.js';
 import {
   applyListenerFilterSnapshots,
   assembleListenerSnapshotContext,
@@ -365,6 +366,7 @@ interface ListenerDrainTransactionParams {
   readonly vars: Record<string, string> | undefined;
   readonly variableResolutionError: InterpolationUnresolvableError | undefined;
   readonly agentToolContext: AgentToolMaterializationContext | undefined;
+  readonly managedSource: boolean;
 }
 
 export async function drainListenerEventsIntoExecution(
@@ -422,6 +424,10 @@ export async function drainListenerEventsIntoExecution(
           projects: params.projects,
         })
       : undefined;
+  const managedSource = await loadManagedSource({
+    projects: params.projects,
+    projectId: materializationTarget.run.projectId,
+  });
 
   const drained = await db().transaction((tx) =>
     drainListenerEventsInTransaction(
@@ -432,6 +438,7 @@ export async function drainListenerEventsIntoExecution(
         vars,
         variableResolutionError,
         agentToolContext,
+        managedSource,
       },
       tx,
     ),
@@ -501,6 +508,7 @@ async function drainListenerEventsInTransaction(
         : undefined),
     agentToolContext: params.agentToolContext,
     agentToolSnapshot: target.attempt.agentToolMaterialization,
+    managedSource: params.managedSource,
   });
   const execution = await persistMaterializedListenerExecution(tx, {
     jobId: params.drain.jobId,

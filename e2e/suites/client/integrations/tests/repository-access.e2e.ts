@@ -2,7 +2,7 @@ import {createGithubConnection} from '@shipfox/e2e-setup-integrations';
 import {createProject} from '@shipfox/e2e-setup-projects';
 import {expect, test} from './test.js';
 
-test('settings persists all-repository access for a project-backed GitHub connection', async ({
+test('settings narrows a new GitHub connection to the repositories of its projects', async ({
   connectionDetails,
   createReadyWorkspace,
 }) => {
@@ -27,21 +27,22 @@ test('settings persists all-repository access for a project-backed GitHub connec
     sourceDefaultBranch: 'main',
   });
 
-  // The project-backed list comes from local project state; no repository grant mutation is
-  // needed to populate it.
   await connectionDetails.goto(workspaceSlug, connection.slug);
 
+  // A new connection reaches every repository the GitHub App can see.
   await expect(connectionDetails.heading()).toBeVisible();
+  await expect(connectionDetails.allMode()).toBeChecked();
+  await expect(connectionDetails.projectsRepositoriesHeading()).toHaveCount(0);
+
+  // The project-backed list comes from local project state; no repository grant mutation is
+  // needed to populate it.
+  await connectionDetails.selectedMode().check();
+  await connectionDetails.saveMode();
   await expect(connectionDetails.selectedMode()).toBeChecked();
   await expect(connectionDetails.projectsRepositoriesHeading()).toBeVisible();
   await expect(connectionDetails.repository('shipfox/e2e')).toBeVisible();
   await expect(connectionDetails.providerNotice()).toBeVisible();
-
-  await connectionDetails.allMode().check();
-  await connectionDetails.saveMode();
-  await expect(connectionDetails.allMode()).toBeChecked();
-  await expect(connectionDetails.projectsRepositoriesHeading()).toHaveCount(0);
   await connectionDetails.goto(workspaceSlug, connection.slug);
-  await expect(connectionDetails.allMode()).toBeChecked();
-  await expect(connectionDetails.projectsRepositoriesHeading()).toHaveCount(0);
+  await expect(connectionDetails.selectedMode()).toBeChecked();
+  await expect(connectionDetails.repository('shipfox/e2e')).toBeVisible();
 });

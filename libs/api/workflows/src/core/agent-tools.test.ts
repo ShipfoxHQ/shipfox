@@ -739,7 +739,10 @@ describe('integration materialization reasons', () => {
       jobs: {build: {steps: [{tool: 'get_issue', with: {id: 'ENG-1'}}]}},
     });
     const projects = {
-      getProjectById: () => Promise.resolve({project: {sourceConnectionId: 'source-1'}}),
+      getProjectById: () =>
+        Promise.resolve({
+          project: {sourceConnectionId: 'source-1', sourceExternalRepositoryId: 'acme/api'},
+        }),
     };
     const integrations = {
       getAgentToolsContext: () =>

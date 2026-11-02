@@ -58,6 +58,8 @@ export interface MaterializeJobExecutionStepsParams {
   readonly definitionId?: string | undefined;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
+  /** A managed project has no repository, so its jobs have no default checkout. */
+  readonly managedSource?: boolean | undefined;
 }
 
 // Synthetic "Set up job" step prepended when a job execution's steps are materialized.
@@ -93,6 +95,7 @@ export async function materializeJobExecutionSteps(
     definitionId = model.name,
     agentToolContext,
     agentToolSnapshot,
+    managedSource = false,
   } = params;
 
   const scoped = scopedJobSteps(job);
@@ -167,7 +170,7 @@ export async function materializeJobExecutionSteps(
   );
 
   return [
-    setupStepForJob({job, context, definitionId}),
+    setupStepForJob({job, context, definitionId, managedSource}),
     ...authored,
     ...postStepsForJob({job, authored}),
   ];
@@ -310,9 +313,10 @@ function setupStepForJob(params: {
   readonly job: WorkflowModelJob;
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
+  readonly managedSource: boolean;
 }): MaterializedWorkflowStep {
-  const {job, context, definitionId} = params;
-  const checkout = setupCheckoutPolicy(job);
+  const {job, context, definitionId, managedSource} = params;
+  const checkout = managedSource ? null : setupCheckoutPolicy(job);
   const container =
     job.container === undefined
       ? null
@@ -351,24 +355,32 @@ function setupCheckoutPolicy(job: WorkflowModelJob) {
  * setup step carries, or any checkout step, including inside composites, that targets the
  * project. A checkout of another project or connection does not count. A target filled in by an
  * expression is not known before the run, so it is not counted either.
+ *
+ * A managed project has no default checkout, and a repository without a connection resolves on
+ * the workspace's source-control connection instead of the project's.
  */
 export function jobChecksOutProjectSource(params: {
   readonly job: WorkflowModelJob;
   readonly projectId: string;
+  readonly managedSource?: boolean | undefined;
 }): boolean {
-  if (setupCheckoutPolicy(params.job) !== null) return true;
+  const managedSource = params.managedSource === true;
+  if (!managedSource && setupCheckoutPolicy(params.job) !== null) return true;
   return flattenJobSteps(params.job).some(
-    (step) => step.kind === 'checkout' && checkoutTargetsProject(step.checkout, params.projectId),
+    (step) =>
+      step.kind === 'checkout' &&
+      checkoutTargetsProject(step.checkout, params.projectId, managedSource),
   );
 }
 
 function checkoutTargetsProject(
   checkout: Extract<WorkflowModelStep, {kind: 'checkout'}>['checkout'],
   projectId: string,
+  managedSource: boolean,
 ): boolean {
   if (checkout.project !== undefined) return checkout.project === projectId;
   // A repository without a connection resolves on the project's source connection.
-  return checkout.connection === undefined;
+  return !managedSource && checkout.connection === undefined;
 }
 
 // A leading checkout replaces the project checkout only when it lands at the job root.

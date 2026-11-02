@@ -151,7 +151,11 @@ describe('runWorkflow', () => {
       return {
         projects: {
           getProjectById: async () => ({
-            project: {id: projectId, sourceConnectionId: connectionId},
+            project: {
+              id: projectId,
+              sourceConnectionId: connectionId,
+              sourceExternalRepositoryId: 'acme/api',
+            },
           }),
         } as never,
         integrations: {

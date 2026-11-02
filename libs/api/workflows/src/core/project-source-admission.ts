@@ -2,6 +2,7 @@ import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {SourceConnectionUnavailableError} from './errors.js';
+import {isManagedProject} from './managed-source.js';
 import {jobChecksOutProjectSource} from './step-config/index.js';
 
 export interface AssertProjectSourceAdmitsParams {
@@ -21,15 +22,16 @@ export async function assertProjectSourceAdmits(
   params: AssertProjectSourceAdmitsParams,
 ): Promise<void> {
   const {model, jobKeys, projectId} = params;
-  const needsSource = model.jobs
-    .filter((job) => jobKeys === undefined || jobKeys.includes(job.key))
-    .some((job) => jobChecksOutProjectSource({job, projectId}));
-  if (!needsSource) return;
+  const jobs = model.jobs.filter((job) => jobKeys === undefined || jobKeys.includes(job.key));
+  // A managed source only removes checkouts, so a job that needs none here needs none there.
+  if (!jobs.some((job) => jobChecksOutProjectSource({job, projectId}))) return;
 
   const {project} = await params.projects.getProjectById({projectId});
   if (project === null || project === undefined) {
     throw new SourceConnectionUnavailableError(projectId, null, 'missing');
   }
+  const managedSource = isManagedProject(project);
+  if (!jobs.some((job) => jobChecksOutProjectSource({job, projectId, managedSource}))) return;
   const connection = await params.integrations.resolveConnectionById({
     connectionId: project.sourceConnectionId,
   });

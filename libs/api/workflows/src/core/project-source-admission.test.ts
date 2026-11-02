@@ -20,7 +20,7 @@ function checkout(overrides: Partial<Checkout> = {}): Checkout {
 describe('assertProjectSourceAdmits', () => {
   const projectId = crypto.randomUUID();
   const connectionId = crypto.randomUUID();
-  let project: {sourceConnectionId: string} | null;
+  let project: {sourceConnectionId: string; sourceExternalRepositoryId: string} | null;
   let lifecycleStatus: 'active' | 'disabled' | 'error' | null;
   const getProjectById = vi.fn();
   const resolveConnectionById = vi.fn();
@@ -36,7 +36,7 @@ describe('assertProjectSourceAdmits', () => {
   }
 
   beforeEach(() => {
-    project = {sourceConnectionId: connectionId};
+    project = {sourceConnectionId: connectionId, sourceExternalRepositoryId: '1234'};
     lifecycleStatus = 'active';
     getProjectById.mockReset().mockImplementation(async () => ({project}));
     resolveConnectionById
@@ -180,5 +180,44 @@ describe('assertProjectSourceAdmits', () => {
     });
 
     await expect(admits(model)).resolves.toBeUndefined();
+  });
+  describe('on a managed project', () => {
+    beforeEach(() => {
+      project = {
+        sourceConnectionId: connectionId,
+        sourceExternalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
+      };
+      lifecycleStatus = 'error';
+    });
+
+    test('has no default checkout to admit', async () => {
+      await expect(admits(workflowModel())).resolves.toBeUndefined();
+    });
+
+    test('does not resolve a repository checkout on the project source connection', async () => {
+      const model = workflowModel({
+        jobs: {
+          build: {
+            checkout: false,
+            steps: [{checkout: checkout({repository: 'acme/app', path: 'src'})}],
+          },
+        },
+      });
+
+      await expect(admits(model)).resolves.toBeUndefined();
+    });
+
+    test('still admits a checkout that names the project', async () => {
+      const model = workflowModel({
+        jobs: {
+          build: {
+            checkout: false,
+            steps: [{checkout: checkout({project: projectId, path: 'src'})}],
+          },
+        },
+      });
+
+      await expect(admits(model)).rejects.toBeInstanceOf(SourceConnectionUnavailableError);
+    });
   });
 });

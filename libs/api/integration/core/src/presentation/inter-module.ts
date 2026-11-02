@@ -25,6 +25,10 @@ import {
   createWorkspaceConnectionSnapshotLoader,
 } from '#core/agent-tool-selection.js';
 import {
+  findSoleSourceControlConnection,
+  resolveDefaultConnection,
+} from '#core/default-source-connection.js';
+import {
   IntegrationCapabilityUnavailableError,
   IntegrationCheckoutUnsupportedError,
   IntegrationConnectionInactiveError,
@@ -304,6 +308,13 @@ export function createIntegrationsInterModulePresentation(params: {
       const resolved = await getIntegrationConnectionBySlug(input);
       return resolved ? {id: resolved.id, provider: resolved.provider, slug: resolved.slug} : null;
     },
+    resolveSourceControlConnection: async ({workspaceId}) => {
+      const resolved = await findSoleSourceControlConnection({
+        workspaceId,
+        registry: params.registry,
+      });
+      return resolved ? {id: resolved.id, provider: resolved.provider, slug: resolved.slug} : null;
+    },
     resolveConnectionById: async ({connectionId}) => {
       const resolved = await getConnectionById(connectionId);
       return resolved
@@ -404,7 +415,10 @@ export function createIntegrationsInterModulePresentation(params: {
             params.registry,
             params.builtinConnections,
           )(input.workspaceId),
-          getConnectionById(input.defaultConnectionId),
+          resolveDefaultConnection({
+            sourceConnection: await getConnectionById(input.defaultConnectionId),
+            registry: params.registry,
+          }),
         ]);
         return {
           selectionCatalogs: [...selectionCatalogs].map(([provider, value]) => ({
