@@ -179,6 +179,7 @@
     "@shipfox/node-object-storage",
     "@shipfox/node-opentelemetry",
     "@shipfox/node-outbox",
+    "@shipfox/node-pi-runtime",
     "@shipfox/node-postgres",
     "@shipfox/node-process-state",
     "@shipfox/node-rate-limit",
