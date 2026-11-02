@@ -971,6 +971,16 @@ describe('createStepCheckoutSpec', () => {
       );
     });
 
+    it('refuses a checkout that names no repository, because there is no default one', async () => {
+      const project = managedProject();
+      getProjectById.mockResolvedValue({project});
+
+      const act = checkoutManaged(project, checkoutStep({path: 'src'}));
+
+      await expect(act).rejects.toMatchObject({name: 'CheckoutConfigInvalidError'});
+      expect(createCheckoutSpec).not.toHaveBeenCalled();
+    });
+
     it('refuses a bare repository name, because there is no source owner to default to', async () => {
       const project = managedProject();
       getProjectById.mockResolvedValue({project});

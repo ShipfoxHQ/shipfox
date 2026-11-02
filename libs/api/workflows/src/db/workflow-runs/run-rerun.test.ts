@@ -1322,6 +1322,53 @@ describe('workflow run queries', () => {
       });
     });
 
+    test('reruns keep a managed project without a default checkout', async () => {
+      const projects = {
+        getProjectById: vi.fn().mockResolvedValue({
+          project: {
+            sourceConnectionId: crypto.randomUUID(),
+            sourceExternalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
+          },
+        }),
+      } as unknown as ProjectsModuleClient;
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({jobs: {build: {steps: [{run: 'echo build'}]}}}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        projects,
+      });
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      const sourceSetup = (await getStepsByJobId(sourceJobs[0]?.id ?? '')).find(
+        (step) => step.type === 'setup',
+      );
+      expect(sourceSetup?.config).not.toHaveProperty('checkout');
+      await markJob(sourceJobs, 'build', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(source.id);
+      const rerunSetup = (await getStepsByJobId(rerunJob?.id ?? '')).find(
+        (step) => step.type === 'setup',
+      );
+      expect(rerunSetup?.config).not.toHaveProperty('checkout');
+    });
+
     test('reruns preserve the original resolved agent step config', async () => {
       const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
         harness: 'pi',

@@ -110,8 +110,8 @@ export async function createStepCheckoutSpec({
   }
 
   const managedSource = isManagedProject(defaultProject);
-  if (managedSource && checkout.repository !== undefined && !checkout.repository.includes('/')) {
-    // A managed project has no source owner to default to.
+  // A managed project has no default repository and no source owner to default to.
+  if (managedSource && checkout.project === undefined && !checkout.repository?.includes('/')) {
     throw new CheckoutConfigInvalidError(
       step.id,
       'Checkout on a managed project needs a repository written as owner/name',

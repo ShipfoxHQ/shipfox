@@ -867,6 +867,9 @@ async function createGithubFixture(
     // Connection availability resyncs every project in its workspace. Activate it
     // before adding this fixture's only project to keep each test's work isolated.
     await activateGithubConnection(isolatedSuite, connection.id);
+    // New connections reach every repository. These tests cover the authorization of `selected`,
+    // and the ones that need `all` set it themselves.
+    await setRepositoryAccessMode(isolatedSuite, connection.id, 'selected');
     const project = await createE2eProject({
       workspaceId: isolatedSuite.workspaceId,
       name: `GitHub authorization project ${uniqueId}`,
