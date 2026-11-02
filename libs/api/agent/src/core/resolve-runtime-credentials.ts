@@ -35,7 +35,7 @@ export interface ResolveRuntimeCredentialsParams {
   subject: InferenceSubject;
   /**
    * A later credential for admitted work, which model availability must not cut off: a refresh of
-   * a running step, or any model call of a turn after its first.
+   * a running step, or any model or summary call after a turn's first model call.
    */
   renewal?: boolean | undefined;
   harness: Harness;

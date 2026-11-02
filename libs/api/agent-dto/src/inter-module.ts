@@ -207,7 +207,7 @@ export const agentInterModuleContract = defineInterModuleContract({
         subject: inferenceSubjectSchema,
         /**
          * Marks a later credential for admitted work, which skips the model availability check: a
-         * refresh of a running step, or any model call of a turn after its first.
+         * refresh of a running step, or any model or summary call after a turn's first model call.
          */
         renewal: z.boolean().optional(),
         harness: harnessSchema,
