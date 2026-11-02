@@ -361,7 +361,12 @@ function subjectUsageIdentity(params: {
 }): InferenceUsageIdentity {
   const {workspaceId, projectId, subject} = params;
   if (subject.kind === 'conversation') {
-    return {workspaceId, projectId, conversationId: subject.conversationId};
+    return {
+      workspaceId,
+      projectId,
+      conversationId: subject.conversationId,
+      agentKey: subject.agentKey,
+    };
   }
   if (subject.jobIdentity === undefined) {
     throw new Error('E2E managed provider requires the leased job identity');

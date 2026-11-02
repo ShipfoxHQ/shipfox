@@ -31,6 +31,7 @@ type SegmentIdentity<Segment> = Segment extends InferenceSegmentInputDto
       | 'stepId'
       | 'stepAttemptId'
       | 'conversationId'
+      | 'agentKey'
     >
   : never;
 

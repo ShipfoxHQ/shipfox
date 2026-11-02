@@ -218,10 +218,15 @@ existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` s
 
 **2026-10-31: an inference segment belongs to a step attempt or a conversation.** A server-side
 agent turn calls a model with no run, so a segment no longer always has ids down to the step
-attempt. It now names exactly one subject: those ids, or a conversation id. The schemas and a
-database check reject a segment with neither, with both, or with part of the step attempt ids.
-The project id stays required on every segment. A conversation has no job execution, so its
-segments skip the projection check and carry no workflow identity.
+attempt. It now names exactly one subject: those ids, or a conversation id with the key of the
+agent the conversation talks to. The schemas and a database check reject a segment with neither,
+with both, with part of the step attempt ids, or with a conversation and no agent key. The project
+id stays required on every segment. A conversation has no job execution, so its segments skip the
+projection check and carry no workflow identity.
+
+The agent key travels with every conversation segment, so a composing application can measure
+usage per agent, and tell workflow inference from agent inference with no lookup. A lookup at
+report time would cross a database boundary, and a deleted conversation would lose its agent.
 
 `usage.inference_segment.recorded` orders on the conversation id for these segments and on the
 step attempt id for the others. A consumer that reads events or list cursors must accept null run

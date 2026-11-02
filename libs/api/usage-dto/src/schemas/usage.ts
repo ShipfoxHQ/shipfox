@@ -111,6 +111,7 @@ const stepInferenceSegmentObjectSchema = z
     stepId: idSchema,
     stepAttemptId: idSchema,
     conversationId: absentIdSchema,
+    agentKey: z.null().optional(),
   })
   .strict();
 
@@ -124,6 +125,7 @@ const conversationInferenceSegmentObjectSchema = z
     stepId: absentIdSchema,
     stepAttemptId: absentIdSchema,
     conversationId: idSchema,
+    agentKey: nonEmptyStringSchema,
   })
   .strict();
 

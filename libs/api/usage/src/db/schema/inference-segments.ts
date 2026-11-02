@@ -29,6 +29,7 @@ export const usageInferenceSegments = pgTable(
     stepId: uuid('step_id'),
     stepAttemptId: uuid('step_attempt_id'),
     conversationId: uuid('conversation_id'),
+    agentKey: text('agent_key'),
     upstream: text('upstream').notNull(),
     model: text('model').notNull(),
     dialect: text('dialect', {enum: inferenceSegmentDialects}).notNull(),
@@ -61,6 +62,7 @@ export const usageInferenceSegments = pgTable(
       'usage_inference_segments_subject_ck',
       sql`(
         conversation_id IS NULL
+        AND agent_key IS NULL
         AND workflow_run_id IS NOT NULL
         AND workflow_run_attempt_id IS NOT NULL
         AND job_id IS NOT NULL
@@ -69,6 +71,7 @@ export const usageInferenceSegments = pgTable(
         AND step_attempt_id IS NOT NULL
       ) OR (
         conversation_id IS NOT NULL
+        AND agent_key IS NOT NULL
         AND workflow_run_id IS NULL
         AND workflow_run_attempt_id IS NULL
         AND job_id IS NULL

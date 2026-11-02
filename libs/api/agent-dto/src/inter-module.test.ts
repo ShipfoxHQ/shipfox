@@ -329,6 +329,7 @@ describe('agentInterModuleContract', () => {
         kind: 'conversation' as const,
         projectId: '00000000-0000-4000-8000-000000000004',
         conversationId: '00000000-0000-4000-8000-000000000009',
+        agentKey: 'shippy',
       },
       harness: 'pi' as const,
       provider: 'shipfox' as const,
@@ -347,6 +348,24 @@ describe('agentInterModuleContract', () => {
         workspaceId: UUID,
         subject: {
           kind: 'conversation',
+          conversationId: '00000000-0000-4000-8000-000000000009',
+          agentKey: 'shippy',
+        },
+        harness: 'pi',
+        provider: 'shipfox',
+        model: 'managed-model',
+        thinking: 'default',
+      }),
+    ).toThrow();
+  });
+
+  test('rejects a conversation subject without an agent key', () => {
+    expect(() =>
+      agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse({
+        workspaceId: UUID,
+        subject: {
+          kind: 'conversation',
+          projectId: '00000000-0000-4000-8000-000000000004',
           conversationId: '00000000-0000-4000-8000-000000000009',
         },
         harness: 'pi',

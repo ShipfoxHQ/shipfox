@@ -1024,6 +1024,7 @@ function conversationSubject(): InferenceSubject {
     kind: 'conversation',
     projectId: crypto.randomUUID(),
     conversationId: crypto.randomUUID(),
+    agentKey: 'shippy',
   };
 }
 

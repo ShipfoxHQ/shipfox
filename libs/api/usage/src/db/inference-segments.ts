@@ -122,6 +122,7 @@ export function recordInferenceSegments(params: {
           stepId: segment.stepId,
           stepAttemptId: segment.stepAttemptId,
           conversationId: segment.conversationId,
+          agentKey: segment.agentKey,
           upstream: segment.upstream,
           model: segment.model,
           dialect: segment.dialect,
@@ -266,8 +267,10 @@ export function toInferenceSegmentUsage(row: UsageInferenceSegmentRow): Inferenc
     recordedAt: row.recordedAt.toISOString(),
   };
   const stepIdentity = inferenceSegmentStepIdentity(row);
-  if (stepIdentity !== undefined) return {...fields, ...stepIdentity, conversationId: null};
-  if (row.conversationId === null) {
+  if (stepIdentity !== undefined) {
+    return {...fields, ...stepIdentity, conversationId: null, agentKey: null};
+  }
+  if (row.conversationId === null || row.agentKey === null) {
     throw new Error(`Usage inference segment ${row.id} has no subject`);
   }
   return {
@@ -279,6 +282,7 @@ export function toInferenceSegmentUsage(row: UsageInferenceSegmentRow): Inferenc
     stepId: null,
     stepAttemptId: null,
     conversationId: row.conversationId,
+    agentKey: row.agentKey,
   };
 }
 

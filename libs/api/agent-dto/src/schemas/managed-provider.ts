@@ -46,6 +46,8 @@ export const inferenceSubjectSchema = z.discriminatedUnion('kind', [
     kind: z.literal('conversation'),
     projectId: z.string().uuid(),
     conversationId: z.string().uuid(),
+    /** The agent the conversation talks to, so its tokens can be measured per agent. */
+    agentKey: z.string().min(1),
   }),
 ]);
 

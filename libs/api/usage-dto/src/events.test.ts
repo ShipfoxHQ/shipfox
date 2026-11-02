@@ -146,6 +146,7 @@ describe('Usage event contracts', () => {
       workflowId: null,
       workflowName: null,
       conversationId: crypto.randomUUID(),
+      agentKey: 'shippy',
     };
 
     expect(
@@ -174,10 +175,31 @@ describe('Usage event contracts', () => {
     ],
     ['a partial step identity', {stepAttemptId: undefined}],
     ['a conversation with run identity', {conversationId: crypto.randomUUID()}],
+    ['a step that names an agent', {agentKey: 'shippy'}],
   ])('rejects %s', (_name, overrides) => {
     const result = usageInferenceSegmentRecordedEventSchema.safeParse({
       ...validSegment,
       ...overrides,
+      version: 1,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a conversation segment with no agent key', () => {
+    const {
+      workflowRunId,
+      workflowRunAttemptId,
+      jobId,
+      jobExecutionId,
+      stepId,
+      stepAttemptId,
+      ...base
+    } = validSegment;
+
+    const result = usageInferenceSegmentRecordedEventSchema.safeParse({
+      ...base,
+      conversationId: crypto.randomUUID(),
       version: 1,
     });
 
@@ -199,6 +221,7 @@ describe('Usage event contracts', () => {
       usageInferenceSegmentRecordedEventSchema.parse({
         ...base,
         conversationId: crypto.randomUUID(),
+        agentKey: 'shippy',
         windowEnd: '2026-09-04T09:00:00.000Z',
         version: 1,
       }),

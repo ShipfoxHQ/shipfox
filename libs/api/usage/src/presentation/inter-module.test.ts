@@ -57,6 +57,7 @@ function conversationSegment(): InferenceSegmentInputDto {
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     conversationId: crypto.randomUUID(),
+    agentKey: 'shippy',
     upstream: 'openai',
     model: 'gpt-5',
     dialect: 'openai-responses',

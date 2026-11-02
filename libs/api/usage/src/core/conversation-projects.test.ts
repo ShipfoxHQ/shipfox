@@ -26,7 +26,7 @@ describe('assertConversationProjects', () => {
   });
 
   it('leaves step segments to the job execution projection', async () => {
-    const {conversationId, ...base} = conversationSegment();
+    const {conversationId, agentKey, ...base} = conversationSegment();
     const step = {
       ...base,
       workflowRunId: crypto.randomUUID(),
@@ -90,6 +90,7 @@ function conversationSegment(): InferenceSegmentInputDto {
     workspaceId: WORKSPACE_ID,
     projectId: PROJECT_ID,
     conversationId: crypto.randomUUID(),
+    agentKey: 'shippy',
     upstream: 'openai',
     model: 'gpt-5',
     dialect: 'openai-responses',

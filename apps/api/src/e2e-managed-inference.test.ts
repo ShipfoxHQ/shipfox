@@ -34,6 +34,7 @@ describe('E2E managed inference fixture', () => {
         kind: 'conversation',
         projectId: JOB_IDENTITY.projectId,
         conversationId: 'conversation',
+        agentKey: 'shippy',
       },
       model: 'e2e-renewable-pi',
     });
@@ -60,6 +61,7 @@ describe('E2E managed inference fixture', () => {
       kind: 'conversation' as const,
       projectId: JOB_IDENTITY.projectId,
       conversationId: 'conversation',
+      agentKey: 'shippy',
     };
 
     const first = await fixture.provider.resolveCredentials({
@@ -104,7 +106,12 @@ describe('E2E managed inference fixture', () => {
 
     const runtimeConfig = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
-      subject: {kind: 'conversation', projectId, conversationId: 'conversation'},
+      subject: {
+        kind: 'conversation',
+        projectId,
+        conversationId: 'conversation',
+        agentKey: 'shippy',
+      },
       model: 'gpt-6-sol',
     });
     await app.inject({

@@ -182,7 +182,7 @@ function conversationSegment(overrides: {workspaceId?: string} = {}) {
     stepAttemptId,
     ...segment
   } = inferenceSegment();
-  return {...segment, ...overrides, conversationId: crypto.randomUUID()};
+  return {...segment, ...overrides, conversationId: crypto.randomUUID(), agentKey: 'shippy'};
 }
 
 async function outboxFor(eventType: string, field: 'jobExecutionId' | 'segmentKey', value: string) {
@@ -389,6 +389,7 @@ describe('Usage projections', () => {
     expect(outbox?.orderingKey).toBe(segment.conversationId);
     expect(usageInferenceSegmentRecordedEventSchema.parse(outbox?.payload)).toMatchObject({
       conversationId: segment.conversationId,
+      agentKey: 'shippy',
       workflowRunId: null,
       stepAttemptId: null,
       workflowId: null,
@@ -436,6 +437,8 @@ describe('Usage projections', () => {
   it.each([
     ['no identity', {}],
     ['a partial step identity', {stepAttemptId: crypto.randomUUID()}],
+    ['a conversation with no agent key', {conversationId: crypto.randomUUID()}],
+    ['an agent key with no conversation', {agentKey: 'shippy'}],
     [
       'both identities',
       {
@@ -449,7 +452,7 @@ describe('Usage projections', () => {
       },
     ],
   ])('rejects a stored segment with %s', async (_name, identity) => {
-    const {conversationId, ...segment} = conversationSegment();
+    const {conversationId, agentKey, ...segment} = conversationSegment();
 
     await expect(
       db()

@@ -150,6 +150,7 @@ describe('OpenRouter backend', () => {
       kind: 'conversation',
       projectId: PROJECT_ID,
       conversationId,
+      agentKey: 'shippy',
     });
 
     await app.inject({
@@ -160,7 +161,7 @@ describe('OpenRouter backend', () => {
     });
 
     const segment = inferenceSegmentInputSchema.parse(recorded[0]);
-    expect(segment.conversationId).toBe(conversationId);
+    expect(segment).toMatchObject({conversationId, agentKey: 'shippy'});
     expect(segment.stepAttemptId).toBeUndefined();
   });
 
@@ -289,6 +290,7 @@ describe('OpenRouter backend', () => {
       kind: 'conversation' as const,
       projectId: PROJECT_ID,
       conversationId: '00000000-0000-4000-8000-00000000000a',
+      agentKey: 'shippy',
     };
     const {fixture} = await startOpenRouterProject(upstream.baseUrl, subject);
 
