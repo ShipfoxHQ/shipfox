@@ -3,6 +3,7 @@
 '@shipfox/api-integration-core-dto': minor
 '@shipfox/api-integration-core': minor
 '@shipfox/api-agent-access-dto': minor
+'@shipfox/client-integrations': minor
 '@shipfox/api-definitions': patch
 '@shipfox/api-workflows': patch
 '@shipfox/api-server': patch

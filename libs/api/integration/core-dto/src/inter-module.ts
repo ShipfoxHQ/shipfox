@@ -532,7 +532,7 @@ export const integrationsInterModuleContract = defineInterModuleContract({
         providers: z.array(
           z.object({
             provider,
-            interactionEvents: z.record(z.string(), interactionRole),
+            interactionEvents: z.record(z.string().min(1), interactionRole),
             requestContextSchema: z.record(z.string(), z.unknown()),
             replyGuidance: z.string(),
           }),

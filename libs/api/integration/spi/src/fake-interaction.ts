@@ -52,9 +52,11 @@ export function createFakeInteractionProvider(
     replyGuidance: 'Answer in one short paragraph.',
     readInteraction: async ({event, payload}) => {
       await Promise.resolve();
-      const role = (FAKE_INTERACTION_EVENTS as Record<string, InteractionRole>)[event];
+      if (!Object.hasOwn(FAKE_INTERACTION_EVENTS, event)) return undefined;
+      const role: InteractionRole =
+        FAKE_INTERACTION_EVENTS[event as keyof typeof FAKE_INTERACTION_EVENTS];
       const fake = payload as FakeInteractionPayload;
-      if (role === undefined || fake.ignored) return undefined;
+      if (fake.ignored) return undefined;
       return {
         conversationKey: fake.conversationKey,
         role,

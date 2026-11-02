@@ -168,7 +168,7 @@ describe('integrations inter-module interaction operations', () => {
     expect(fake.progress).toEqual([]);
   });
 
-  it('answers null for an event the provider ignores or does not list', async () => {
+  it('answers null for an event the provider ignores', async () => {
     const {client} = createClient();
 
     const ignored = await client.readInteraction({
@@ -176,14 +176,25 @@ describe('integrations inter-module interaction operations', () => {
       event: 'fake.request',
       payload: {conversationKey: 'c1', ignored: true},
     });
-    const unlisted = await client.readInteraction({
+
+    expect(ignored).toBeNull();
+  });
+
+  it.each([
+    'fake.other',
+    'toString',
+  ])('answers null for the unlisted event %s without calling the provider', async (event) => {
+    const {client, fake} = createClient();
+    const readInteraction = vi.spyOn(fake.provider, 'readInteraction');
+
+    const result = await client.readInteraction({
       ...target,
-      event: 'fake.other',
+      event,
       payload: {conversationKey: 'c1'},
     });
 
-    expect(ignored).toBeNull();
-    expect(unlisted).toBeNull();
+    expect(result).toBeNull();
+    expect(readInteraction).not.toHaveBeenCalled();
   });
 
   it('lists the events, context schema, and reply guidance of interaction providers only', async () => {
