@@ -26,16 +26,18 @@ export async function assertConversationProjects(params: {
       await params.projects.requireProjectForWorkspace(owner);
     } catch (error) {
       if (
-        isInterModuleKnownError(
+        !isInterModuleKnownError(
           projectsInterModuleContract.methods.requireProjectForWorkspace,
           error,
         )
       ) {
-        throw new Error(`Inference segment identity mismatch for project ${owner.projectId}`, {
-          cause: error,
-        });
+        throw error;
       }
-      throw error;
+      // A project deleted before compaction still owes its last tokens, and names no other tenant.
+      if (error.code === 'project-not-found') continue;
+      throw new Error(`Inference segment identity mismatch for project ${owner.projectId}`, {
+        cause: error,
+      });
     }
   }
 }
