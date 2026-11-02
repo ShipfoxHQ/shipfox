@@ -1,0 +1,7 @@
+# Deliver to a Shipfox-hosted project
+
+Use this procedure in step 9 of `skill://shipfox/create-workflow-from-template/SKILL.md` when the selected project's `source_connection.provider` is `managed-vcs`. It keeps its config in a repository that Shipfox hosts. You write to a branch of it, test the branch, and stop.
+
+1. Choose a branch such as `shipfox/add-<template>`. Call `commit_config_changes` with that branch, no `expected_head`, a short `message`, and one change: the YAML at `.shipfox/workflows/<descriptive name>.yml`, with the template marker. Keep setup commands inline.
+2. Follow `skill://shipfox/test-workflow-change/SKILL.md`, but call `create_dev_run` with `ref` set to the branch and `config_path` set to the committed file, and without `content`, so the run reads the committed file and its prompt files. Share its `run_url`. To change the file after a failed run, read it with `read_config_file` at the branch, then commit again with the `commit` the last call returned as `expected_head`. On `stale-head`, read the files at `details.head` and retry.
+3. In your final message, name the branch and share the `run_url`. Say that the workflow is tested on the branch and is not live yet, because a person has to approve the branch before it reaches the default branch. Never suggest a pull request, and never ask the user to open one. If the tool returns `repository-read-only`, the project config lives in a linked repository: follow step 9 of `skill://shipfox/create-workflow-from-template/SKILL.md` there.

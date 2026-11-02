@@ -86,7 +86,7 @@ export class GitReader {
     return files;
   }
 
-  private async readTree(oid: string): Promise<TreeEntry[]> {
+  async readTree(oid: string): Promise<TreeEntry[]> {
     return await this.readObject(oid, async () => {
       const {tree} = await readTree({fs: this.objects.client, gitdir: MANAGED_GITDIR, oid});
       return tree;

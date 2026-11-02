@@ -36,7 +36,8 @@ export class ManagedSeedFileError extends Error {
 // biome-ignore lint/suspicious/noControlCharactersInRegex: a path must not carry control characters
 const CONTROL_CHARACTER_RE = /[\u0000-\u001f\u007f]/u;
 
-function isAllowedPath(path: string): boolean {
+/** Where a managed repository accepts a file: under `.shipfox/`, with no traversal or reserved segment. */
+export function isAllowedPath(path: string): boolean {
   if (!path.startsWith(`${MANAGED_CONFIG_ROOT}/`)) return false;
   if (path.includes('\\') || CONTROL_CHARACTER_RE.test(path)) return false;
   return path
@@ -65,13 +66,17 @@ export function assertSeedFiles(files: readonly ManagedSeedFile[]): void {
   }
   if (total > MAX_SEED_BYTES) throw new ManagedSeedFileError('seed-too-large', '');
 
-  // A file and a directory can't share a path.
+  const conflict = findFileDirectoryConflict(paths);
+  if (conflict !== undefined) throw new ManagedSeedFileError('path-not-allowed', conflict);
+}
+
+/** A file and a directory can't share a path. Answers the first file that sits under another. */
+export function findFileDirectoryConflict(paths: ReadonlySet<string>): string | undefined {
   for (const path of paths) {
     const segments = path.split('/');
     for (let end = 1; end < segments.length; end += 1) {
-      if (paths.has(segments.slice(0, end).join('/'))) {
-        throw new ManagedSeedFileError('path-not-allowed', path);
-      }
+      if (paths.has(segments.slice(0, end).join('/'))) return path;
     }
   }
+  return undefined;
 }

@@ -1,6 +1,16 @@
 import {migrationsPath} from '#db/migrations.js';
 
 export {
+  type CommitManagedChangesParams,
+  type CommittedManagedChanges,
+  commitManagedChanges,
+  MAX_COMMIT_BYTES,
+  MAX_COMMIT_FILES,
+  type ManagedCommitRefusal,
+  ManagedCommitRefusedError,
+  type ManagedFileChange,
+} from '#core/commit-changes.js';
+export {
   type CreatedManagedRepository,
   type CreateManagedRepositoryParams,
   createManagedRepository,

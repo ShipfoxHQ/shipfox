@@ -3,6 +3,9 @@ import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
 import {integrationConnectionProviderAccessSchema} from './schemas/integrations.js';
 import {
+  CONFIG_COMMIT_MAX_CHANGES,
+  CONFIG_COMMIT_MESSAGE_MAX_LENGTH,
+  CONFIG_PATH_MAX_LENGTH,
   configFilePathSchema,
   configHistoryPathSchema,
   configMoveStatusSchema,
@@ -426,6 +429,49 @@ export const integrationsInterModuleContract = defineInterModuleContract({
         nextCursor: z.string().nullable(),
       }),
       errors: {...configReadErrors, 'history-unsupported': z.object({provider})},
+    },
+    /**
+     * Commits several file changes to a branch of a managed project's repository. The first commit
+     * creates the branch from the default branch, and `expectedHead` guards later ones. The default
+     * branch is refused, and so is a linked repository.
+     */
+    commitConfigChanges: {
+      input: configInput.extend({
+        branch: safeRef.min(1),
+        expectedHead: z
+          .string()
+          .regex(/^[0-9a-f]{40}$/u)
+          .optional(),
+        message: z.string().min(1).max(CONFIG_COMMIT_MESSAGE_MAX_LENGTH),
+        /** A `null` content deletes the file. */
+        changes: z
+          .array(
+            z.object({
+              path: z.string().max(CONFIG_PATH_MAX_LENGTH),
+              content: z.string().nullable(),
+            }),
+          )
+          .max(CONFIG_COMMIT_MAX_CHANGES),
+        /** Who the commit is attributed to. */
+        actor: z.object({id, name: z.string().min(1)}),
+      }),
+      output: z.object({branch: z.string(), commit: z.string(), parent: z.string()}),
+      errors: {
+        ...configReadErrors,
+        /** The config lives in a linked repository, named `owner/name`. */
+        'repository-read-only': z.object({repository: z.string()}),
+        'protected-branch': z.object({branch: z.string()}),
+        'branch-invalid': z.object({branch: z.string()}),
+        /** `head` is where the branch points now, or null when it does not exist. */
+        'stale-head': z.object({branch: z.string(), head: z.string().nullable()}),
+        'path-not-allowed': z.object({path: z.string()}),
+        'content-not-text': z.object({path: z.string()}),
+        'file-too-large': z.object({path: z.string()}),
+        'file-not-found': z.object({path: z.string()}),
+        'too-many-changes': z.object({}),
+        'commit-too-large': z.object({}),
+        'no-changes': z.object({}),
+      },
     },
     createCheckoutSpec: {
       input: checkoutInput
