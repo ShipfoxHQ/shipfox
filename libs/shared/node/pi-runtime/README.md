@@ -19,7 +19,7 @@ Builds a pi model from resolved runtime credentials, the same way for a runner s
 pnpm add @shipfox/node-pi-runtime
 ```
 
-The package imports `@earendil-works/pi-coding-agent`. That package loads a native image library, so a host that must not load it at startup imports this package with a dynamic `import()`.
+The package imports `@earendil-works/pi-coding-agent`, which loads a WebAssembly image library. A host that must not pay that startup cost imports this package with a dynamic `import()`.
 
 ## Usage
 
@@ -47,7 +47,7 @@ const {modelRuntime, model} = await createPiModel({
 
 - **Egress is a hook.** `assertEgressAllowed(url, label)` runs before a custom provider is registered. Each host passes its own policy and maps a denial to an `AgentConfigError`.
 - **`modelsPath: null` skips `models.json`.** Pi then reads and writes nothing under the home directory. The runner leaves it unset.
-- **The caller owns the credential store.** The runner passes a store that renews managed tokens. The API passes an in-memory store.
+- **The caller owns the credential store.** The runner passes a store that renews managed tokens. The API is meant to pass an in-memory store once it calls this package.
 - **`thinking: 'default'` drops `reasoning`.** The provider then uses its own default level.
 
 ## Development
