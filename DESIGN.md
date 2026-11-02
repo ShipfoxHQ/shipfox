@@ -578,10 +578,10 @@ building anything: `accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`
 `callout`, `checkbox`, `code-block`, `collapsible`, `combobox`, `command`,
 `data-table`, `date-picker`, `date-range-picker`, `dot`, `dropdown-menu`,
 `empty-state`, `form-field`, `icon`, `input`, `kbd`, `label`, `load-error-state`,
-`loader`, `log`, `logo`, `markdown`, `modal`, `panel`, `popover`, `radio-group`,
-`relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`,
-`skeleton`, `switch`, `table`, `tabs`, `textarea`, `theme`, `time-ticker`,
-`toast`, `tooltip`, and `typography`.
+`loader`, `log`, `logo`, `markdown`, `modal`, `panel`, `popover`, `prompt-input`,
+`radio-group`, `relative-time`, `scroll-area`, `search`, `select`, `sheet`,
+`shiny-text`, `skeleton`, `suggestion`, `switch`, `table`, `tabs`, `textarea`,
+`theme`, `time-ticker`, `toast`, `tooltip`, `trace`, and `typography`.
 
 `Panel` is the container for a data region and a focused titled block.
 
@@ -792,6 +792,23 @@ Navigation never wears a standalone bordered tile. A grid of openable things is
 - **Labels** `Text size="sm"` medium; **helper** `Text size="xs"` muted; **error**
   `text-foreground-highlight-error` at `text-xs`. Focus shows the orange ring.
 
+### Chat composer and tool rows
+
+- **Composer:** `PromptInput` is one field with its action in the bottom-right
+  corner. The orange ring frames the whole field, not only the text. A context
+  chip above it, on the inline fill, says what the agent can see.
+- **Send and stop:** Send is an icon button. `Stop reply` is a labeled secondary
+  `xs` button, never `Stop` alone, because a reader can take that to mean the run.
+  It replaces Send while the composer is empty. With a draft, both show, so a
+  draft never hides the way to stop a reply.
+- **Tool rows:** `Trace` rows stay quiet, so a long sequence reads as one block. A
+  succeeded row keeps a muted check. Only a failed or running row uses a status
+  hue, and only in its glyph. A tool call with no result reads as unknown, in a
+  neutral glyph, never failed, because a write may have applied.
+- **Tool detail:** `TraceDetail` uses the code surface at `text-xs`, with no wrap.
+  It scrolls inside its row and stops at the edges, so it never moves the
+  transcript.
+
 ### Navigation
 
 - **TabsList** uses `gap-group` between triggers so multiword labels read as
@@ -825,8 +842,9 @@ tooltip. A 6px `Dot` is for pure presence, never for job state.
 
 Multi-line code, log, and YAML content always renders in `font-code`, `text-sm`, on
 the inverted contrast surface (`bg-background-contrast-base`) in both themes, since
-code reads better on near-black even in light mode. Default to no-wrap with
-horizontal scroll (engineers reach for soft-wrap themselves), show line numbers in
+code reads better on near-black even in light mode. `TraceDetail` is the one
+exception at `text-xs`, because the chat panel is only 400px wide. Default to
+no-wrap with horizontal scroll (engineers reach for soft-wrap themselves), show line numbers in
 `text-foreground-neutral-muted`, and surface validation errors as a `Callout` above
 the block with file and line, never color alone. New log lines append silently:
 appending 50 lines a second with an entrance animation is nausea.

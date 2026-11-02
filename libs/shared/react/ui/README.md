@@ -4,7 +4,7 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 
 ## What it does
 
-- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FileTree, FormField, Icon, Input, Inspector (`Inspector`, `InspectorHeader`, `InspectorTabs`, `InspectorSection`, `PropertyList`, and related parts), Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
+- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FileTree, FormField, Icon, Input, Inspector (`Inspector`, `InspectorHeader`, `InspectorTabs`, `InspectorSection`, `PropertyList`, and related parts), Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, PromptInput, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Suggestion, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, Trace, and Typography.
 - **Theme helpers**: `ThemeProvider`, `useTheme()`, and `useResolvedTheme()`.
 - **Hooks**: `useCopyToClipboard`, `useIsTextTruncated`, `useShikiHighlight`, `useShikiStyleInjection`, plus the theme hooks above.
 - **Utilities**: `cn()` for class name merging, `copyTextToClipboard`, `formatBytes`, `formatDate`/`formatTimestamp`, `formatDuration`/`humanDuration`, `formatRelative`, `debounce`, and avatar helpers (`getInitial`, `getPlaceholderImageUrl`).
@@ -110,6 +110,86 @@ export function ProjectList() {
 keep panels flat. Rows use a neutral hover surface, and status stays in glyphs or
 pills. Use `PanelHeader` with `variant="plain"` for a titled block on a focused
 surface.
+
+### Chat
+
+`prompt-input`, `trace`, and `suggestion` are presentational. The feature maps
+its own items onto them and owns sending, stopping, and drafts.
+
+```tsx
+import {
+  PromptInput,
+  PromptInputContextChip,
+  PromptInputField,
+  PromptInputFooter,
+  PromptInputStop,
+  PromptInputSubmit,
+  PromptInputTextarea,
+} from '@shipfox/react-ui/prompt-input';
+
+export function Composer({draft, setDraft, send, stop, replying, stopping}: ComposerProps) {
+  return (
+    <PromptInput value={draft} onValueChange={setDraft} onSubmit={send}>
+      <PromptInputContextChip>Viewing run #214</PromptInputContextChip>
+      <PromptInputField>
+        <PromptInputTextarea aria-label="Message" placeholder="Ask about this project's runs" />
+        <PromptInputFooter>
+          <PromptInputSubmit
+            stop={replying ? <PromptInputStop stopping={stopping} onClick={stop} /> : undefined}
+          />
+        </PromptInputFooter>
+      </PromptInputField>
+    </PromptInput>
+  );
+}
+```
+
+| Behavior | Owner |
+| --- | --- |
+| `Enter` sends, and `Shift+Enter` adds a line. With a touch keyboard, Return adds a line and Send sends. | `PromptInputTextarea` |
+| Blank text can't be sent, and a held `Enter` sends once. | `PromptInput` |
+| `submitDisabled` blocks `Enter` and Send but keeps the draft editable. | The feature sets it, and `PromptInput` enforces it. |
+| Clearing `value` after a send, and keeping it after a refused one. Return a promise from `onSubmit` to ignore further sends until it settles. | The feature |
+| `Stop reply` replaces Send while the composer is empty. With a draft, both show, so a message can queue and a reply can still stop. | `PromptInputSubmit` |
+| Focus returns to the textarea after a send, a stop, or the end of a reply. If `disabled` takes focus away, it returns when the composer is enabled. | `PromptInput`, `PromptInputStop` |
+| `Esc`, through `onKeyDown` on `PromptInputTextarea`. | The feature |
+
+A `trace` row has a `running`, `succeeded`, `failed`, or `unknown` status. A tool
+call with no result is `unknown`, never `failed`, because a write may have applied.
+Use `TraceLine` alone for a row with nothing to expand. Otherwise, put it in
+`TraceCollapsibleTrigger`, and hold the output in `TraceDetail`, which scrolls
+inside its row.
+
+```tsx
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceDescription,
+  TraceDetail,
+  TraceLine,
+  TraceTitle,
+} from '@shipfox/react-ui/trace';
+
+export function ToolRow({output}: {output: string}) {
+  return (
+    <Trace>
+      <TraceCollapsible>
+        <TraceCollapsibleTrigger>
+          <TraceLine status="succeeded">
+            <TraceTitle>Read logs of</TraceTitle>
+            <TraceDescription>Run tests</TraceDescription>
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent>
+          <TraceDetail>{output}</TraceDetail>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
+  );
+}
+```
 
 ### Tables
 
@@ -462,4 +542,5 @@ turbo test --filter=@shipfox/react-ui
 
 ## License
 
-MIT
+MIT. Adapted third-party code is listed in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
