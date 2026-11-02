@@ -35,15 +35,20 @@ const projects = {
 } as Pick<ProjectsModuleClient, 'getProjectById' | 'resolveCheckoutTarget'>;
 
 const resolveConnection = vi.fn();
+const resolveSourceControlConnection = vi.fn();
 const createCheckoutSpec = vi.fn();
 const createCheckoutCredentials = vi.fn();
 const integrations = {
   resolveConnection,
+  resolveSourceControlConnection,
   createCheckoutSpec,
   createCheckoutCredentials,
 } as Pick<
   IntegrationsModuleClient,
-  'createCheckoutSpec' | 'createCheckoutCredentials' | 'resolveConnection'
+  | 'createCheckoutSpec'
+  | 'createCheckoutCredentials'
+  | 'resolveConnection'
+  | 'resolveSourceControlConnection'
 >;
 
 describe('renewStepCheckoutCredentials', () => {
@@ -89,6 +94,7 @@ describe('createStepCheckoutSpec', () => {
     getProjectById.mockReset();
     resolveCheckoutTarget.mockReset();
     resolveConnection.mockReset();
+    resolveSourceControlConnection.mockReset();
     createCheckoutSpec.mockReset();
     createCheckoutCredentials.mockReset();
   });
@@ -885,6 +891,98 @@ describe('createStepCheckoutSpec', () => {
       `Checkout intent unresolved: project ${targetProjectId} not found`,
     );
     expect(createCheckoutSpec).not.toHaveBeenCalled();
+  });
+
+  describe('on a managed project', () => {
+    const managedProject = () =>
+      projectFactory.build({
+        sourceExternalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
+        sourceRepositoryOwner: 'shipfox',
+        sourceRepositoryName: 'config',
+      });
+
+    function checkoutManaged(project: ReturnType<typeof managedProject>, step: Step) {
+      return createStepCheckoutSpec({
+        run: syncedRun,
+        step,
+        workspaceId: project.workspaceId,
+        projectId: project.id,
+        integrations: integrations as IntegrationsModuleClient,
+        projects: projects as ProjectsModuleClient,
+      });
+    }
+
+    it("checks out a repository on the workspace's only source-control connection", async () => {
+      const project = managedProject();
+      const connectionId = crypto.randomUUID();
+      getProjectById.mockResolvedValue({project});
+      resolveSourceControlConnection.mockResolvedValue({
+        id: connectionId,
+        provider: 'github',
+        slug: 'github',
+      });
+      createCheckoutSpec.mockResolvedValue({
+        repositoryUrl: 'https://github.com/acme/app.git',
+        ref: 'main',
+      });
+
+      await checkoutManaged(project, checkoutStep({repository: 'acme/app'}));
+
+      expect(resolveSourceControlConnection).toHaveBeenCalledWith({
+        workspaceId: project.workspaceId,
+      });
+      expect(createCheckoutSpec).toHaveBeenCalledWith({
+        workspaceId: project.workspaceId,
+        connectionId,
+        target: {kind: 'name', owner: 'acme', name: 'app'},
+        permissions: {contents: 'read'},
+      });
+    });
+
+    it('asks for a connection when the workspace has none or several', async () => {
+      const project = managedProject();
+      getProjectById.mockResolvedValue({project});
+      resolveSourceControlConnection.mockResolvedValue(null);
+
+      const act = checkoutManaged(project, checkoutStep({repository: 'acme/app'}));
+
+      await expect(act).rejects.toMatchObject({
+        name: 'CheckoutConfigInvalidError',
+        detail: expect.stringContaining('needs a `connection`'),
+      });
+      expect(createCheckoutSpec).not.toHaveBeenCalled();
+    });
+
+    it('prefers a named connection over the default', async () => {
+      const project = managedProject();
+      const connectionId = crypto.randomUUID();
+      getProjectById.mockResolvedValue({project});
+      resolveConnection.mockResolvedValue({id: connectionId, provider: 'github', slug: 'gh'});
+      createCheckoutSpec.mockResolvedValue({
+        repositoryUrl: 'https://github.com/acme/app.git',
+        ref: 'main',
+      });
+
+      await checkoutManaged(project, checkoutStep({connection: 'gh', repository: 'acme/app'}));
+
+      expect(resolveSourceControlConnection).not.toHaveBeenCalled();
+      expect(createCheckoutSpec).toHaveBeenCalledWith(
+        expect.objectContaining({connectionId, target: {kind: 'name', owner: 'acme', name: 'app'}}),
+      );
+    });
+
+    it('refuses a bare repository name, because there is no source owner to default to', async () => {
+      const project = managedProject();
+      getProjectById.mockResolvedValue({project});
+
+      const act = checkoutManaged(project, checkoutStep({repository: 'app'}));
+
+      await expect(act).rejects.toMatchObject({
+        name: 'CheckoutConfigInvalidError',
+        detail: expect.stringContaining('owner/name'),
+      });
+      expect(resolveSourceControlConnection).not.toHaveBeenCalled();
+    });
   });
 
   it('identifies a missing explicit connection in the unresolved error', async () => {

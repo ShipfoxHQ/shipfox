@@ -190,6 +190,7 @@ describe('defaultModules', () => {
             readConfigFile: vi.fn(),
             resolveConnection: vi.fn(),
             resolveConnectionById: vi.fn(),
+            resolveSourceControlConnection: vi.fn(),
             resolveSourceRef: vi.fn(),
             resolveSourceRepository: vi.fn(),
             resolveTriggerReference: vi.fn(),

@@ -12,7 +12,10 @@ import type {AgentToolCatalogEntry, AgentToolMaterializationContext} from '#core
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
-import {materializeJobExecutionSteps as materializeJobExecutionStepsImpl} from './materialize-job-execution-steps.js';
+import {
+  jobChecksOutProjectSource,
+  materializeJobExecutionSteps as materializeJobExecutionStepsImpl,
+} from './materialize-job-execution-steps.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 function materializeJobExecutionSteps(
@@ -546,6 +549,57 @@ describe('materializeJobExecutionSteps', () => {
       type: 'checkout',
       config: {checkout: {repository: 'acme/api', path: path ?? '.'}},
     });
+  });
+
+  it('gives a managed project no default checkout', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{checkout: {...checkout('acme/api'), path: 'api'}}, {run: 'make'}],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({
+      model,
+      job,
+      context: jobExecutionContext(),
+      managedSource: true,
+    });
+
+    expect(steps[0]).toMatchObject({type: 'setup', config: {}});
+    expect(steps[1]).toMatchObject({
+      type: 'checkout',
+      config: {checkout: {repository: 'acme/api', path: 'api'}},
+    });
+  });
+
+  it('counts only a checkout that names the project on a managed project', () => {
+    const projectId = crypto.randomUUID();
+    const withSteps = (step: Record<string, unknown>) => {
+      const model = workflowModel({jobs: {build: {steps: [{checkout: step as never}]}}});
+      const job = model.jobs[0];
+      if (!job) throw new Error('Expected workflow job');
+      return job;
+    };
+
+    expect(jobChecksOutProjectSource({job: withSteps(checkout('acme/api')), projectId})).toBe(true);
+    expect(
+      jobChecksOutProjectSource({
+        job: withSteps({...checkout('acme/api'), path: 'api'}),
+        projectId,
+        managedSource: true,
+      }),
+    ).toBe(false);
+    expect(
+      jobChecksOutProjectSource({
+        job: withSteps({...checkout('acme/api'), project: projectId, path: 'api'}),
+        projectId,
+        managedSource: true,
+      }),
+    ).toBe(true);
   });
 
   it('keeps the project checkout when the leading checkout has its own path', async () => {

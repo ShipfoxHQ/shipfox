@@ -634,7 +634,11 @@ export interface CheckoutFailureTarget {
 }
 
 export class CheckoutConfigInvalidError extends Error {
-  constructor(readonly stepId: string) {
+  /** @param detail What to fix, when the generic message is not enough. */
+  constructor(
+    readonly stepId: string,
+    readonly detail?: string | undefined,
+  ) {
     super(`Checkout config is invalid for step ${stepId}`);
     this.name = 'CheckoutConfigInvalidError';
   }

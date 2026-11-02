@@ -1373,7 +1373,7 @@ const CHECKOUT_CAUSE_GUIDANCE_BY_CODE: Readonly<Record<string, ToolFailureGuidan
   'integration-checkout-unsupported': {
     title: 'This repository cannot be checked out',
     description:
-      'The config repository that Shipfox hosts has no checkout. Name a repository and a connection in checkout, or set checkout: false. Then start a new run.',
+      'The config repository that Shipfox hosts has no checkout. Name a repository in checkout, written as owner/name, or set checkout: false. Then start a new run.',
   },
   'checkout-unavailable': {
     title: 'The checkout connection or project does not exist',

@@ -448,6 +448,11 @@ function materializedRerunStep(params: {
       ...(resolvedAgentDefaultsFromSourceStep(params.step) ?? {}),
       ...params.rematerialized.config,
     };
+    // The source run decided whether the job has a default checkout, which a managed project
+    // never has. The rerun has no project to ask, so it keeps that decision.
+    if (params.step.type === 'setup' && params.step.config.checkout === undefined) {
+      delete config.checkout;
+    }
   }
 
   return {

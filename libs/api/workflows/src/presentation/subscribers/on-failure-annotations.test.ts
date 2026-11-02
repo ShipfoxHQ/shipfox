@@ -766,7 +766,7 @@ describe('failure annotations', () => {
       code: 'integration-checkout-unsupported',
       reason: 'checkout_failed',
       title: 'This repository cannot be checked out',
-      fix: 'The config repository that Shipfox hosts has no checkout. Name a repository and a connection in `checkout`, or set `checkout: false`. Then start a new run.',
+      fix: 'The config repository that Shipfox hosts has no checkout. Name a repository in `checkout`, written as owner/name, or set `checkout: false`. Then start a new run.',
     },
     {
       code: 'checkout-unavailable',

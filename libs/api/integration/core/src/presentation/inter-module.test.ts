@@ -635,6 +635,104 @@ describe('integrations inter-module presentation', () => {
     ]);
   });
 
+  describe('with a managed project', () => {
+    const sourceControlAdapter = {
+      listRepositories: vi.fn(),
+      resolveRepository: vi.fn(),
+      listFiles: vi.fn(),
+      fetchFile: vi.fn(),
+      resolveTriggerReference: () => null,
+      resolveRef: vi.fn(),
+    };
+
+    function createManagedClient() {
+      const registry = createIntegrationProviderRegistry([
+        {
+          provider: 'github',
+          displayName: 'GitHub',
+          adapters: {source_control: sourceControlAdapter},
+        },
+        {provider: 'gitea', displayName: 'Gitea', adapters: {source_control: sourceControlAdapter}},
+        {
+          provider: 'managed-vcs',
+          displayName: 'Shipfox',
+          internal: true,
+          adapters: {source_control: sourceControlAdapter},
+        },
+      ]);
+      const sourceControl = createSourceControlIntegrationService({
+        registry,
+        getIntegrationConnectionById: async () => undefined,
+      });
+      const transport = createInMemoryInterModuleTransport();
+      const client = transport.createClient(integrationsInterModuleContract);
+      transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
+      transport.seal();
+      return client;
+    }
+
+    async function createManagedWorkspace() {
+      const managedWorkspaceId = crypto.randomUUID();
+      const hidden = await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'managed-vcs',
+        externalAccountId: managedWorkspaceId,
+        slug: 'shipfox-managed',
+      });
+      return {workspaceId: managedWorkspaceId, hidden};
+    }
+
+    it("defaults to the workspace's only source-control connection", async () => {
+      const client = createManagedClient();
+      const {workspaceId: managedWorkspaceId, hidden} = await createManagedWorkspace();
+      const github = await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'acme',
+        slug: 'github',
+      });
+
+      await expect(
+        client.resolveSourceControlConnection({workspaceId: managedWorkspaceId}),
+      ).resolves.toEqual({id: github.id, provider: 'github', slug: 'github'});
+      const context = await client.getAgentToolsContext({
+        workspaceId: managedWorkspaceId,
+        defaultConnectionId: hidden.id,
+      });
+      expect(context.defaultConnection).toEqual({
+        id: github.id,
+        slug: 'github',
+        provider: 'github',
+      });
+    });
+
+    it('has no default when the workspace has several source-control connections', async () => {
+      const client = createManagedClient();
+      const {workspaceId: managedWorkspaceId, hidden} = await createManagedWorkspace();
+      await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'acme',
+        slug: 'github',
+      });
+      await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'gitea',
+        externalAccountId: 'acme',
+        slug: 'gitea',
+      });
+
+      await expect(
+        client.resolveSourceControlConnection({workspaceId: managedWorkspaceId}),
+      ).resolves.toBeNull();
+      const context = await client.getAgentToolsContext({
+        workspaceId: managedWorkspaceId,
+        defaultConnectionId: hidden.id,
+      });
+      expect(context.defaultConnection).toBeNull();
+    });
+  });
+
   it('lists workspace connections and returns a workspace-scoped provider catalog', async () => {
     const otherWorkspaceId = crypto.randomUUID();
     const catalog = [

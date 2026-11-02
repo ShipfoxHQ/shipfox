@@ -2179,7 +2179,14 @@ describe('Workflows inter-module presentation', () => {
       agent: {} as never,
       definitions: {} as never,
       integrations: {} as never,
-      projects: {} as never,
+      projects: {
+        getProjectById: vi.fn().mockResolvedValue({
+          project: {
+            sourceConnectionId: crypto.randomUUID(),
+            sourceExternalRepositoryId: 'acme/api',
+          },
+        }),
+      } as never,
       runners: {} as never,
       secrets: {} as never,
       workspaces: {
@@ -2319,9 +2326,13 @@ describe('Workflows inter-module presentation', () => {
             .mockResolvedValue({id: connectionId, lifecycleStatus: params.lifecycleStatus}),
         } as never,
         projects: {
-          getProjectById: vi
-            .fn()
-            .mockResolvedValue({project: {id: input.projectId, sourceConnectionId: connectionId}}),
+          getProjectById: vi.fn().mockResolvedValue({
+            project: {
+              id: input.projectId,
+              sourceConnectionId: connectionId,
+              sourceExternalRepositoryId: 'acme/api',
+            },
+          }),
         } as never,
         runners: {} as never,
         secrets: {} as never,

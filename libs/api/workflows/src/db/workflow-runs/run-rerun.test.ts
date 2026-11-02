@@ -1071,7 +1071,7 @@ describe('workflow run queries', () => {
       const integrations = {getAgentToolsContext} as unknown as IntegrationsModuleClient;
       const projects = {
         getProjectById: vi.fn().mockResolvedValue({
-          project: {sourceConnectionId: 'connection-1'},
+          project: {sourceConnectionId: 'connection-1', sourceExternalRepositoryId: 'acme/api'},
         }),
       } as unknown as ProjectsModuleClient;
       const source = await createWorkflowRun({
@@ -1181,7 +1181,10 @@ describe('workflow run queries', () => {
       const integrations = {getAgentToolsContext} as unknown as IntegrationsModuleClient;
       const projects = {
         getProjectById: vi.fn().mockResolvedValue({
-          project: {sourceConnectionId: 'connection-slack'},
+          project: {
+            sourceConnectionId: 'connection-slack',
+            sourceExternalRepositoryId: 'acme/api',
+          },
         }),
       } as unknown as ProjectsModuleClient;
       const source = await createWorkflowRun({

@@ -178,6 +178,7 @@ describe('repository access mutation routes', () => {
       slug: `gitea_${crypto.randomUUID()}`,
       displayName: 'Gitea',
       capabilities: ['source_control'],
+      repositoryAccessMode: 'selected',
     });
   }
 

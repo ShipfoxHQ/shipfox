@@ -290,9 +290,11 @@ function mapCheckoutTokenCause(error: unknown, target: CheckoutFailureTarget): u
     );
   }
   if (error instanceof CheckoutConfigInvalidError) {
-    return new ClientError('Checkout configuration is invalid', 'checkout-config-invalid', {
-      status: 409,
-    });
+    return new ClientError(
+      error.detail ?? 'Checkout configuration is invalid',
+      'checkout-config-invalid',
+      {status: 409},
+    );
   }
   if (
     isInterModuleKnownError(projectsInterModuleContract.methods.resolveCheckoutTarget, error) &&

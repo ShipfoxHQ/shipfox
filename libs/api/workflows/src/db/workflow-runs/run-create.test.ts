@@ -340,6 +340,9 @@ describe('workflow run queries', () => {
         }),
       } as never;
       const projects = {
+        getProjectById: vi.fn().mockResolvedValue({
+          project: {id: projectId, sourceExternalRepositoryId: 'acme/api'},
+        }),
         getProjectBySource: vi.fn().mockResolvedValue({project: {id: 'project-1'}}),
       } as never;
 
@@ -386,6 +389,9 @@ describe('workflow run queries', () => {
         resolveSourceRepository: vi.fn().mockRejectedValue(new Error('source unavailable')),
       } as never;
       const projects = {
+        getProjectById: vi.fn().mockResolvedValue({
+          project: {id: projectId, sourceExternalRepositoryId: 'acme/api'},
+        }),
         getProjectBySource: vi.fn().mockResolvedValue({project: {id: 'project-1'}}),
       } as never;
 

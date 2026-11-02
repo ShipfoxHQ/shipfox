@@ -280,6 +280,7 @@ describe('GET /integration-connections/:connectionId/repository-access', () => {
       slug: `gitea_${crypto.randomUUID()}`,
       displayName: 'Gitea',
       capabilities: ['source_control'],
+      repositoryAccessMode: 'selected',
     });
   }
 });

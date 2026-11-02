@@ -30,6 +30,8 @@ export interface UpsertIntegrationConnectionParams {
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
   capabilities?: IntegrationCapability[] | undefined;
   actorUserId?: string | undefined;
+  /** The mode of a new connection. An existing connection keeps its mode. Defaults to `all`. */
+  repositoryAccessMode?: IntegrationConnectionRepositoryAccessMode | undefined;
   /**
    * Set for a connection of an internal provider. Nothing outside the provider should learn it
    * exists, so no `INTEGRATION_CONNECTION_AVAILABLE` event is written.
@@ -57,6 +59,8 @@ export async function upsertIntegrationConnection(
       slug: params.slug,
       displayName: params.displayName,
       lifecycleStatus: params.lifecycleStatus ?? 'active',
+      // The repositories picked at install are the boundary, so a new connection starts open.
+      repositoryAccessMode: params.repositoryAccessMode ?? 'all',
     })
     .onConflictDoNothing({
       target: [

@@ -16,6 +16,7 @@ import {
   type CheckoutFailureTarget,
   CheckoutIntentUnresolvedError,
 } from './errors.js';
+import {isManagedProject} from './managed-source.js';
 
 const checkoutConfigSchema = z
   .object({
@@ -108,12 +109,22 @@ export async function createStepCheckoutSpec({
     throw new CheckoutIntentUnresolvedError({kind: 'project', value: projectId});
   }
 
+  const managedSource = isManagedProject(defaultProject);
+  if (managedSource && checkout.repository !== undefined && !checkout.repository.includes('/')) {
+    // A managed project has no source owner to default to.
+    throw new CheckoutConfigInvalidError(
+      step.id,
+      'Checkout on a managed project needs a repository written as owner/name',
+    );
+  }
   const target = await checkoutTarget({
     checkout,
     defaultProjectId: projectId,
     defaultConnectionId: defaultProject.sourceConnectionId,
+    managedSource,
     integrations,
     workspaceId,
+    stepId: step.id,
   });
   const resolvedTarget =
     'project' in target
@@ -320,26 +331,49 @@ async function checkoutTarget(params: {
   checkout: CheckoutConfig;
   defaultProjectId: string;
   defaultConnectionId: string;
+  managedSource: boolean;
   integrations: IntegrationsModuleClient;
   workspaceId: string;
+  stepId: string;
 }): Promise<CheckoutTargetSelection> {
   const {checkout} = params;
   if (checkout.project !== undefined) return {project: checkout.project};
   if (checkout.repository !== undefined) {
-    const connection =
-      checkout.connection === undefined
-        ? undefined
-        : await resolveConnectionId({
-            integrations: params.integrations,
-            workspaceId: params.workspaceId,
-            defaultConnectionId: params.defaultConnectionId,
-            slug: checkout.connection,
-          });
+    let connection: string | undefined;
+    if (checkout.connection !== undefined) {
+      connection = await resolveConnectionId({
+        integrations: params.integrations,
+        workspaceId: params.workspaceId,
+        defaultConnectionId: params.defaultConnectionId,
+        slug: checkout.connection,
+      });
+    } else if (params.managedSource) {
+      connection = await resolveSoleConnectionId(params);
+    }
     return connection === undefined
       ? {repository: checkout.repository}
       : {connection, repository: checkout.repository};
   }
   return {project: params.defaultProjectId};
+}
+
+// A managed project has no source connection to default to, so a repository without a connection
+// uses the only one the workspace has.
+async function resolveSoleConnectionId(params: {
+  integrations: IntegrationsModuleClient;
+  workspaceId: string;
+  stepId: string;
+}): Promise<string> {
+  const connection = await params.integrations.resolveSourceControlConnection({
+    workspaceId: params.workspaceId,
+  });
+  if (connection === null) {
+    throw new CheckoutConfigInvalidError(
+      params.stepId,
+      'Checkout on a managed project needs a `connection` when the workspace has none or several source-control connections',
+    );
+  }
+  return connection.id;
 }
 
 function repositoryTarget(

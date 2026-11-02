@@ -517,7 +517,7 @@ describe('integration connection queries', () => {
     expect(result).toBeUndefined();
   });
 
-  it('persists the repository access mode across reconnects', async () => {
+  it('opens a new connection to every repository and keeps the mode a reconnect finds', async () => {
     const connection = await upsertIntegrationConnection({
       workspaceId,
       provider: 'github',
@@ -527,14 +527,14 @@ describe('integration connection queries', () => {
       capabilities: ['source_control', 'agent_tools'],
     });
 
-    expect(connection.repositoryAccessMode).toBe('selected');
+    expect(connection.repositoryAccessMode).toBe('all');
 
-    const updated = await updateIntegrationConnectionRepositoryAccessMode({
+    const narrowed = await updateIntegrationConnectionRepositoryAccessMode({
       id: connection.id,
-      repositoryAccessMode: 'all',
+      repositoryAccessMode: 'selected',
     });
 
-    expect(updated?.repositoryAccessMode).toBe('all');
+    expect(narrowed?.repositoryAccessMode).toBe('selected');
 
     const reconnected = await upsertIntegrationConnection({
       workspaceId,
@@ -546,8 +546,23 @@ describe('integration connection queries', () => {
     });
 
     expect(reconnected.id).toBe(connection.id);
-    expect(reconnected.repositoryAccessMode).toBe('all');
-    expect((await getIntegrationConnectionById(connection.id))?.repositoryAccessMode).toBe('all');
+    expect(reconnected.repositoryAccessMode).toBe('selected');
+    expect((await getIntegrationConnectionById(connection.id))?.repositoryAccessMode).toBe(
+      'selected',
+    );
+  });
+
+  it('creates a connection with the mode the caller asks for', async () => {
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'github-selected',
+      slug: 'github_selected',
+      displayName: 'GitHub',
+      repositoryAccessMode: 'selected',
+    });
+
+    expect(connection.repositoryAccessMode).toBe('selected');
   });
 
   it('deletes a connection and reports whether a row was removed', async () => {
