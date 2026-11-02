@@ -165,7 +165,7 @@ export function normalizeIntegrationAgentToolCallErrorCode(
     : 'unknown';
 }
 
-export type IntegrationConfigLinkOutcome = 'completed' | 'failed';
+export type IntegrationConfigLinkOutcome = 'completed' | 'failed' | 'unconfirmed';
 
 const configLinkCount = meter.createCounter<{outcome: IntegrationConfigLinkOutcome}>(
   'integrations_config_link',

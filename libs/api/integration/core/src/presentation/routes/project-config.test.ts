@@ -471,7 +471,14 @@ describe('project config link routes', () => {
       external_repository_id: host.externalRepositoryId,
       ...overrides,
     });
-    return {app, projectId, host, body, rows: fakeProjects.rows};
+    return {
+      app,
+      projectId,
+      host,
+      body,
+      rows: fakeProjects.rows,
+      managedExternalRepositoryId: repository.externalRepositoryId,
+    };
   }
 
   it('checks a repository without moving anything on a dry run', async () => {
@@ -555,7 +562,7 @@ describe('project config link routes', () => {
   });
 
   it('answers a provider refusal and leaves the project unchanged', async () => {
-    const {app, projectId, host, body, rows} = await setup();
+    const {app, projectId, host, body, rows, managedExternalRepositoryId} = await setup();
     host.failBeforeOpen = new IntegrationProviderError('access-denied', 'No permission');
 
     const res = await app.inject({
@@ -567,7 +574,7 @@ describe('project config link routes', () => {
 
     expect(res.statusCode).toBe(422);
     expect(res.json().code).toBe('access-denied');
-    expect(rows.get(projectId)?.externalRepositoryId).toContain('managed-vcs:');
+    expect(rows.get(projectId)?.externalRepositoryId).toBe(managedExternalRepositoryId);
   });
 
   it('refuses an impersonated session', async () => {
@@ -602,5 +609,11 @@ describe('project config link routes', () => {
     expect(whileOpen.json().code).toBe('pull-request-not-closed');
     expect(afterClose.statusCode).toBe(200);
     expect(afterClose.json().pull_request).toMatchObject({number: 2, state: 'open'});
+    const impersonated = await app.inject({
+      method: 'POST',
+      url,
+      headers: {authorization: 'Bearer impersonated'},
+    });
+    expect(impersonated.statusCode).toBe(403);
   });
 });

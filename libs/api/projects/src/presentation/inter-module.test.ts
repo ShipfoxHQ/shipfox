@@ -1,6 +1,7 @@
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/index.js';
 import {projects} from '#db/schema/projects.js';
 import {createProjectsInterModulePresentation} from './inter-module.js';
@@ -425,9 +426,18 @@ describe('Projects moveProjectSource inter-module presentation', () => {
     const client = createClient();
     const project = await insert('managed');
 
-    const result = await client.moveProjectSource(input(project));
+    const moveInput = input(project);
+    const result = await client.moveProjectSource(moveInput);
 
     expect(result).toEqual({moved: true});
+    const [row] = await db().select().from(projects).where(eq(projects.id, project.projectId));
+    expect(row).toMatchObject({
+      sourceConnectionId: moveInput.to.connectionId,
+      sourceExternalRepositoryId: moveInput.to.externalRepositoryId,
+      sourceRepositoryOwner: 'acme',
+      sourceRepositoryName: 'app',
+      sourceDefaultBranch: 'main',
+    });
   });
 
   test('reports an unknown project', async () => {

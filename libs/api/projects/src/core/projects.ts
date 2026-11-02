@@ -261,7 +261,7 @@ export interface MoveProjectSourceParams {
 /**
  * Moves the config source of a project from `from` to `to`, and announces it as a source bind. A
  * repeat call that finds `to` already set changes nothing and succeeds, so a retried move can't
- * bind twice. A project that already owns `to` makes this throw `ProjectAlreadyExistsError`.
+ * bind twice. Another project that already owns `to` makes this throw `ProjectAlreadyExistsError`.
  */
 export async function moveProjectSource(
   params: MoveProjectSourceParams,

@@ -176,6 +176,7 @@ export function createProjectConfigRoutes(params: CreateProjectConfigRoutesParam
     errorHandler: integrationRouteErrorHandler,
     handler: async (request) => {
       const project = await loadProject(request, request.params.projectId);
+      requireActorId(request);
       return {pull_request: await configLink.openNewPullRequest(project)};
     },
   });

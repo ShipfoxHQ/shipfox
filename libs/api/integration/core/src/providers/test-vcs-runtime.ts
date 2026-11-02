@@ -203,11 +203,13 @@ function createTestVcsRoutes(options: {
         },
         handler: async (request) => {
           const connection = await requireTestVcsConnection(request.body.connection_id);
-          return await options.sourceControl.mergePullRequest({
-            connection,
-            externalRepositoryId: request.body.external_repository_id,
-            number: request.body.number,
-          });
+          return await pullRequestAction(() =>
+            options.sourceControl.mergePullRequest({
+              connection,
+              externalRepositoryId: request.body.external_repository_id,
+              number: request.body.number,
+            }),
+          );
         },
       }),
       defineRoute({
@@ -220,11 +222,15 @@ function createTestVcsRoutes(options: {
         },
         handler: async (request) => {
           const connection = await requireTestVcsConnection(request.body.connection_id);
-          return options.sourceControl.closePullRequest({
-            connection,
-            externalRepositoryId: request.body.external_repository_id,
-            number: request.body.number,
-          });
+          return await pullRequestAction(() =>
+            Promise.resolve(
+              options.sourceControl.closePullRequest({
+                connection,
+                externalRepositoryId: request.body.external_repository_id,
+                number: request.body.number,
+              }),
+            ),
+          );
         },
       }),
       defineRoute({
@@ -300,6 +306,20 @@ async function connectTestVcsConnection(input: {
       );
     }),
   )) as TestVcsConnection;
+}
+
+/** Turns the fixture's plain errors (unknown number, wrong state) into readable E2E failures. */
+async function pullRequestAction<T>(action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    if (error instanceof ClientError) throw error;
+    throw new ClientError(
+      error instanceof Error ? error.message : 'Test VCS pull request action failed',
+      'test-vcs-pull-request-invalid',
+      {status: 409},
+    );
+  }
 }
 
 async function requireTestVcsConnection(connectionId: string): Promise<TestVcsConnection> {

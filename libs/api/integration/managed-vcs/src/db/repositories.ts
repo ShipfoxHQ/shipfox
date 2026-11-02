@@ -25,7 +25,7 @@ export interface ManagedRepository {
   projectId: string;
   status: ManagedRepositoryStatus;
   link: ManagedRepositoryLink | null;
-  /** Set once the move's pull request opens. Cleared once it reads as merged. */
+  /** Set once the move's pull request opens. Cleared once it reads as merged, or on release. */
   pullRequest: {url: string; number: number} | null;
   createdAt: Date;
   updatedAt: Date;

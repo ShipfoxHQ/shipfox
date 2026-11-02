@@ -47,7 +47,7 @@ function isProviderError(error: unknown): error is IntegrationProviderError {
 export function integrationRouteErrorHandler(error: unknown): never {
   if (error instanceof ConfigLinkRefusedError) {
     throw new ClientError(error.message, error.code, {
-      status: error.code === 'link-unsupported' ? 422 : 409,
+      status: error.code === 'link-unsupported' || error.code === 'connection-inactive' ? 422 : 409,
     });
   }
   if (error instanceof ConfigLinkUnconfirmedError) {

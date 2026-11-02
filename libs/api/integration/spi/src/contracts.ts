@@ -261,7 +261,7 @@ export interface SourceControlProvider<
   /** Lists the commits that changed one path, newest first. */
   listCommits?(input: ListCommitsInput<Connection>): Promise<CommitPage>;
   /**
-   * Opens a pull request that adds `files` from `branch`, signed by the provider's bot. Idempotent
+   * Opens a pull request from `branch` that adds `files` on top of the default branch. Idempotent
    * on `branch`: it looks for a pull request from that branch in any state first, so a retry after
    * a lost response gets the same pull request back.
    */

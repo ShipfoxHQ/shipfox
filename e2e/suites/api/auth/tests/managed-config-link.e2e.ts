@@ -244,5 +244,7 @@ test("lets two projects race for one repository without adopting each other's pu
   const winnerId = loserId === first ? second : first;
   expect((await readConfig({request, headers, projectId: loserId})).source.kind).toBe('managed');
   expect((await readConfig({request, headers, projectId: loserId})).pull_request).toBeNull();
-  expect((await readConfig({request, headers, projectId: winnerId})).source.kind).toBe('linked');
+  const winner = await readConfig({request, headers, projectId: winnerId});
+  expect(winner.source.kind).toBe('linked');
+  expect(winner.pull_request).not.toBeNull();
 });

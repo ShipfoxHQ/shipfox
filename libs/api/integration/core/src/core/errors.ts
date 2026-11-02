@@ -128,7 +128,10 @@ export type ConfigLinkRefusalCode =
   | 'no-pull-request'
   | 'pull-request-not-closed';
 
-/** A definite answer to a move request. Nothing changed, or the managed repository is free again. */
+/**
+ * A definite answer to a move request. Most codes leave the managed repository free again.
+ * `source-changed` does not: the move stays resumable.
+ */
 export class ConfigLinkRefusedError extends Error {
   constructor(
     public readonly code: ConfigLinkRefusalCode,

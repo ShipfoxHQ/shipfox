@@ -163,6 +163,7 @@ export class TestVcsSourceControlProvider implements SourceControlProvider<TestV
       branch: input.branch,
       files: input.files,
       title: input.title,
+      body: input.body,
     });
   }
 

@@ -1065,7 +1065,7 @@ describe('GithubSourceControlProvider', () => {
       );
     });
 
-    it('returns the existing pull request and mints a write token only to open one', async () => {
+    it('returns the existing pull request of the branch', async () => {
       await createInstallation();
       const github = githubClient();
       const tool = toolClient([pullRequest]);

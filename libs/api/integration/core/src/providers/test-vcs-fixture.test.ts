@@ -250,13 +250,18 @@ describe('Test VCS smart HTTP fixture', () => {
 describe('Test VCS pull requests', () => {
   async function started() {
     const fixture = createTestVcsFixture({port: 0});
-    await fixture.start();
-    await fixture.createRepository({
-      owner: 'acme',
-      name: 'app',
-      files: [{path: 'README.md', content: '# App\n'}],
-    });
-    return fixture;
+    try {
+      await fixture.start();
+      await fixture.createRepository({
+        owner: 'acme',
+        name: 'app',
+        files: [{path: 'README.md', content: '# App\n'}],
+      });
+      return fixture;
+    } catch (error) {
+      await fixture.close();
+      throw error;
+    }
   }
 
   const branch = 'shipfox/link-config-1';
@@ -295,7 +300,7 @@ describe('Test VCS pull requests', () => {
     }
   });
 
-  it('returns the same pull request for the same branch, in any state', async () => {
+  it('returns the same pull request for the same branch after it closed', async () => {
     const fixture = await started();
     try {
       const input = {owner: 'acme', name: 'app', branch, files, title: 'Add config'};
@@ -305,6 +310,34 @@ describe('Test VCS pull requests', () => {
       const again = await fixture.openPullRequest(input);
 
       expect(again).toEqual({...first, state: 'closed'});
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it('opens two pull requests at once without mixing their files', async () => {
+    const fixture = await started();
+    try {
+      const [first, second] = await Promise.all([
+        fixture.openPullRequest({owner: 'acme', name: 'app', branch: 'one', files, title: 'One'}),
+        fixture.openPullRequest({
+          owner: 'acme',
+          name: 'app',
+          branch: 'two',
+          files: [{path: '.shipfox/workflows/b.yml', content: 'name: B\n'}],
+          title: 'Two',
+        }),
+      ]);
+
+      expect([first.number, second.number].sort()).toEqual([1, 2]);
+      const two = await fixture.listFiles({
+        owner: 'acme',
+        name: 'app',
+        ref: 'two',
+        prefix: '.shipfox/',
+        limit: 10,
+      });
+      expect(two.files.map((file) => file.path)).toEqual(['.shipfox/workflows/b.yml']);
     } finally {
       await fixture.close();
     }

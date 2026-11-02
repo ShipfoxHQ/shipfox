@@ -312,44 +312,62 @@ export function createConfigLinkService({
   }): Promise<LinkConfigResult> {
     const {project, store, repository, link} = params;
     const target = await resolveTarget(project, link);
-    const moved = hasMoved(project, link);
 
     let pullRequest: ConfigPullRequest | null = null;
     let fileCount = 0;
-    if (!moved) {
-      const opened = await openPullRequest({
-        project,
-        managedConnectionId: project.connectionId,
-        managedRepositoryId: project.externalRepositoryId,
-        attemptId: link.attemptId,
-        connection: target.connection,
-        adapter: target.adapter,
-        externalRepositoryId: link.externalRepositoryId,
-      });
-      pullRequest = opened.pullRequest;
-      fileCount = opened.fileCount;
-      if (pullRequest?.state === 'closed') {
-        throw new ConfigLinkRefusedError(
-          'pull-request-closed',
-          `Pull request #${pullRequest.number} was closed without merging. Start the move again.`,
-        );
-      }
-      if (pullRequest) {
-        await store.recordManagedLinkPullRequest({
-          repositoryId: repository.id,
-          attemptId: link.attemptId,
-          url: pullRequest.url,
-          number: pullRequest.number,
-        });
-      }
-      await moveSource({project, link, target, actorId: link.startedBy ?? params.actorId});
+    if (!hasMoved(project, link)) {
+      ({pullRequest, fileCount} = await openAndMove({...params, target}));
     } else if (repository.pullRequest) {
       const state = await readPullRequestState(project, link);
       pullRequest = state === 'unknown' ? null : {...repository.pullRequest, state};
     }
 
-    await store.completeManagedLink({repositoryId: repository.id, attemptId: link.attemptId});
+    const completed = await store.completeManagedLink({
+      repositoryId: repository.id,
+      attemptId: link.attemptId,
+    });
+    if (!completed) throw new ConfigLinkUnconfirmedError();
     return {status: 'linked', repository: target.repository, fileCount, pullRequest};
+  }
+
+  /** Steps 3 and 4: open the pull request, store it, and move the source. */
+  async function openAndMove(params: {
+    project: ConfigProject;
+    store: ManagedStore;
+    repository: ManagedRepository;
+    link: NonNullable<ManagedRepository['link']>;
+    actorId: string;
+    target: Awaited<ReturnType<typeof resolveTarget>>;
+  }): Promise<{pullRequest: ConfigPullRequest | null; fileCount: number}> {
+    const {project, store, repository, link, target} = params;
+    const opened = await openPullRequest({
+      project,
+      managedConnectionId: project.connectionId,
+      managedRepositoryId: project.externalRepositoryId,
+      attemptId: link.attemptId,
+      connection: target.connection,
+      adapter: target.adapter,
+      externalRepositoryId: link.externalRepositoryId,
+    });
+    const {pullRequest} = opened;
+    if (pullRequest?.state === 'closed') {
+      throw new ConfigLinkRefusedError(
+        'pull-request-closed',
+        `Pull request #${pullRequest.number} was closed without merging. Start the move again.`,
+      );
+    }
+    if (pullRequest) {
+      const recorded = await store.recordManagedLinkPullRequest({
+        repositoryId: repository.id,
+        attemptId: link.attemptId,
+        url: pullRequest.url,
+        number: pullRequest.number,
+      });
+      // The attempt was released or finished by another request, so this one stops here.
+      if (!recorded) throw new ConfigLinkUnconfirmedError();
+    }
+    await moveSource({project, link, target, actorId: link.startedBy ?? params.actorId});
+    return opened;
   }
 
   async function moveSource(params: {
@@ -391,20 +409,31 @@ export function createConfigLinkService({
           "The project's config source changed during the move",
         );
       }
-      throw error;
+      // The move may have committed before the call failed.
+      throw new ConfigLinkUnconfirmedError({cause: error});
     }
   }
 
-  /** Releases the repository after a definite refusal. Any other failure keeps it read-only. */
+  /**
+   * Releases the repository after a definite refusal. Any other failure keeps it read-only. A
+   * resumed attempt may have opened a pull request already, so only an answer about that pull
+   * request (closed, or the target taken) releases it.
+   */
   async function releaseOnRefusal<T>(
-    params: {store: ManagedStore; repositoryId: string; attemptId: string; moved: boolean},
+    params: {
+      store: ManagedStore;
+      repositoryId: string;
+      attemptId: string;
+      moved: boolean;
+      resumed: boolean;
+    },
     run: () => Promise<T>,
   ): Promise<T> {
     try {
       return await run();
     } catch (error) {
       // After the source moved there is nothing to give back.
-      if (!params.moved && isDefiniteRefusal(error)) {
+      if (!params.moved && isDefiniteRefusal(error, params.resumed)) {
         await params.store.releaseManagedLink({
           repositoryId: params.repositoryId,
           attemptId: params.attemptId,
@@ -412,14 +441,10 @@ export function createConfigLinkService({
         recordIntegrationConfigLink('failed');
         throw error;
       }
-      if (error instanceof ConfigLinkRefusedError || error instanceof ConfigLinkUnconfirmedError) {
-        throw error;
-      }
-      recordIntegrationConfigLink('failed');
-      if (error instanceof IntegrationProviderError) {
-        throw new ConfigLinkUnconfirmedError({cause: error});
-      }
-      throw error;
+      if (error instanceof ConfigLinkRefusedError) throw error;
+      recordIntegrationConfigLink('unconfirmed');
+      if (error instanceof ConfigLinkUnconfirmedError) throw error;
+      throw new ConfigLinkUnconfirmedError({cause: error});
     }
   }
 
@@ -459,7 +484,13 @@ export function createConfigLinkService({
         if (input.dryRun) {
           throw new ConfigLinkRefusedError('move-in-progress', 'A move is already running');
         }
-        return await resume({project, store, repository, actorId: input.actorId});
+        return await resume({
+          project,
+          store,
+          repository,
+          actorId: input.actorId,
+          resumed: true,
+        });
       }
 
       const checked = await checkTarget(project, input);
@@ -493,6 +524,7 @@ export function createConfigLinkService({
         store,
         repository: begun.repository,
         actorId: input.actorId,
+        resumed: begun.kind === 'resumed',
       });
     },
 
@@ -560,6 +592,7 @@ export function createConfigLinkService({
     store: ManagedStore;
     repository: ManagedRepository;
     actorId: string;
+    resumed: boolean;
   }): Promise<LinkConfigResult> {
     const {link} = params.repository;
     if (!link) throw new Error('A move in progress has no stored target');
@@ -569,6 +602,7 @@ export function createConfigLinkService({
         repositoryId: params.repository.id,
         attemptId: link.attemptId,
         moved: hasMoved(params.project, link),
+        resumed: params.resumed,
       },
       async () => await runMove({...params, link}),
     );
@@ -648,10 +682,12 @@ function isEmptyRepositoryError(error: unknown): boolean {
 }
 
 /** Whether the provider or a check answered no, so nothing happened and a retry is not needed. */
-function isDefiniteRefusal(error: unknown): boolean {
+function isDefiniteRefusal(error: unknown, resumed: boolean): boolean {
   if (error instanceof ConfigLinkRefusedError) {
     return error.code === 'pull-request-closed' || error.code === 'source-already-bound';
   }
+  // A lookup that fails on a resumed attempt can't tell whether the earlier attempt opened a pull request.
+  if (resumed) return false;
   if (error instanceof IntegrationProviderError) return !UNKNOWN_OUTCOME_REASONS.has(error.reason);
   return (
     error instanceof IntegrationConnectionInactiveError ||

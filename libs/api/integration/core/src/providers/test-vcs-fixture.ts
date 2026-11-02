@@ -66,6 +66,7 @@ export interface TestVcsOpenPullRequestInput {
   branch: string;
   files: readonly TestVcsFileInput[];
   title: string;
+  body?: string | undefined;
 }
 
 export interface TestVcsCredentialInput {
@@ -183,6 +184,13 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
   const invalidatedGenerations = new Set<string>();
   const consumedInvalidationKeys = new Set<string>();
   const invalidations: CredentialInvalidation[] = [];
+  // The pull request methods share one working tree per repository, so they run one at a time.
+  let gitQueue: Promise<unknown> = Promise.resolve();
+  function serialized<T>(operation: () => Promise<T>): Promise<T> {
+    const result = gitQueue.then(operation, operation);
+    gitQueue = result.catch(() => undefined);
+    return result;
+  }
   const children = new Set<ChildProcess>();
   const childExitPromises = new Map<ChildProcess, Promise<number>>();
   let rootPath: string | undefined;
@@ -288,58 +296,65 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
       return await currentCommit(repository.seedPath);
     },
 
-    async openPullRequest(input) {
-      const existing = fixture.getPullRequest(input);
-      if (existing) return existing;
-      const repository = requireRepository(input.owner, input.name);
-      const seed = repository.seedPath;
-      const base = repository.snapshot.defaultBranch;
-      await assertBranchName(input.branch, requireRoot());
-      await git(['checkout', '-B', input.branch, base], seed);
-      try {
-        await writeFiles(seed, input.files);
-        await git(['add', '--all'], seed);
-        await git(['commit', '-m', input.title], seed);
-        await git(['push', 'origin', `HEAD:refs/heads/${input.branch}`], seed);
-      } finally {
-        await git(['checkout', base], seed);
-      }
-      const number =
-        [...pullRequests.values()].filter(
-          (record) => record.owner === input.owner && record.name === input.name,
-        ).length + 1;
-      const record: PullRequestRecord = {
-        owner: input.owner,
-        name: input.name,
-        branch: input.branch,
-        number,
-        url: `${repository.snapshot.htmlUrl}/pull/${number}`,
-        state: 'open',
-      };
-      pullRequests.set(pullRequestKey(input), record);
-      return toPullRequest(record);
-    },
+    openPullRequest: (input) =>
+      serialized(async () => {
+        const existing = fixture.getPullRequest(input);
+        if (existing) return existing;
+        const repository = requireRepository(input.owner, input.name);
+        const seed = repository.seedPath;
+        const base = repository.snapshot.defaultBranch;
+        await assertBranchName(input.branch, requireRoot());
+        await git(['checkout', '-B', input.branch, base], seed);
+        try {
+          await writeFiles(seed, input.files);
+          await git(['add', '--all'], seed);
+          await git(
+            input.body === undefined
+              ? ['commit', '-m', input.title]
+              : ['commit', '-m', input.title, '-m', input.body],
+            seed,
+          );
+          await git(['push', 'origin', `HEAD:refs/heads/${input.branch}`], seed);
+        } finally {
+          await git(['checkout', base], seed);
+        }
+        const number =
+          [...pullRequests.values()].filter(
+            (record) => record.owner === input.owner && record.name === input.name,
+          ).length + 1;
+        const record: PullRequestRecord = {
+          owner: input.owner,
+          name: input.name,
+          branch: input.branch,
+          number,
+          url: `${repository.snapshot.htmlUrl}/pull/${number}`,
+          state: 'open',
+        };
+        pullRequests.set(pullRequestKey(input), record);
+        return toPullRequest(record);
+      }),
 
     getPullRequest(input) {
       const record = pullRequests.get(pullRequestKey(input));
       return record ? toPullRequest(record) : null;
     },
 
-    async mergePullRequest(input) {
-      const record = requirePullRequest(input);
-      if (record.state === 'closed') throw new Error('Test VCS pull request is closed');
-      if (record.state === 'merged') return toPullRequest(record);
-      const repository = requireRepository(input.owner, input.name);
-      const seed = repository.seedPath;
-      await git(['checkout', repository.snapshot.defaultBranch], seed);
-      await git(
-        ['merge', '--no-ff', '-m', `Merge pull request #${record.number}`, record.branch],
-        seed,
-      );
-      await git(['push', 'origin', `HEAD:${repository.snapshot.defaultBranch}`], seed);
-      record.state = 'merged';
-      return toPullRequest(record);
-    },
+    mergePullRequest: (input) =>
+      serialized(async () => {
+        const record = requirePullRequest(input);
+        if (record.state === 'closed') throw new Error('Test VCS pull request is closed');
+        if (record.state === 'merged') return toPullRequest(record);
+        const repository = requireRepository(input.owner, input.name);
+        const seed = repository.seedPath;
+        await git(['checkout', repository.snapshot.defaultBranch], seed);
+        await git(
+          ['merge', '--no-ff', '-m', `Merge pull request #${record.number}`, record.branch],
+          seed,
+        );
+        await git(['push', 'origin', `HEAD:${repository.snapshot.defaultBranch}`], seed);
+        record.state = 'merged';
+        return toPullRequest(record);
+      }),
 
     closePullRequest(input) {
       const record = requirePullRequest(input);

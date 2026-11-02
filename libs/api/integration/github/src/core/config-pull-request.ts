@@ -26,7 +26,9 @@ export async function findGithubConfigPullRequest(
     direction: 'desc',
     per_page: 1,
   });
-  const [pullRequest] = Array.isArray(response.data) ? response.data : [];
+  // An unexpected shape must not read as "no pull request", or a retry opens a second one.
+  if (!Array.isArray(response.data)) throw malformedPullRequest();
+  const [pullRequest] = response.data;
   return pullRequest === undefined ? null : toConfigPullRequest(pullRequest);
 }
 

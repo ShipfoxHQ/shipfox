@@ -181,5 +181,5 @@ export function createFakeProjects(workspaceId: string) {
       return Promise.resolve({moved: true});
     },
   };
-  return {rows, moves, client, failMoveWith: undefined as Error | undefined};
+  return {rows, moves, client};
 }

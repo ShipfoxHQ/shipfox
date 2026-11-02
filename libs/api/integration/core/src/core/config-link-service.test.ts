@@ -294,25 +294,6 @@ describe('config link service', () => {
       expect(projects.moves).toEqual([]);
     });
 
-    it('releases the repository when another project took the target first', async () => {
-      const projectId = await managedProject();
-      projects.rows.set(crypto.randomUUID(), {
-        id: crypto.randomUUID(),
-        workspaceId,
-        connectionId: targetConnectionId,
-        externalRepositoryId: fake.host.externalRepositoryId,
-        owner: 'acme',
-        name: 'app',
-        defaultBranch: 'trunk',
-      });
-      const links = await service();
-      // The check ran before the other project bound the target.
-      const before = await links
-        .link(current(projectId), linkInput({dryRun: true}))
-        .catch((e) => e);
-      expect(before).toMatchObject({code: 'repository-in-use'});
-    });
-
     it('never releases on an unknown outcome, and a retry finishes with the same pull request', async () => {
       const projectId = await managedProject();
       fake.host.failAfterOpen = new IntegrationProviderError('timeout', 'GitHub request timed out');
@@ -356,7 +337,7 @@ describe('config link service', () => {
 
       const first = links.link(current(projectId), linkInput());
 
-      await expect(first).rejects.toThrow('connection reset');
+      await expect(first).rejects.toBeInstanceOf(ConfigLinkUnconfirmedError);
       expect((await repositoryOf(projectId)).status).toBe('linking');
 
       projects.client.moveProjectSource = original;
@@ -372,7 +353,7 @@ describe('config link service', () => {
       const managed = await import('@shipfox/api-integration-managed-vcs');
       // The move landed but the repository never finished.
       vi.spyOn(managed, 'completeManagedLink').mockResolvedValueOnce(false);
-      await links.link(current(projectId), linkInput());
+      await links.link(current(projectId), linkInput()).catch(() => undefined);
       expect((await repositoryOf(projectId)).status).toBe('linking');
       projects.client.moveProjectSource = () => Promise.reject(new Error('must not move again'));
 
@@ -383,6 +364,19 @@ describe('config link service', () => {
       expect(retried.pullRequest).toMatchObject({number: 1, state: 'open'});
       expect(fake.host.opened).toHaveLength(1);
       expect((await repositoryOf(projectId)).status).toBe('linked');
+    });
+
+    it('keeps a resumed attempt read-only when the target cannot be looked up', async () => {
+      const projectId = await managedProject();
+      fake.host.failBeforeOpen = new IntegrationProviderError('timeout', 'slow');
+      const links = await service();
+      await links.link(current(projectId), linkInput()).catch(() => undefined);
+      fake.host.failBeforeOpen = new IntegrationProviderError('access-denied', 'rate limited');
+
+      const result = links.link(current(projectId), linkInput());
+
+      await expect(result).rejects.toBeInstanceOf(ConfigLinkUnconfirmedError);
+      expect((await repositoryOf(projectId)).status).toBe('linking');
     });
 
     it('refuses a dry run while a move is stopped', async () => {

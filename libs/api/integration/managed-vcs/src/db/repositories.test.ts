@@ -81,7 +81,14 @@ describe('managed repository link state', () => {
 
     expect(resumed).toMatchObject({
       kind: 'resumed',
-      repository: {link: {attemptId: first.attemptId, startedBy: 'user-1'}},
+      repository: {
+        link: {
+          attemptId: first.attemptId,
+          connectionId: first.connectionId,
+          externalRepositoryId: 'github:42',
+          startedBy: 'user-1',
+        },
+      },
     });
     expect(resumed?.repository.link?.startedAt).toEqual(new Date('2026-01-01T00:05:00Z'));
   });
