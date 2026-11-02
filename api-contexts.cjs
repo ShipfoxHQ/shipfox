@@ -116,6 +116,7 @@ const architecturePackages = {
       'libs/shared/node/opentelemetry',
       'libs/shared/node/object-storage',
       'libs/shared/node/outbox',
+      'libs/shared/node/pi-runtime',
       'libs/shared/node/postgres',
       'libs/shared/node/process-state',
       'libs/shared/node/rate-limit',

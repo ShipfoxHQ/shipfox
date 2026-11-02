@@ -162,6 +162,10 @@ import {
   DEFAULT_CUSTOM_MODEL_REASONING,
 } from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {
+  PROVIDER_STREAM_INTERRUPTED_CODE,
+  PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+} from '@shipfox/node-pi-runtime';
 import {LocalExecutionHost} from '@shipfox/runner-container';
 import {
   AgentConfigError,
@@ -175,10 +179,6 @@ import {piHarnessAdapter} from '#core/pi-adapter.js';
 import {piExtensionDirectories} from '#core/pi-extensions.js';
 import {PI_TOOL_ERROR_NORMALIZER_EXTENSION_NAME} from '#core/pi-tool-error-normalizer.js';
 import {PI_TOOL_SVG_NORMALIZER_EXTENSION_NAME} from '#core/pi-tool-svg-normalizer.js';
-import {
-  PROVIDER_STREAM_INTERRUPTED_CODE,
-  PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
-} from '#core/provider-stream-recovery.js';
 
 function extensionDirectory(packageName: string): string {
   const [directory] = piExtensionDirectories({packageNames: [packageName]});
