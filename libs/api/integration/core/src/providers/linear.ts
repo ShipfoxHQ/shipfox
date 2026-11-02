@@ -146,6 +146,7 @@ async function loadLinearModuleParts(
         allowPrivateNetworks: linearConfig.LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS,
       },
     },
+    interaction: {tokenStore},
     cleanup: {
       deleteConnectionRecords: async (connection, {tx}) => {
         await deleteLinearInstallationByConnectionId(connection.id, {tx});

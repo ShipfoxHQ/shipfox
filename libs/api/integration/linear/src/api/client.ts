@@ -34,6 +34,35 @@ const IDENTITY_QUERY = `
   }
 `;
 
+const AGENT_ACTIVITY_CREATE_MUTATION = `
+  mutation ShipfoxAgentActivityCreate($input: AgentActivityCreateInput!) {
+    agentActivityCreate(input: $input) {
+      success
+    }
+  }
+`;
+
+const ISSUE_CONTEXT_QUERY = `
+  query ShipfoxAgentSessionIssue($id: String!) {
+    issue(id: $id) {
+      identifier
+      team {
+        id
+        key
+      }
+      project {
+        id
+        name
+      }
+      labels {
+        nodes {
+          name
+        }
+      }
+    }
+  }
+`;
+
 export interface LinearAuthorization {
   accessToken: string;
   refreshToken?: string | undefined;
@@ -48,6 +77,21 @@ export interface LinearIdentity {
   organizationUrlKey: string;
 }
 
+/** What Linear shows in an agent session. Only `thought` is posted before routing. */
+export interface LinearAgentActivityContent {
+  type: 'thought';
+  body: string;
+}
+
+export interface LinearIssueContext {
+  identifier: string;
+  teamId: string;
+  teamKey: string;
+  projectId: string | null;
+  projectName: string | null;
+  labels: string[];
+}
+
 export interface LinearApiClient {
   exchangeAuthorizationCode(input: {code: string}): Promise<LinearAuthorization>;
   refreshAccessToken(input: {
@@ -59,6 +103,13 @@ export interface LinearApiClient {
     tokenTypeHint: 'access_token' | 'refresh_token';
   }): Promise<void>;
   getIdentity(input: {accessToken: string}): Promise<LinearIdentity>;
+  createAgentActivity(input: {
+    accessToken: string;
+    agentSessionId: string;
+    content: LinearAgentActivityContent;
+    timeoutMs?: number | undefined;
+  }): Promise<void>;
+  getIssueContext(input: {accessToken: string; issueId: string}): Promise<LinearIssueContext>;
 }
 
 interface LinearRefreshDiagnostics {
@@ -86,6 +137,19 @@ interface LinearGraphqlError {
 interface LinearIdentityData {
   viewer?: {id?: unknown} | null;
   organization?: {id?: unknown; name?: unknown; urlKey?: unknown} | null;
+}
+
+interface LinearAgentActivityCreateData {
+  agentActivityCreate?: {success?: unknown} | null;
+}
+
+interface LinearIssueContextData {
+  issue?: {
+    identifier?: unknown;
+    team?: {id?: unknown; key?: unknown} | null;
+    project?: {id?: unknown; name?: unknown} | null;
+    labels?: {nodes?: {name?: unknown}[] | null} | null;
+  } | null;
 }
 
 interface MapLinearErrorOptions {
@@ -181,6 +245,72 @@ export function createLinearApiClient(): LinearApiClient {
       }
 
       return {appUserId, organizationId, organizationName, organizationUrlKey};
+    },
+
+    async createAgentActivity(input) {
+      const body = await mapLinearError(
+        'create-agent-activity',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {
+                query: AGENT_ACTIVITY_CREATE_MUTATION,
+                variables: {
+                  input: {agentSessionId: input.agentSessionId, content: input.content},
+                },
+              },
+              timeout: input.timeoutMs ?? LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearAgentActivityCreateData>>(),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      const data = graphqlData('create-agent-activity', body);
+      if (data.agentActivityCreate?.success !== true) {
+        throw new LinearIntegrationProviderError(
+          'malformed-provider-response',
+          'Linear did not create the agent activity',
+        );
+      }
+    },
+
+    async getIssueContext(input) {
+      const body = await mapLinearError(
+        'get-issue-context',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {query: ISSUE_CONTEXT_QUERY, variables: {id: input.issueId}},
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearIssueContextData>>(),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      const issue = graphqlData('get-issue-context', body).issue;
+      const teamId = issue?.team?.id;
+      const teamKey = issue?.team?.key;
+      if (
+        typeof issue?.identifier !== 'string' ||
+        typeof teamId !== 'string' ||
+        typeof teamKey !== 'string'
+      ) {
+        throw new LinearIntegrationProviderError(
+          'malformed-provider-response',
+          'Linear issue response did not include the identifier and team',
+        );
+      }
+
+      return {
+        identifier: issue.identifier,
+        teamId,
+        teamKey,
+        projectId: typeof issue.project?.id === 'string' ? issue.project.id : null,
+        projectName: typeof issue.project?.name === 'string' ? issue.project.name : null,
+        labels: (issue.labels?.nodes ?? []).flatMap((label) =>
+          typeof label.name === 'string' ? [label.name] : [],
+        ),
+      };
     },
   };
 }

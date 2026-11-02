@@ -453,3 +453,115 @@ describe('createLinearApiClient.getIdentity', () => {
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
   });
 });
+
+describe('createLinearApiClient.createAgentActivity', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('posts a thought activity to the agent session with the given timeout', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentActivityCreate: {success: true}}}));
+    const client = createLinearApiClient();
+
+    await client.createAgentActivity({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+      content: {type: 'thought', body: 'Looking into this.'},
+      timeoutMs: 6000,
+    });
+
+    const [, options] = mocks.post.mock.calls[0] as [
+      string,
+      {
+        headers: Record<string, string>;
+        json: {variables: unknown};
+        timeout: number;
+      },
+    ];
+    expect(options.headers).toEqual({authorization: 'Bearer linear-token'});
+    expect(options.timeout).toBe(6000);
+    expect(options.json.variables).toEqual({
+      input: {
+        agentSessionId: 'session-1',
+        content: {type: 'thought', body: 'Looking into this.'},
+      },
+    });
+  });
+
+  it('rejects when Linear does not report success', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentActivityCreate: {success: false}}}));
+    const client = createLinearApiClient();
+
+    const result = client.createAgentActivity({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+      content: {type: 'thought', body: 'Looking into this.'},
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});
+
+describe('createLinearApiClient.getIssueContext', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('reads the identifier, team, project, and label names of an issue', async () => {
+    mocks.post.mockReturnValue(
+      resolves({
+        data: {
+          issue: {
+            identifier: 'ENG-12',
+            team: {id: 'team-1', key: 'ENG'},
+            project: {id: 'project-1', name: 'Payments'},
+            labels: {nodes: [{name: 'bug'}, {name: 'payments'}]},
+          },
+        },
+      }),
+    );
+    const client = createLinearApiClient();
+
+    const result = await client.getIssueContext({accessToken: 'linear-token', issueId: 'issue-1'});
+
+    expect(result).toEqual({
+      identifier: 'ENG-12',
+      teamId: 'team-1',
+      teamKey: 'ENG',
+      projectId: 'project-1',
+      projectName: 'Payments',
+      labels: ['bug', 'payments'],
+    });
+  });
+
+  it('reports an issue without a project or labels as having none', async () => {
+    mocks.post.mockReturnValue(
+      resolves({
+        data: {
+          issue: {
+            identifier: 'ENG-12',
+            team: {id: 'team-1', key: 'ENG'},
+            project: null,
+            labels: {nodes: []},
+          },
+        },
+      }),
+    );
+    const client = createLinearApiClient();
+
+    const result = await client.getIssueContext({accessToken: 'linear-token', issueId: 'issue-1'});
+
+    expect(result).toMatchObject({projectId: null, projectName: null, labels: []});
+  });
+
+  it('maps an issue without a team to malformed-provider-response', async () => {
+    mocks.post.mockReturnValue(resolves({data: {issue: {identifier: 'ENG-12'}}}));
+    const client = createLinearApiClient();
+
+    const result = client.getIssueContext({accessToken: 'linear-token', issueId: 'issue-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});

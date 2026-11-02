@@ -12,6 +12,7 @@ import type {
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {AcknowledgeLinearAgentSession} from '#core/agent-session-acknowledgement.js';
 import {getLinearInstallationByOrganizationId} from '#db/installations.js';
 
 export interface HandleLinearWebhookParams {
@@ -22,6 +23,8 @@ export interface HandleLinearWebhookParams {
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  /** Posts the first activity of a new agent session. Not awaited, so it never delays the webhook. */
+  acknowledgeAgentSession?: AcknowledgeLinearAgentSession | undefined;
 }
 
 export type HandleLinearWebhookOutcome =
@@ -110,6 +113,16 @@ export async function handleLinearWebhook(
     return {outcome: 'unsupported-event'};
   }
 
+  if (supported.data.type === 'AgentSessionEvent' && supported.data.action === 'created') {
+    // Linear gives a session 10 seconds to show an activity, which can't wait for the outbox.
+    startAgentSessionAcknowledgement({
+      acknowledge: params.acknowledgeAgentSession,
+      connectionId: connection.id,
+      agentSessionId: supported.data.agentSession.id,
+      deliveryId: params.deliveryId,
+    });
+  }
+
   const result = await params.publishIntegrationEventReceived({
     tx: params.tx,
     event: {
@@ -126,6 +139,24 @@ export async function handleLinearWebhook(
   });
 
   return {outcome: result.published ? 'published' : 'duplicate'};
+}
+
+function startAgentSessionAcknowledgement(input: {
+  acknowledge: AcknowledgeLinearAgentSession | undefined;
+  connectionId: string;
+  agentSessionId: unknown;
+  deliveryId: string;
+}): void {
+  if (!input.acknowledge || typeof input.agentSessionId !== 'string') return;
+  const {connectionId, agentSessionId, deliveryId} = input;
+  input
+    .acknowledge({connectionId, agentSessionId})
+    .catch((err: unknown) =>
+      logger().warn(
+        {deliveryId, connectionId, agentSessionId, err},
+        'linear webhook: agent session acknowledgement failed',
+      ),
+    );
 }
 
 function linearWebhookEventName(payload: LinearWebhookEnvelopeDto): LinearWebhookEventName {

@@ -1,10 +1,12 @@
 import {LINEAR_PROVIDER, linearEventCatalog} from '@shipfox/api-integration-linear-dto';
 import {createLinearApiClient, type LinearApiClient} from '#api/client.js';
 import {config} from '#config.js';
+import {createLinearAgentSessionAcknowledger} from '#core/agent-session-acknowledgement.js';
 import {
   LinearAgentToolsProvider,
   type LinearAgentToolsProviderOptions,
 } from '#core/agent-tools-provider.js';
+import {LinearInteractionProvider} from '#core/interaction-provider.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 import {createLinearWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
@@ -107,6 +109,7 @@ export interface CreateLinearIntegrationProviderOptions {
         uploads?: LinearAgentToolsProviderOptions['uploads'];
       }
     | undefined;
+  interaction?: {tokenStore: Pick<LinearTokenStore, 'getAccessToken'>} | undefined;
   getLinearInstallationByConnectionId?: typeof getLinearInstallationByConnectionId | undefined;
   cleanup?:
     | {
@@ -129,21 +132,33 @@ export function createLinearIntegrationProvider(
   const linear = options.linear ?? createLinearApiClient();
   const getInstallationByConnectionId =
     options.getLinearInstallationByConnectionId ?? getLinearInstallationByConnectionId;
-  const adapters = options.agentTools
-    ? {
-        agent_tools: new LinearAgentToolsProvider(options.agentTools),
-      }
-    : {};
+  const adapters = {
+    ...(options.agentTools ? {agent_tools: new LinearAgentToolsProvider(options.agentTools)} : {}),
+    ...(options.interaction
+      ? {
+          interaction: new LinearInteractionProvider({
+            linear,
+            tokenStore: options.interaction.tokenStore,
+          }),
+        }
+      : {}),
+  };
+  const acknowledgeAgentSession = options.interaction
+    ? createLinearAgentSessionAcknowledger({linear, tokenStore: options.interaction.tokenStore})
+    : undefined;
   const webhookProcessor =
     options.routes && hasLinearWebhookRoutesOptions(options.routes)
-      ? createLinearWebhookProcessor(options.routes)
+      ? createLinearWebhookProcessor({...options.routes, acknowledgeAgentSession})
       : undefined;
 
   const routes = options.routes
     ? [
         createLinearIntegrationRoutes({
           linear,
-          connectionCapabilities: adapters.agent_tools ? ['agent_tools'] : [],
+          connectionCapabilities: [
+            ...(adapters.agent_tools ? (['agent_tools'] as const) : []),
+            ...(adapters.interaction ? (['interaction'] as const) : []),
+          ],
           ...options.routes,
         }),
       ]

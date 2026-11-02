@@ -20,6 +20,23 @@ describe('createLinearIntegrationProvider', () => {
     expect(provider.adapters.agent_tools?.catalog()).toBe(linearAgentToolCatalog);
   });
 
+  it('wires the Linear interaction adapter when a token store is provided', () => {
+    const provider = createLinearIntegrationProvider({
+      interaction: {tokenStore: {getAccessToken: async () => 'linear-token'}},
+    });
+
+    expect(provider.adapters.interaction?.interactionEvents).toEqual({
+      'agentSession.created': 'request',
+      'agentSession.prompted': 'follow_up',
+    });
+  });
+
+  it('does not wire the Linear interaction adapter without a token store', () => {
+    const provider = createLinearIntegrationProvider();
+
+    expect(provider.adapters.interaction).toBeUndefined();
+  });
+
   it('exposes explicit connection cleanup without requiring routes', () => {
     const deleteConnectionRecords = vi.fn(() => Promise.resolve());
     const deleteConnectionSecrets = vi.fn(() => Promise.resolve());

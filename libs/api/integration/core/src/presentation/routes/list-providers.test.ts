@@ -95,7 +95,7 @@ describe('GET /integration-providers', () => {
     });
   });
 
-  it('surfaces the Linear provider with agent tools once its module is registered', async () => {
+  it('surfaces the Linear provider with agent tools and interaction once its module is registered', async () => {
     const {provider} = await linearProviderModule.load();
     const app = await createTestApp([provider]);
 
@@ -109,7 +109,7 @@ describe('GET /integration-providers', () => {
     expect(res.json().providers).toContainEqual({
       provider: 'linear',
       display_name: 'Linear',
-      capabilities: ['agent_tools'],
+      capabilities: ['agent_tools', 'interaction'],
     });
   });
 });
