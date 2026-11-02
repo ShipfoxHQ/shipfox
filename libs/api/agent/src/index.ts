@@ -10,6 +10,7 @@ import {
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {
   assertAgentConfig,
@@ -18,6 +19,7 @@ import {
 } from '#config.js';
 import {sessionArtifactStore} from '#core/index.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
+import type {AgentAdmissionPolicy} from '#core/turn-admission.js';
 import {db, migrationsPath} from '#db/index.js';
 import {createAgentE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createAgentInterModulePresentation} from '#presentation/inter-module.js';
@@ -70,6 +72,12 @@ export {
   updateCustomModelProviderConfig,
   WorkspaceProvidersDisabledError,
 } from '#core/index.js';
+export type {
+  AgentAdmissionDecision,
+  AgentAdmissionInput,
+  AgentAdmissionPolicy,
+  RequiredAction,
+} from '#core/turn-admission.js';
 export {
   getAgentWorkspaceSettings,
   getModelProviderConfig,
@@ -93,6 +101,14 @@ export interface CreateAgentModuleOptions {
   projects?: ProjectsModuleClient | undefined;
   /** Serves the tools of a conversation turn. Turns run only with both this and `projects`. */
   integrations?: IntegrationsModuleClient | undefined;
+  /** Reads the owner's membership and the workspace state a turn start checks. Turns run only with it. */
+  workspaces?: WorkspacesInterModuleClient | undefined;
+  /**
+   * Decides whether a workspace may start a turn, after its operating state. A conversation has
+   * no run start, so each turn start is the admission moment. A turn already running is never
+   * stopped by it.
+   */
+  admission?: {policy: AgentAdmissionPolicy} | undefined;
 }
 
 export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModule {
@@ -102,8 +118,9 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
   const subscriber = subscriberFactory<WorkflowsEventMapDto>();
-  const {projects, integrations} = params;
-  const runsTurns = projects !== undefined && integrations !== undefined;
+  const {projects, integrations, workspaces} = params;
+  const runsTurns =
+    projects !== undefined && integrations !== undefined && workspaces !== undefined;
 
   return {
     name: 'agent',
@@ -182,10 +199,19 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
                   secrets: params.secrets,
                   integrations,
                   projects,
+                  workspaces,
+                  admission: params.admission,
                   managedProvider: params.managedProvider,
                   workspaceProviders: workspaceProvidersPolicy,
                 }),
-              workflows: [],
+              workflows: [
+                // The wake is a signal that can be lost. This sweep finds what it left behind.
+                {
+                  name: 'recoverConversationsCron',
+                  id: 'agent-conversation-recovery',
+                  cronSchedule: '* * * * *',
+                },
+              ],
               maxConcurrentActivityTaskExecutions: CONVERSATION_MAX_CONCURRENT_ACTIVITIES,
             },
           ]

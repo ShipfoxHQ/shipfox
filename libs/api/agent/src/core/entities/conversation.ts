@@ -1,6 +1,9 @@
 import type {Buffer} from 'node:buffer';
 import type {AgentTurnStatus, PageContextDto} from '@shipfox/api-agent-dto';
 
+/** The `customType` of the entry that tells the timeline why a request got no turn. */
+export const TURN_NOTICE_CUSTOM_TYPE = 'turn_notice';
+
 export type ConversationOriginKind = 'web' | 'integration';
 
 /**
@@ -35,6 +38,8 @@ export interface OpenConversation extends Omit<Conversation, 'sealedTitle'> {
 export interface ConversationItemMeta {
   role?: string;
   page_context?: PageContextDto;
+  /** The `customType` of a `custom` entry, so a query can find one without opening bodies. */
+  custom_type?: string;
   stop_reason?: string;
   model?: string;
   tool_call_id?: string;

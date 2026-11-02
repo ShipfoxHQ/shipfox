@@ -60,8 +60,16 @@ async function runTurn(params: {conversationId: string; turnId: string}): Promis
         return;
       }
       // A message or result that arrived since the last call joins the turn here, never inside a tool call.
-      await claimPendingInputs({conversationId});
-      const {toolCallCount} = await modelCall({conversationId, turnId, modelCallIndex});
+      const claim = await claimPendingInputs({conversationId, turnId});
+      if (claim.stopRequested) {
+        await finishTurn({conversationId, turnId, status: 'stopped'});
+        return;
+      }
+      const {stopReason, toolCallCount} = await modelCall({conversationId, turnId, modelCallIndex});
+      if (stopReason === 'stopped') {
+        await finishTurn({conversationId, turnId, status: 'stopped'});
+        return;
+      }
       if (toolCallCount === 0) {
         await finishTurn({conversationId, turnId, status: 'succeeded'});
         return;

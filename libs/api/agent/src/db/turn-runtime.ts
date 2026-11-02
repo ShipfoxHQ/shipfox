@@ -1,10 +1,11 @@
 import type {Buffer} from 'node:buffer';
-import {and, asc, eq, gte, isNotNull, isNull, sql} from 'drizzle-orm';
-import type {
-  AgentTurn,
-  Conversation,
-  ConversationItem,
-  ConversationItemMeta,
+import {and, asc, desc, eq, gte, inArray, isNotNull, isNull, notExists, or, sql} from 'drizzle-orm';
+import {
+  type AgentTurn,
+  type Conversation,
+  type ConversationItem,
+  type ConversationItemMeta,
+  TURN_NOTICE_CUSTOM_TYPE,
 } from '#core/entities/conversation.js';
 import {claimQueuedConversationItemsInTransaction} from './conversations.js';
 import {db, type Transaction} from './db.js';
@@ -89,9 +90,10 @@ export async function pinSystemEntry(params: {
 }
 
 /**
- * Opens a turn for the queued inputs, or returns the running one. Opening claims every queued
- * input in the same transaction, so a turn never exists without something to answer. Returns
- * undefined when nothing is queued and no turn runs.
+ * Opens a turn for the queued inputs or a requested retry, or returns the running one. Opening
+ * claims every queued input in the same transaction, so a turn never exists without something to
+ * answer. A retry has nothing to claim: its turn answers what the timeline already holds. Returns
+ * undefined when neither is pending and no turn runs.
  */
 export async function openTurn(params: {
   conversationId: string;
@@ -110,7 +112,7 @@ export async function openTurn(params: {
     if (running[0]) return {turn: toAgentTurn(running[0]), resumed: true};
 
     const claimed = await claimQueuedConversationItemsInTransaction(tx, params.conversationId);
-    if (claimed === 0) return undefined;
+    if (claimed === 0 && conversation.retryRequestedAt === null) return undefined;
 
     const [created] = await tx
       .insert(turns)
@@ -122,16 +124,200 @@ export async function openTurn(params: {
       })
       .returning();
     if (!created) throw new Error('Turn insert returned no row');
+    // The retry is spent once a turn answers it, so the recovery sweep doesn't start another.
+    await tx
+      .update(conversations)
+      .set({retryRequestedAt: null})
+      .where(eq(conversations.id, params.conversationId));
     return {turn: toAgentTurn(created), resumed: false};
   });
 }
 
-export async function claimPendingInputs(conversationId: string): Promise<number> {
+/** True when an input is queued or a retry is requested, so a turn has something to answer. */
+export async function hasPendingTurnWork(conversationId: string): Promise<boolean> {
+  const [queued, conversation] = await Promise.all([
+    db()
+      .select({id: conversationItems.id})
+      .from(conversationItems)
+      .where(
+        and(eq(conversationItems.conversationId, conversationId), isNull(conversationItems.seq)),
+      )
+      .limit(1),
+    getConversationById(conversationId),
+  ]);
+  return queued.length > 0 || conversation?.retryRequestedAt != null;
+}
+
+/**
+ * Settles the pending work of a conversation that gets no turn, so the recovery sweep doesn't
+ * return to it: queued inputs get their `seq`, a requested retry is spent, and the notice, when
+ * there is one, follows the inputs. Does nothing when a turn started in the meantime or nothing
+ * is pending, which makes a repeat after a crash write no second notice.
+ */
+export async function settleWorkWithoutTurn(params: {
+  conversationId: string;
+  notice?: NewTimelineEntry | undefined;
+}): Promise<boolean> {
+  return await db().transaction(async (tx) => {
+    const conversation = await lockConversation(tx, params.conversationId);
+    if (!conversation) return false;
+
+    const running = await tx
+      .select({id: turns.id})
+      .from(turns)
+      .where(and(eq(turns.conversationId, params.conversationId), eq(turns.status, 'running')))
+      .limit(1);
+    if (running.length > 0) return false;
+
+    const claimed = await claimQueuedConversationItemsInTransaction(tx, params.conversationId);
+    if (claimed === 0 && conversation.retryRequestedAt === null) return false;
+
+    const lastSeq = conversation.lastSeq + claimed;
+    const {notice} = params;
+    if (notice) {
+      await tx.insert(conversationItems).values({
+        id: notice.id,
+        conversationId: params.conversationId,
+        seq: lastSeq + 1,
+        entryType: notice.entryType,
+        sessionVersion: notice.sessionVersion,
+        body: notice.sealedEntry,
+        meta: notice.meta,
+      });
+    }
+    await tx
+      .update(conversations)
+      .set({
+        lastSeq: notice ? lastSeq + 1 : lastSeq,
+        retryRequestedAt: null,
+        lastActivityAt: sql`NOW()`,
+      })
+      .where(eq(conversations.id, params.conversationId));
+    return true;
+  });
+}
+
+/**
+ * Gives the queued inputs their `seq` for the next model call of a turn. A requested stop comes
+ * first: it claims nothing, so the inputs wait for the turn that follows the stopped one.
+ */
+export async function claimPendingInputs(params: {
+  conversationId: string;
+  turnId: string;
+}): Promise<{claimed: number; stopRequested: boolean}> {
+  return await db().transaction(async (tx) => {
+    const conversation = await lockConversation(tx, params.conversationId);
+    if (!conversation) return {claimed: 0, stopRequested: false};
+
+    const turn = await tx
+      .select({stopRequestedAt: turns.stopRequestedAt})
+      .from(turns)
+      .where(eq(turns.id, params.turnId))
+      .limit(1);
+    if (turn[0]?.stopRequestedAt) return {claimed: 0, stopRequested: true};
+
+    const claimed = await claimQueuedConversationItemsInTransaction(tx, params.conversationId);
+    return {claimed, stopRequested: false};
+  });
+}
+
+/** Asks the running turn of a conversation to stop. False when no turn runs or it was asked already. */
+export async function requestTurnStop(conversationId: string): Promise<boolean> {
+  const rows = await db()
+    .update(turns)
+    .set({stopRequestedAt: sql`NOW()`})
+    .where(
+      and(
+        eq(turns.conversationId, conversationId),
+        eq(turns.status, 'running'),
+        isNull(turns.stopRequestedAt),
+      ),
+    )
+    .returning({id: turns.id});
+  return rows.length > 0;
+}
+
+export async function isTurnStopRequested(turnId: string): Promise<boolean> {
+  const rows = await db()
+    .select({stopRequestedAt: turns.stopRequestedAt})
+    .from(turns)
+    .where(eq(turns.id, turnId))
+    .limit(1);
+  return rows[0]?.stopRequestedAt != null;
+}
+
+/**
+ * Requests a retry when the latest turn failed or was denied. A denied turn has no row, only a
+ * notice, so the notice and the latest turn are compared by time. A running turn refuses.
+ */
+export async function requestRetry(
+  conversationId: string,
+): Promise<'requested' | 'turn-running' | 'not-retryable' | 'not-found'> {
   return await db().transaction(async (tx) => {
     const conversation = await lockConversation(tx, conversationId);
-    if (!conversation) return 0;
-    return await claimQueuedConversationItemsInTransaction(tx, conversationId);
+    if (!conversation) return 'not-found';
+
+    const [latestTurn] = await tx
+      .select()
+      .from(turns)
+      .where(eq(turns.conversationId, conversationId))
+      .orderBy(desc(turns.id))
+      .limit(1);
+    if (latestTurn?.status === 'running') return 'turn-running';
+
+    const [latestNotice] = await tx
+      .select({createdAt: conversationItems.createdAt})
+      .from(conversationItems)
+      .where(
+        and(
+          eq(conversationItems.conversationId, conversationId),
+          eq(conversationItems.entryType, 'custom'),
+          sql`${conversationItems.meta}->>'custom_type' = ${TURN_NOTICE_CUSTOM_TYPE}`,
+        ),
+      )
+      .orderBy(desc(conversationItems.id))
+      .limit(1);
+
+    const failed = latestTurn?.status === 'failed';
+    const denied =
+      latestNotice !== undefined &&
+      (latestTurn === undefined || latestNotice.createdAt > latestTurn.startedAt);
+    if (!failed && !denied) return 'not-retryable';
+
+    await tx
+      .update(conversations)
+      .set({retryRequestedAt: sql`COALESCE(${conversations.retryRequestedAt}, NOW())`})
+      .where(eq(conversations.id, conversationId));
+    return 'requested';
   });
+}
+
+/**
+ * Conversations with an input queued or a retry requested and no running turn, oldest activity
+ * first. These are the ones a lost wake leaves behind.
+ */
+export async function listConversationsToRecover(limit: number): Promise<string[]> {
+  const queued = db()
+    .select({id: conversationItems.conversationId})
+    .from(conversationItems)
+    .where(isNull(conversationItems.seq));
+  const rows = await db()
+    .select({id: conversations.id})
+    .from(conversations)
+    .where(
+      and(
+        or(isNotNull(conversations.retryRequestedAt), inArray(conversations.id, queued)),
+        notExists(
+          db()
+            .select({id: turns.id})
+            .from(turns)
+            .where(and(eq(turns.conversationId, conversations.id), eq(turns.status, 'running'))),
+        ),
+      ),
+    )
+    .orderBy(asc(conversations.lastActivityAt))
+    .limit(limit);
+  return rows.map((row) => row.id);
 }
 
 /** Moves a running turn to its final state. A turn that already finished stays as it is. */

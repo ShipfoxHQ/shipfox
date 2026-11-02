@@ -1,4 +1,8 @@
-import type {ManagedModelProvider, WorkspaceProvidersPolicy} from '@shipfox/api-agent-dto';
+import type {
+  ConversationTurnNoticeDto,
+  ManagedModelProvider,
+  WorkspaceProvidersPolicy,
+} from '@shipfox/api-agent-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -7,8 +11,11 @@ import {
   claimPendingInputs,
   finishTurnRow,
   getConversationById,
+  hasPendingTurnWork,
+  type NewTimelineEntry,
   openTurn,
   pinSystemEntry,
+  settleWorkWithoutTurn,
 } from '#db/turn-runtime.js';
 import {conversationTurnCount} from '#metrics/index.js';
 import {CONVERSATION_SESSION_VERSION} from '../conversation-entries.js';
@@ -17,12 +24,18 @@ import {
   conversationDataKey,
   sealConversationEntry,
 } from '../conversation-sealing.js';
-import type {Conversation} from '../entities/conversation.js';
+import {type Conversation, TURN_NOTICE_CUSTOM_TYPE} from '../entities/conversation.js';
 import {isAgentConfigResolutionError} from '../errors.js';
 import {builtInAgentConfigInput} from '../resolve-agent-config.js';
+import {
+  type AgentAdmissionPolicy,
+  refuseTurn,
+  type TurnAdmissionWorkspaces,
+  type TurnRefusal,
+} from '../turn-admission.js';
 import {createWorkspaceAgentDefaultsResolver} from '../workspace-agent-defaults-resolver.js';
 import {listConversationToolSet} from './conversation-tools.js';
-import {systemMessageEntry} from './entries.js';
+import {systemMessageEntry, turnNoticeEntry} from './entries.js';
 import type {TurnFailureCode} from './failures.js';
 import {buildPinnedPrompt} from './pinned-prompt.js';
 
@@ -31,6 +44,9 @@ export interface TurnLifecycleDeps {
   projects: ProjectsModuleClient;
   managedProvider?: ManagedModelProvider | undefined;
   workspaceProviders?: WorkspaceProvidersPolicy | undefined;
+  /** Reads the owner's membership and the workspace's operating state. */
+  workspaces: TurnAdmissionWorkspaces;
+  admission?: {policy: AgentAdmissionPolicy} | undefined;
 }
 
 /**
@@ -103,9 +119,50 @@ async function resolveTurnModel(
   }
 }
 
+async function sealTurnNotice(
+  conversation: Conversation,
+  notice: ConversationTurnNoticeDto,
+): Promise<NewTimelineEntry> {
+  const itemId = await newConversationRecordId();
+  return {
+    id: itemId,
+    entryType: 'custom',
+    sessionVersion: CONVERSATION_SESSION_VERSION,
+    sealedEntry: sealConversationEntry({
+      key: await conversationDataKey(conversation.workspaceId),
+      aad: aadForConversationItem({
+        workspaceId: conversation.workspaceId,
+        conversationId: conversation.id,
+        itemId,
+      }),
+      entry: turnNoticeEntry(notice),
+    }),
+    meta: {custom_type: TURN_NOTICE_CUSTOM_TYPE},
+  };
+}
+
 /**
- * Starts a turn for the queued inputs, or returns the one already running. The prompt is pinned
- * first. A repeat after a crash finds the entry and the turn it wrote.
+ * Settles what a refused conversation has pending. Its inputs are claimed, so they take a `seq`
+ * after the pinned prompt, and the notice, when there is one, follows them.
+ */
+async function settleRefusedTurn(conversation: Conversation, refusal: TurnRefusal): Promise<void> {
+  const settled = await settleWorkWithoutTurn({
+    conversationId: conversation.id,
+    notice: refusal.notice ? await sealTurnNotice(conversation, refusal.notice) : undefined,
+  });
+  if (!settled) return;
+  conversationTurnCount.add(1, {
+    origin: conversation.originKind,
+    trigger: 'message',
+    outcome: 'denied',
+  });
+}
+
+/**
+ * Starts a turn for the queued inputs or a requested retry, or returns the one already running.
+ * The prompt is pinned first, so a refused first turn can't take its place at `seq` 1. A turn that
+ * is already running is never stopped by admission, as with a running step. A repeat after a crash
+ * finds the entry and the turn it wrote.
  */
 export async function beginConversationTurn(params: {
   conversationId: string;
@@ -120,20 +177,39 @@ export async function beginConversationTurn(params: {
   const running = await getRunningTurn(conversation.id);
   if (running) return {turnId: running.id};
 
+  // Admission runs only for work that would open a turn, so an idle conversation costs no policy call.
+  if (!(await hasPendingTurnWork(conversation.id))) return undefined;
+
+  const refusal = await refuseTurn({
+    conversation,
+    workspaces: params.deps.workspaces,
+    policy: params.deps.admission?.policy,
+  });
+  if (refusal) {
+    await settleRefusedTurn(conversation, refusal);
+    return undefined;
+  }
+
   const {provider, model} = await resolveTurnModel(conversation, params.deps);
   const opened = await openTurn({conversationId: conversation.id, model, provider});
   return opened ? {turnId: opened.turn.id} : undefined;
 }
 
-/** Gives every queued input its `seq`, so a model call sees them and none lands inside a tool call. */
-export async function claimConversationInputs(conversationId: string): Promise<number> {
-  return await claimPendingInputs(conversationId);
+/**
+ * Gives every queued input its `seq`, so a model call sees them and none lands inside a tool call.
+ * A requested stop claims nothing: the inputs wait for the turn after the stopped one.
+ */
+export async function claimConversationInputs(params: {
+  conversationId: string;
+  turnId: string;
+}): Promise<{claimed: number; stopRequested: boolean}> {
+  return await claimPendingInputs(params);
 }
 
 export async function finishConversationTurn(params: {
   conversationId: string;
   turnId: string;
-  status: 'succeeded' | 'failed';
+  status: 'succeeded' | 'failed' | 'stopped';
   failureCode?: TurnFailureCode | undefined;
 }): Promise<void> {
   const finished = await finishTurnRow({

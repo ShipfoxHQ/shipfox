@@ -1,33 +1,50 @@
 import {
   type AssistantMessage,
+  createAssistantMessageEventStream,
   fauxAssistantMessage,
   fauxText,
   fauxThinking,
   fauxToolCall,
 } from '@earendil-works/pi-ai';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/index.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
 import {conversations} from '#db/schema/conversations.js';
 import {turnStreamChunks} from '#db/schema/turn-stream-chunks.js';
-import {getConversationById, getTurnById, listContextItems} from '#db/turn-runtime.js';
+import {
+  getConversationById,
+  getTurnById,
+  hasPendingTurnWork,
+  listContextItems,
+  listConversationsToRecover,
+  requestTurnStop,
+} from '#db/turn-runtime.js';
 import {conversationThinkingDroppedCount} from '#metrics/index.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {createTestProjectsClient} from '#test/fixtures/projects-client.js';
 import {createScriptedModel, textReply} from '#test/fixtures/scripted-model.js';
+import {createTestWorkspacesClient} from '#test/fixtures/workspaces-client.js';
 import {CONVERSATION_SESSION_VERSION} from '../conversation-entries.js';
 import {
   aadForConversationItem,
   conversationDataKey,
   openConversationEntry,
 } from '../conversation-sealing.js';
-import {postWebConversationMessage} from '../conversations.js';
+import {postWebConversationMessage, requestWebConversationRetry} from '../conversations.js';
 import type {ConversationItem} from '../entities/conversation.js';
-import {ConversationEntryUnreadableError} from '../errors.js';
+import {
+  ConversationEntryUnreadableError,
+  ConversationRetryUnavailableError,
+  ConversationTurnRunningError,
+} from '../errors.js';
+import {recoverConversations} from '../recover-conversations.js';
 import {buildSessionEntries, loadConversationContext} from './conversation-session.js';
 import {TurnFailure} from './failures.js';
 import {runModelCall} from './model-call.js';
+import type {CreateModelRuntime, ModelCallRuntime} from './model-runtime.js';
 import {runToolCall} from './tool-call.js';
 import {
   beginConversationTurn,
@@ -92,14 +109,26 @@ async function setup(body = 'Why did run 7 fail?') {
   });
   const integrations = createFakeIntegrations();
   const projects = createTestProjectsClient({projects: new Map([[projectId, {workspaceId}]])});
-  const deps = {integrations: integrations.client, projects};
+  const workspaces = createTestWorkspacesClient();
+  workspaces.state.memberOf.add(workspaceId);
+  const deps = {integrations: integrations.client, projects, workspaces: workspaces.client};
   const begin = async () => {
     const turn = await beginConversationTurn({conversationId: conversation.id, deps});
     if (!turn) throw new Error('No turn began');
     return turn.turnId;
   };
   const items = async () => await listContextItems({conversationId: conversation.id, fromSeq: 1});
-  return {conversation, workspaceId, projectId, ownerUserId, integrations, deps, begin, items};
+  return {
+    conversation,
+    workspaceId,
+    projectId,
+    ownerUserId,
+    integrations,
+    workspaces,
+    deps,
+    begin,
+    items,
+  };
 }
 
 function toolCallReply(options: {thinking?: boolean} = {}): AssistantMessage {
@@ -557,7 +586,7 @@ describe('turn runtime', () => {
     });
 
     it('lets a message posted during the call land after its result', async () => {
-      const {run, items, conversation, ownerUserId, workspaceId, integrations} =
+      const {run, items, conversation, ownerUserId, workspaceId, integrations, turnId} =
         await afterToolRequest();
       integrations.callTool.mockImplementationOnce(async () => {
         await postWebConversationMessage({
@@ -570,7 +599,7 @@ describe('turn runtime', () => {
       });
 
       await run();
-      await claimConversationInputs(conversation.id);
+      await claimConversationInputs({conversationId: conversation.id, turnId});
 
       const stored = await items();
       expect(stored.map((item) => item.meta.role)).toEqual([
@@ -614,6 +643,441 @@ describe('turn runtime', () => {
       expect(entry.message.content[0].text).toContain('The tool failed to run');
       expect(entry.message.content[0].text).not.toContain('connection reset');
     });
+  });
+});
+
+/** A model that streams `partial`, then waits for the abort signal and ends the way pi does. */
+function createAbortableModel(partial: string) {
+  const createModelRuntime: CreateModelRuntime = () =>
+    Promise.resolve({
+      model: {contextWindow: 200_000} as ModelCallRuntime['model'],
+      thinking: 'default',
+      stream: (_context, options) => {
+        const stream = createAssistantMessageEventStream();
+        const message = fauxAssistantMessage(partial, {stopReason: 'aborted'});
+        queueMicrotask(() => {
+          stream.push({type: 'text_delta', contentIndex: 0, delta: partial, partial: message});
+          options.signal?.addEventListener('abort', () => {
+            stream.push({type: 'error', reason: 'aborted', error: message});
+            stream.end();
+          });
+        });
+        return stream;
+      },
+    });
+  return {createModelRuntime};
+}
+
+describe('turn admission', () => {
+  const denial = {
+    allowed: false as const,
+    reason: 'depleted',
+    requiredAction: {reason: 'depleted', message: 'Add credits', url: '/billing'},
+  };
+
+  async function setupWithPolicy(admit = vi.fn().mockResolvedValue(denial)) {
+    const context = await setup();
+    const deps = {...context.deps, admission: {policy: {admit}}};
+    const begin = async () =>
+      await beginConversationTurn({conversationId: context.conversation.id, deps});
+    return {...context, admit, deps, begin};
+  }
+
+  async function noticeOf(item: ConversationItem, workspaceId: string) {
+    return await readEntry(item, workspaceId);
+  }
+
+  it('passes the workspace and the agent source to the policy', async () => {
+    const {begin, admit, workspaceId} = await setupWithPolicy();
+
+    await begin();
+
+    expect(admit).toHaveBeenCalledWith({workspaceId, source: 'agent'});
+  });
+
+  it('opens no turn on a denial, and writes a notice after the claimed inputs', async () => {
+    const {begin, items, workspaceId, conversation} = await setupWithPolicy();
+
+    const turn = await begin();
+
+    expect(turn).toBeUndefined();
+    const stored = await items();
+    expect(stored.map((item) => [item.seq, item.entryType])).toEqual([
+      [1, 'message'],
+      [2, 'message'],
+      [3, 'custom'],
+    ]);
+    expect(stored.map((item) => item.meta.role ?? item.meta.custom_type)).toEqual([
+      'system',
+      'user',
+      'turn_notice',
+    ]);
+    expect(await noticeOf(stored[2] as ConversationItem, workspaceId)).toMatchObject({
+      type: 'custom',
+      customType: 'turn_notice',
+      data: {
+        code: 'admission-denied',
+        message: null,
+        required_action: {reason: 'depleted', message: 'Add credits', url: '/billing'},
+      },
+    });
+    expect((await getConversationById(conversation.id))?.lastSeq).toBe(3);
+  });
+
+  it('keeps the pinned prompt at seq 1 and reads it as the base prompt in the next admitted turn', async () => {
+    const admit = vi.fn().mockResolvedValueOnce(denial).mockResolvedValue({allowed: true});
+    const {begin, items, conversation} = await setupWithPolicy(admit);
+    await begin();
+    await requestWebConversationRetry(conversation.id);
+
+    const turn = await begin();
+
+    expect(turn).toBeDefined();
+    const model = createScriptedModel([textReply('Back again.')]);
+    await runModelCall({
+      conversationId: conversation.id,
+      turnId: turn?.turnId as string,
+      modelCallIndex: 0,
+      createModelRuntime: model.createModelRuntime,
+    });
+    const [system] = await items();
+    expect(system).toMatchObject({seq: 1, meta: {role: 'system'}});
+    const request = model.requests[0]?.context;
+    expect(JSON.stringify(request?.messages[0])).toContain('You are Shippy, first release.');
+    expect(request?.messages.map((message) => message.role)).toEqual(['system', 'user']);
+  });
+
+  it('writes one notice for one denial, even when the activity repeats', async () => {
+    const {begin, items} = await setupWithPolicy();
+
+    await begin();
+    await begin();
+
+    expect((await items()).filter((item) => item.entryType === 'custom')).toHaveLength(1);
+  });
+
+  it('does not ask the policy when nothing is pending', async () => {
+    const admit = vi.fn().mockResolvedValue({allowed: true});
+    const {begin, admit: policy, conversation} = await setupWithPolicy(admit);
+    const turn = await begin();
+    await finishConversationTurn({
+      conversationId: conversation.id,
+      turnId: turn?.turnId as string,
+      status: 'succeeded',
+    });
+    policy.mockClear();
+
+    const next = await begin();
+
+    expect(next).toBeUndefined();
+    expect(policy).not.toHaveBeenCalled();
+  });
+
+  it('does not stop a turn that is running', async () => {
+    const admit = vi.fn().mockResolvedValue({allowed: true});
+    const {begin, admit: policy} = await setupWithPolicy(admit);
+    const first = await begin();
+    policy.mockResolvedValue(denial);
+
+    const second = await begin();
+
+    expect(second).toEqual(first);
+    expect(policy).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a policy failure instead of denying', async () => {
+    const admit = vi.fn().mockRejectedValue(new Error('Policy unavailable'));
+    const {begin, items, conversation} = await setupWithPolicy(admit);
+
+    await expect(begin()).rejects.toThrow('Policy unavailable');
+
+    expect((await items()).map((item) => item.seq)).toEqual([1]);
+    expect(await hasPendingTurnWork(conversation.id)).toBe(true);
+  });
+
+  it.each([
+    'suspended',
+    'deleted',
+  ] as const)('denies a %s workspace with a notice', async (status) => {
+    const {begin, items, workspaces, workspaceId} = await setupWithPolicy(
+      vi.fn().mockResolvedValue({allowed: true}),
+    );
+    workspaces.state.status = status;
+
+    const turn = await begin();
+
+    expect(turn).toBeUndefined();
+    const notice = await noticeOf((await items()).at(-1) as ConversationItem, workspaceId);
+    expect(notice.data).toMatchObject({code: `workspace-${status}`, required_action: null});
+  });
+
+  it('treats a workspace that is gone as deleted', async () => {
+    const {begin, items, workspaces, workspaceId} = await setupWithPolicy(
+      vi.fn().mockResolvedValue({allowed: true}),
+    );
+    workspaces.state.stateError = createInterModuleKnownError(
+      workspacesInterModuleContract.methods.getWorkspaceOperatingState,
+      'workspace-not-found',
+      {workspaceId},
+    );
+
+    const turn = await begin();
+
+    expect(turn).toBeUndefined();
+    const notice = await noticeOf((await items()).at(-1) as ConversationItem, workspaceId);
+    expect(notice.data.code).toBe('workspace-deleted');
+  });
+
+  it('claims the inputs and opens no turn when the owner left the workspace', async () => {
+    const {begin, items, workspaces, workspaceId, admit, conversation} = await setupWithPolicy(
+      vi.fn().mockResolvedValue({allowed: true}),
+    );
+    workspaces.state.memberOf.delete(workspaceId);
+
+    const turn = await begin();
+
+    expect(turn).toBeUndefined();
+    expect((await items()).map((item) => [item.seq, item.entryType])).toEqual([
+      [1, 'message'],
+      [2, 'message'],
+    ]);
+    expect(admit).not.toHaveBeenCalled();
+    expect(await listConversationsToRecover(100)).not.toContain(conversation.id);
+  });
+
+  it('leaves nothing for the recovery sweep after a denial', async () => {
+    const {begin, conversation} = await setupWithPolicy();
+
+    await begin();
+
+    expect(await listConversationsToRecover(100)).not.toContain(conversation.id);
+  });
+});
+
+describe('stop', () => {
+  it('claims nothing once a stop is requested, and the message waits for the next turn', async () => {
+    const {begin, items, conversation, ownerUserId, deps} = await setup();
+    const turnId = await begin();
+    await postWebConversationMessage({
+      conversation: (await getConversationById(conversation.id)) as never,
+      authorUserId: ownerUserId,
+      clientMessageId: crypto.randomUUID(),
+      body: 'Sent while stopping',
+    });
+
+    await requestTurnStop(conversation.id);
+    const claim = await claimConversationInputs({conversationId: conversation.id, turnId});
+
+    expect(claim).toEqual({claimed: 0, stopRequested: true});
+    expect((await items()).map((item) => item.seq)).toEqual([1, 2]);
+    await finishConversationTurn({conversationId: conversation.id, turnId, status: 'stopped'});
+    const next = await beginConversationTurn({conversationId: conversation.id, deps});
+    expect(next?.turnId).not.toBe(turnId);
+    expect((await items()).map((item) => item.seq)).toEqual([1, 2, 3]);
+  });
+
+  it('claims queued inputs when no stop is requested', async () => {
+    const {begin, conversation, ownerUserId} = await setup();
+    const turnId = await begin();
+    await postWebConversationMessage({
+      conversation: (await getConversationById(conversation.id)) as never,
+      authorUserId: ownerUserId,
+      clientMessageId: crypto.randomUUID(),
+      body: 'Joins the turn',
+    });
+
+    const claim = await claimConversationInputs({conversationId: conversation.id, turnId});
+
+    expect(claim).toEqual({claimed: 1, stopRequested: false});
+  });
+
+  it('asks only the running turn, once', async () => {
+    const {begin, conversation} = await setup();
+
+    expect(await requestTurnStop(conversation.id)).toBe(false);
+    const turnId = await begin();
+    expect(await requestTurnStop(conversation.id)).toBe(true);
+    expect(await requestTurnStop(conversation.id)).toBe(false);
+    expect((await getTurnById(turnId))?.stopRequestedAt).toBeInstanceOf(Date);
+  });
+
+  it('aborts the stream, stores the partial message as aborted, and reports the stop', async () => {
+    const {begin, items, conversation, workspaceId} = await setup();
+    const turnId = await begin();
+    const params = {
+      conversationId: conversation.id,
+      turnId,
+      modelCallIndex: 0,
+      createModelRuntime: createAbortableModel('Run 7 failed in').createModelRuntime,
+    };
+
+    const call = runModelCall(params);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await requestTurnStop(conversation.id);
+    const result = await call;
+
+    expect(result).toEqual({stopReason: 'stopped', toolCallCount: 0});
+    const stored = (await items()).at(-1) as ConversationItem;
+    expect(stored).toMatchObject({seq: 3, meta: {role: 'assistant', stop_reason: 'aborted'}});
+    const entry = await readEntry(stored, workspaceId);
+    expect(entry.message.stopReason).toBe('aborted');
+    expect(entry.message.content[0].text).toBe('Run 7 failed in');
+    expect((await getTurnById(turnId))?.modelCallCount).toBe(1);
+    expect(await runModelCall(params)).toEqual({stopReason: 'stopped', toolCallCount: 0});
+  });
+
+  it('still fails a call that was aborted for another reason', async () => {
+    const {begin, conversation} = await setup();
+    const turnId = await begin();
+    const controller = new AbortController();
+
+    const call = runModelCall({
+      conversationId: conversation.id,
+      turnId,
+      modelCallIndex: 0,
+      createModelRuntime: createAbortableModel('Partial').createModelRuntime,
+      signal: controller.signal,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    controller.abort();
+
+    await expect(call).rejects.toMatchObject({code: 'provider_unavailable', retryable: true});
+  });
+});
+
+describe('retry', () => {
+  async function failedTurn() {
+    const context = await setup();
+    const turnId = await context.begin();
+    await finishConversationTurn({
+      conversationId: context.conversation.id,
+      turnId,
+      status: 'failed',
+      failureCode: 'provider_unavailable',
+    });
+    return context;
+  }
+
+  it('runs a failed turn again without a new input, and spends the request', async () => {
+    const {conversation, deps, items} = await failedTurn();
+    expect(await beginConversationTurn({conversationId: conversation.id, deps})).toBeUndefined();
+
+    await requestWebConversationRetry(conversation.id);
+    expect((await getConversationById(conversation.id))?.retryRequestedAt).toBeInstanceOf(Date);
+    const turn = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(turn).toBeDefined();
+    expect((await getConversationById(conversation.id))?.retryRequestedAt).toBeNull();
+    expect((await items()).map((item) => item.seq)).toEqual([1, 2]);
+  });
+
+  it('does not wake a failed turn again on its own', async () => {
+    const {conversation} = await failedTurn();
+
+    expect(await listConversationsToRecover(100)).not.toContain(conversation.id);
+  });
+
+  it('accepts a retry after a denial', async () => {
+    const context = await setup();
+    const deps = {
+      ...context.deps,
+      admission: {policy: {admit: vi.fn().mockResolvedValue({allowed: false, reason: 'depleted'})}},
+    };
+    await beginConversationTurn({conversationId: context.conversation.id, deps});
+
+    await requestWebConversationRetry(context.conversation.id);
+
+    expect(await listConversationsToRecover(100)).toContain(context.conversation.id);
+  });
+
+  it('refuses while a turn is running', async () => {
+    const {begin, conversation} = await setup();
+    await begin();
+
+    await expect(requestWebConversationRetry(conversation.id)).rejects.toBeInstanceOf(
+      ConversationTurnRunningError,
+    );
+  });
+
+  it.each(['succeeded', 'stopped'] as const)('refuses after a %s turn', async (status) => {
+    const {begin, conversation} = await setup();
+    const turnId = await begin();
+    await finishConversationTurn({conversationId: conversation.id, turnId, status});
+
+    await expect(requestWebConversationRetry(conversation.id)).rejects.toBeInstanceOf(
+      ConversationRetryUnavailableError,
+    );
+  });
+
+  it('refuses a conversation that never had a turn', async () => {
+    const {conversation} = await setup();
+
+    await expect(requestWebConversationRetry(conversation.id)).rejects.toBeInstanceOf(
+      ConversationRetryUnavailableError,
+    );
+  });
+});
+
+describe('recovery sweep', () => {
+  it('wakes a conversation with a queued input and no running turn', async () => {
+    const {conversation} = await setup();
+    const wake = vi.fn().mockResolvedValue(undefined);
+
+    const result = await recoverConversations({wake});
+
+    expect(wake).toHaveBeenCalledWith(conversation.id);
+    expect(result.woken).toBeGreaterThanOrEqual(1);
+  });
+
+  it('skips a conversation whose turn is running, even with a queued input', async () => {
+    const {begin, conversation, ownerUserId} = await setup();
+    await begin();
+    await postWebConversationMessage({
+      conversation: (await getConversationById(conversation.id)) as never,
+      authorUserId: ownerUserId,
+      clientMessageId: crypto.randomUUID(),
+      body: 'Queued',
+    });
+
+    expect(await listConversationsToRecover(1000)).not.toContain(conversation.id);
+  });
+
+  it('gives an input that arrives during a failing turn its own turn', async () => {
+    const {begin, conversation, ownerUserId, deps, items} = await setup();
+    const failing = await begin();
+    await postWebConversationMessage({
+      conversation: (await getConversationById(conversation.id)) as never,
+      authorUserId: ownerUserId,
+      clientMessageId: crypto.randomUUID(),
+      body: 'Arrives mid-turn',
+    });
+    await finishConversationTurn({
+      conversationId: conversation.id,
+      turnId: failing,
+      status: 'failed',
+      failureCode: 'timeout',
+    });
+
+    expect(await listConversationsToRecover(1000)).toContain(conversation.id);
+    const next = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(next?.turnId).not.toBe(failing);
+    expect((await items()).map((item) => item.seq)).toEqual([1, 2, 3]);
+    expect(await listConversationsToRecover(1000)).not.toContain(conversation.id);
+  });
+
+  it('wakes a conversation with a requested retry', async () => {
+    const {begin, conversation} = await setup();
+    const turnId = await begin();
+    await finishConversationTurn({
+      conversationId: conversation.id,
+      turnId,
+      status: 'failed',
+      failureCode: 'timeout',
+    });
+    await requestWebConversationRetry(conversation.id);
+
+    expect(await listConversationsToRecover(1000)).toContain(conversation.id);
   });
 });
 

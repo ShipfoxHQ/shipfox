@@ -16,6 +16,8 @@ interface Scenario {
   /** What each beginTurn answers, in order. An exhausted list answers "no turn". */
   turns: ({turnId: string} | undefined | (() => Promise<{turnId: string} | undefined>))[];
   modelCall: (input: {modelCallIndex: number; turnId: string}) => Promise<unknown> | unknown;
+  /** Whether the claim before a model call finds a requested stop. */
+  stopRequested?: () => boolean;
 }
 
 let testEnv: TestWorkflowEnvironment;
@@ -42,7 +44,7 @@ beforeAll(async () => {
       },
       claimPendingInputs: (input: unknown) => {
         calls.push({name: 'claimPendingInputs', input});
-        return 0;
+        return {claimed: 0, stopRequested: scenario.stopRequested?.() ?? false};
       },
       modelCall: async (input: {modelCallIndex: number; turnId: string}) => {
         calls.push({name: 'modelCall', input});
@@ -137,6 +139,33 @@ describe('agentConversationWorkflow', () => {
       {conversationId, turnId: 'turn-2', status: 'succeeded'},
     ]);
     expect(named('modelCall')).toHaveLength(2);
+  });
+
+  it('finishes the turn as stopped when the claim finds a stop request, and makes no model call', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+    scenario.stopRequested = () => true;
+
+    const conversationId = await run();
+
+    expect(named('modelCall')).toHaveLength(0);
+    expect(named('claimPendingInputs')).toEqual([{conversationId, turnId: 'turn-1'}]);
+    expect(named('finishTurn')).toEqual([{conversationId, turnId: 'turn-1', status: 'stopped'}]);
+  });
+
+  it('finishes the turn as stopped when the model call was stopped, then goes on to the next turn', async () => {
+    scenario.turns = [{turnId: 'turn-1'}, {turnId: 'turn-2'}];
+    scenario.modelCall = ({turnId}) =>
+      turnId === 'turn-1'
+        ? {stopReason: 'stopped', toolCallCount: 0}
+        : {stopReason: 'stop', toolCallCount: 0};
+
+    const conversationId = await run();
+
+    expect(named('toolCall')).toHaveLength(0);
+    expect(named('finishTurn')).toEqual([
+      {conversationId, turnId: 'turn-1', status: 'stopped'},
+      {conversationId, turnId: 'turn-2', status: 'succeeded'},
+    ]);
   });
 
   it('retries a transient model failure without failing the turn', async () => {
