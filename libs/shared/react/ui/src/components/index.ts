@@ -15,6 +15,7 @@ export * from './date-range-picker/index.js';
 export * from './dot/index.js';
 export * from './dropdown-menu/index.js';
 export * from './empty-state/index.js';
+export * from './file-tree/index.js';
 export * from './form-field/index.js';
 export * from './icon/index.js';
 export * from './input/index.js';

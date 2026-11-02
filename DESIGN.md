@@ -803,6 +803,11 @@ Navigation never wears a standalone bordered tile. A grid of openable things is
 - **ProjectTabs** `h-40`, sticky under the nav, always rendered; the active tab
   carries `border-b-2 border-border-highlights-interactive` and the indicator slide
   respects `prefers-reduced-motion`.
+- **FileTree** is one tab stop with full-width rows, and it sits flush in a `Panel`.
+  A selected row uses `background-neutral-pressed`, never the brand highlight, which
+  is too loud in dark mode. Focus uses `--shadow-focus-inset`. Forced colors replace
+  both, with `Highlight` for selection and an outline for focus.
+  Names use `font-code` and wrap instead of truncating.
 
 ### Signature: the status glyph
 

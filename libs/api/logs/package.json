@@ -41,6 +41,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/agent-transcript": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
@@ -62,7 +63,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",

@@ -23,6 +23,7 @@ const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const platformRealm = 'source-available';
 const serverRoots = [
   'libs/api',
+  'libs/shared/agent',
   'libs/shared/common',
   'libs/shared/expression',
   'libs/shared/node',

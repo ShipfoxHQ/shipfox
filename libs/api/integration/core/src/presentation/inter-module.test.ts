@@ -17,6 +17,7 @@ import {
 } from '#core/repository-authorizer.js';
 import {createSourceControlIntegrationService} from '#core/source-control-service.js';
 import type {
+  IntegrationToolCallAuditRecord,
   IntegrationToolCallCaller,
   IntegrationToolCallRecorder,
 } from '#core/tool-call-audit.js';
@@ -1009,6 +1010,72 @@ describe('integrations inter-module callTool', () => {
     expect(result.outcome).toBe('success');
   });
 
+  it('refuses a conversation caller on a provider that offers no conversation catalog', async () => {
+    const onCall = vi.fn();
+    const client = createToolCallClient({onCall});
+
+    const result = await client.callTool({
+      ...toolCallInput,
+      caller: {
+        kind: 'conversation',
+        projectId: 'project-1',
+        conversationId: 'conversation-1',
+        turnId: 'turn-1',
+        callItemId: 'item-1',
+      },
+    });
+
+    expect(result).toEqual({
+      outcome: 'error',
+      code: 'invalid-request',
+      message: 'Unknown integration tool: issue_read',
+    });
+    expect(onCall).not.toHaveBeenCalled();
+  });
+
+  it('classifies repository targets from the conversation catalog', async () => {
+    const onCall = vi.fn();
+    const resolveRepositoryAuthorization = vi.fn(async () => ({
+      authorized: false as const,
+      reason: 'repository_not_granted' as const,
+    }));
+    const client = createToolCallClient(
+      {
+        repositoryAuthorization: 'enforced',
+        onCall,
+        conversationCatalog: [
+          catalogWithRepositoryScope(() => ({
+            kind: 'declared-targets',
+            repositories: [{owner: 'shipfox', name: 'platform'}],
+          })),
+        ],
+      },
+      undefined,
+      undefined,
+      [catalogTool()],
+      {repositoryAuthorizer: {enabled: true, resolveRepositoryAuthorization}},
+    );
+
+    const result = await client.callTool({
+      ...toolCallInput,
+      caller: {
+        kind: 'conversation',
+        projectId: 'project-1',
+        conversationId: 'conversation-1',
+        turnId: 'turn-1',
+        callItemId: 'item-1',
+      },
+    });
+
+    expect(result).toEqual({
+      outcome: 'error',
+      code: 'repository-not-granted',
+      message: 'Repository is not authorized for this integration connection',
+    });
+    expect(resolveRepositoryAuthorization).toHaveBeenCalledOnce();
+    expect(onCall).not.toHaveBeenCalled();
+  });
+
   it('rejects an executed method outside the frozen catalog allowlist as an invalid-request outcome', async () => {
     const onCall = vi.fn();
     const client = createToolCallClient({onCall});
@@ -1306,6 +1373,179 @@ describe('integrations inter-module callTool', () => {
         errorCode: 'none',
       }),
     );
+  });
+
+  describe('conversation caller', () => {
+    const conversationProjectId = crypto.randomUUID();
+    const conversationCaller = {
+      kind: 'conversation' as const,
+      projectId: conversationProjectId,
+      conversationId: 'conversation-1',
+      turnId: 'turn-1',
+      callItemId: 'item-1',
+      actorUserId: 'user-1',
+    };
+
+    function createConversationClient(runProjectId: string) {
+      const listAnnotationsForRunAttempt = vi
+        .fn()
+        .mockResolvedValue({annotations: [], nextCursor: null});
+      const provider = createShipfoxAgentToolsProvider({
+        clientBaseUrl: 'https://app.example.test',
+        annotations: {listAnnotationsForRunAttempt},
+        definitions: {
+          getDefinitionByConfigPath: vi.fn(),
+          listDefinitionsByProject: vi.fn(),
+        },
+        projects: {
+          listProjectsByWorkspace: vi.fn(),
+          requireProjectForWorkspace: vi.fn(),
+        },
+        logs: {readStepLogTail: vi.fn()},
+        triggers: {fireManualTrigger: vi.fn()},
+        workflows: {
+          listWorkflowRuns: vi.fn(),
+          listWorkflowRunJobs: vi.fn(),
+          getWorkflowJobDetail: vi.fn(),
+          getLatestRunAttempt: vi.fn().mockResolvedValue({attempt: 1}),
+          getWorkflowRunOverview: vi.fn().mockResolvedValue({run: {project_id: runProjectId}}),
+          getWorkflowStepAttemptDetail: vi.fn(),
+          listFailedStepAttempts: vi.fn(),
+        },
+      });
+      const transport = createInMemoryInterModuleTransport();
+      const client = transport.createClient(integrationsInterModuleContract);
+      const audits: {
+        caller: IntegrationToolCallCaller;
+        record: IntegrationToolCallAuditRecord;
+      }[] = [];
+      transport.register(
+        createIntegrationsInterModulePresentation({
+          registry: createIntegrationProviderRegistry([
+            {provider: 'shipfox', displayName: 'Shipfox', adapters: {agent_tools: provider}},
+            {
+              provider: 'github',
+              displayName: 'GitHub',
+              adapters: {agent_tools: agentToolsProvider()},
+            },
+          ]),
+          sourceControl: createSourceControlIntegrationService({
+            registry: createIntegrationProviderRegistry([]),
+            getIntegrationConnectionById: async () => undefined,
+          }),
+          getIntegrationConnectionById: async () => undefined,
+          createIntegrationToolCallRecorder: (caller) => (record) => {
+            audits.push({caller, record});
+          },
+        }),
+      );
+      transport.seal();
+      return {client, listAnnotationsForRunAttempt, audits};
+    }
+
+    async function conversationTool(
+      client: ReturnType<typeof createConversationClient>['client'],
+      id: string,
+    ) {
+      const {tools} = await client.listConversationTools({});
+      const tool = tools.find((candidate) => candidate.id === id);
+      if (tool === undefined) throw new Error(`Conversation tool ${id} is not offered`);
+      return tool;
+    }
+
+    it('offers only the tools of providers with a conversation catalog', async () => {
+      const {client} = createConversationClient(conversationProjectId);
+
+      const {tools} = await client.listConversationTools({});
+
+      expect(tools.map((tool) => tool.provider)).toEqual(tools.map(() => 'shipfox'));
+      expect(tools.map((tool) => tool.id)).not.toContain('list_projects');
+      expect(tools.map((tool) => tool.id)).not.toContain('start_workflow_run');
+      expect(tools.find((tool) => tool.id === 'list_workflow_runs')).toMatchObject({
+        description: expect.any(String),
+        sensitivity: 'read',
+      });
+      expect(
+        tools.find((tool) => tool.id === 'list_workflow_runs')?.inputSchema,
+      ).not.toHaveProperty('properties.project_id');
+    });
+
+    it('calls an offered tool with no lease and audits the conversation', async () => {
+      const {client, listAnnotationsForRunAttempt, audits} =
+        createConversationClient(conversationProjectId);
+
+      const result = await client.callTool({
+        workspaceId,
+        connectionId: SHIPFOX_BUILTIN_CONNECTION_ID,
+        tool: await conversationTool(client, 'get_run_annotations'),
+        arguments: {run_id: crypto.randomUUID()},
+        caller: conversationCaller,
+      });
+
+      expect(result.outcome).toBe('success');
+      expect(listAnnotationsForRunAttempt).toHaveBeenCalledOnce();
+      expect(audits).toEqual([
+        {
+          caller: {
+            caller: 'conversation',
+            workspaceId,
+            projectId: conversationProjectId,
+            conversationId: 'conversation-1',
+            turnId: 'turn-1',
+            callItemId: 'item-1',
+            actorUserId: 'user-1',
+          },
+          record: expect.objectContaining({outcome: 'success', errorCode: 'none'}),
+        },
+      ]);
+    });
+
+    it('answers not-found for a run from another project', async () => {
+      const {client, listAnnotationsForRunAttempt} = createConversationClient(crypto.randomUUID());
+
+      const result = await client.callTool({
+        workspaceId,
+        connectionId: SHIPFOX_BUILTIN_CONNECTION_ID,
+        tool: await conversationTool(client, 'get_run_annotations'),
+        arguments: {run_id: crypto.randomUUID()},
+        caller: conversationCaller,
+      });
+
+      expect(result).toMatchObject({outcome: 'error', code: 'not-found'});
+      expect(listAnnotationsForRunAttempt).not.toHaveBeenCalled();
+    });
+
+    it('rejects an injected project_id', async () => {
+      const {client} = createConversationClient(conversationProjectId);
+
+      const result = await client.callTool({
+        workspaceId,
+        connectionId: SHIPFOX_BUILTIN_CONNECTION_ID,
+        tool: await conversationTool(client, 'list_workflow_runs'),
+        arguments: {project_id: crypto.randomUUID()},
+        caller: conversationCaller,
+      });
+
+      expect(result).toMatchObject({outcome: 'error', code: 'invalid-request'});
+    });
+
+    it('refuses a tool outside the conversation catalog even when the caller names it', async () => {
+      const {client} = createConversationClient(conversationProjectId);
+
+      const result = await client.callTool({
+        workspaceId,
+        connectionId: SHIPFOX_BUILTIN_CONNECTION_ID,
+        tool: {...(await conversationTool(client, 'list_workflow_runs')), id: 'list_projects'},
+        arguments: {},
+        caller: conversationCaller,
+      });
+
+      expect(result).toEqual({
+        outcome: 'error',
+        code: 'invalid-request',
+        message: 'Unknown integration tool: list_projects',
+      });
+    });
   });
 
   it('dispatches start_workflow_run through callTool with the parent run', async () => {

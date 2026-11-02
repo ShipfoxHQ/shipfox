@@ -1,5 +1,14 @@
 import {Buffer} from 'node:buffer';
 import {
+  type AgentSessionRecord,
+  type ClaudeParseContext,
+  claudeInitSessionId,
+  createClaudeParseContext,
+  flushPendingToolRows,
+  parseSessionRecord,
+  type SessionParseContext,
+} from '@shipfox/agent-transcript';
+import {
   type LogRecord,
   parseLogRecordLine,
   parseRawLogRecordLine,
@@ -37,15 +46,6 @@ import {
   storeChunk,
 } from './append-chunk.js';
 import {LogWriterConflictError, MalformedLogChunkError, OffsetGapError} from './errors.js';
-import {flushPendingToolRows} from './session/claude/rows.js';
-import {
-  type ClaudeParseContext,
-  claudeInitSessionId,
-  createClaudeParseContext,
-} from './session/claude-parser.js';
-import type {SessionParseContext} from './session/parse-session.js';
-import {parseSessionRecord} from './session/parse-session.js';
-import type {AgentSessionRecord} from './session/session-record.js';
 
 export interface AppendLogsParams extends AppendIdentity {
   offset: number;

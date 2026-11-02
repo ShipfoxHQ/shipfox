@@ -60,6 +60,7 @@ import {
   NO_METHOD_LABEL,
 } from '#core/tool-call-audit.js';
 import {
+  callerToolCatalog,
   callIntegrationTool,
   type IntegrationToolCallOutcome,
   loadAuthorizedToolConnection,
@@ -286,6 +287,19 @@ export function createIntegrationsInterModulePresentation(params: {
         const credentials = await params.sourceControl.createCheckoutCredentials(input);
         return toCheckoutCredentialsDto(credentials);
       }),
+    listConversationTools: async () => {
+      const toolsByProvider = await Promise.all(
+        params.registry.list('agent_tools').map(async ({provider, adapters}) => {
+          const catalog = (await adapters.agent_tools?.conversationCatalog?.()) ?? [];
+          return catalog.map((entry) => ({
+            ...toolFromCatalogEntry(entry),
+            provider,
+            description: entry.description,
+          }));
+        }),
+      );
+      return {tools: toolsByProvider.flat()};
+    },
     getAgentToolsContext: async (input) =>
       await known(contract.methods.getAgentToolsContext, input, async () => {
         const [selectionCatalogs, catalogs, snapshot, defaultConnection] = await Promise.all([
@@ -358,12 +372,9 @@ export function createIntegrationsInterModulePresentation(params: {
         // sensitivity, and requiredScope are re-validated against the live
         // catalog at call time: a tool or method removed after freezing is
         // rejected, and the executed entry is derived from the catalog.
-        const catalogEntry = await resolveToolCatalogEntry(
-          params.registry,
-          input.tool.provider,
-          input.tool.id,
-        );
         const caller = toToolCallCaller(input.caller, input.workspaceId);
+        const catalog = await callerToolCatalog(params.registry, input.tool.provider, caller);
+        const catalogEntry = catalog?.find((entry) => entry.id === input.tool.id);
         const recorder = createRecorder(caller);
 
         if (catalogEntry === undefined) {
@@ -453,27 +464,28 @@ type CallToolCaller = z.output<
 >;
 
 function toToolCallCaller(caller: CallToolCaller, workspaceId: string): IntegrationToolCallCaller {
-  return caller.kind === 'agent'
-    ? {caller: 'agent'}
-    : {
-        caller: 'tool_step',
-        workspaceId,
-        projectId: caller.projectId,
-        runId: caller.runId,
-        jobExecutionId: caller.jobExecutionId,
-        stepId: caller.stepId,
-        stepAttempt: caller.stepAttempt,
-        callIndex: caller.callIndex,
-      };
-}
-
-async function resolveToolCatalogEntry(
-  registry: IntegrationProviderRegistry,
-  provider: string,
-  toolId: string,
-): Promise<AgentToolCatalogEntry | undefined> {
-  const catalog = await registry.getAdapter(provider, 'agent_tools').catalog();
-  return catalog.find((entry) => entry.id === toolId);
+  if (caller.kind === 'agent') return {caller: 'agent'};
+  if (caller.kind === 'conversation') {
+    return {
+      caller: 'conversation',
+      workspaceId,
+      projectId: caller.projectId,
+      conversationId: caller.conversationId,
+      turnId: caller.turnId,
+      callItemId: caller.callItemId,
+      actorUserId: caller.actorUserId,
+    };
+  }
+  return {
+    caller: 'tool_step',
+    workspaceId,
+    projectId: caller.projectId,
+    runId: caller.runId,
+    jobExecutionId: caller.jobExecutionId,
+    stepId: caller.stepId,
+    stepAttempt: caller.stepAttempt,
+    callIndex: caller.callIndex,
+  };
 }
 
 function toConnectionToolCatalog(entry: AgentToolCatalogEntry) {

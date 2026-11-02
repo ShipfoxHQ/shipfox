@@ -125,6 +125,7 @@ append request, distinguished by its `type`. That append-side record carries the
 more canonical `SessionView` rows and writes those rows back as normal `agent_session` log records
 in the same chunk stream (`{v, ts, type: 'agent_session', row}`). The parser is selected from the
 step's `config.harness` (`pi` by default).
+The parsers live in `@shipfox/agent-transcript`. Logs keeps the Claude ingestion state.
 
 The transformed records use the same offset-CAS append protocol, chunk table, compaction object,
 and `/logs` read endpoint as output records. Retries, gaps, closed-stream drops, and post-cap drops

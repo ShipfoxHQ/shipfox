@@ -194,6 +194,52 @@ describe('integration tool call audit', () => {
     expect(JSON.stringify(logInfo.mock.calls)).not.toContain('must-not-appear');
   });
 
+  it('records the conversation and project on the metric and audit line', () => {
+    const recordMetric = vi.fn();
+    const logInfo = vi.fn();
+    const recorder = createIntegrationToolCallRecorder(
+      {
+        caller: 'conversation',
+        workspaceId: 'workspace-1',
+        projectId: 'project-1',
+        conversationId: 'conversation-1',
+        turnId: 'turn-1',
+        callItemId: 'item-1',
+        actorUserId: 'user-1',
+      },
+      {recordMetric, logInfo},
+    );
+
+    recorder({
+      authorizedTool: auditTarget(),
+      arguments: {},
+      method: 'none',
+      outcome: 'success',
+      errorCode: 'none',
+    });
+
+    expect(recordMetric).toHaveBeenCalledWith({
+      caller: 'conversation',
+      provider: 'github',
+      tool: 'issue_read',
+      method: 'none',
+      outcome: 'success',
+      error_code: 'none',
+    });
+    expect(logInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        caller: 'conversation',
+        workspaceId: 'workspace-1',
+        projectId: 'project-1',
+        conversationId: 'conversation-1',
+        turnId: 'turn-1',
+        callItemId: 'item-1',
+        actorUserId: 'user-1',
+      }),
+      'integration tool call audited',
+    );
+  });
+
   it('records search qualifier conflicts as a bounded metric error label', () => {
     const recordMetric = vi.fn();
     const logInfo = vi.fn();

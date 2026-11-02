@@ -82,6 +82,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-coding-agent": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
@@ -97,6 +98,7 @@
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-object-storage": "workspace:*",
+    "@shipfox/node-pi-runtime": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/workflow-document": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",

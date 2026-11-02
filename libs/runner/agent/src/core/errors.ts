@@ -2,24 +2,9 @@ import type {
   AgentSessionRuntimeDiagnostic,
   LoadExtensionsResult,
 } from '@earendil-works/pi-coding-agent';
-import type {AgentConfigIssueDto} from '@shipfox/api-workflows-dto';
+import {AgentConfigError} from '@shipfox/node-pi-runtime';
 
-/**
- * A user-fixable agent-step configuration failure: an unknown provider, a
- * provider/model pair pi does not know, or workspace provider credentials that
- * are missing or incomplete. The step layer translates this to the
- * `agent_config_invalid` reason, distinct from a genuine provider/API failure
- * (`agent_invocation_failed`).
- */
-export class AgentConfigError extends Error {
-  constructor(
-    message: string,
-    public readonly agentConfigIssue: AgentConfigIssueDto,
-  ) {
-    super(message);
-    this.name = 'AgentConfigError';
-  }
-}
+export {AgentConfigError};
 
 export interface AgentHarnessEnvironment {
   readonly cwd: string;
