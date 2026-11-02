@@ -9,7 +9,7 @@ import {
   isManagedProviderStreamInterruption,
   PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
   wrapManagedProviderStream,
-} from './provider-stream-recovery.js';
+} from '#provider-stream-recovery.js';
 
 const model = {
   api: 'openai-responses',

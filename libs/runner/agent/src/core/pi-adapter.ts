@@ -1,44 +1,38 @@
 import {createHash, randomUUID} from 'node:crypto';
 import {rm} from 'node:fs/promises';
 import {join} from 'node:path';
-import type {
-  ApiKeyCredential,
-  Credential,
-  CredentialInfo,
-  CredentialStore,
-  ImageContent,
-  TextContent,
-} from '@earendil-works/pi-ai';
-import {getApiProvider} from '@earendil-works/pi-ai/compat';
+import type {CredentialStore} from '@earendil-works/pi-ai';
 import {
   type AgentSessionEvent,
-  type AgentToolResult,
   type CreateAgentSessionOptions,
   createAgentSessionFromServices,
   createAgentSessionServices,
   createMcpExtension,
   defineTool,
   type McpServerEntry,
-  ModelRuntime,
   SessionManager,
   SettingsManager,
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
-import type {CallToolResult, ListToolsResult} from '@modelcontextprotocol/sdk/types.js';
+import type {ListToolsResult} from '@modelcontextprotocol/sdk/types.js';
 import {
   AGENT_OUTPUT_TOOL_NAME,
   AGENT_SHIPFOX_SYSTEM_PROMPT,
   AGENT_TOOLS_MCP_SERVER_ID,
   agentIntegrationMcpToolName,
-  type CustomAgentModelDto,
-  type CustomModelProviderRuntimeConfigDto,
-  DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
-  DEFAULT_CUSTOM_MODEL_INPUT_IMAGE,
-  DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
-  DEFAULT_CUSTOM_MODEL_REASONING,
   piModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {
+  createInMemoryCredentialStore,
+  createPiModel,
+  type ModelRuntimeInstance,
+  PROVIDER_STREAM_INTERRUPTED_CODE,
+  PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+  piToolContent,
+  type ResolvedModel,
+  toPiRuntimeCredential,
+} from '@shipfox/node-pi-runtime';
 import {type ExecutionHost, localExecutionHost} from '@shipfox/runner-container';
 import {Type} from 'typebox';
 import {
@@ -48,7 +42,6 @@ import {
 } from '#core/agent-session-diagnostics.js';
 import {assertRunnerEgressAllowed} from '#core/egress.js';
 import {
-  AgentConfigError,
   AgentHarnessUnavailableError,
   AgentInvocationError,
   AgentSessionUnavailableError,
@@ -76,18 +69,11 @@ import {createPiSessionDiagnosticsExtension} from '#core/pi-session-diagnostics.
 import {createPiToolErrorNormalizerExtension} from '#core/pi-tool-error-normalizer.js';
 import {createPiToolSvgNormalizerExtension} from '#core/pi-tool-svg-normalizer.js';
 import {PrerequisiteLedger} from '#core/prerequisite-ledger.js';
-import {
-  PROVIDER_STREAM_INTERRUPTED_CODE,
-  PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
-  wrapManagedProviderStream,
-} from '#core/provider-stream-recovery.js';
 import {withRepositoryInstructions} from '#core/repository-context.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 import {toolSelectionOption} from '#core/tool-selection.js';
 import {recordPiProviderRetryOutcome} from '#metrics/instance.js';
 
-const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-keyless-custom-provider-placeholder';
-const SECRET_HEADER_CREDENTIAL_PREFIX = 'header:';
 const PI_OUTPUT_TOOL_NAME = AGENT_OUTPUT_TOOL_NAME;
 const PI_BUILTIN_TOOL_NAMES = new Set(['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls']);
 const PI_MCP_METADATA_TIMEOUT_MS = 10_000;
@@ -101,14 +87,11 @@ const MANAGED_INFERENCE_HTTP_STATUS_PATTERN =
   /(?:^|[\s(:])(?:status(?:\s+code)?\s*)?(401|403)(?!\d)/iu;
 
 type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
-type ModelRuntimeInstance = Awaited<ReturnType<typeof ModelRuntime.create>>;
 type PiSession = Awaited<ReturnType<typeof createAgentSessionFromServices>>['session'];
 type PiSessionManagerSetup = {
   manager: SessionManager;
   forkedFromExistingSession: boolean;
 };
-type CustomProviderConfig = Parameters<ModelRuntimeInstance['registerProvider']>[1];
-type CustomProviderModel = NonNullable<CustomProviderConfig['models']>[number];
 type ProviderRetryTracker = {
   readonly enabled: boolean;
   readonly model: string;
@@ -260,7 +243,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
 
 async function createPiSession(params: {
   services: Awaited<ReturnType<typeof createAgentSessionServices>>;
-  model: ReturnType<typeof resolveModel>;
+  model: ResolvedModel;
   thinking: string;
   tools: readonly string[] | undefined;
   customTools: ToolDefinition[];
@@ -756,38 +739,19 @@ function assertPiInvocation(
 
 async function preparePiModelRuntime(invocation: HarnessInvocation): Promise<{
   modelRuntime: ModelRuntimeInstance;
-  model: ReturnType<typeof resolveModel>;
+  model: ResolvedModel;
   credentialState: PiCredentialStoreState;
 }> {
   const credentialState = createPiCredentialStoreState(invocation);
-  const modelRuntime = await ModelRuntime.create({
-    credentials: credentialState.store,
+  const {modelRuntime, model} = await createPiModel({
+    provider: invocation.provider,
+    model: invocation.model,
+    thinking: invocation.thinking,
+    credentials: invocation.credentials,
+    credentialStore: credentialState.store,
+    customProvider: invocation.customProvider,
+    assertEgressAllowed: assertRunnerEgressAllowed,
   });
-  if (invocation.customProvider !== undefined) {
-    await registerCustomProvider(
-      modelRuntime,
-      invocation.provider,
-      invocation.credentials,
-      invocation.customProvider,
-    );
-  }
-  const model = resolveModel(modelRuntime, invocation.provider, invocation.model);
-  if (invocation.thinking === 'default') {
-    const streamSimple = modelRuntime.streamSimple.bind(modelRuntime);
-    modelRuntime.streamSimple = (requestModel, context, options) => {
-      // Pi derives `reasoning` from the session level, so remove it for provider defaults.
-      const providerOptions = options === undefined ? undefined : {...options};
-      if (providerOptions !== undefined) delete providerOptions.reasoning;
-      return streamSimple(requestModel, context, providerOptions);
-    };
-  }
-  if (!modelRuntime.hasConfiguredAuth(model.provider)) {
-    throw new AgentConfigError(
-      `No credentials configured for provider "${invocation.provider}". ` +
-        'Verify the provider is configured for this workspace.',
-      'provider_not_configured',
-    );
-  }
   return {modelRuntime, model, credentialState};
 }
 
@@ -1081,32 +1045,6 @@ function createPiCredentialStoreState(invocation: HarnessInvocation): PiCredenti
   };
 }
 
-function createInMemoryCredentialStore(credentials: Record<string, Credential>): CredentialStore {
-  const values = new Map(Object.entries(credentials));
-  return {
-    read(providerId) {
-      return Promise.resolve(values.get(providerId));
-    },
-    list(): Promise<readonly CredentialInfo[]> {
-      return Promise.resolve(
-        [...values.entries()].map(([providerId, credential]) => ({
-          providerId,
-          type: credential.type,
-        })),
-      );
-    },
-    async modify(providerId, update) {
-      const next = await update(values.get(providerId));
-      if (next !== undefined) values.set(providerId, next);
-      return values.get(providerId);
-    },
-    delete(providerId) {
-      values.delete(providerId);
-      return Promise.resolve();
-    },
-  };
-}
-
 async function createPiMcpServers(
   mcpServers: HarnessInvocation['mcpServers'],
   signal: AbortSignal,
@@ -1358,17 +1296,6 @@ function createPiCustomTools(params: {
   return customTools;
 }
 
-function piToolContent(content: CallToolResult['content']): AgentToolResult<unknown>['content'] {
-  return content.map((block) => {
-    if (block.type === 'text') return block as TextContent;
-    if (block.type === 'image') return block as ImageContent;
-    return {
-      type: 'text' as const,
-      text: JSON.stringify(block) ?? String(block),
-    };
-  });
-}
-
 function catalogErrorStatus(error: unknown): number | undefined {
   if (!isRecord(error)) return undefined;
   const status = error.status ?? error.statusCode ?? error.code;
@@ -1560,94 +1487,6 @@ function setOutputTool(collector: OutputCollector) {
   });
 }
 
-async function registerCustomProvider(
-  modelRuntime: ModelRuntimeInstance,
-  provider: string,
-  credentials: Record<string, string>,
-  customProvider: CustomModelProviderRuntimeConfigDto,
-): Promise<void> {
-  // Redirects and DNS changes after this point remain transport-layer SSRF
-  // residuals until pi exposes per-request IP pinning hooks.
-  await assertRunnerEgressAllowed(customProvider.base_url, 'Custom model provider endpoint');
-
-  const apiKey = customProviderApiKey(provider, customProvider, credentials);
-  const baseStreamSimple =
-    provider === 'shipfox' ? getApiProvider(customProvider.api)?.streamSimple : undefined;
-
-  try {
-    modelRuntime.registerProvider(provider, {
-      name: provider,
-      baseUrl: customProvider.base_url,
-      api: customProvider.api,
-      apiKey,
-      headers: customProviderHeaders(customProvider, credentials),
-      models: customProvider.models.map((model) => toPiCustomProviderModel(customProvider, model)),
-      ...(baseStreamSimple === undefined
-        ? {}
-        : {streamSimple: wrapManagedProviderStream(baseStreamSimple)}),
-    });
-  } catch (error) {
-    throw new AgentConfigError(
-      error instanceof Error && error.message.length > 0
-        ? `Custom model provider "${provider}" is invalid: ${error.message}`
-        : `Custom model provider "${provider}" is invalid.`,
-      'step_config_invalid',
-    );
-  }
-}
-
-function customProviderApiKey(
-  provider: string,
-  customProvider: CustomModelProviderRuntimeConfigDto,
-  credentials: Record<string, string>,
-): string {
-  const apiKey = credentials.api_key;
-  if (!customProvider.requires_api_key) return KEYLESS_CUSTOM_PROVIDER_API_KEY;
-  if (apiKey !== undefined && apiKey !== '') return apiKey;
-
-  throw new AgentConfigError(
-    `Custom model provider "${provider}" requires an API key but none was resolved.`,
-    'credentials_invalid',
-  );
-}
-
-function customProviderHeaders(
-  customProvider: CustomModelProviderRuntimeConfigDto,
-  credentials: Record<string, string>,
-): Record<string, string> {
-  const headers = Object.fromEntries(
-    customProvider.headers.map((header) => [header.name, header.value]),
-  );
-
-  for (const name of customProvider.secret_header_names) {
-    const value = credentials[`${SECRET_HEADER_CREDENTIAL_PREFIX}${name}`];
-    if (value === undefined || value === '') continue;
-    headers[name] = value;
-  }
-
-  return headers;
-}
-
-function toPiCustomProviderModel(
-  customProvider: CustomModelProviderRuntimeConfigDto,
-  model: CustomAgentModelDto,
-): CustomProviderModel {
-  const inputImage = model.input_image ?? DEFAULT_CUSTOM_MODEL_INPUT_IMAGE;
-  const piModel: CustomProviderModel = {
-    id: model.id,
-    name: model.label,
-    api: customProvider.api,
-    reasoning: model.reasoning ?? DEFAULT_CUSTOM_MODEL_REASONING,
-    input: inputImage ? ['text', 'image'] : ['text'],
-    cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
-    contextWindow: model.context_window ?? DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
-    maxTokens: model.max_output_tokens ?? DEFAULT_CUSTOM_MODEL_MAX_OUTPUT_TOKENS,
-    ...(model.thinking_level_map === undefined ? {} : {thinkingLevelMap: model.thinking_level_map}),
-    ...(model.compat === undefined ? {} : {compat: model.compat}),
-  };
-  return piModel;
-}
-
 function startForwarding(
   sessionFile: string | undefined,
   onSessionEntry: ((line: string) => void) | undefined,
@@ -1659,87 +1498,6 @@ function startForwarding(
     onEntry: onSessionEntry,
     startAtEnd: skipExistingEntries,
   });
-}
-
-type ResolvedModel = NonNullable<ReturnType<ModelRuntimeInstance['getModel']>>;
-
-// pi's `find` returns undefined for both an unknown provider and a known provider that
-// lacks the model, so split them on the registry's provider set to give an actionable
-// message (and, when another provider carries the same id, a did-you-mean hint).
-function resolveModel(
-  modelRuntime: ModelRuntimeInstance,
-  provider: string,
-  modelId: string,
-): ResolvedModel {
-  const piProvider = piModelProviderId(provider);
-  const model = modelRuntime.getModel(piProvider, modelId);
-  if (model) return model;
-
-  const all = modelRuntime.getModels();
-  const knownProviders = new Set(all.map((entry) => entry.provider));
-  if (!knownProviders.has(piProvider)) {
-    throw new AgentConfigError(
-      `Unknown provider "${provider}" for agent step. ` +
-        'Known providers are pi built-ins plus any from models.json.',
-      'provider_unsupported',
-    );
-  }
-
-  const alternativeProvider = all.find((entry) => entry.id === modelId)?.provider;
-  const hint =
-    alternativeProvider === undefined
-      ? ''
-      : ` Did you mean to set provider: ${alternativeProvider}?`;
-  throw new AgentConfigError(
-    `Model "${modelId}" is not available for provider "${provider}".${hint}`,
-    'model_unavailable',
-  );
-}
-
-function toPiRuntimeCredential(
-  provider: string,
-  credentials: Record<string, string>,
-): ApiKeyCredential {
-  const credential: ApiKeyCredential = {
-    type: 'api_key',
-    key: credentialValue(provider, credentials, 'api_key'),
-  };
-  const env = providerCredentialEnv(provider, credentials);
-  return env === undefined ? credential : {...credential, env};
-}
-
-function providerCredentialEnv(
-  provider: string,
-  credentials: Record<string, string>,
-): Record<string, string> | undefined {
-  switch (provider) {
-    case 'azure-openai-responses':
-      return {AZURE_OPENAI_BASE_URL: credentialValue(provider, credentials, 'endpoint')};
-    case 'cloudflare-ai-gateway':
-      return {
-        CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id'),
-        CLOUDFLARE_GATEWAY_ID: credentialValue(provider, credentials, 'gateway_id'),
-      };
-    case 'cloudflare-workers-ai':
-      return {CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id')};
-    default:
-      return undefined;
-  }
-}
-
-function credentialValue(
-  provider: string,
-  credentials: Record<string, string>,
-  key: string,
-): string {
-  const value = credentials[key];
-  if (value === undefined || value === '') {
-    throw new AgentConfigError(
-      `Runtime credentials for provider "${provider}" are missing "${key}".`,
-      'credentials_invalid',
-    );
-  }
-  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

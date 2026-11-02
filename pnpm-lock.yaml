@@ -3093,6 +3093,9 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
         version: 1.2.0(@aws-sdk/credential-provider-node@3.972.86)(@modelcontextprotocol/sdk@1.32.1(zod@4.4.3))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-coding-agent':
+        specifier: 'catalog:'
+        version: 1.2.0(@aws-sdk/credential-provider-node@3.972.86)(@modelcontextprotocol/sdk@1.32.1(zod@4.4.3))(@smithy/signature-v4@5.7.4)(ws@8.21.0)(zod@4.4.3)
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
@@ -3138,6 +3141,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/node-pi-runtime':
+        specifier: workspace:*
+        version: link:../../shared/node/pi-runtime
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
@@ -9349,6 +9355,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/node-pi-runtime':
+        specifier: workspace:*
+        version: link:../../shared/node/pi-runtime
       '@shipfox/runner-container':
         specifier: workspace:*
         version: link:../container
@@ -10420,6 +10429,40 @@ importers:
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../postgres
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/shared/node/pi-runtime:
+    dependencies:
+      '@earendil-works/pi-ai':
+        specifier: 'catalog:'
+        version: 1.2.0(@aws-sdk/credential-provider-node@3.972.86)(@modelcontextprotocol/sdk@1.32.1(zod@4.4.3))(@smithy/signature-v4@5.7.4)(undici@8.10.2)(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-coding-agent':
+        specifier: 'catalog:'
+        version: 1.2.0(@aws-sdk/credential-provider-node@3.972.86)(@modelcontextprotocol/sdk@1.32.1(zod@4.4.3))(@smithy/signature-v4@5.7.4)(ws@8.21.0)(zod@4.4.3)
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.32.1(zod@4.4.3)
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../../api/agent-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../../api/workflows-dto
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
