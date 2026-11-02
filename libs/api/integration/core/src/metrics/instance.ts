@@ -164,3 +164,14 @@ export function normalizeIntegrationAgentToolCallErrorCode(
     ? (value as IntegrationAgentToolCallErrorCode)
     : 'unknown';
 }
+
+export type IntegrationConfigLinkOutcome = 'completed' | 'failed';
+
+const configLinkCount = meter.createCounter<{outcome: IntegrationConfigLinkOutcome}>(
+  'integrations_config_link',
+  {description: 'Moves of a managed project to a repository by outcome'},
+);
+
+export function recordIntegrationConfigLink(outcome: IntegrationConfigLinkOutcome): void {
+  recordMetric(() => configLinkCount.add(1, {outcome}));
+}

@@ -246,3 +246,119 @@ describe('Test VCS smart HTTP fixture', () => {
     }
   });
 });
+
+describe('Test VCS pull requests', () => {
+  async function started() {
+    const fixture = createTestVcsFixture({port: 0});
+    await fixture.start();
+    await fixture.createRepository({
+      owner: 'acme',
+      name: 'app',
+      files: [{path: 'README.md', content: '# App\n'}],
+    });
+    return fixture;
+  }
+
+  const branch = 'shipfox/link-config-1';
+  const files = [{path: '.shipfox/workflows/a.yml', content: 'name: A\n'}];
+
+  it('opens a pull request from a branch without touching the default branch', async () => {
+    const fixture = await started();
+    try {
+      const pullRequest = await fixture.openPullRequest({
+        owner: 'acme',
+        name: 'app',
+        branch,
+        files,
+        title: 'Add config',
+      });
+
+      expect(pullRequest).toMatchObject({number: 1, state: 'open'});
+      const main = await fixture.listFiles({
+        owner: 'acme',
+        name: 'app',
+        ref: 'main',
+        prefix: '.shipfox/',
+        limit: 10,
+      });
+      expect(main.files).toEqual([]);
+      const head = await fixture.listFiles({
+        owner: 'acme',
+        name: 'app',
+        ref: branch,
+        prefix: '.shipfox/',
+        limit: 10,
+      });
+      expect(head.files.map((file) => file.path)).toEqual(['.shipfox/workflows/a.yml']);
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it('returns the same pull request for the same branch, in any state', async () => {
+    const fixture = await started();
+    try {
+      const input = {owner: 'acme', name: 'app', branch, files, title: 'Add config'};
+      const first = await fixture.openPullRequest(input);
+      fixture.closePullRequest({owner: 'acme', name: 'app', number: first.number});
+
+      const again = await fixture.openPullRequest(input);
+
+      expect(again).toEqual({...first, state: 'closed'});
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it('merges the branch into the default branch', async () => {
+    const fixture = await started();
+    try {
+      const opened = await fixture.openPullRequest({
+        owner: 'acme',
+        name: 'app',
+        branch,
+        files,
+        title: 'Add config',
+      });
+
+      const merged = await fixture.mergePullRequest({
+        owner: 'acme',
+        name: 'app',
+        number: opened.number,
+      });
+
+      expect(merged.state).toBe('merged');
+      expect(fixture.getPullRequest({owner: 'acme', name: 'app', branch})?.state).toBe('merged');
+      const main = await fixture.listFiles({
+        owner: 'acme',
+        name: 'app',
+        ref: 'main',
+        prefix: '.shipfox/',
+        limit: 10,
+      });
+      expect(main.files.map((file) => file.path)).toEqual(['.shipfox/workflows/a.yml']);
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it('refuses to merge a closed pull request', async () => {
+    const fixture = await started();
+    try {
+      const opened = await fixture.openPullRequest({
+        owner: 'acme',
+        name: 'app',
+        branch,
+        files,
+        title: 'Add config',
+      });
+      fixture.closePullRequest({owner: 'acme', name: 'app', number: opened.number});
+
+      const result = fixture.mergePullRequest({owner: 'acme', name: 'app', number: opened.number});
+
+      await expect(result).rejects.toThrow('closed');
+    } finally {
+      await fixture.close();
+    }
+  });
+});

@@ -1,7 +1,9 @@
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {IntegrationProviderError} from '#core/errors.js';
+import {createManagedProjectRepository} from '#core/managed-repositories.js';
 import {upsertIntegrationConnection} from '#db/connections.js';
 import type {IntegrationProvider} from '#index.js';
+import {createFakeHost, createFakeProjects} from '#test/fixtures/config-link.js';
 import {createTestApp, sourceProvider, useIntegrationRouteTest} from '#test/route-utils.js';
 
 const HEAD = 'a'.repeat(40);
@@ -110,6 +112,8 @@ describe('project config routes', () => {
         },
         head: {ref: 'refs/heads/main', commit: HEAD},
         history_supported: false,
+        move: null,
+        pull_request: null,
       });
     });
 
@@ -413,5 +417,190 @@ describe('project config routes', () => {
       expect(res.statusCode).toBe(422);
       expect(res.json().code).toBe('integration-history-unsupported');
     });
+  });
+});
+
+describe('project config link routes', () => {
+  const context = useIntegrationRouteTest();
+  const headers = {authorization: 'Bearer user'};
+  const WORKFLOW = '.shipfox/workflows/triage.yml';
+
+  async function setup() {
+    const managed = await import('@shipfox/api-integration-managed-vcs');
+    const {host, provider} = createFakeHost();
+    const fakeProjects = createFakeProjects(context.workspaceId);
+    const target = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+    });
+    const projectId = crypto.randomUUID();
+    const repository = await createManagedProjectRepository({
+      workspaceId: context.workspaceId,
+      projectId,
+      files: [{path: WORKFLOW, content: 'name: Triage\n'}],
+    });
+    fakeProjects.rows.set(projectId, {
+      id: projectId,
+      workspaceId: context.workspaceId,
+      connectionId: repository.connectionId,
+      externalRepositoryId: repository.externalRepositoryId,
+      owner: 'shipfox',
+      name: repository.externalRepositoryId,
+      defaultBranch: 'main',
+    });
+    const app = await createTestApp(
+      [
+        {
+          provider: 'managed-vcs',
+          displayName: 'Shipfox',
+          internal: true,
+          adapters: {
+            source_control: new managed.ManagedSourceControlProvider() as never,
+          },
+        },
+        provider,
+      ],
+      {projects: fakeProjects.client as unknown as ProjectsModuleClient},
+    );
+    const body = (overrides: Record<string, unknown> = {}) => ({
+      connection_id: target.id,
+      external_repository_id: host.externalRepositoryId,
+      ...overrides,
+    });
+    return {app, projectId, host, body, rows: fakeProjects.rows};
+  }
+
+  it('checks a repository without moving anything on a dry run', async () => {
+    const {app, projectId, host, body} = await setup();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/config/link`,
+      headers,
+      payload: body({dry_run: true}),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      status: 'ready',
+      file_count: 1,
+      pull_request: null,
+      repository: {full_name: 'acme/app', default_branch: 'trunk'},
+    });
+    expect(host.opened).toEqual([]);
+  });
+
+  it('moves the project and reports the pull request on the config read', async () => {
+    const {app, projectId, body} = await setup();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/config/link`,
+      headers,
+      payload: body(),
+    });
+    const config = await app.inject({
+      method: 'GET',
+      url: `/projects/${projectId}/config`,
+      headers,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({status: 'linked', pull_request: {number: 1, state: 'open'}});
+    expect(config.json()).toMatchObject({
+      source: {kind: 'linked', provider: 'gitea', name: 'app'},
+      move: {status: 'linked', started_by: 'user-1'},
+      pull_request: {number: 1, state: 'open'},
+    });
+  });
+
+  it('answers a refusal with its code', async () => {
+    const {app, projectId, host, body} = await setup();
+    host.existingFiles = [WORKFLOW];
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/config/link`,
+      headers,
+      payload: body(),
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('config-exists');
+  });
+
+  it('answers an unconfirmed outcome as unavailable and resumes on retry', async () => {
+    const {app, projectId, host, body} = await setup();
+    host.failBeforeOpen = new IntegrationProviderError('timeout', 'slow');
+    const request = {
+      method: 'POST' as const,
+      url: `/projects/${projectId}/config/link`,
+      headers,
+      payload: body(),
+    };
+
+    const first = await app.inject(request);
+    host.failBeforeOpen = undefined;
+    const config = await app.inject({method: 'GET', url: `/projects/${projectId}/config`, headers});
+    const second = await app.inject(request);
+
+    expect(first.statusCode).toBe(503);
+    expect(first.json().code).toBe('move-unconfirmed');
+    expect(config.json().move).toMatchObject({status: 'linking', target: {full_name: 'acme/app'}});
+    expect(second.statusCode).toBe(200);
+  });
+
+  it('answers a provider refusal and leaves the project unchanged', async () => {
+    const {app, projectId, host, body, rows} = await setup();
+    host.failBeforeOpen = new IntegrationProviderError('access-denied', 'No permission');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/config/link`,
+      headers,
+      payload: body(),
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('access-denied');
+    expect(rows.get(projectId)?.externalRepositoryId).toContain('managed-vcs:');
+  });
+
+  it('refuses an impersonated session', async () => {
+    const {app, projectId, body} = await setup();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/config/link`,
+      headers: {authorization: 'Bearer impersonated'},
+      payload: body(),
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('opens a new pull request after the first closed, and refuses while it is open', async () => {
+    const {app, projectId, host, body} = await setup();
+    await app.inject({
+      method: 'POST',
+      url: `/projects/${projectId}/config/link`,
+      headers,
+      payload: body(),
+    });
+    const url = `/projects/${projectId}/config/link/pull-request`;
+
+    const whileOpen = await app.inject({method: 'POST', url, headers});
+    const [first] = [...host.pullRequests.values()];
+    if (first) first.state = 'closed';
+    const afterClose = await app.inject({method: 'POST', url, headers});
+
+    expect(whileOpen.statusCode).toBe(409);
+    expect(whileOpen.json().code).toBe('pull-request-not-closed');
+    expect(afterClose.statusCode).toBe(200);
+    expect(afterClose.json().pull_request).toMatchObject({number: 2, state: 'open'});
   });
 });

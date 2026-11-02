@@ -77,6 +77,20 @@ const commitFilesBodySchema = z
     files: z.array(fileSchema).min(1).max(128),
   })
   .strict();
+const pullRequestBodySchema = z
+  .object({
+    connection_id: z.string().uuid(),
+    external_repository_id: z.string().min(1),
+    number: z.number().int().positive(),
+  })
+  .strict();
+const pullRequestResponseSchema = z
+  .object({
+    url: z.string(),
+    number: z.number().int(),
+    state: z.enum(['open', 'merged', 'closed']),
+  })
+  .strict();
 const statsQuerySchema = z.object({connection_id: z.string().uuid().optional()}).strict();
 const failMintsBodySchema = z.object({count: z.number().int().min(1).max(10)}).strict();
 
@@ -177,6 +191,40 @@ function createTestVcsRoutes(options: {
             files: request.body.files,
           });
           return {commit};
+        },
+      }),
+      defineRoute({
+        method: 'POST',
+        path: '/pull-requests/merge',
+        description: 'Merge a Test VCS pull request into its default branch for E2E tests.',
+        schema: {
+          body: pullRequestBodySchema,
+          response: {200: pullRequestResponseSchema},
+        },
+        handler: async (request) => {
+          const connection = await requireTestVcsConnection(request.body.connection_id);
+          return await options.sourceControl.mergePullRequest({
+            connection,
+            externalRepositoryId: request.body.external_repository_id,
+            number: request.body.number,
+          });
+        },
+      }),
+      defineRoute({
+        method: 'POST',
+        path: '/pull-requests/close',
+        description: 'Close a Test VCS pull request without merging it for E2E tests.',
+        schema: {
+          body: pullRequestBodySchema,
+          response: {200: pullRequestResponseSchema},
+        },
+        handler: async (request) => {
+          const connection = await requireTestVcsConnection(request.body.connection_id);
+          return options.sourceControl.closePullRequest({
+            connection,
+            externalRepositoryId: request.body.external_repository_id,
+            number: request.body.number,
+          });
         },
       }),
       defineRoute({

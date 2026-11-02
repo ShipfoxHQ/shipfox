@@ -528,6 +528,47 @@ export async function createTestVcsRepository(
   });
 }
 
+export interface TestVcsPullRequest {
+  url: string;
+  number: number;
+  state: 'open' | 'merged' | 'closed';
+}
+
+export interface TestVcsPullRequestParams {
+  connectionId: string;
+  externalRepositoryId: string;
+  number: number;
+}
+
+function testVcsPullRequestBody(params: TestVcsPullRequestParams) {
+  return {
+    connection_id: params.connectionId,
+    external_repository_id: params.externalRepositoryId,
+    number: params.number,
+  };
+}
+
+/** Merges the pull request into the repository's default branch, like a reviewer would. */
+export async function mergeTestVcsPullRequest(
+  params: TestVcsPullRequestParams,
+): Promise<TestVcsPullRequest> {
+  return await requestJson<TestVcsPullRequest>(
+    'post',
+    '/__e2e/integrations/test-vcs/pull-requests/merge',
+    {json: testVcsPullRequestBody(params)},
+  );
+}
+
+export async function closeTestVcsPullRequest(
+  params: TestVcsPullRequestParams,
+): Promise<TestVcsPullRequest> {
+  return await requestJson<TestVcsPullRequest>(
+    'post',
+    '/__e2e/integrations/test-vcs/pull-requests/close',
+    {json: testVcsPullRequestBody(params)},
+  );
+}
+
 export async function getTestVcsStats(
   params: {connectionId?: string | undefined} = {},
 ): Promise<TestVcsStats> {

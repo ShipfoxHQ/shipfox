@@ -8,6 +8,7 @@ repository in Postgres and reads it through `SourceControlProvider`.
 - **`ManagedSourceControlProvider`** resolves repositories and refs, lists
   files, reads files, and lists the commits that changed a path.
 - **`createManagedRepository`** creates a project's repository with `main` at a commit of the seed files, and **`deleteManagedRepository`** deletes it with its objects and refs.
+- **The link state functions** (`beginManagedLink`, `recordManagedLinkPullRequest`, `completeManagedLink`, `releaseManagedLink`, `replaceManagedLinkPullRequest`, `clearManagedLinkPullRequest`, and `getManagedRepositoryByProject`) hold the state of a move to another repository. Integration core drives them.
 - **`db`, `closeDb`, and `migrationsPath`** give the composing module the
   package's database and its migrations.
 
@@ -57,7 +58,7 @@ cascade from their repository, so deleting a repository is one statement.
 
 | Table | Holds |
 | --- | --- |
-| `integrations_managed_vcs_repositories` | One repository per project, with its workspace. |
+| `integrations_managed_vcs_repositories` | One repository per project, with its workspace and the state of its move: `status` (`active`, `linking`, or `linked`), the attempt, target, actor, and start time, and the pull request URL and number. |
 | `integrations_managed_vcs_refs` | Branch names and their commit. A foreign key ties each ref to an object in the same repository. |
 | `integrations_managed_vcs_objects` | Standard deflated git objects, by repository and object id. |
 
@@ -73,6 +74,8 @@ to the connection's workspace, and answers `repository-not-found` if not.
 | `fetchFile` | Reads a file at a branch or a commit id. A symlink or a submodule answers `file-not-found`. |
 | `resolveRef` | Accepts `refs/heads/x` and `x`. Tags don't exist. |
 | `listCommits` | Follows first parents from a branch or commit id, and keeps a commit when the path's object or mode differs from its first parent. |
+
+**A move is a compare-and-set on the repository row.** `beginManagedLink` locks the row and moves `active` to `linking`. On a repository that is already `linking` it keeps the stored attempt and target and only restarts the clock. `completeManagedLink`, `releaseManagedLink`, and `recordManagedLinkPullRequest` apply only to the stored attempt, so a late call from an older attempt changes nothing. `replaceManagedLinkPullRequest` swaps a closed pull request for a new attempt on a `linked` repository, once. `linked` is final.
 
 **`createManagedRepository` is idempotent on the project.** A repeat call returns the existing repository and ignores the files, because `main` only moves through a merge. Without files, `main` points at a commit with the empty tree. A seed file must sit under `.shipfox/`, have no empty, `.`, `..`, or `.git` segment, no backslash or control character, and share its path with no directory. A file is at most 1 MB, and a seed is at most 100 files and 1 MiB. A refused seed throws `ManagedSeedFileError` and writes nothing. A project that has a repository in another workspace throws `ManagedRepositoryProjectConflictError`.
 

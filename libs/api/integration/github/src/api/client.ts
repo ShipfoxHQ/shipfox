@@ -172,6 +172,7 @@ export type GithubInstallationAccessTokenInput = {
 
 export interface GithubInstallationAccessTokenPermissions {
   contents: 'read' | 'write';
+  pull_requests?: 'read' | 'write';
   workflows?: 'write';
 }
 

@@ -1,5 +1,7 @@
 import {ClientError} from '@shipfox/node-fastify';
 import {
+  ConfigLinkRefusedError,
+  ConfigLinkUnconfirmedError,
   IntegrationCapabilityUnavailableError,
   IntegrationCheckoutUnsupportedError,
   IntegrationConnectionInactiveError,
@@ -43,6 +45,14 @@ function isProviderError(error: unknown): error is IntegrationProviderError {
 }
 
 export function integrationRouteErrorHandler(error: unknown): never {
+  if (error instanceof ConfigLinkRefusedError) {
+    throw new ClientError(error.message, error.code, {
+      status: error.code === 'link-unsupported' ? 422 : 409,
+    });
+  }
+  if (error instanceof ConfigLinkUnconfirmedError) {
+    throw new ClientError(error.message, 'move-unconfirmed', {status: 503});
+  }
   if (error instanceof IntegrationConnectionNotFoundError) {
     throw new ClientError(error.message, 'integration-connection-not-found', {status: 404});
   }

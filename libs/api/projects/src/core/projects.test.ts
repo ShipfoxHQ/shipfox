@@ -4,7 +4,13 @@ import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {sql} from 'drizzle-orm';
 import {db} from '#db/index.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
-import {createProjectFromSource} from './projects.js';
+import {projects} from '#db/schema/projects.js';
+import {
+  ProjectAlreadyExistsError,
+  ProjectNotFoundError,
+  ProjectSourceChangedError,
+} from './errors.js';
+import {createProjectFromSource, moveProjectSource} from './projects.js';
 
 describe('createProjectFromSource', () => {
   let actorId: string;
@@ -145,5 +151,129 @@ describe('createProjectFromSource', () => {
       code: 'provider-failure',
       details: {reason: 'repository-not-found'},
     });
+  });
+});
+
+describe('moveProjectSource', () => {
+  const managed = 'managed-vcs:00000000-0000-4000-8000-000000000001';
+  let workspaceId: string;
+  let managedConnectionId: string;
+  let githubConnectionId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    managedConnectionId = crypto.randomUUID();
+    githubConnectionId = crypto.randomUUID();
+  });
+
+  async function createManagedProject(slug: string, externalRepositoryId = managed) {
+    const [project] = await db()
+      .insert(projects)
+      .values({
+        workspaceId,
+        sourceConnectionId: managedConnectionId,
+        sourceExternalRepositoryId: externalRepositoryId,
+        sourceRepositoryOwner: 'shipfox',
+        sourceRepositoryName: externalRepositoryId,
+        sourceDefaultBranch: 'main',
+        name: slug,
+        slug,
+      })
+      .returning();
+    if (!project) throw new Error('Project insert returned no row');
+    return project;
+  }
+
+  function move(projectId: string, repositoryId = 'github:42', from = managed) {
+    return {
+      actorId: 'user-1',
+      workspaceId,
+      projectId,
+      from: {connectionId: managedConnectionId, externalRepositoryId: from},
+      to: {
+        connectionId: githubConnectionId,
+        provider: 'github',
+        externalRepositoryId: repositoryId,
+        owner: 'acme',
+        name: 'app',
+        defaultBranch: 'trunk',
+      },
+    };
+  }
+
+  async function events(projectId: string) {
+    return await db()
+      .select()
+      .from(projectsOutbox)
+      .where(sql`${projectsOutbox.payload}->>'projectId' = ${projectId}`);
+  }
+
+  test('moves the source and announces it as a bind', async () => {
+    const project = await createManagedProject('managed');
+
+    const result = await moveProjectSource(move(project.id));
+
+    expect(result).toEqual({moved: true});
+    const [row] = await db().select().from(projects).where(sql`${projects.id} = ${project.id}`);
+    expect(row).toMatchObject({
+      sourceConnectionId: githubConnectionId,
+      sourceExternalRepositoryId: 'github:42',
+      sourceRepositoryOwner: 'acme',
+      sourceRepositoryName: 'app',
+      sourceDefaultBranch: 'trunk',
+    });
+    expect((await events(project.id)).map((event) => event.payload)).toEqual([
+      expect.objectContaining({
+        actorId: 'user-1',
+        sourceConnectionId: githubConnectionId,
+        provider: 'github',
+        externalRepositoryId: 'github:42',
+      }),
+    ]);
+  });
+
+  test('succeeds without a second bind when the target is already set', async () => {
+    const project = await createManagedProject('managed');
+    await moveProjectSource(move(project.id));
+
+    const result = await moveProjectSource(move(project.id));
+
+    expect(result).toEqual({moved: false});
+    expect(await events(project.id)).toHaveLength(1);
+  });
+
+  test('refuses when the source is neither the expected one nor the target', async () => {
+    const project = await createManagedProject('managed');
+
+    const result = moveProjectSource(move(project.id, 'github:42', 'managed-vcs:other'));
+
+    await expect(result).rejects.toBeInstanceOf(ProjectSourceChangedError);
+    expect(await events(project.id)).toHaveLength(0);
+  });
+
+  test('refuses a project of another workspace', async () => {
+    const project = await createManagedProject('managed');
+
+    const result = moveProjectSource({...move(project.id), workspaceId: crypto.randomUUID()});
+
+    await expect(result).rejects.toBeInstanceOf(ProjectNotFoundError);
+  });
+
+  test('gives the repository to one of two projects racing for it', async () => {
+    const first = await createManagedProject('first', 'managed-vcs:first');
+    const second = await createManagedProject('second', 'managed-vcs:second');
+
+    const results = await Promise.allSettled([
+      moveProjectSource(move(first.id, 'github:42', 'managed-vcs:first')),
+      moveProjectSource(move(second.id, 'github:42', 'managed-vcs:second')),
+    ]);
+
+    const winners = results.filter((result) => result.status === 'fulfilled');
+    const losers = results.filter((result) => result.status === 'rejected');
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(1);
+    expect(losers[0]?.reason).toBeInstanceOf(ProjectAlreadyExistsError);
+    const loserId = results[0]?.status === 'rejected' ? first.id : second.id;
+    expect(await events(loserId)).toHaveLength(0);
   });
 });

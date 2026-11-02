@@ -378,3 +378,96 @@ describe('Projects checkout target inter-module presentation', () => {
     });
   });
 });
+
+describe('Projects moveProjectSource inter-module presentation', () => {
+  function input(project: {projectId: string; connectionId: string; externalRepositoryId: string}) {
+    return {
+      projectId: project.projectId,
+      workspaceId: workspaceIdOf.get(project.projectId) ?? crypto.randomUUID(),
+      actorId: 'user-1',
+      from: {
+        connectionId: project.connectionId,
+        externalRepositoryId: project.externalRepositoryId,
+      },
+      to: {
+        connectionId: crypto.randomUUID(),
+        provider: 'github',
+        externalRepositoryId: `github:${crypto.randomUUID()}`,
+        owner: 'acme',
+        name: 'app',
+        defaultBranch: 'main',
+      },
+    };
+  }
+  const workspaceIdOf = new Map<string, string>();
+
+  async function insert(name: string, externalRepositoryId?: string) {
+    const workspaceId = crypto.randomUUID();
+    const project = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'shipfox',
+      name,
+      ...(externalRepositoryId === undefined ? {} : {externalRepositoryId}),
+    });
+    workspaceIdOf.set(project.projectId, workspaceId);
+    return project;
+  }
+
+  async function knownError(promise: Promise<unknown>) {
+    const error = await promise.catch((caught) => caught);
+    const method = projectsInterModuleContract.methods.moveProjectSource;
+    if (!isInterModuleKnownError(method, error)) throw error;
+    return error;
+  }
+
+  test('moves the source', async () => {
+    const client = createClient();
+    const project = await insert('managed');
+
+    const result = await client.moveProjectSource(input(project));
+
+    expect(result).toEqual({moved: true});
+  });
+
+  test('reports an unknown project', async () => {
+    const client = createClient();
+    const project = await insert('managed');
+
+    const error = await knownError(
+      client.moveProjectSource({...input(project), projectId: crypto.randomUUID()}),
+    );
+
+    expect(error.code).toBe('project-not-found');
+  });
+
+  test('reports a source that is neither the expected one nor the target', async () => {
+    const client = createClient();
+    const project = await insert('managed');
+
+    const error = await knownError(
+      client.moveProjectSource({
+        ...input(project),
+        from: {connectionId: crypto.randomUUID(), externalRepositoryId: 'other'},
+      }),
+    );
+
+    expect(error.code).toBe('source-changed');
+  });
+
+  test('reports the project that already owns the target', async () => {
+    const client = createClient();
+    const mover = await insert('mover');
+    const owner = await insert('owner');
+    const moveInput = input(mover);
+
+    await client.moveProjectSource({
+      ...input(owner),
+      to: moveInput.to,
+    });
+    const error = await knownError(client.moveProjectSource(moveInput));
+
+    expect(error.code).toBe('source-already-bound');
+    expect(error.details).toEqual({existingProjectId: owner.projectId});
+  });
+});

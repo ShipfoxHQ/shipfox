@@ -1020,4 +1020,88 @@ describe('GithubSourceControlProvider', () => {
     expect(github.getRepository).not.toHaveBeenCalled();
     expect(github.createInstallationAccessToken).not.toHaveBeenCalled();
   });
+  describe('config pull requests', () => {
+    const pullRequest = {
+      html_url: 'https://github.com/shipfox/platform/pull/5',
+      number: 5,
+      state: 'open',
+    };
+
+    function toolClient(data: unknown) {
+      const request = vi.fn(() => Promise.resolve({data}));
+      return {request, factory: vi.fn(() => ({request}))};
+    }
+
+    it('looks up a pull request with a read-only token scoped to the repository', async () => {
+      await createInstallation();
+      const github = githubClient();
+      const tool = toolClient([pullRequest]);
+      const provider = new GithubSourceControlProvider(github, undefined, undefined, tool.factory);
+
+      const result = await provider.getConfigPullRequest({
+        connection: connection(),
+        externalRepositoryId: 'github:42',
+        branch: 'shipfox/link-config-1',
+      });
+
+      expect(result).toEqual({
+        url: 'https://github.com/shipfox/platform/pull/5',
+        number: 5,
+        state: 'open',
+      });
+      expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
+        installationId,
+        repositoryId: 42,
+        permissions: {contents: 'read', pull_requests: 'read'},
+      });
+      expect(tool.factory).toHaveBeenCalledWith('ghs_installationtoken');
+      expect(tool.request).toHaveBeenCalledWith(
+        'GET /repos/{owner}/{repo}/pulls',
+        expect.objectContaining({
+          owner: 'shipfox',
+          repo: 'platform',
+          head: 'shipfox:shipfox/link-config-1',
+        }),
+      );
+    });
+
+    it('returns the existing pull request and mints a write token only to open one', async () => {
+      await createInstallation();
+      const github = githubClient();
+      const tool = toolClient([pullRequest]);
+      const provider = new GithubSourceControlProvider(github, undefined, undefined, tool.factory);
+
+      const result = await provider.openConfigPullRequest({
+        connection: connection(),
+        externalRepositoryId: 'github:42',
+        branch: 'shipfox/link-config-1',
+        files: [{path: '.shipfox/workflows/a.yml', content: 'name: A\n'}],
+        title: 'Add Shipfox config',
+        body: 'Body',
+      });
+
+      expect(result.number).toBe(5);
+      expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
+        installationId,
+        repositoryId: 42,
+        permissions: {contents: 'write', pull_requests: 'write'},
+      });
+      expect(tool.request).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses an inactive installation before any api call', async () => {
+      await createInstallation({suspendedAt: new Date()});
+      const github = githubClient();
+      const provider = new GithubSourceControlProvider(github);
+
+      const result = provider.getConfigPullRequest({
+        connection: connection(),
+        externalRepositoryId: 'github:42',
+        branch: 'shipfox/link-config-1',
+      });
+
+      await expect(result).rejects.toMatchObject({reason: 'installation-inactive'});
+      expect(github.createInstallationAccessToken).not.toHaveBeenCalled();
+    });
+  });
 });
