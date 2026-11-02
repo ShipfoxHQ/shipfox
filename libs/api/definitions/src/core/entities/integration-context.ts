@@ -1,5 +1,5 @@
 type IntegrationProviderKind = string;
-type IntegrationCapability = 'source_control' | 'agent_tools';
+type IntegrationCapability = 'source_control' | 'agent_tools' | 'interaction';
 
 interface AgentToolSelectionCatalog {
   readonly selectors: readonly AgentToolSelector[];

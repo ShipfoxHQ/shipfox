@@ -1,3 +1,4 @@
+import {createFakeInteractionProvider} from '@shipfox/api-integration-spi/testing';
 import {
   IntegrationCapabilityUnavailableError,
   IntegrationProviderUnavailableError,
@@ -104,6 +105,19 @@ describe('integration provider registry', () => {
 
     expect(result.map((provider) => provider.provider)).toEqual(['github']);
     expect(registry.get('github').capabilities).toEqual(['agent_tools']);
+  });
+
+  it('computes the interaction capability from the adapter', () => {
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'chat',
+        displayName: 'Chat',
+        adapters: {interaction: createFakeInteractionProvider().provider},
+      },
+    ]);
+
+    expect(registry.list('interaction').map((provider) => provider.provider)).toEqual(['chat']);
+    expect(registry.get('chat').capabilities).toEqual(['interaction']);
   });
 
   it('keeps provider sets isolated per registry instance', () => {

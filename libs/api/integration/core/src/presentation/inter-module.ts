@@ -40,6 +40,7 @@ import {
   RepositoryAuthorizerConfigurationError,
 } from '#core/errors.js';
 import {buildFixedEventProviders, buildProviderEventCatalogs} from '#core/event-catalogs.js';
+import {createInteractionIntegrationService} from '#core/interaction-service.js';
 import {
   createManagedProjectRepository,
   deleteManagedProjectRepository,
@@ -166,6 +167,10 @@ export function createIntegrationsInterModulePresentation(params: {
   const getConnectionById = params.getIntegrationConnectionById ?? getIntegrationConnectionById;
   const createRecorder =
     params.createIntegrationToolCallRecorder ?? createIntegrationToolCallRecorder;
+  const interaction = createInteractionIntegrationService({
+    registry: params.registry,
+    getConnection: params.sourceControl.getConnection,
+  });
   // A project in another workspace is indistinguishable from a missing one.
   async function configOperation<Output>(
     method: InterModuleMethodContract,
@@ -395,6 +400,23 @@ export function createIntegrationsInterModulePresentation(params: {
       );
       return {tools: toolsByProvider.flat()};
     },
+    listInteractionProviders: async () => ({providers: interaction.listProviders()}),
+    readInteraction: async (input) =>
+      await known(
+        contract.methods.readInteraction,
+        input,
+        async () => await interaction.readInteraction(input),
+      ),
+    sendInteractionReply: async (input) =>
+      await known(
+        contract.methods.sendInteractionReply,
+        input,
+        async () => await interaction.sendReply(input),
+      ),
+    reportInteractionProgress: async (input) =>
+      await known(contract.methods.reportInteractionProgress, input, async () => ({
+        reported: await interaction.reportProgress(input),
+      })),
     getAgentToolsContext: async (input) =>
       await known(contract.methods.getAgentToolsContext, input, async () => {
         const [selectionCatalogs, catalogs, snapshot, defaultConnection] = await Promise.all([

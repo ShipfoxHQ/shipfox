@@ -11,7 +11,7 @@ export const AGENT_ACCESS_INTEGRATION_MAX_TOOLS = 100;
 export const AGENT_ACCESS_INTEGRATION_MAX_METHODS = 50;
 export const AGENT_ACCESS_INTEGRATION_MAX_EVENTS = 100;
 
-const capabilitySchema = z.enum(['source_control', 'agent_tools']);
+const capabilitySchema = z.enum(['source_control', 'agent_tools', 'interaction']);
 const lifecycleStatusSchema = z.enum(['active', 'disabled', 'error']);
 const identifierSchema = z.string().min(1);
 const cappedTextSchema = utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES);
@@ -135,7 +135,10 @@ const truncationJsonFields = {
   truncated: {const: true},
   total_bytes: {type: 'integer', minimum: 0},
 } as const;
-const capability = {type: 'string', enum: ['source_control', 'agent_tools']} as const;
+const capability = {
+  type: 'string',
+  enum: ['source_control', 'agent_tools', 'interaction'],
+} as const;
 const lifecycleStatus = {type: 'string', enum: ['active', 'disabled', 'error']} as const;
 
 const connectionSummaryJsonSchema = {
