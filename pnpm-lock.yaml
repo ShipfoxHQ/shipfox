@@ -3129,6 +3129,9 @@ importers:
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../workspaces-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -3168,6 +3171,9 @@ importers:
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../../shared/node/temporal
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/redact':
         specifier: workspace:*
         version: link:../../shared/common/redact

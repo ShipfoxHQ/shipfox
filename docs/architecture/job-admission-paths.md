@@ -31,6 +31,7 @@ suspension. Those jobs continue through execution.
 | Integration webhook to a workflow trigger | The enabled integration provider receives the webhook; Integrations publishes `INTEGRATION_EVENT_RECEIVED`; Triggers runs `dispatchIntegrationEvent` | Workflows | The same `startRunFromTrigger` presentation |
 | Integration webhook to a listening job | Integrations and Triggers route the event through `routeEventToJobListeners`; Workflows buffers and materializes the listener execution in `deliverEventToListener` | Workflows | `createWorkflowsInterModulePresentation.deliverEventToJobListener`, before materialization for `fire` deliveries; `resolve` deliveries intentionally bypass the gate |
 | User-requested rerun | Workflows route `POST /workflows/runs/:id/rerun` or the `rerunWorkflowRun` inter-module command | Workflows | Shared `rerunWorkflowRun` core action in `core/run-actions.ts`, before `createRerunWorkflowRun` persists the new attempt graph |
+| Agent conversation turn | Agent routes for messages and retry, and the `recoverConversationsCron` sweep, wake `agentConversationWorkflow` | Agent | `beginConversationTurn`, before `openTurn` claims the queued inputs |
 
 The webhook intake family currently includes the generic webhook, GitHub,
 Gitea, Linear, Sentry, and Slack provider route groups. They validate and
@@ -53,6 +54,13 @@ queued and running jobs can finish normally.
   gate before `createRerunWorkflowRun` persists the new attempt graph.
 - Already queued or running work is not rechecked after a workspace changes
   status.
+- A conversation has no run start, so each turn start is an admission moment.
+  The gate checks the workspace operating state, then the optional
+  `admission.policy` of `createAgentModule`, which receives the workspace ID and
+  the source `agent`. A denial opens no turn. It claims the queued inputs and writes a
+  `turn_notice`, so the recovery sweep does not return to them. An owner who
+  left the workspace gets the same settlement without a notice. A turn that is
+  already running is not stopped by admission.
 - Admission failures are permanent. Triggers records and skips the event
   instead of replaying it, so webhook events received while a workspace is
   suspended are discarded and do not resume after reactivation.

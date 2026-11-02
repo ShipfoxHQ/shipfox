@@ -4,7 +4,9 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
 import {AgentSessionUnavailableError, ConversationEntryUnreadableError} from '#core/errors.js';
+import {recoverConversations} from '#core/recover-conversations.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
+import type {AgentAdmissionPolicy, TurnAdmissionWorkspaces} from '#core/turn-admission.js';
 import {
   beginConversationTurn,
   type CreateModelRuntime,
@@ -17,6 +19,7 @@ import {
   type TurnFailureCode,
 } from '#core/turn-runtime/index.js';
 import {TOOL_CALL_MAX_ATTEMPTS} from '../constants.js';
+import {wakeConversation} from '../wake-conversation.js';
 
 export interface ConversationActivityDeps {
   secrets: AgentSecretsClient;
@@ -24,12 +27,16 @@ export interface ConversationActivityDeps {
   projects: ProjectsModuleClient;
   managedProvider?: ManagedModelProvider | undefined;
   workspaceProviders?: WorkspaceProvidersPolicy | undefined;
+  workspaces: TurnAdmissionWorkspaces;
+  admission?: {policy: AgentAdmissionPolicy} | undefined;
+  /** Replaces the wake the recovery sweep sends. Tests use it to see who is woken. */
+  wake?: ((conversationId: string) => Promise<void>) | undefined;
   /** Replaces the model setup. Tests use it to stream from a scripted model. */
   createModelRuntime?: CreateModelRuntime | undefined;
 }
 
 export interface ModelCallActivityResult {
-  stopReason: 'stop' | 'length' | 'toolUse';
+  stopReason: 'stop' | 'length' | 'toolUse' | 'stopped';
   toolCallCount: number;
 }
 
@@ -77,8 +84,10 @@ export function createConversationActivities(deps: ConversationActivityDeps) {
     beginTurn: async (input: {conversationId: string}): Promise<{turnId: string} | undefined> =>
       await beginConversationTurn({conversationId: input.conversationId, deps}),
 
-    claimPendingInputs: async (input: {conversationId: string}): Promise<number> =>
-      await claimConversationInputs(input.conversationId),
+    claimPendingInputs: async (input: {
+      conversationId: string;
+      turnId: string;
+    }): Promise<{claimed: number; stopRequested: boolean}> => await claimConversationInputs(input),
 
     modelCall: async (input: {
       conversationId: string;
@@ -118,11 +127,14 @@ export function createConversationActivities(deps: ConversationActivityDeps) {
     finishTurn: async (input: {
       conversationId: string;
       turnId: string;
-      status: 'succeeded' | 'failed';
+      status: 'succeeded' | 'failed' | 'stopped';
       failureCode?: TurnFailureCode | undefined;
     }): Promise<void> => {
       await finishConversationTurn(input);
     },
+
+    recoverConversations: async (): Promise<{woken: number}> =>
+      await recoverConversations({wake: deps.wake ?? wakeConversation}),
   };
 }
 

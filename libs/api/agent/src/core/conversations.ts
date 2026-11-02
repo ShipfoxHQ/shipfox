@@ -11,6 +11,7 @@ import {
   listWebConversations,
   newConversationRecordId,
 } from '#db/conversations.js';
+import {requestRetry} from '#db/turn-runtime.js';
 import {CONVERSATION_SESSION_VERSION, userMessageEntry} from './conversation-entries.js';
 import {
   aadForConversationItem,
@@ -30,6 +31,7 @@ import type {
 import {
   AgentSessionUnavailableError,
   ConversationNotFoundError,
+  ConversationRetryUnavailableError,
   ConversationTurnRunningError,
 } from './errors.js';
 
@@ -239,4 +241,15 @@ export async function deleteWebConversation(conversationId: string): Promise<voi
   const outcome = await deleteConversationUnlessTurnRunning(conversationId);
   if (outcome === 'not-found') throw new ConversationNotFoundError(conversationId);
   if (outcome === 'turn-running') throw new ConversationTurnRunningError(conversationId);
+}
+
+/**
+ * Marks the latest failed or denied turn for another try. The caller wakes the conversation, and
+ * the recovery sweep does if that wake is lost.
+ */
+export async function requestWebConversationRetry(conversationId: string): Promise<void> {
+  const outcome = await requestRetry(conversationId);
+  if (outcome === 'not-found') throw new ConversationNotFoundError(conversationId);
+  if (outcome === 'turn-running') throw new ConversationTurnRunningError(conversationId);
+  if (outcome === 'not-retryable') throw new ConversationRetryUnavailableError(conversationId);
 }

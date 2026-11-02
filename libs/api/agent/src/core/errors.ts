@@ -366,6 +366,13 @@ export class ConversationTurnRunningError extends Error {
   }
 }
 
+export class ConversationRetryUnavailableError extends Error {
+  constructor(public readonly conversationId: string) {
+    super(`Conversation has no failed or denied turn to retry: ${conversationId}`);
+    this.name = 'ConversationRetryUnavailableError';
+  }
+}
+
 /**
  * A stored conversation row can't become a pi entry. A turn that skipped it would send a prompt
  * with a gap in pi's entry chain, so the load fails instead.

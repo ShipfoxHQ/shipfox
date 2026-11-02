@@ -6,7 +6,7 @@ Runs a Shipfox API server.
 
 - **`defaultModules()`**: Returns the standard module list.
 - **`DefaultModulesExtension`**: Receives the composed Auth, Workspaces, and Usage clients for extension modules.
-- **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets, Workflows, Projects, and Integrations clients.
+- **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets, Workflows, Projects, Integrations, and Workspaces clients.
 - **`DefaultAuthModuleOptions`**: Configures the standard Auth module while `defaultModules()` supplies its Workspaces client.
 - **`DefaultRunnersModuleOptions`**: Configures the standard Runners module while `defaultModules()` supplies its Auth client.
 - **`DefaultCacheModuleOptions`**: Configures the standard Cache module while `defaultModules()` supplies its Workflows client.
@@ -63,6 +63,10 @@ const modules = await defaultModules({
   agentModuleOptions: {managedProvider},
 });
 ```
+
+An `admission.policy` in `agentModuleOptions` decides whether a workspace may
+start an agent turn, after the workspace state check. A denial writes a notice
+to the conversation instead of opening a turn.
 
 To configure installation provisioning in the standard Runners module, use
 `runnersModuleOptions`:

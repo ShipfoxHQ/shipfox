@@ -9,6 +9,7 @@ import {
   getTurnById,
   getTurnEntry,
   insertStreamChunk,
+  isTurnStopRequested,
 } from '#db/turn-runtime.js';
 import {
   conversationFirstTokenSeconds,
@@ -36,9 +37,11 @@ import {
 
 export const STREAM_FLUSH_INTERVAL_MS = 150;
 export const HEARTBEAT_INTERVAL_MS = 5_000;
+export const STOP_POLL_INTERVAL_MS = 500;
 
 export interface ModelCallResult {
-  stopReason: 'stop' | 'length' | 'toolUse';
+  /** `stopped` means the user stopped the reply, and the stored message is the partial one. */
+  stopReason: 'stop' | 'length' | 'toolUse' | 'stopped';
   toolCallCount: number;
 }
 
@@ -52,6 +55,8 @@ export interface ModelCallParams {
 }
 
 function toCallResult(message: {stopReason?: unknown; content?: unknown}): ModelCallResult {
+  // pi leaves a stopped message out of prompts, so its half-written tool calls never run.
+  if (message.stopReason === 'aborted') return {stopReason: 'stopped', toolCallCount: 0};
   const content = Array.isArray(message.content) ? message.content : [];
   const toolCallCount = content.filter(
     (block) => (block as {type?: unknown}).type === 'toolCall',
@@ -157,9 +162,46 @@ interface StreamReplyParams {
   heartbeat?: (() => void) | undefined;
 }
 
+/**
+ * Watches for a stop request while a reply streams, and aborts the stream when one arrives.
+ * Temporal cancellation isn't used, so the activity returns normally and stores what it has.
+ */
+function watchForStop(params: {turnId: string; abort: () => void}) {
+  let requested = false;
+  let polling = false;
+  const timer = setInterval(() => {
+    if (polling || requested) return;
+    polling = true;
+    isTurnStopRequested(params.turnId)
+      .then((stopRequested) => {
+        if (!stopRequested) return;
+        requested = true;
+        params.abort();
+      })
+      // A missed poll is tried again 500 ms later. The stop is stored, so none is lost.
+      .catch((error: unknown) => logger().warn({err: error}, 'Failed to poll for a stop request'))
+      .finally(() => {
+        polling = false;
+      });
+  }, STOP_POLL_INTERVAL_MS);
+  return {
+    get requested() {
+      return requested;
+    },
+    close: () => clearInterval(timer),
+  };
+}
+
 /** Streams one reply, flushing text chunks and heartbeating while it runs. */
-async function streamReply(params: StreamReplyParams): Promise<AssistantMessage> {
+async function streamReply(
+  params: StreamReplyParams,
+): Promise<{message: AssistantMessage; stopRequested: boolean}> {
   const {runtime, conversation, position} = params;
+  const abortController = new AbortController();
+  const stop = watchForStop({turnId: position.turnId, abort: () => abortController.abort()});
+  const signal = params.signal
+    ? AbortSignal.any([params.signal, abortController.signal])
+    : abortController.signal;
   const chunks = createChunkWriter({
     workspaceId: conversation.workspaceId,
     conversationId: conversation.id,
@@ -177,7 +219,7 @@ async function streamReply(params: StreamReplyParams): Promise<AssistantMessage>
       {messages: params.messages},
       {
         sessionId: conversation.id,
-        ...(params.signal ? {signal: params.signal} : {}),
+        signal,
         ...(runtime.thinking === 'default' || runtime.thinking === 'off'
           ? {}
           : {reasoning: runtime.thinking as ThinkingLevel}),
@@ -193,8 +235,9 @@ async function streamReply(params: StreamReplyParams): Promise<AssistantMessage>
       }
       chunks.push(event.delta);
     }
-    return await stream.result();
+    return {message: await stream.result(), stopRequested: stop.requested};
   } finally {
+    stop.close();
     if (heartbeat) clearInterval(heartbeat);
     await chunks.close();
   }
@@ -277,7 +320,7 @@ export async function runModelCall(params: ModelCallParams): Promise<ModelCallRe
       .createModelRuntime({conversation, turn, renewal: turn.modelCallCount > 0})
       .catch(translateModelSetupError);
     const key = await conversationDataKey(conversation.workspaceId);
-    const message = await streamReply({
+    const {message, stopRequested} = await streamReply({
       runtime,
       messages,
       conversation,
@@ -286,7 +329,10 @@ export async function runModelCall(params: ModelCallParams): Promise<ModelCallRe
       signal: params.signal,
       heartbeat: params.heartbeat,
     });
-    await assertUsableReply(message, runtime);
+    // A stopped reply is a result, not a failure: the partial message joins the timeline.
+    if (!(stopRequested && message.stopReason === 'aborted')) {
+      await assertUsableReply(message, runtime);
+    }
     recordDiagnostics(message);
     return await storeReply({conversation, position, message, key});
   } catch (error) {

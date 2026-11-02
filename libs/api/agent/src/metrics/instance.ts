@@ -188,14 +188,15 @@ export function classifySessionKekRotationError(error: unknown): SessionKekRotat
   return 'failure';
 }
 
-export type ConversationTurnOutcome = 'succeeded' | 'failed';
+export type ConversationTurnOutcome = 'succeeded' | 'failed' | 'stopped' | 'denied';
 
 export const conversationTurnCount = meter.createCounter<{
   origin: 'web' | 'integration';
   trigger: 'message';
   outcome: ConversationTurnOutcome;
 }>('agent_conversation_turns', {
-  description: 'Agent conversation turns by conversation origin, trigger, and outcome',
+  description:
+    'Agent conversation turns by conversation origin, trigger, and outcome. A denied turn never opened: admission or a departed owner refused its inputs',
 });
 
 export const conversationFirstTokenSeconds = meter.createHistogram<{

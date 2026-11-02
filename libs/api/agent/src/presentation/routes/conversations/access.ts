@@ -5,6 +5,7 @@ import type {Conversation} from '#core/entities/conversation.js';
 import {
   AgentSessionUnavailableError,
   ConversationNotFoundError,
+  ConversationRetryUnavailableError,
   ConversationTurnRunningError,
 } from '#core/errors.js';
 import {loadWebConversation} from '#db/conversations.js';
@@ -50,6 +51,13 @@ export function translateConversationRouteError(error: unknown): never {
       status: 409,
       cause: error,
     });
+  }
+  if (error instanceof ConversationRetryUnavailableError) {
+    throw new ClientError(
+      'The latest turn did not fail and was not denied',
+      'conversation-retry-unavailable',
+      {status: 409, cause: error},
+    );
   }
   if (error instanceof AgentSessionUnavailableError) {
     throw new ClientError('Conversation is unavailable', 'conversation-unavailable', {

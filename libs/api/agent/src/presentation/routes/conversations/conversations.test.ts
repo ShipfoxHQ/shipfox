@@ -14,6 +14,7 @@ import {db} from '#db/db.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
 import {conversations} from '#db/schema/conversations.js';
 import {sessionDataKeys} from '#db/schema/data-keys.js';
+import {getTurnById} from '#db/turn-runtime.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {turnFactory} from '#test/factories/turn.js';
 import {appendConversationEntry} from '#test/fixtures/conversation-entries.js';
@@ -419,6 +420,8 @@ describe('conversation routes', () => {
       path: (id: string) => `/conversations/${id}/read`,
       payload: {last_read_seq: 0},
     },
+    {method: 'POST' as const, path: (id: string) => `/conversations/${id}/stop`},
+    {method: 'POST' as const, path: (id: string) => `/conversations/${id}/retry`},
   ])('$method $path access', ({method, path, payload}) => {
     it('returns 404 to a workspace admin who is not the owner', async () => {
       const {workspaceId, projectId} = arrangeProject();
@@ -1228,6 +1231,116 @@ describe('conversation routes', () => {
       await markRead({authorization, conversationId, lastReadSeq: 99});
 
       expect((await readHeader({authorization, conversationId})).last_read_seq).toBe(5);
+    });
+  });
+
+  describe('POST /conversations/:conversationId/stop', () => {
+    it('asks the running turn to stop', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      const turn = await turnFactory.create({conversationId: conversation.id});
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversation.id}/stop`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect((await getRunningTurn(conversation.id))?.stopRequestedAt).toBeInstanceOf(Date);
+      expect((await getRunningTurn(conversation.id))?.id).toBe(turn.id);
+    });
+
+    it('does nothing when no turn is running', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      const finished = await turnFactory.create({
+        conversationId: conversation.id,
+        status: 'succeeded',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversation.id}/stop`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(await getTurnById(finished.id)).toMatchObject({stopRequestedAt: null});
+    });
+  });
+
+  describe('POST /conversations/:conversationId/retry', () => {
+    async function arrangeConversation(status: 'running' | 'succeeded' | 'failed' | 'stopped') {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      await turnFactory.create({conversationId: conversation.id, status});
+      return {owner, conversation};
+    }
+
+    function retry(params: {conversationId: string; authorization: string}) {
+      return app.inject({
+        method: 'POST',
+        url: `/conversations/${params.conversationId}/retry`,
+        headers: {authorization: params.authorization},
+      });
+    }
+
+    it('requests a retry of a failed turn and wakes the conversation', async () => {
+      const {owner, conversation} = await arrangeConversation('failed');
+
+      const res = await retry({
+        conversationId: conversation.id,
+        authorization: owner.authorization,
+      });
+
+      expect(res.statusCode).toBe(204);
+      const [row] = await db()
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, conversation.id));
+      expect(row?.retryRequestedAt).toBeInstanceOf(Date);
+      expect(wake).toHaveBeenCalledWith(conversation.id);
+    });
+
+    it.each(['succeeded', 'stopped'] as const)('refuses after a %s turn', async (status) => {
+      const {owner, conversation} = await arrangeConversation(status);
+
+      const res = await retry({
+        conversationId: conversation.id,
+        authorization: owner.authorization,
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('conversation-retry-unavailable');
+      expect(wake).not.toHaveBeenCalled();
+    });
+
+    it('refuses during a running turn', async () => {
+      const {owner, conversation} = await arrangeConversation('running');
+
+      const res = await retry({
+        conversationId: conversation.id,
+        authorization: owner.authorization,
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('conversation-turn-running');
     });
   });
 

@@ -108,7 +108,10 @@ export type DefaultAuthModuleFactory = (options: {
 }) => ShipfoxModule;
 
 /** Options for the standard Agent module. `defaultModules` supplies Secrets, Workflows, Projects, and Integrations. */
-export type DefaultAgentModuleOptions = Pick<CreateAgentModuleOptions, 'managedProvider'>;
+export type DefaultAgentModuleOptions = Pick<
+  CreateAgentModuleOptions,
+  'managedProvider' | 'admission'
+>;
 
 /**
  * Replaces the Agent module in the standard composition slot. This is a full
@@ -130,6 +133,8 @@ export type DefaultAgentModuleFactory = (options: {
   projects?: ProjectsModuleClient | undefined;
   /** Optional: a factory built without it runs no conversation turns. */
   integrations?: IntegrationsModuleClient | undefined;
+  /** Optional: a factory built without it runs no conversation turns. */
+  workspaces?: WorkspacesInterModuleClient | undefined;
 }) => ShipfoxModule;
 
 /** Options for the standard Runners module. `defaultModules` supplies Auth. */
@@ -337,6 +342,7 @@ export async function defaultModules(
         workflows: workflowsClient,
         projects: projectsClient,
         integrations: integrationsClient,
+        workspaces: workspacesClient,
       })
     : createAgentModule({
         ...options.agentModuleOptions,
@@ -344,6 +350,7 @@ export async function defaultModules(
         workflows: workflowsClient,
         projects: projectsClient,
         integrations: integrationsClient,
+        workspaces: workspacesClient,
       });
   if (agentModuleFactory) validateCustomAgentModule(agentModule);
 
