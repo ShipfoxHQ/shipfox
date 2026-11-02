@@ -6,8 +6,10 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import {ApiError, checkedApiRequest} from '@shipfox/client-api';
 import {
+  type InfiniteData,
   infiniteQueryOptions,
   queryOptions,
+  type UseInfiniteQueryOptions,
   type UseQueryOptions,
   useInfiniteQuery,
   useQuery,
@@ -117,7 +119,12 @@ export function projectConfigFilesQueryOptions({
 }: {
   projectId: string;
   commit: string | undefined;
-}) {
+}): UseQueryOptions<
+  ConfigFileList,
+  Error,
+  ConfigFileList,
+  ReturnType<typeof projectConfigQueryKeys.files>
+> {
   return queryOptions({
     queryKey: projectConfigQueryKeys.files(projectId, commit ?? ''),
     enabled: Boolean(commit),
@@ -164,7 +171,12 @@ export function projectConfigFileQueryOptions({
   commit,
   path,
   enabled = true,
-}: ProjectConfigFileQueryInput) {
+}: ProjectConfigFileQueryInput): UseQueryOptions<
+  ConfigFile,
+  Error,
+  ConfigFile,
+  ReturnType<typeof projectConfigQueryKeys.file>
+> {
   return queryOptions({
     queryKey: projectConfigQueryKeys.file(projectId, commit, path),
     enabled,
@@ -215,7 +227,13 @@ export function projectConfigCommitsInfiniteQueryOptions({
   projectId,
   commit,
   path,
-}: ProjectConfigCommitsQueryInput) {
+}: ProjectConfigCommitsQueryInput): UseInfiniteQueryOptions<
+  ConfigCommitPage,
+  Error,
+  InfiniteData<ConfigCommitPage, string | undefined>,
+  ReturnType<typeof projectConfigQueryKeys.commits>,
+  string | undefined
+> {
   return infiniteQueryOptions({
     queryKey: projectConfigQueryKeys.commits(projectId, commit, path),
     initialPageParam: undefined as string | undefined,
