@@ -21,9 +21,16 @@ function PrivateAccountMenuEntry() {
   return <DropdownMenuItem>Private entry</DropdownMenuItem>;
 }
 
-async function openAccountMenu(chrome: Partial<ChromeSlots> = {}) {
+function dockModule() {
+  return Promise.resolve({default: () => null});
+}
+
+async function openAccountMenu(chrome: Partial<ChromeSlots> = {}, dock = false) {
   await renderComposedShell({
-    features: [accountMenuFeature()],
+    features: [
+      accountMenuFeature(),
+      ...(dock ? [{id: 'acme.dock', projectDock: {load: dockModule}}] : []),
+    ],
     initialPath: '/w/workspace/account-menu',
     resolveImpl: () =>
       defineRoute({staticData: {frame: 'content'}, component: () => <h1>Account menu</h1>}),
@@ -39,6 +46,30 @@ describe('UserMenu', () => {
     expect(await screen.findByText('Theme')).toBeVisible();
     expect(screen.getByRole('menuitem', {name: 'Logout'})).toBeVisible();
     expect(screen.queryByRole('menuitem', {name: 'Private entry'})).not.toBeInTheDocument();
+  });
+
+  test('hides the Shippy control when no feature contributes a dock', async () => {
+    await openAccountMenu();
+
+    expect(await screen.findByText('Theme')).toBeVisible();
+    expect(screen.queryByText('Shippy')).not.toBeInTheDocument();
+  });
+
+  test('stores the Shippy placement and keeps the menu open', async () => {
+    window.localStorage.clear();
+    await openAccountMenu({}, true);
+    const tabBar = await screen.findByRole('menuitemradio', {name: 'Tab bar'});
+    expect(screen.getByRole('menuitemradio', {name: 'Floating'})).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+
+    fireEvent.click(tabBar);
+
+    expect(tabBar).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menu')).toBeVisible();
+    expect(window.localStorage.getItem('shipfox.shippy.placement')).toBe('tab_bar');
+    window.localStorage.clear();
   });
 
   test('switches the theme from the segmented control and keeps the menu open', async () => {

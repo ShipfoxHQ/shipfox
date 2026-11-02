@@ -1,5 +1,5 @@
 import type {ClientFeature} from '#contract.js';
-import {validateProviderIds} from './validate-providers.js';
+import {validateProjectDock, validateProviderIds} from './validate-providers.js';
 
 const duplicateProviderMessage = /flags.*shipfox\.one.*acme\.two/u;
 
@@ -27,5 +27,25 @@ describe('validateProviderIds', () => {
     ];
 
     expect(() => validateProviderIds(features)).toThrow(new RegExp(`${id}.*acme\\.feature`, 'u'));
+  });
+});
+
+describe('validateProjectDock', () => {
+  test('accepts one contribution', () => {
+    expect(() =>
+      validateProjectDock([
+        {id: 'shipfox.one', projectDock: {load: async () => ({default: () => null})}},
+        {id: 'acme.two'},
+      ]),
+    ).not.toThrow();
+  });
+
+  test('names both features when two contribute a dock', () => {
+    expect(() =>
+      validateProjectDock([
+        {id: 'shipfox.one', projectDock: {load: async () => ({default: () => null})}},
+        {id: 'acme.two', projectDock: {load: async () => ({default: () => null})}},
+      ]),
+    ).toThrow('Project dock is contributed by both features "shipfox.one" and "acme.two".');
   });
 });

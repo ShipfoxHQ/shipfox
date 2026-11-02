@@ -7,7 +7,7 @@ import {
   composeRoutes,
 } from './compose-routes.js';
 import {mergeConfigShapes} from './merge-config.js';
-import {validateProviderIds} from './validate-providers.js';
+import {validateProjectDock, validateProviderIds} from './validate-providers.js';
 import {validateNavigation, validateSettingsSections} from './validate-registries.js';
 
 export interface ComposedClientFeatures {
@@ -22,6 +22,7 @@ export function composeClientFeatures(features: readonly ClientFeature[]): Compo
   const layouts = composeLayouts(features);
   const routes = composeRoutes(features, layouts);
   validateProviderIds(features);
+  validateProjectDock(features);
   validateNavigation(features, routes, layouts);
   validateSettingsSections(features, routes);
 

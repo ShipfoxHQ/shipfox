@@ -1,5 +1,5 @@
 import type {ClientFeature} from '#contract.js';
-import {ProviderCompositionError} from './errors.js';
+import {ProjectDockCompositionError, ProviderCompositionError} from './errors.js';
 
 const reservedProviderIds = new Set([
   'theme',
@@ -10,6 +10,16 @@ const reservedProviderIds = new Set([
   'router',
   'toaster',
 ]);
+
+export function validateProjectDock(features: readonly ClientFeature[]): void {
+  const [first, second] = features.filter((feature) => feature.projectDock);
+  if (first && second) {
+    throw new ProjectDockCompositionError(
+      `Project dock is contributed by both features "${first.id}" and "${second.id}".`,
+      [first.id, second.id],
+    );
+  }
+}
 
 export function validateProviderIds(features: readonly ClientFeature[]): void {
   const providers = new Map<string, string>();

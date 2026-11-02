@@ -35,6 +35,7 @@ documentation model and other engineering sources, start with the
 | [0023: Cache context](0023-cache-context.md) | Accepted; amends ADR 0015 | The Cache bounded context, signed multipart uploads, the dev-run sandbox, the storage usage record, the `describeStorage` pricing operation, and the storage policy seam. |
 | [0024: Workflow run actions chrome slot](0024-workflow-run-actions-chrome-slot.md) | Accepted; amends ADR 0001 | The optional workflow run actions slot, its ids-only contract, and its error isolation. |
 | [0025: Managed config repositories](0025-managed-config-repositories.md) | Accepted | The managed repo as a provider, objects and refs in Postgres, the objects-only adapter, no wire protocol, the rule that only a merge moves `main`, and one-way moves. |
+| [0026: Project dock contribution](0026-project-dock-contribution.md) | Accepted; amends ADR 0001 | The `projectDock` feature contribution, its lifetime, its panel host, and the page context the shell keeps for it. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the

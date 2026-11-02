@@ -1,5 +1,6 @@
 import {Link} from '@tanstack/react-router';
 import {useReducedMotion} from 'framer-motion';
+import type {ReactNode} from 'react';
 import type {NavTabEntry} from '#contract.js';
 
 export function NavTabs({
@@ -7,11 +8,13 @@ export function NavTabs({
   entries,
   params,
   projectScoped = false,
+  trailing,
 }: {
   ariaLabel: string;
   entries: readonly NavTabEntry[];
   params?: Record<string, unknown> | undefined;
   projectScoped?: boolean | undefined;
+  trailing?: ReactNode;
 }) {
   const reduced = useReducedMotion();
   const tabClassName = `h-40 inline-flex shrink-0 items-center whitespace-nowrap px-tight ${projectScoped ? 'text-xs' : 'text-sm'} font-medium transition-colors ${reduced ? '' : 'transition-[border-color]'}`;
@@ -27,25 +30,28 @@ export function NavTabs({
   };
 
   return (
-    <div
-      role="tablist"
-      aria-label={ariaLabel}
-      className="sticky top-56 z-20 flex h-40 items-end gap-cluster overflow-x-auto whitespace-nowrap border-b border-border-neutral-base bg-background-subtle-base px-row [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
-      {entries.map((entry) => (
-        <Link
-          key={entry.id}
-          to={entry.to as never}
-          {...(params ? {params: params as never} : {})}
-          role="tab"
-          activeOptions={{exact: entry.exact ?? false}}
-          activeProps={activeProps}
-          inactiveProps={inactiveProps}
-          className={tabClassName}
-        >
-          {entry.label}
-        </Link>
-      ))}
+    <div className="sticky top-56 z-20 flex h-40 items-end gap-cluster border-b border-border-neutral-base bg-background-subtle-base px-row">
+      <div
+        role="tablist"
+        aria-label={ariaLabel}
+        className="flex h-full min-w-0 flex-1 items-end gap-cluster overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {entries.map((entry) => (
+          <Link
+            key={entry.id}
+            to={entry.to as never}
+            {...(params ? {params: params as never} : {})}
+            role="tab"
+            activeOptions={{exact: entry.exact ?? false}}
+            activeProps={activeProps}
+            inactiveProps={inactiveProps}
+            className={tabClassName}
+          >
+            {entry.label}
+          </Link>
+        ))}
+      </div>
+      {trailing ? <div className="flex h-full shrink-0 items-center">{trailing}</div> : undefined}
     </div>
   );
 }

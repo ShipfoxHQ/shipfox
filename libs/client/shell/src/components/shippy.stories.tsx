@@ -19,7 +19,7 @@ const meta = {
   component: Shippy,
   parameters: {layout: 'centered'},
   args: {pose: 'bench', className: 'h-104'},
-  argTypes: {pose: {control: 'select', options: POSES}},
+  argTypes: {pose: {control: 'select', options: [...POSES, 'body', 'face']}},
 } satisfies Meta<typeof Shippy>;
 
 export default meta;
@@ -38,6 +38,15 @@ export const Poses: Story = {
           </Text>
         </div>
       ))}
+    </div>
+  ),
+};
+
+export const LauncherSprites: Story = {
+  render: () => (
+    <div className="flex items-end gap-region">
+      <Shippy pose="body" className="h-64" />
+      <Shippy pose="face" className="h-32" />
     </div>
   ),
 };

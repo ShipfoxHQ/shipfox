@@ -26,6 +26,12 @@ export class LayoutCompositionError extends CompositionError {
   }
 }
 
+export class ProjectDockCompositionError extends CompositionError {
+  constructor(message: string, featureIds: readonly string[]) {
+    super('ProjectDockCompositionError', message, featureIds);
+  }
+}
+
 export class ProviderCompositionError extends CompositionError {
   public readonly id: string;
 

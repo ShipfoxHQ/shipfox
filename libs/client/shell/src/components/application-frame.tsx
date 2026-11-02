@@ -17,11 +17,19 @@ import type {NavTabEntry} from '#contract.js';
 import {useMaybeActiveWorkspace} from '#runtime/active-workspace.js';
 import {useAuthState} from '#runtime/auth.js';
 import {useChrome} from '#runtime/chrome-context.js';
+import {
+  useProjectDock,
+  useProjectDockContribution,
+  useShippyPlacement,
+} from '#runtime/project-dock.js';
+import {useProjectDockAvailable} from '#runtime/project-dock-failures.js';
 import {ReportErrorBoundary} from '#runtime/report-error-boundary.js';
 import type {RouteFrame} from '#runtime/route-frame.js';
 import {WorkspaceUnavailablePage} from '#runtime/workspace-setup.js';
 import {FOCUSED_FRAME_CONTENT_CLASS_NAME} from './focused-frame.js';
 import {NavTabs} from './nav-tabs.js';
+import {ProjectDockHost} from './project-dock-host.js';
+import {ShippyLauncher} from './shippy-launcher.js';
 import {UserMenu} from './user-menu.js';
 
 declare module '@tanstack/react-router' {
@@ -44,6 +52,15 @@ const frameClassNames: Record<RouteFrame, string> = {
  */
 const SESSION_BANNER_HEIGHT_PX = 40;
 
+/** Height the page gives up to floating Shippy, measured against the frame's own padding. */
+const SHIPPY_STRIP_HEIGHT_PX = 56;
+
+/**
+ * Height of floating Shippy above the window's floor. `main` stops here, because
+ * padding would scroll with the page and let content pass under Shippy.
+ */
+const SHIPPY_FLOOR_HEIGHT_PX = 72;
+
 interface ApplicationFrameNavigation {
   ariaLabel: string;
   entries: readonly NavTabEntry[];
@@ -51,20 +68,50 @@ interface ApplicationFrameNavigation {
   projectScoped?: boolean | undefined;
 }
 
+interface ApplicationChromeProps {
+  compactLogo?: boolean | undefined;
+  context: ReactNode;
+  navigation?: ApplicationFrameNavigation | undefined;
+  /** Identifies the project whose dock this frame hosts. Absent on every other page. */
+  dockScope?: string | undefined;
+}
+
 export function ApplicationFrame({
+  children,
+  requireWorkspace = false,
+  ...chrome
+}: PropsWithChildren<ApplicationChromeProps & {requireWorkspace?: boolean | undefined}>) {
+  const auth = useAuthState();
+  const workspace = useMaybeActiveWorkspace();
+  const location = useLocation();
+
+  if (auth.isLoading) return <FullPageLoader />;
+  if (!auth.isAuthenticated) {
+    return <GuestRedirect href={location.href} />;
+  }
+  if (requireWorkspace && !workspace) return <WorkspaceUnavailablePage />;
+
+  return <ApplicationChrome {...chrome}>{children}</ApplicationChrome>;
+}
+
+function useHostedDock(dockScope: string | undefined, frame: RouteFrame) {
+  const dock = useProjectDockContribution();
+  const {open} = useProjectDock();
+  const {placement} = useShippyPlacement();
+  const available = useProjectDockAvailable(dockScope);
+  const hostedDock = dockScope && frame !== 'focused' ? dock : undefined;
+  const launcherPlacement = hostedDock && available ? placement : undefined;
+  const floorHeightPx = launcherPlacement === 'floating' && !open ? SHIPPY_FLOOR_HEIGHT_PX : 0;
+  return {hostedDock, launcherPlacement, floorHeightPx};
+}
+
+function ApplicationChrome({
   children,
   compactLogo = false,
   context,
   navigation,
-  requireWorkspace = false,
-}: PropsWithChildren<{
-  compactLogo?: boolean | undefined;
-  context: ReactNode;
-  navigation?: ApplicationFrameNavigation | undefined;
-  requireWorkspace?: boolean | undefined;
-}>) {
-  const auth = useAuthState();
-  const workspace = useMaybeActiveWorkspace();
+  dockScope,
+}: PropsWithChildren<ApplicationChromeProps>) {
   const location = useLocation();
   const matches = useMatches();
   const {SessionBanner} = useChrome();
@@ -78,19 +125,14 @@ export function ApplicationFrame({
     () => ({href: location.href, slot: SessionBanner}),
     [location.href, SessionBanner],
   );
-
-  if (auth.isLoading) return <FullPageLoader />;
-  if (!auth.isAuthenticated) {
-    return <GuestRedirect href={location.href} />;
-  }
-  if (requireWorkspace && !workspace) return <WorkspaceUnavailablePage />;
-
   const frame = matches.reduce<RouteFrame>(
     (current, match) => match.staticData.frame ?? current,
     'content',
   );
+  const {hostedDock, launcherPlacement, floorHeightPx} = useHostedDock(dockScope, frame);
+
   const reservedHeightPx = SessionBanner ? bannerHeightPx : 0;
-  const chromeHeightPx = 56 + (navigation ? 40 : 0) + reservedHeightPx;
+  const chromeHeightPx = 56 + (navigation ? 40 : 0) + reservedHeightPx + floorHeightPx;
   const appContentHeight = `calc(100dvh - ${chromeHeightPx}px)`;
   const isFullBleedFrame = frame === 'data';
   const mainClassName = isFullBleedFrame
@@ -107,20 +149,47 @@ export function ApplicationFrame({
         />
       ) : undefined}
       <ApplicationHeader compactLogo={compactLogo} context={context} />
-      {navigation ? (
-        <NavTabs
-          ariaLabel={navigation.ariaLabel}
-          entries={navigation.entries}
-          params={navigation.params}
-          projectScoped={navigation.projectScoped}
-        />
-      ) : undefined}
-      <main
-        className={mainClassName}
-        style={{'--app-content-h': appContentHeight} as CSSProperties}
-      >
-        <div className={frameClassNames[frame]}>{children}</div>
-      </main>
+      <div className="flex min-h-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {navigation ? (
+            <NavTabs
+              ariaLabel={navigation.ariaLabel}
+              entries={navigation.entries}
+              params={navigation.params}
+              projectScoped={navigation.projectScoped}
+              trailing={
+                launcherPlacement === 'tab_bar' ? <ShippyLauncher placement="tab_bar" /> : undefined
+              }
+            />
+          ) : undefined}
+          <main
+            className={mainClassName}
+            style={
+              {
+                '--app-content-h': appContentHeight,
+                ...(floorHeightPx ? {marginBottom: floorHeightPx} : {}),
+              } as CSSProperties
+            }
+          >
+            <div
+              className={frameClassNames[frame]}
+              style={
+                floorHeightPx
+                  ? {
+                      paddingBottom: `calc(var(--pad-frame-y) - ${floorHeightPx - SHIPPY_STRIP_HEIGHT_PX}px)`,
+                    }
+                  : undefined
+              }
+            >
+              {children}
+            </div>
+          </main>
+          {launcherPlacement === 'floating' ? <ShippyLauncher placement="floating" /> : undefined}
+        </div>
+        {hostedDock && dockScope ? (
+          <ProjectDockHost key={dockScope} dock={hostedDock} scope={dockScope} />
+        ) : undefined}
+      </div>
     </div>
   );
 }

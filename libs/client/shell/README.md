@@ -5,8 +5,8 @@ Browser shell and compile-time composition contracts for Shipfox client applicat
 ## What it does
 
 - **`defineClientFeature()` and authoring types** define Node-safe routes,
-  layouts, providers, navigation entries, settings sections, and runtime
-  configuration fragments.
+  layouts, providers, navigation entries, settings sections, the project dock,
+  and runtime configuration fragments.
 - **`@shipfox/client-shell/runtime`** provides the browser provider stack,
   router helpers, authentication state, the server's login methods
   (`usePasswordLoginAvailability()`, `prefetchLoginMethods()`, and
@@ -124,6 +124,16 @@ composition and collision rules.
   [ADR 0021](../../../docs/adr/0021-required-action-rendering-and-intent-slot.md).
 - `WorkflowRunActionsSlot` renders the optional `WorkflowRunActions` chrome slot with the run and
   project ids. It renders nothing when the slot is absent or throws.
+- `projectDock` adds one component beside project pages, except focused frames and the pre-project
+  gate, which unmount it. Set `load` to a dynamic import to keep the manifest Node-safe. The component draws its surface with `ProjectDockPanel`, and must render its
+  own close control, because the shell draws none. `useProjectDock()` reads and sets the open state,
+  and `useShippyPlacement()` reads and sets Shippy's placement. The shell owns Shippy's launcher, the
+  page strip in `floating` mode, and the `Shippy` control in the account menu. None of them render
+  without a contribution. A failed dock loses its launcher and strip, and the shell retries it on
+  navigation up to three times per project. See
+  [ADR 0026](../../../docs/adr/0026-project-dock-contribution.md).
+- `useAgentPageContext()` publishes the current page until it unmounts, and
+  `useCurrentAgentPageContext()` reads it. Call it once per page, not from a nested layout.
 - Consumers import browser components from `@shipfox/client-shell/runtime`.
   The package root remains safe for build-time feature evaluation.
 
