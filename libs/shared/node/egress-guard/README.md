@@ -4,7 +4,7 @@ A small rule for calls set by a user.
 
 ## What it does
 
-- **`assertEgressAllowed(url, policy)`**: Stops a call when the place is not safe.
+- **`assertEgressAllowed(url, policy, options?)`**: Stops a call when the place is not safe. `options.lookup` replaces the system resolver, so a caller that pins the address it connects to can check the answers it got.
 - **`EgressPolicy`**: Sets whether a private name or number can be used.
 - **`EgressDeniedError`**: Gives the reason and place for a stopped call.
 - **`parseEgressHostDenylist(value)`**: Reads a comma-separated block list.

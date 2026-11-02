@@ -24,7 +24,7 @@ import type {
   ConversationItem,
   ConversationItemMeta,
 } from '#core/entities/conversation.js';
-import {db} from './db.js';
+import {db, type Transaction} from './db.js';
 import {conversationItems, toConversationItem} from './schema/conversation-items.js';
 import {conversations, toConversation} from './schema/conversations.js';
 import {toAgentTurn, turns} from './schema/turns.js';
@@ -287,34 +287,46 @@ export async function insertQueuedUserMessage(
 export async function claimQueuedConversationItems(conversationId: string): Promise<number> {
   return await db().transaction(async (tx) => {
     const locked = await tx
-      .select({lastSeq: conversations.lastSeq})
+      .select({id: conversations.id})
       .from(conversations)
       .where(eq(conversations.id, conversationId))
       .for('update');
-    const conversation = locked[0];
-    if (!conversation) return 0;
-
-    const queued = await tx
-      .select({id: conversationItems.id})
-      .from(conversationItems)
-      .where(
-        and(eq(conversationItems.conversationId, conversationId), isNull(conversationItems.seq)),
-      )
-      .orderBy(asc(conversationItems.id));
-    if (queued.length === 0) return 0;
-
-    for (const [index, item] of queued.entries()) {
-      await tx
-        .update(conversationItems)
-        .set({seq: conversation.lastSeq + index + 1})
-        .where(eq(conversationItems.id, item.id));
-    }
-    await tx
-      .update(conversations)
-      .set({lastSeq: conversation.lastSeq + queued.length})
-      .where(eq(conversations.id, conversationId));
-    return queued.length;
+    if (locked.length === 0) return 0;
+    return await claimQueuedConversationItemsInTransaction(tx, conversationId);
   });
+}
+
+/** The claim as a step of a larger transaction. The caller must hold the conversation row lock. */
+export async function claimQueuedConversationItemsInTransaction(
+  tx: Transaction,
+  conversationId: string,
+): Promise<number> {
+  const conversation = (
+    await tx
+      .select({lastSeq: conversations.lastSeq})
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+  )[0];
+  if (!conversation) return 0;
+
+  const queued = await tx
+    .select({id: conversationItems.id})
+    .from(conversationItems)
+    .where(and(eq(conversationItems.conversationId, conversationId), isNull(conversationItems.seq)))
+    .orderBy(asc(conversationItems.id));
+  if (queued.length === 0) return 0;
+
+  for (const [index, item] of queued.entries()) {
+    await tx
+      .update(conversationItems)
+      .set({seq: conversation.lastSeq + index + 1})
+      .where(eq(conversationItems.id, item.id));
+  }
+  await tx
+    .update(conversations)
+    .set({lastSeq: conversation.lastSeq + queued.length})
+    .where(eq(conversations.id, conversationId));
+  return queued.length;
 }
 
 /**

@@ -3114,6 +3114,12 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../integration/core-dto
+      '@shipfox/api-integration-shipfox-dto':
+        specifier: workspace:*
+        version: link:../integration/shipfox-dto
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
@@ -3174,6 +3180,9 @@ importers:
       '@temporalio/activity':
         specifier: 'catalog:'
         version: 1.18.1
+      '@temporalio/common':
+        specifier: 'catalog:'
+        version: 1.18.1
       '@temporalio/workflow':
         specifier: 'catalog:'
         version: 1.18.1
@@ -3205,6 +3214,15 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../tools/vitest
+      '@temporalio/client':
+        specifier: 'catalog:'
+        version: 1.18.1
+      '@temporalio/testing':
+        specifier: 'catalog:'
+        version: 1.18.1(@swc/helpers@0.5.23)(tslib@2.8.1)
+      '@temporalio/worker':
+        specifier: 'catalog:'
+        version: 1.18.1(@swc/helpers@0.5.23)(tslib@2.8.1)
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0

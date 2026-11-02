@@ -187,3 +187,43 @@ export function classifySessionKekRotationError(error: unknown): SessionKekRotat
   if (error instanceof AgentSessionKekVersionStrandedError) return 'stranded';
   return 'failure';
 }
+
+export type ConversationTurnOutcome = 'succeeded' | 'failed';
+
+export const conversationTurnCount = meter.createCounter<{
+  origin: 'web' | 'integration';
+  trigger: 'message';
+  outcome: ConversationTurnOutcome;
+}>('agent_conversation_turns', {
+  description: 'Agent conversation turns by conversation origin, trigger, and outcome',
+});
+
+export const conversationFirstTokenSeconds = meter.createHistogram<{
+  origin: 'web' | 'integration';
+}>('agent_conversation_first_token_seconds', {
+  description: 'Seconds from the start of a model call to its first streamed text',
+  unit: 's',
+  advice: {explicitBucketBoundaries: [0.25, 0.5, 1, 2, 4, 8, 16, 32]},
+});
+
+export const conversationModelCallCount = meter.createCounter<{
+  outcome: 'stored' | 'replayed' | 'failed';
+}>('agent_conversation_model_calls', {
+  description:
+    'Agent conversation model calls by outcome: stored a reply, returned one a crashed attempt stored, or failed',
+});
+
+export const conversationToolCallCount = meter.createCounter<{
+  sensitivity: 'read' | 'write' | 'local' | 'unknown';
+  outcome: 'success' | 'error' | 'replayed';
+}>('agent_conversation_tool_calls', {
+  description: 'Agent conversation tool calls by tool sensitivity and outcome',
+});
+
+export const conversationThinkingDroppedCount = meter.createCounter(
+  'agent_conversation_thinking_dropped',
+  {
+    description:
+      "Input transformations pi's Anthropic adapter applied to a prompt. A rising count means a conversation's prefix changed",
+  },
+);

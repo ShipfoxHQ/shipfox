@@ -1,3 +1,4 @@
+export {getBuiltInAgentPrompt} from './agents.js';
 export {computeTemplateBump, type TemplateBump, type TemplateManifestChange} from './bump.js';
 export {
   type ApplyTemplateOptionsInput,

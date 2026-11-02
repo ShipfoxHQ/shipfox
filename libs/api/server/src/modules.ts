@@ -16,7 +16,10 @@ import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter
 import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {emailChallengesModule} from '@shipfox/api-email-challenges';
 import {createIntegrationsContext, type WebhookDeliverySource} from '@shipfox/api-integration-core';
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import {
+  type IntegrationsModuleClient,
+  integrationsInterModuleContract,
+} from '@shipfox/api-integration-core-dto/inter-module';
 import {createLogsModule} from '@shipfox/api-logs';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import {createProjectsModule} from '@shipfox/api-projects';
@@ -104,7 +107,7 @@ export type DefaultAuthModuleFactory = (options: {
   workspaces: WorkspacesInterModuleClient;
 }) => ShipfoxModule;
 
-/** Options for the standard Agent module. `defaultModules` supplies Secrets, Workflows, and Projects. */
+/** Options for the standard Agent module. `defaultModules` supplies Secrets, Workflows, Projects, and Integrations. */
 export type DefaultAgentModuleOptions = Pick<CreateAgentModuleOptions, 'managedProvider'>;
 
 /**
@@ -125,6 +128,8 @@ export type DefaultAgentModuleFactory = (options: {
   workflows?: WorkflowsModuleClient | undefined;
   /** Optional: a factory built without it has no conversation routes. */
   projects?: ProjectsModuleClient | undefined;
+  /** Optional: a factory built without it runs no conversation turns. */
+  integrations?: IntegrationsModuleClient | undefined;
 }) => ShipfoxModule;
 
 /** Options for the standard Runners module. `defaultModules` supplies Auth. */
@@ -331,12 +336,14 @@ export async function defaultModules(
         secrets: createAgentSecretsClient(secretsClient),
         workflows: workflowsClient,
         projects: projectsClient,
+        integrations: integrationsClient,
       })
     : createAgentModule({
         ...options.agentModuleOptions,
         secrets: createAgentSecretsClient(secretsClient),
         workflows: workflowsClient,
         projects: projectsClient,
+        integrations: integrationsClient,
       });
   if (agentModuleFactory) validateCustomAgentModule(agentModule);
 

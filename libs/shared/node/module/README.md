@@ -7,7 +7,7 @@ Module setup helpers for Shipfox API services. A module can list its database, r
 - **`initializeModules({modules})`**: Sets up modules in array order.
 - **`registerModuleMetrics({modules})`**: Registers service-level metrics for modules that declare a metrics hook.
 - **`runModuleStartupTasks({modules})`**: Runs module startup tasks in declaration order after initialization.
-- **`startModuleWorkers({workers})`**: Creates Temporal workers and returns a handle that drains workers and closes their Temporal resources.
+- **`startModuleWorkers({workers})`**: Creates Temporal workers and returns a handle that drains workers and closes their Temporal resources. A worker can set `maxConcurrentActivityTaskExecutions` to cap the activities one process runs at once on its queue.
 - **Worker activity metrics**: Record execution, failures, retries, and latency with bounded module, task queue, activity, and outcome labels.
 - **`startModuleServices({services})`**: Starts long-running services and returns a handle that stops them within their declared timeouts.
 - **`ShipfoxModule`**: Module contract used by API packages.

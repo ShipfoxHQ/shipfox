@@ -24,6 +24,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`createDirectoryTemplateLoader`** serves a catalog directory. It is exported from the node-only `@shipfox/workflow-templates/testing` subpath.
 - **`listShippedSkillResources`** lists the embedded skill index, manifest, procedures, and references.
 - **`getShippedSkillResource`** reads one embedded resource by its exact `skill://shipfox/` URI.
+- **`getBuiltInAgentPrompt`** reads the base prompt of a built-in agent, such as `shippy`, by its key.
 
 The package does not evaluate expressions or implement conditionals and loops. It keeps template comments in the composed YAML so the coding agent can use binding, slot, and option instructions.
 
@@ -33,7 +34,7 @@ The package does not evaluate expressions or implement conditionals and loops. I
 pnpm add @shipfox/workflow-templates
 ```
 
-The package build reads `assets/skills/` and the first-party template packages in `libs/shared/workflow/catalog/templates/`. It embeds the skill files, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy these files at runtime.
+The package build reads `assets/skills/`, `assets/agents/`, and the first-party template packages in `libs/shared/workflow/catalog/templates/`. It embeds the skill files, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy these files at runtime.
 
 ## Usage
 
@@ -195,6 +196,7 @@ Skills and the compatibility file live in this package. Each first-party templat
 ```text
 assets/skills/<skill-name>/SKILL.md
 assets/skills/<skill-name>/references/*.md
+assets/agents/<agent-key>.md
 embedded-templates.yaml
 ../catalog/templates/<template-id>/
   package.json

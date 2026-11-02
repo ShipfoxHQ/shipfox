@@ -422,6 +422,12 @@ async function startModuleWorker(params: {
         taskQueue: params.workerDef.taskQueue,
         activities: params.workerDef.activities(params.context),
       }),
+      ...(params.workerDef.maxConcurrentActivityTaskExecutions === undefined
+        ? {}
+        : {
+            maxConcurrentActivityTaskExecutions:
+              params.workerDef.maxConcurrentActivityTaskExecutions,
+          }),
     });
     const startedWorker: StartedModuleWorker = {
       worker,

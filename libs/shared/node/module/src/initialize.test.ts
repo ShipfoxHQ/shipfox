@@ -675,6 +675,23 @@ describe('startModuleWorkers', () => {
     });
   });
 
+  it('caps concurrent activities only for a worker that declares a limit', async () => {
+    await startModuleWorkers({
+      workers: [
+        moduleWorker({taskQueue: 'capped', maxConcurrentActivityTaskExecutions: 50}),
+        moduleWorker({taskQueue: 'uncapped'}),
+      ],
+    });
+
+    const options = mocks.createTemporalWorker.mock.calls.map(([worker]) => worker);
+    expect(options.find((worker) => worker.taskQueue === 'capped')).toMatchObject({
+      maxConcurrentActivityTaskExecutions: 50,
+    });
+    expect(options.find((worker) => worker.taskQueue === 'uncapped')).not.toHaveProperty(
+      'maxConcurrentActivityTaskExecutions',
+    );
+  });
+
   it('starts declared workflows with their task queue and cron schedule', async () => {
     await startModuleWorkers({
       workers: [

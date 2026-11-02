@@ -9,7 +9,7 @@ import type {AgentSecretsClient} from '#core/secrets-client.js';
 import type {SessionArtifactStore} from '#core/session-artifacts/store.js';
 import type {WorkspaceProviderPolicyOptions} from '#core/workspace-provider-policy.js';
 import {createCommitSessionTranscriptRoute} from './commit-session-transcript.js';
-import {createConversationRoutes} from './conversations/index.js';
+import {createConversationRoutes, type WakeConversation} from './conversations/index.js';
 import {createCustomModelProviderRoute} from './create-custom-model-provider.js';
 import {createDeleteModelProviderConfigRoute} from './delete-model-provider-config.js';
 import {createDiscoverCustomModelProviderModelsRoute} from './discover-custom-model-provider-models.js';
@@ -49,6 +49,8 @@ export function createAgentRoutes(
     sessionArtifactStore?: SessionArtifactStore | undefined;
     /** Projects client behind the conversation routes, which are omitted without it. */
     projects?: ProjectsModuleClient | undefined;
+    /** Wakes a conversation's turn workflow after an input commits. Defaults to doing nothing. */
+    wakeConversation?: WakeConversation | undefined;
   } = {},
 ): RouteGroup[] {
   const workspaceProviderPolicy: WorkspaceProviderPolicyOptions = {
@@ -119,7 +121,12 @@ export function createAgentRoutes(
       ],
     },
     ...sessionRoutes,
-    ...(options.projects === undefined ? [] : createConversationRoutes(options.projects)),
+    ...(options.projects === undefined
+      ? []
+      : createConversationRoutes(
+          options.projects,
+          options.wakeConversation ?? (() => Promise.resolve()),
+        )),
   ];
 }
 

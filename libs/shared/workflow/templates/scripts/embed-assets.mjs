@@ -68,6 +68,13 @@ for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byNam
   }
 }
 
+const agentPromptRoot = join(assetsRoot, 'agents');
+const agentPrompts = {};
+for (const entry of (await readdir(agentPromptRoot, {withFileTypes: true})).sort(byName)) {
+  if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+  agentPrompts[entry.name.slice(0, -3)] = await readFile(join(agentPromptRoot, entry.name), 'utf8');
+}
+
 const templates = [];
 const templateIds = new Set();
 for (const entry of await readdir(catalogTemplatesRoot, {withFileTypes: true})) {
@@ -171,6 +178,8 @@ import type {EmbeddedWorkflowTemplateAsset} from '../loader.js';
 import type {SkillResource} from '../skills.js';
 
 export const embeddedSkillResources: readonly SkillResource[] = ${JSON.stringify(skillResources, null, 2)};
+
+export const embeddedAgentPrompts: Readonly<Record<string, string>> = ${JSON.stringify(agentPrompts, null, 2)};
 
 export const embeddedWorkflowTemplateAssets: readonly EmbeddedWorkflowTemplateAsset[] = ${JSON.stringify(templates, null, 2)};
 `;
