@@ -32,7 +32,7 @@ const meta = {
     ),
   ],
   argTypes: {
-    status: {control: 'select', options: ['running', 'succeeded', 'failed']},
+    status: {control: 'select', options: ['running', 'succeeded', 'failed', 'unknown']},
   },
   args: {
     status: 'succeeded',
@@ -64,7 +64,7 @@ export const Playground: Story = {
 export const States: Story = {
   render: () => (
     <div className="grid gap-16">
-      {(['running', 'succeeded', 'failed'] as const).map((status) => (
+      {(['running', 'succeeded', 'failed', 'unknown'] as const).map((status) => (
         <div key={status} className="grid gap-8">
           <Code variant="label" className="text-foreground-neutral-subtle">
             {status}

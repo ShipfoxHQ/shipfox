@@ -154,8 +154,9 @@ export function Composer({draft, setDraft, send, stop, replying, stopping}: Comp
 | Focus returns to the textarea after a send, a stop, or the end of a reply. If `disabled` takes focus away, it returns when the composer is enabled. | `PromptInput`, `PromptInputStop` |
 | `Esc`, through `onKeyDown` on `PromptInputTextarea`. | The feature |
 
-A `trace` row has a `running`, `succeeded`, or `failed` status. Use `TraceLine`
-alone for a row with nothing to expand. Otherwise, put it in
+A `trace` row has a `running`, `succeeded`, `failed`, or `unknown` status. A tool
+call with no result is `unknown`, never `failed`, because a write may have applied.
+Use `TraceLine` alone for a row with nothing to expand. Otherwise, put it in
 `TraceCollapsibleTrigger`, and hold the output in `TraceDetail`, which scrolls
 inside its row.
 

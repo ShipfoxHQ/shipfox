@@ -35,10 +35,18 @@ describe('Trace', () => {
     ['running', 'Running'],
     ['succeeded', 'Succeeded'],
     ['failed', 'Failed'],
+    ['unknown', 'Result unknown'],
   ] as const)('names the %s status in the row', (status, label) => {
     render(<ToolRow status={status} />);
 
     expect(screen.getByRole('button', {name: new RegExp(`^${label}`)})).toBeTruthy();
+  });
+
+  test('never reads an unknown result as failed', () => {
+    render(<ToolRow status="unknown" />);
+
+    expect(screen.getByRole('img', {name: 'Result unknown'})).toBeTruthy();
+    expect(screen.queryByRole('img', {name: 'Failed'})).toBeNull();
   });
 
   test('stays collapsed by default', () => {

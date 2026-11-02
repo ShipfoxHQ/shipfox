@@ -803,7 +803,8 @@ Navigation never wears a standalone bordered tile. A grid of openable things is
   draft never hides the way to stop a reply.
 - **Tool rows:** `Trace` rows stay quiet, so a long sequence reads as one block. A
   succeeded row keeps a muted check. Only a failed or running row uses a status
-  hue, and only in its glyph.
+  hue, and only in its glyph. A tool call with no result reads as unknown, in a
+  neutral glyph, never failed, because a write may have applied.
 - **Tool detail:** `TraceDetail` uses the code surface at `text-xs`, with no wrap.
   It scrolls inside its row and stops at the edges, so it never moves the
   transcript.

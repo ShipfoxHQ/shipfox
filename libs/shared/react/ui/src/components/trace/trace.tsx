@@ -12,7 +12,8 @@ import {Icon, type IconName} from '#components/icon/index.js';
 import {Code} from '#components/typography/index.js';
 import {cn} from '#utils/cn.js';
 
-export type TraceStatus = 'running' | 'succeeded' | 'failed';
+/** Use `unknown` for a tool call with no result. It must not read as failed, because a write may have applied. */
+export type TraceStatus = 'running' | 'succeeded' | 'failed' | 'unknown';
 
 const statusGlyphs: Record<TraceStatus, {label: string; icon: IconName; className: string}> = {
   running: {
@@ -22,6 +23,11 @@ const statusGlyphs: Record<TraceStatus, {label: string; icon: IconName; classNam
   },
   succeeded: {label: 'Succeeded', icon: 'check', className: 'text-foreground-neutral-muted'},
   failed: {label: 'Failed', icon: 'closeCircleFill', className: 'text-tag-error-icon'},
+  unknown: {
+    label: 'Result unknown',
+    icon: 'questionLine',
+    className: 'text-foreground-neutral-muted',
+  },
 };
 
 export function Trace({className, ...props}: ComponentProps<'div'>) {
