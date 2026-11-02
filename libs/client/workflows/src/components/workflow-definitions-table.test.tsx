@@ -78,3 +78,28 @@ describe('WorkflowDefinitionsTable navigation states', () => {
     expect(screen.queryByText(NEXT_PAGE_ERROR)).not.toBeInTheDocument();
   });
 });
+
+describe('WorkflowDefinitionsTable search', () => {
+  test('keeps filtering the cached list after a refresh fails', () => {
+    const archive = {...definition, id: 'archive', name: 'Archive artifacts'};
+
+    render(
+      table({
+        definitions: [definition, archive],
+        hasNextPage: false,
+        isError: true,
+        searchQuery: 'archive',
+      }),
+    );
+
+    expect(screen.getByRole('textbox', {name: 'Search workflows'})).toBeEnabled();
+    expect(screen.getByText('Archive artifacts')).toBeInTheDocument();
+    expect(screen.queryByText('Deploy production')).not.toBeInTheDocument();
+  });
+
+  test('offers to clear a search once the list is empty', () => {
+    render(table({definitions: [], hasNextPage: false, searchQuery: 'archive'}));
+
+    expect(screen.getByRole('button', {name: 'Show all workflows'})).toBeInTheDocument();
+  });
+});
