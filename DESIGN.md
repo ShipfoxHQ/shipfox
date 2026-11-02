@@ -574,14 +574,15 @@ pills are `rounded-4` or `rounded-full`, panels are `rounded-8`. Do not drift.
 ## Components
 
 `@shipfox/react-ui` ships the batteries. Reach for an existing component before
-building anything: `accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`,
-`callout`, `checkbox`, `code-block`, `collapsible`, `combobox`, `command`,
-`data-table`, `date-picker`, `date-range-picker`, `dot`, `dropdown-menu`,
-`empty-state`, `form-field`, `icon`, `input`, `kbd`, `label`, `load-error-state`,
-`loader`, `log`, `logo`, `markdown`, `modal`, `panel`, `popover`, `prompt-input`,
-`radio-group`, `relative-time`, `scroll-area`, `search`, `select`, `sheet`,
-`shiny-text`, `skeleton`, `suggestion`, `switch`, `table`, `tabs`, `textarea`,
-`theme`, `time-ticker`, `toast`, `tooltip`, `trace`, and `typography`.
+building anything: `accordion`, `alert`, `avatar`, `badge`, `bubble`, `button`,
+`calendar`, `callout`, `checkbox`, `code-block`, `collapsible`, `combobox`,
+`command`, `data-table`, `date-picker`, `date-range-picker`, `dot`,
+`dropdown-menu`, `empty-state`, `form-field`, `icon`, `input`, `kbd`, `label`,
+`load-error-state`, `loader`, `log`, `logo`, `markdown`, `message`,
+`message-scroller`, `modal`, `panel`, `popover`, `prompt-input`, `radio-group`,
+`relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`,
+`skeleton`, `suggestion`, `switch`, `table`, `tabs`, `textarea`, `theme`,
+`time-ticker`, `toast`, `tooltip`, `trace`, and `typography`.
 
 `Panel` is the container for a data region and a focused titled block.
 
@@ -791,6 +792,23 @@ Navigation never wears a standalone bordered tile. A grid of openable things is
 - `h-32` default, `--shadow-border-base` treatment, `text-md` body, `rounded-4`.
 - **Labels** `Text size="sm"` medium; **helper** `Text size="xs"` muted; **error**
   `text-foreground-highlight-error` at `text-xs`. Focus shows the orange ring.
+
+### Chat transcript
+
+- **Bubbles:** `Message` owns alignment, and `Bubble` owns the fill. The user's
+  turn is `Message align="end"` with a default `Bubble` on the inline fill. The
+  agent's turn starts at the left with a `muted` `Bubble`, on
+  `background-bubble-muted` with a hairline border. That token resolves to
+  canvas, one step below the panel. Neither carries orange, because orange is
+  the focus ring. A bubble takes at most 85% of the transcript width.
+- **No avatar:** Shippy stays in the panel header, so a long reply isn't a column
+  of foxes.
+- **Spacing:** rows sit 12px apart. Consecutive tool rows share one `Trace`, so
+  they read as one block.
+- **Scrolling:** `MessageScroller` keeps the sent message near the top while the
+  reply streams, then follows the latest text. `Jump to latest` floats over the
+  bottom edge only while newer content sits below.
+- **Motion:** streamed text appends silently, with no entrance animation.
 
 ### Chat composer and tool rows
 

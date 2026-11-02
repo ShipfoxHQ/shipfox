@@ -4,7 +4,7 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 
 ## What it does
 
-- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FileTree, FormField, Icon, Input, Inspector (`Inspector`, `InspectorHeader`, `InspectorTabs`, `InspectorSection`, `PropertyList`, and related parts), Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, PromptInput, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Suggestion, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, Trace, and Typography.
+- **Components**: Accordion, Alert, Avatar, Badge, Bubble, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FileTree, FormField, Icon, Input, Inspector (`Inspector`, `InspectorHeader`, `InspectorTabs`, `InspectorSection`, `PropertyList`, and related parts), Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Message, MessageScroller, Modal, Panel, Popover, PromptInput, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Suggestion, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, Trace, and Typography.
 - **Theme helpers**: `ThemeProvider`, `useTheme()`, and `useResolvedTheme()`.
 - **Hooks**: `useCopyToClipboard`, `useIsTextTruncated`, `useShikiHighlight`, `useShikiStyleInjection`, plus the theme hooks above.
 - **Utilities**: `cn()` for class name merging, `copyTextToClipboard`, `formatBytes`, `formatDate`/`formatTimestamp`, `formatDuration`/`humanDuration`, `formatRelative`, `debounce`, and avatar helpers (`getInitial`, `getPlaceholderImageUrl`).
@@ -113,8 +113,70 @@ surface.
 
 ### Chat
 
-`prompt-input`, `trace`, and `suggestion` are presentational. The feature maps
-its own items onto them and owns sending, stopping, and drafts.
+`message-scroller`, `message`, `bubble`, `prompt-input`, `trace`, and
+`suggestion` are presentational. The feature maps its own items onto them and
+owns sending, stopping, and drafts.
+
+The transcript wraps each row in a `MessageScrollerItem`. Mark a sent message
+with `scrollAnchor`, so it moves near the top while the reply streams below it.
+`MessageScroller` fills its parent, so give the parent a bounded height.
+
+```tsx
+import {Bubble} from '@shipfox/react-ui/bubble';
+import {Markdown} from '@shipfox/react-ui/markdown';
+import {Message} from '@shipfox/react-ui/message';
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from '@shipfox/react-ui/message-scroller';
+
+export function Transcript({messages, replying}: TranscriptProps) {
+  return (
+    <MessageScrollerProvider>
+      <MessageScroller>
+        <MessageScrollerViewport>
+          <MessageScrollerContent aria-busy={replying}>
+            {messages.map((message) => (
+              <MessageScrollerItem
+                key={message.id}
+                messageId={message.id}
+                scrollAnchor={message.role === 'user'}
+              >
+                {message.role === 'user' ? (
+                  <Message align="end">
+                    <Bubble>{message.text}</Bubble>
+                  </Message>
+                ) : (
+                  <Message>
+                    <Bubble variant="muted">
+                      <Markdown>{message.text}</Markdown>
+                    </Bubble>
+                  </Message>
+                )}
+              </MessageScrollerItem>
+            ))}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton />
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+}
+```
+
+| Behavior | Owner |
+| --- | --- |
+| The transcript opens at the latest message and follows new content while the reader is there. A scroll gesture stops that, and returning to the latest message resumes it. | `MessageScrollerProvider` |
+| A new `scrollAnchor` row moves near the top, with part of the previous row still visible. | `MessageScrollerItem` |
+| `Jump to latest` shows only while newer content sits below. It scrolls without animation under reduced motion and leaves keyboard focus on the transcript. | `MessageScrollerButton` |
+| The transcript is a `log` with `aria-live="off"`, so streamed tokens stay silent. Announcing a reply is the feature's job, in its own status region. | `MessageScrollerContent` |
+| The user's `Bubble` keeps line breaks. A `muted` bubble holds the agent's `Markdown`. | `Bubble` |
+| `Stopped`, a `Queued` chip, and other short status go in `MessageFooter`. | The feature |
+| `scrollToEnd` and `scrollToMessage`, through `useMessageScroller`. | The feature |
 
 ```tsx
 import {
