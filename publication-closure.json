@@ -62,6 +62,7 @@
   ],
   "packages": [
     "@shipfox/actions",
+    "@shipfox/agent-transcript",
     "@shipfox/annotations",
     "@shipfox/annotations-dto",
     "@shipfox/api-agent",

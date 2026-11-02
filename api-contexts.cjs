@@ -71,6 +71,7 @@ const architecturePackages = {
     workspaces: ['libs/api/workspaces-dto'],
   },
   'shared-semantic': {
+    agent: ['libs/shared/agent/transcript'],
     common: [
       'libs/shared/common/redact',
       'libs/shared/common/regex',

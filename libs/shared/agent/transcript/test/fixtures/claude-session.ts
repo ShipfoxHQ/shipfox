@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs';
-import type {AgentSessionRecord} from '#core/session/session-record.js';
+import type {AgentSessionRecord} from '#session-record.js';
 
 export interface ClaudeSystemSubtypeFixture {
   package: string;
