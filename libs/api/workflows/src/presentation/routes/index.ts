@@ -27,6 +27,7 @@ import {getStepAttemptDetailRoute} from './get-step-attempt-detail.js';
 import {createGetStepSecretsRoute} from './get-step-secrets.js';
 import {listExecutionStepsRoute} from './list-execution-steps.js';
 import {listJobExecutionsRoute} from './list-job-executions.js';
+import {listLatestRunsRoute} from './list-latest-runs.js';
 import {listRunAnnotationsRoute} from './list-run-annotations.js';
 import {listRunAttemptsRoute} from './list-run-attempts.js';
 import {listRunJobExplanationsRoute} from './list-run-job-explanations.js';
@@ -88,6 +89,7 @@ export function createWorkflowRoutes(params: WorkflowRouteClients): RouteGroup[]
       routes: [
         listRunsRoute(params.projects),
         getRunAggregatesRoute(params.projects),
+        listLatestRunsRoute(params.projects),
         getRunLineageHeadRoute(params.projects),
         getRunSelectionRoute(params.projects),
         listRunAttemptsRoute(params.projects),

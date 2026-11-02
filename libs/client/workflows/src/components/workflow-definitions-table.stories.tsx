@@ -2,6 +2,7 @@ import {ApiError} from '@shipfox/client-api';
 import type {Definition, DefinitionSyncSummary} from '@shipfox/client-projects';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import type {Meta, StoryObj} from '@storybook/react';
+import type {LatestRuns} from '#core/latest-run.js';
 import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {
   WorkflowDefinitionsTable,
@@ -49,6 +50,36 @@ const sync: DefinitionSyncSummary = {
   diagnostics: [],
 };
 
+const latestRuns: LatestRuns = new Map([
+  [
+    'deploy-production',
+    {
+      status: 'found',
+      run: {
+        id: 'run-1',
+        definitionId: 'deploy-production',
+        number: 42,
+        status: 'succeeded',
+        createdAt: '2026-09-18T18:15:00.000Z',
+      },
+    },
+  ],
+  [
+    'nightly-verification',
+    {
+      status: 'found',
+      run: {
+        id: 'run-2',
+        definitionId: 'nightly-verification',
+        number: 9,
+        status: 'failed',
+        createdAt: '2026-09-18T03:00:00.000Z',
+      },
+    },
+  ],
+  ['manual-release', {status: 'none'}],
+]);
+
 const defaultArgs = {
   definitions,
   hasNextPage: false,
@@ -63,11 +94,13 @@ const defaultArgs = {
   onRun: () => undefined,
   onDismissRunError: () => undefined,
   onRefreshDefinitions: () => undefined,
+  latestRuns,
   runError: null,
   runningDefinitionId: null,
   searchQuery: '',
   onSearchChange: () => undefined,
   sync,
+  projectSlug: 'platform',
   workspaceSlug: 'acme',
 } satisfies WorkflowDefinitionsTableProps;
 
@@ -102,6 +135,18 @@ export const DataStates: Story = {
       <WorkflowDefinitionsTable {...args} isError />
       <WorkflowDefinitionsTable {...args} searchQuery="cron" />
       <WorkflowDefinitionsTable {...args} searchQuery="nothing matches" />
+    </div>
+  ),
+};
+
+export const LastRunStates: Story = {
+  render: (args) => (
+    <div className="grid grid-cols-1 gap-section">
+      <WorkflowDefinitionsTable {...args} latestRuns={new Map()} />
+      <WorkflowDefinitionsTable
+        {...args}
+        latestRuns={new Map(definitions.map((item) => [item.id, {status: 'error'} as const]))}
+      />
     </div>
   ),
 };

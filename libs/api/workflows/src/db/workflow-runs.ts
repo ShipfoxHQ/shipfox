@@ -94,6 +94,8 @@ export {
   updateJobStatus,
   updateJobStatusAtVersion,
 } from './workflow-runs/jobs.js';
+export type {LatestSyncedWorkflowRun} from './workflow-runs/latest-runs.js';
+export {listLatestSyncedWorkflowRuns} from './workflow-runs/latest-runs.js';
 export {
   writeJobExecutionQueuedOutbox,
   writeJobExecutionTerminatedOutbox,

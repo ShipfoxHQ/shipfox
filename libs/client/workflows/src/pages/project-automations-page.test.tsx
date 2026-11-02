@@ -13,8 +13,10 @@ import {ProjectAutomationsPage} from './project-automations-page.js';
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
+const LATEST_RUN_ID = '99999999-9999-4999-8999-999999999999';
 const HEAD_COMMIT = '3f9a21c0d6e4b8a17c2e5f9d0b3a6c8e1f4d7a20';
 const DEPLOY_WORKFLOW_ROW_REGEX = /Deploy production/;
+const FAILED_RUN_LINK_REGEX = /Failed/;
 
 describe('ProjectAutomationsPage', () => {
   test('renders the config source above the workflow definitions', async () => {
@@ -525,6 +527,82 @@ describe('ProjectAutomationsPage', () => {
     ).toBeInTheDocument();
   });
 
+  describe('last run column', () => {
+    test("shows the status and time of a workflow's latest synced run", async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          latestRuns: jsonResponse({runs: [latestRunDto({status: 'failed'})]}),
+        }),
+      });
+
+      renderAutomationsPage();
+
+      const row = await screen.findByRole('row', {name: DEPLOY_WORKFLOW_ROW_REGEX});
+      const link = await within(row).findByRole('link', {name: FAILED_RUN_LINK_REGEX});
+      expect(link).toHaveAttribute(
+        'href',
+        `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${LATEST_RUN_ID}`,
+      );
+      expect(within(link).getByRole('img', {name: 'Failed'})).toBeInTheDocument();
+      expect(within(row).queryByText('No runs yet')).not.toBeInTheDocument();
+    });
+
+    test('says so when a workflow has no synced run yet', async () => {
+      configureApiClient({fetchImpl: createProjectDetailFetch()});
+
+      renderAutomationsPage();
+
+      const row = await screen.findByRole('row', {name: DEPLOY_WORKFLOW_ROW_REGEX});
+      expect(await within(row).findByText('No runs yet')).toBeInTheDocument();
+    });
+
+    test('keeps the workflows listed when the runs cannot be read', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          latestRuns: jsonResponse({code: 'server-error'}, {status: 500}),
+        }),
+      });
+
+      renderAutomationsPage();
+
+      const row = await screen.findByRole('row', {name: DEPLOY_WORKFLOW_ROW_REGEX});
+      expect(await within(row).findByText('Unavailable')).toBeInTheDocument();
+      expect(within(row).queryByText('No runs yet')).not.toBeInTheDocument();
+    });
+
+    test('reads the latest runs once for each page of definitions', async () => {
+      const deployDefinition = baseDefinitionsDto().definitions[0];
+      if (!deployDefinition) throw new Error('Deploy definition fixture is missing');
+      const archiveId = '77777777-7777-4777-8777-777777777777';
+      const archiveDefinition = {
+        ...deployDefinition,
+        id: archiveId,
+        name: 'Archive artifacts',
+        config_path: '.shipfox/workflows/archive.yml',
+      };
+      const fetchImpl = createProjectDetailFetch({
+        definitions: jsonResponse(definitionsDto({next_cursor: 'cursor-1'})),
+        definitionsAfterCursor: jsonResponse(
+          definitionsDto({definitions: [archiveDefinition], next_cursor: null}),
+        ),
+        latestRuns: jsonResponse({runs: []}),
+      });
+      configureApiClient({fetchImpl});
+
+      renderAutomationsPage();
+
+      const table = await screen.findByRole('table', {name: 'Workflow definitions table'});
+      await waitFor(() => expect(within(table).getAllByText('No runs yet')).toHaveLength(2));
+      const latestRunRequests = fetchImpl.mock.calls
+        .map(([input]) => new URL(requestInputUrl(input)))
+        .filter((url) => url.pathname === '/workflows/runs/latest');
+      expect(latestRunRequests.map((url) => url.searchParams.get('definition_ids'))).toEqual([
+        DEFINITION_ID,
+        archiveId,
+      ]);
+    });
+  });
+
   test('searches every workflow once all pages have loaded', async () => {
     const deployDefinition = baseDefinitionsDto().definitions[0];
     if (!deployDefinition) throw new Error('Deploy definition fixture is missing');
@@ -823,6 +901,7 @@ function createProjectDetailFetch({
   definitionsAfterCursor,
   run = jsonResponse(runDto(), {status: 201}),
   packageUpdates = jsonResponse({updates: []}),
+  latestRuns = jsonResponse({runs: []}),
 }: {
   project?: Response;
   config?: Response;
@@ -831,10 +910,12 @@ function createProjectDetailFetch({
   definitionsAfterCursor?: Response;
   run?: Response;
   packageUpdates?: Response;
+  latestRuns?: Response;
 } = {}) {
   const responsesByPath: Record<string, Response> = {
     [`/projects/${PROJECT_ID}`]: project,
     [`/projects/${PROJECT_ID}/config`]: config,
+    '/workflows/runs/latest': latestRuns,
     [`/workspaces/${PROJECT_TEST_WID}/definitions/${DEFINITION_ID}/package-updates`]:
       packageUpdates,
   };
@@ -856,6 +937,17 @@ function createProjectDetailFetch({
     }
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
   });
+}
+
+function latestRunDto(overrides: Partial<{status: string}> = {}) {
+  return {
+    id: LATEST_RUN_ID,
+    definition_id: DEFINITION_ID,
+    number: 3,
+    status: 'succeeded',
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
 }
 
 function requestInputUrl(input: RequestInfo | URL) {
