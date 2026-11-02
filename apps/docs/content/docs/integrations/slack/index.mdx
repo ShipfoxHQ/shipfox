@@ -30,8 +30,7 @@ The required bot scopes are:
   `reactions:write`, and `canvases:write`.
 - Commands: `commands`.
 
-A connection made before agents lacks `chat:write.customize` and
-`assistant:write`, so it must
+A connection missing either `chat:write.customize` or `assistant:write` must
 [reconnect](/how-to/set-up-work/manage-integration-connections#reconnect-an-integration-connection).
 A self-hosted deployment creates its own app from the
 [Slack app manifest](/installation/slack-app).

@@ -1,4 +1,4 @@
 {
   "title": "Installation",
-  "pages": ["local", "self-hosting", "runner-provisioner", "slack-app"]
+  "pages": ["local", "self-hosting", "runner-provisioner", "---Open source edition---", "slack-app"]
 }

@@ -156,6 +156,7 @@ describe('GET /integration-connections', () => {
     });
 
     expect(res.statusCode).toBe(200);
+    expect(res.json().connections).toHaveLength(1);
     expect(res.json().connections[0]).not.toHaveProperty('reconnect_required');
   });
 

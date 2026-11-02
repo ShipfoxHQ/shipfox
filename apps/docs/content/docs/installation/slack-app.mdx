@@ -1,13 +1,18 @@
 ---
 title: "Create the Slack App for a Self-Hosted Deployment"
 sidebarTitle: "Slack App"
-description: "Create the Slack app that a self-hosted Shipfox deployment installs, and configure the API with its credentials."
+description: "Open source edition only. Create the Slack app that a self-hosted Shipfox deployment installs, and configure the API with its credentials."
 ---
+
+<Callout title="Open source edition only" type="info">
+  This guide applies to a self-hosted Shipfox installation. Shipfox Cloud
+  already runs this app, so its workspaces can
+  [connect Slack](/integrations/slack/setup) directly.
+</Callout>
 
 A self-hosted deployment installs its own Slack app in each connected Slack
 workspace. This guide creates that app from a manifest and gives its
-credentials to the Shipfox API. Shipfox Cloud already runs this app, so Cloud
-workspaces skip this page.
+credentials to the Shipfox API.
 
 ## Before you begin
 
@@ -105,8 +110,10 @@ environment:
 | `SLACK_OAUTH_REDIRECT_URL` | The redirect URL from the manifest |
 | `INTEGRATIONS_ENABLE_SLACK_PROVIDER` | `true` |
 
-Restart the API. Slack then verifies the event request URL. If the verification
-fails, check that Slack can reach the API URL from the internet.
+Restart the API. Slack can't verify the event request URL until the API has the
+signing secret, so open the app's **Event Subscriptions** page and save the
+request URL again. If the verification fails, check that Slack can reach the API
+URL from the internet.
 
 ## Update an existing app
 
