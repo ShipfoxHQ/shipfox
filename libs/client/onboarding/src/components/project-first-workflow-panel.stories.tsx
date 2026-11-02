@@ -169,6 +169,8 @@ function configDto() {
     },
     head: {ref: 'refs/heads/main', commit: '3f9a21c0d6e4b8a17c2e5f9d0b3a6c8e1f4d7a20'},
     history_supported: true,
+    move: null,
+    pull_request: null,
   };
 }
 
