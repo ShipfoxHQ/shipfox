@@ -11,7 +11,7 @@ import {
 import type {Conversation, ConversationItem} from '../entities/conversation.js';
 import {AgentSessionUnavailableError, ConversationEntryUnreadableError} from '../errors.js';
 
-type PiCodingAgent = typeof import('@earendil-works/pi-coding-agent');
+export type PiCodingAgent = typeof import('@earendil-works/pi-coding-agent');
 
 interface OpenedRow {
   id: string;
@@ -89,17 +89,21 @@ export function buildSessionEntries(params: {
   });
 }
 
+export interface ConversationSession {
+  session: ReturnType<PiCodingAgent['SessionManager']['inMemory']>;
+  /** The stored items the session was built from, in `seq` order. Entry IDs are item IDs. */
+  items: ConversationItem[];
+}
+
 /**
- * Rebuilds the prompt of a conversation from its stored entries, starting at `context_start_seq`.
- * pi derives the messages, the system prompt, and the tools, so Agent assembles nothing itself.
+ * Opens the stored entries of a conversation, starting at `context_start_seq`, as a pi session.
  * A row that can't be opened fails the load.
  */
-export async function loadConversationContext(params: {
+export async function openConversationSession(params: {
   conversation: Conversation;
-  pi?: PiCodingAgent | undefined;
-}): Promise<Message[]> {
-  const {conversation} = params;
-  const pi = params.pi ?? (await import('@earendil-works/pi-coding-agent'));
+  pi: PiCodingAgent;
+}): Promise<ConversationSession> {
+  const {conversation, pi} = params;
   const [items, key] = await Promise.all([
     listContextItems({conversationId: conversation.id, fromSeq: conversation.contextStartSeq}),
     conversationDataKey(conversation.workspaceId),
@@ -107,6 +111,19 @@ export async function loadConversationContext(params: {
   const rows = items.map((item) => openRow({item, key, workspaceId: conversation.workspaceId}));
   const entries = buildSessionEntries({pi, conversationId: conversation.id, rows});
 
-  const session = pi.SessionManager.inMemory('/', undefined, entries);
+  return {session: pi.SessionManager.inMemory('/', undefined, entries), items};
+}
+
+/**
+ * Rebuilds the prompt of a conversation from its stored entries, starting at `context_start_seq`.
+ * pi derives the messages, the system prompt, and the tools, so Agent assembles nothing itself.
+ * After a compaction, pi puts the system message, then the summary, then the kept entries.
+ */
+export async function loadConversationContext(params: {
+  conversation: Conversation;
+  pi?: PiCodingAgent | undefined;
+}): Promise<Message[]> {
+  const pi = params.pi ?? (await import('@earendil-works/pi-coding-agent'));
+  const {session} = await openConversationSession({conversation: params.conversation, pi});
   return pi.convertToLlm(session.buildSessionContext().messages);
 }

@@ -214,6 +214,14 @@ export const conversationModelCallCount = meter.createCounter<{
     'Agent conversation model calls by outcome: stored a reply, returned one a crashed attempt stored, or failed',
 });
 
+export const conversationCompactionCount = meter.createCounter<{
+  cause: 'estimate' | 'overflow';
+  outcome: 'compacted' | 'replayed' | 'nothing_to_compact' | 'failed';
+}>('agent_conversation_compactions', {
+  description:
+    'Agent conversation compactions by cause, the prompt estimate or a provider overflow, and outcome',
+});
+
 export const conversationToolCallCount = meter.createCounter<{
   sensitivity: 'read' | 'write' | 'local' | 'unknown';
   outcome: 'success' | 'error' | 'replayed';

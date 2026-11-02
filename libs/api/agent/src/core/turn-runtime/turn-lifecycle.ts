@@ -206,20 +206,35 @@ export async function claimConversationInputs(params: {
   return await claimPendingInputs(params);
 }
 
+export const CONTEXT_OVERFLOW_NOTICE =
+  'This conversation is too long to continue. Start a new conversation.';
+
+/** The entry that tells a reader why a turn failed, for the failures that need one. */
+async function failureNotice(
+  conversation: Conversation,
+  failureCode: TurnFailureCode | undefined,
+): Promise<NewTimelineEntry | undefined> {
+  if (failureCode !== 'context_overflow') return undefined;
+  return await sealTurnNotice(conversation, {
+    code: failureCode,
+    message: CONTEXT_OVERFLOW_NOTICE,
+    required_action: null,
+  });
+}
+
 export async function finishConversationTurn(params: {
   conversationId: string;
   turnId: string;
   status: 'succeeded' | 'failed' | 'stopped';
   failureCode?: TurnFailureCode | undefined;
 }): Promise<void> {
+  const conversation = await getConversationById(params.conversationId);
   const finished = await finishTurnRow({
-    turnId: params.turnId,
-    status: params.status,
-    failureCode: params.failureCode,
+    ...params,
+    notice: conversation ? await failureNotice(conversation, params.failureCode) : undefined,
   });
   // A repeat after the first commit finds the turn finished and counts nothing.
   if (!finished) return;
-  const conversation = await getConversationById(params.conversationId);
   conversationTurnCount.add(1, {
     origin: conversation?.originKind ?? 'web',
     trigger: 'message',

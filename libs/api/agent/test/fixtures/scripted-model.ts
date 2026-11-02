@@ -17,14 +17,20 @@ export type ScriptedReply = AssistantMessage | ((context: Context) => AssistantM
  * A model that answers from a script, one reply per request. It records what each request
  * carried, so tests can compare the prompts two calls sent.
  */
-export function createScriptedModel(replies: ScriptedReply[]) {
+export function createScriptedModel(
+  replies: ScriptedReply[],
+  options: {contextWindow?: number} = {},
+) {
   const requests: {context: Context; options: SimpleStreamOptions; params: ModelRuntimeParams}[] =
     [];
   let next = 0;
 
   const createModelRuntime: CreateModelRuntime = (params) => {
     const runtime: ModelCallRuntime = {
-      model: {contextWindow: 200_000} as ModelCallRuntime['model'],
+      model: {
+        contextWindow: options.contextWindow ?? 200_000,
+        maxTokens: 8_192,
+      } as ModelCallRuntime['model'],
       thinking: 'default',
       stream: (context, options) => {
         requests.push({context: structuredClone(context), options, params});

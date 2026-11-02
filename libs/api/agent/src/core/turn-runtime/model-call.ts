@@ -26,6 +26,7 @@ import {
   sealConversationText,
 } from '../conversation-sealing.js';
 import type {Conversation, ConversationItem} from '../entities/conversation.js';
+import {type CompactionCause, promptNeedsCompaction} from './compaction.js';
 import {loadConversationContext} from './conversation-session.js';
 import {assistantMessageEntry} from './entries.js';
 import {classifyProviderError, TurnFailure} from './failures.js';
@@ -39,11 +40,19 @@ export const STREAM_FLUSH_INTERVAL_MS = 150;
 export const HEARTBEAT_INTERVAL_MS = 5_000;
 export const STOP_POLL_INTERVAL_MS = 500;
 
-export interface ModelCallResult {
-  /** `stopped` means the user stopped the reply, and the stored message is the partial one. */
-  stopReason: 'stop' | 'length' | 'toolUse' | 'stopped';
-  toolCallCount: number;
-}
+/**
+ * What a model call tells the workflow. `compact` means nothing was stored: the prompt has to
+ * shrink first, and the same call runs again afterwards.
+ */
+export type ModelCallResult =
+  | {
+      /** `stopped` means the user stopped the reply, and the stored message is the partial one. */
+      stopReason: 'stop' | 'length' | 'toolUse' | 'stopped';
+      toolCallCount: number;
+    }
+  | {stopReason: 'compact'; toolCallCount: 0; compactionCause: CompactionCause};
+
+type StoredCallResult = Exclude<ModelCallResult, {stopReason: 'compact'}>;
 
 export interface ModelCallParams {
   conversationId: string;
@@ -54,7 +63,7 @@ export interface ModelCallParams {
   heartbeat?: (() => void) | undefined;
 }
 
-function toCallResult(message: {stopReason?: unknown; content?: unknown}): ModelCallResult {
+function toCallResult(message: {stopReason?: unknown; content?: unknown}): StoredCallResult {
   // pi leaves a stopped message out of prompts, so its half-written tool calls never run.
   if (message.stopReason === 'aborted') return {stopReason: 'stopped', toolCallCount: 0};
   const content = Array.isArray(message.content) ? message.content : [];
@@ -243,17 +252,20 @@ async function streamReply(
   }
 }
 
+/** True when the provider rejected the prompt for its size. The estimate can miss this. */
+async function isPromptOverflow(message: AssistantMessage, runtime: ModelCallRuntime) {
+  if (message.stopReason !== 'error') return false;
+  const {isContextOverflow} = await import('@earendil-works/pi-ai');
+  return isContextOverflow(message, runtime.model.contextWindow);
+}
+
 /** Turns a reply that isn't one the timeline can hold into the failure a turn records. */
-async function assertUsableReply(message: AssistantMessage, runtime: ModelCallRuntime) {
+function assertUsableReply(message: AssistantMessage) {
   if (message.stopReason === 'aborted') {
     throw new TurnFailure('provider_unavailable', 'The model call was interrupted', true);
   }
   if (message.stopReason !== 'error') return;
-
-  const {isContextOverflow} = await import('@earendil-works/pi-ai');
-  throw isContextOverflow(message, runtime.model.contextWindow)
-    ? new TurnFailure('context_overflow', message.errorMessage ?? 'The prompt is too long', false)
-    : classifyProviderError(message.errorMessage);
+  throw classifyProviderError(message.errorMessage);
 }
 
 async function storeReply(params: {
@@ -315,10 +327,14 @@ export async function runModelCall(params: ModelCallParams): Promise<ModelCallRe
 
   await deleteStreamChunks(position);
   try {
-    const messages = await loadConversationContext({conversation});
+    const pi = await import('@earendil-works/pi-coding-agent');
+    const messages = await loadConversationContext({conversation, pi});
     const runtime = await params
       .createModelRuntime({conversation, turn, renewal: turn.modelCallCount > 0})
       .catch(translateModelSetupError);
+    if (promptNeedsCompaction({pi, messages, contextWindow: runtime.model.contextWindow})) {
+      return {stopReason: 'compact', toolCallCount: 0, compactionCause: 'estimate'};
+    }
     const key = await conversationDataKey(conversation.workspaceId);
     const {message, stopRequested} = await streamReply({
       runtime,
@@ -329,10 +345,11 @@ export async function runModelCall(params: ModelCallParams): Promise<ModelCallRe
       signal: params.signal,
       heartbeat: params.heartbeat,
     });
-    // A stopped reply is a result, not a failure: the partial message joins the timeline.
-    if (!(stopRequested && message.stopReason === 'aborted')) {
-      await assertUsableReply(message, runtime);
+    if (await isPromptOverflow(message, runtime)) {
+      return {stopReason: 'compact', toolCallCount: 0, compactionCause: 'overflow'};
     }
+    // A stopped reply is a result, not a failure: the partial message joins the timeline.
+    if (!(stopRequested && message.stopReason === 'aborted')) assertUsableReply(message);
     recordDiagnostics(message);
     return await storeReply({conversation, position, message, key});
   } catch (error) {
