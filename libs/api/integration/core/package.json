@@ -70,6 +70,7 @@
     "@shipfox/api-integration-webhook": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
+    "@shipfox/node-docs-client": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",

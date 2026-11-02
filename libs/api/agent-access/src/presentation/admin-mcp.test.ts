@@ -24,6 +24,7 @@ import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-mo
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import {createDocsCache} from '@shipfox/node-docs-client';
 import {
   type AuthMethod,
   ClientError,
@@ -32,7 +33,6 @@ import {
   type FastifyRequest,
 } from '@shipfox/node-fastify';
 import type {TemplateLoader} from '@shipfox/workflow-templates';
-import {createDocsCache} from '#core/docs.js';
 import {agentAccessError, agentAccessSuccess} from '#core/envelope.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {type AgentAccessTool, createAgentAccessFixtureTool} from '#core/tools.js';

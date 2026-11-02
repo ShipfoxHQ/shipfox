@@ -272,10 +272,16 @@ export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGra
   shipfox: {
     get_run_annotations: {sensitivity: 'read', result: 'json'},
     get_step_logs: {sensitivity: 'read', result: 'json'},
+    get_workflow_definition_source: {sensitivity: 'read', result: 'json'},
+    get_workflow_job: {sensitivity: 'read', result: 'json'},
     get_workflow_run: {sensitivity: 'read', result: 'json'},
     list_projects: {sensitivity: 'read', result: 'json'},
     list_workflow_definitions: {sensitivity: 'read', result: 'json'},
+    list_workflow_run_job_explanations: {sensitivity: 'read', result: 'json'},
+    list_workflow_run_jobs: {sensitivity: 'read', result: 'json'},
     list_workflow_runs: {sensitivity: 'read', result: 'json'},
+    list_workflow_step_attempts: {sensitivity: 'read', result: 'json'},
+    search_docs: {sensitivity: 'read', result: 'json'},
     start_workflow_run: {sensitivity: 'write', result: 'json'},
   },
   slack: {

@@ -3168,6 +3168,9 @@ importers:
       '@shipfox/workflow-document':
         specifier: workspace:*
         version: link:../../shared/workflow/document
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../shared/workflow/templates
       '@temporalio/activity':
         specifier: 'catalog:'
         version: 1.18.1
@@ -3268,6 +3271,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
+      '@shipfox/node-docs-client':
+        specifier: workspace:*
+        version: link:../../shared/node/docs-client
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -4421,6 +4427,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../../shared/common/inter-module
+      '@shipfox/node-docs-client':
+        specifier: workspace:*
+        version: link:../../../shared/node/docs-client
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
@@ -5610,6 +5619,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../../shared/common/inter-module
+      '@shipfox/node-docs-client':
+        specifier: workspace:*
+        version: link:../../../shared/node/docs-client
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
@@ -6590,6 +6602,9 @@ importers:
       '@shipfox/feature-flags':
         specifier: workspace:*
         version: link:../../shared/common/feature-flags
+      '@shipfox/node-docs-client':
+        specifier: workspace:*
+        version: link:../../shared/node/docs-client
       '@shipfox/node-error-monitoring':
         specifier: workspace:*
         version: link:../../shared/node/error-monitoring
@@ -9985,6 +10000,24 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../common/config
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/shared/node/docs-client:
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

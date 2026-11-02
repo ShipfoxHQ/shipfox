@@ -19,6 +19,7 @@ import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-modu
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
+import {createDocsCache, type DocsCache} from '@shipfox/node-docs-client';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {
   ClientError,
@@ -48,7 +49,6 @@ import {
 import {createAgentAccessAuthoringContextTools} from '#core/authoring-context.js';
 import {createAgentAccessCacheTools} from '#core/cache-tools.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
-import {createDocsCache, type DocsCache} from '#core/docs.js';
 import {createSearchDocsTool} from '#core/docs-tools.js';
 import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
@@ -100,7 +100,8 @@ export interface CreateAgentAccessRoutesOptions {
 }
 
 export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions = {}): RouteGroup {
-  const docs = options.docs ?? defaultDocs();
+  // Without an injected cache, documentation stays disabled.
+  const docs = options.docs ?? createDocsCache({baseUrl: ''});
   const resolvedTools = options.tools ?? toolsFromProducerClients(options);
   const tools = [
     ...resolvedTools,
@@ -255,14 +256,6 @@ function createAdminTools(
   ];
   createAgentAccessToolMap(tools);
   return tools;
-}
-
-let sharedDocs: DocsCache | undefined;
-function defaultDocs(): DocsCache {
-  if (sharedDocs) return sharedDocs;
-  sharedDocs = createDocsCache({baseUrl: config.DOCS_BASE_URL});
-  sharedDocs.start();
-  return sharedDocs;
 }
 
 function toolsFromProducerClients(

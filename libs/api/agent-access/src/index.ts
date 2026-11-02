@@ -1,3 +1,4 @@
+export {createDocsCache} from '@shipfox/node-docs-client';
 export {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
   AGENT_ACCESS_ADMIN_MCP_INSTRUCTIONS,
@@ -30,7 +31,6 @@ export {
   type AgentAccessDiagnosticToolsOptions,
   createAgentAccessDiagnosticTools,
 } from '#core/diagnostic-tools.js';
-export {createDocsCache} from '#core/docs.js';
 export {createSearchDocsTool} from '#core/docs-tools.js';
 export {
   agentAccessError,

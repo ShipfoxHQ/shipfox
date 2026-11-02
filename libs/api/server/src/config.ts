@@ -18,6 +18,10 @@ export const config = createConfig({
     desc: 'Port the API HTTP server listens on. When unset, the shared PORT setting controls the server port.',
     default: undefined,
   }),
+  DOCS_BASE_URL: str({
+    desc: 'Base URL of the Shipfox documentation site. Set an absolute HTTP or HTTPS URL to a docs site that serves `mcp.mdx/<slug>` pages, or set an empty string to disable MCP docs resources and search.',
+    default: 'https://www.shipfox.io/docs',
+  }),
   API_TRUST_PROXY: str({
     desc: 'Controls how the API trusts proxy headers for client IP detection. Use false when clients connect directly, true only when every caller is a trusted proxy, a positive hop count such as 1, or a trusted proxy IP/CIDR such as 10.0.0.0/8.',
     default: 'false',

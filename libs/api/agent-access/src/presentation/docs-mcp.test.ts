@@ -2,7 +2,7 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import {CallToolResultSchema, ErrorCode} from '@modelcontextprotocol/sdk/types.js';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
-import {createDocsCache} from '#core/docs.js';
+import {createDocsCache} from '@shipfox/node-docs-client';
 import {createSearchDocsTool} from '#core/docs-tools.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {buildAgentAccessMcpServer} from './mcp-server.js';

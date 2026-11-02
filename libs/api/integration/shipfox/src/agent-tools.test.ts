@@ -4,6 +4,7 @@ import {STEP_LOG_READ_CONTENT_MAX_BYTES} from '@shipfox/api-logs-dto';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import {DocsUnavailableError} from '@shipfox/node-docs-client';
 import {
   encodeNumberIdCursor,
   encodeStringIdCursor,
@@ -99,7 +100,9 @@ function createProvider() {
       name: 'Deploy',
     }),
     listDefinitionsByProject: vi.fn(),
+    getDefinitionForWorkflowRun: vi.fn(),
   };
+  const docs = {search: vi.fn().mockResolvedValue([])};
   const projects = {
     listProjectsByWorkspace: vi.fn(),
     requireProjectForWorkspace: vi.fn(),
@@ -132,6 +135,9 @@ function createProvider() {
       items: [],
     }),
     getLatestRunAttempt: vi.fn().mockResolvedValue({attempt: 1}),
+    getWorkflowJobExecutionContext: vi.fn(),
+    listWorkflowRunJobExplanations: vi.fn(),
+    listWorkflowStepAttempts: vi.fn(),
   };
   const logs = {readStepLogTail: vi.fn().mockResolvedValue({content: 'step output'})};
   const annotations = {
@@ -141,12 +147,13 @@ function createProvider() {
     annotations,
     clientBaseUrl: 'https://app.example.test',
     definitions,
+    docs,
     logs,
     projects,
     triggers,
     workflows,
   });
-  return {annotations, definitions, logs, projects, triggers, workflows, provider};
+  return {annotations, definitions, docs, logs, projects, triggers, workflows, provider};
 }
 
 describe('Shipfox agent tools', () => {
@@ -159,6 +166,12 @@ describe('Shipfox agent tools', () => {
       'get_workflow_run',
       'get_step_logs',
       'get_run_annotations',
+      'list_workflow_run_jobs',
+      'get_workflow_job',
+      'list_workflow_step_attempts',
+      'list_workflow_run_job_explanations',
+      'get_workflow_definition_source',
+      'search_docs',
     ]);
     expect('methods' in (shipfoxAgentToolCatalog[0] ?? {})).toBe(false);
     expect(shipfoxAgentToolCatalog[0]?.inputSchema).toMatchObject({
@@ -1261,6 +1274,12 @@ describe('Shipfox tools for a conversation', () => {
       'get_workflow_run',
       'get_step_logs',
       'get_run_annotations',
+      'list_workflow_run_jobs',
+      'get_workflow_job',
+      'list_workflow_step_attempts',
+      'list_workflow_run_job_explanations',
+      'get_workflow_definition_source',
+      'search_docs',
     ]);
     expect(
       JSON.stringify(shipfoxConversationToolCatalog.map((tool) => tool.inputSchema)),
@@ -1623,5 +1642,419 @@ describe('Shipfox tools for a conversation', () => {
     expect(runAnnotations.isError).toBeUndefined();
     expect(logs.readStepLogTail).toHaveBeenCalledOnce();
     expect(annotations.listAnnotationsForRunAttempt).toHaveBeenCalledOnce();
+  });
+});
+
+describe('Shipfox troubleshooting reads', () => {
+  const otherProjectId = '00000000-0000-4000-8000-000000000030';
+  const executionId = '00000000-0000-4000-8000-000000000031';
+
+  function jobSummary(overrides: Record<string, unknown> = {}) {
+    return {
+      id: jobId,
+      key: 'implement',
+      name: 'Implement',
+      position: 0,
+      status: 'succeeded',
+      status_reason: null,
+      mode: 'run',
+      listener_status: 'none',
+      carried_over: false,
+      execution_count: 1,
+      execution_status_counts: {},
+      default_execution: {id: executionId},
+      ...overrides,
+    };
+  }
+
+  function runOverview(runProjectId: string) {
+    return {
+      run: {project_id: runProjectId, number: 42},
+      attempt: {attempt: 1},
+      jobs: {kind: 'small', items: []},
+      has_started_job_execution: false,
+    };
+  }
+
+  async function open(
+    provider: ReturnType<typeof createProvider>['provider'],
+    kind: 'conversation' | 'lease',
+  ) {
+    return await provider.openSession({
+      connection: {} as never,
+      tools: kind === 'conversation' ? provider.conversationCatalog() : provider.catalog(),
+      scope: {},
+      caller: kind === 'conversation' ? conversationCaller() : caller({callerKind: 'agent'}),
+    });
+  }
+
+  describe.each(['conversation', 'lease'] as const)('for a %s caller', (kind) => {
+    it('lists the jobs of a run attempt', async () => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+      workflows.listWorkflowRunJobs.mockResolvedValue({
+        workflow_run_attempt: 2,
+        items: [jobSummary()],
+        nextCursor: null,
+        total: 1,
+      });
+      const session = await open(provider, kind);
+
+      const result = await session.call({
+        toolId: 'list_workflow_run_jobs',
+        arguments: {run_id: parentRunId, attempt: 2, limit: 10},
+      });
+
+      expect(workflows.listWorkflowRunJobs).toHaveBeenCalledWith({
+        workspaceId,
+        workflowRunId: parentRunId,
+        attempt: 2,
+        limit: 10,
+      });
+      expect(result.structuredContent).toMatchObject({
+        workflow_run_id: parentRunId,
+        workflow_run_attempt: 2,
+        jobs: [{id: jobId, key: 'implement'}],
+        next_cursor: null,
+        total: 1,
+      });
+    });
+
+    it('reads a job with its outputs', async () => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+      workflows.getWorkflowJobDetail.mockResolvedValue({
+        workflow_run_id: parentRunId,
+        workflow_run_attempt: 1,
+        job: jobSummary({dependencies: []}),
+        selected_execution: null,
+      });
+      workflows.getWorkflowJobExecutionContext.mockResolvedValue({
+        job_outputs: {pr_url: 'https://github.com/acme/app/pull/7'},
+      });
+      const session = await open(provider, kind);
+
+      const result = await session.call({toolId: 'get_workflow_job', arguments: {job_id: jobId}});
+
+      expect(workflows.getWorkflowJobExecutionContext).toHaveBeenCalledWith({
+        workspaceId,
+        jobId,
+        executionId,
+      });
+      expect(result.structuredContent).toMatchObject({
+        job: {id: jobId},
+        outputs: {pr_url: 'https://github.com/acme/app/pull/7'},
+      });
+    });
+
+    it('omits job outputs above the size limit', async () => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+      workflows.getWorkflowJobDetail.mockResolvedValue({
+        workflow_run_id: parentRunId,
+        workflow_run_attempt: 1,
+        job: jobSummary(),
+        selected_execution: null,
+      });
+      workflows.getWorkflowJobExecutionContext.mockResolvedValue({
+        job_outputs: {big: 'x'.repeat(70 * 1024)},
+      });
+      const session = await open(provider, kind);
+
+      const result = await session.call({toolId: 'get_workflow_job', arguments: {job_id: jobId}});
+
+      expect(result.structuredContent).toMatchObject({outputs: null, outputs_truncated: true});
+    });
+
+    it('lists the attempts of a step', async () => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+      workflows.listWorkflowStepAttempts.mockResolvedValue({
+        items: [
+          {
+            id: stepAttemptId,
+            attempt: 2,
+            execution_order: 2,
+            status: 'failed',
+            exit_code: 1,
+            started_at: '2026-11-01T10:00:00.000Z',
+            finished_at: '2026-11-01T10:01:00.000Z',
+            error: null,
+          },
+        ],
+        nextCursor: encodeNumberIdCursor({value: 2, id: stepAttemptId}),
+        total: 5,
+      });
+      const session = await open(provider, kind);
+
+      const result = await session.call({
+        toolId: 'list_workflow_step_attempts',
+        arguments: {step_id: stepId},
+      });
+
+      expect(result.structuredContent).toMatchObject({
+        step_id: stepId,
+        attempts: [{id: stepAttemptId, attempt: 2, status: 'failed', exit_code: 1}],
+        next_cursor: encodeNumberIdCursor({value: 2, id: stepAttemptId}),
+        total: 5,
+      });
+    });
+
+    it('lists job explanations and bounds a long evaluation trace', async () => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+      workflows.listWorkflowRunJobExplanations.mockResolvedValue({
+        workflow_run_attempt: 1,
+        items: [
+          {
+            job_id: jobId,
+            job_label: 'deploy',
+            job_position: 3,
+            status: 'skipped',
+            status_reason: 'default_gate_rejected',
+            evaluation_trace: [{expression: 'x'.repeat(20 * 1024)}],
+          },
+        ],
+        nextCursor: null,
+      });
+      const session = await open(provider, kind);
+
+      const result = await session.call({
+        toolId: 'list_workflow_run_job_explanations',
+        arguments: {run_id: parentRunId},
+      });
+
+      expect(result.structuredContent).toMatchObject({
+        workflow_run_id: parentRunId,
+        explanations: [{job_id: jobId, evaluation_trace: [{truncated: true, dropped: 1}]}],
+      });
+    });
+
+    it('reads the source of a definition by path', async () => {
+      const {definitions, provider} = createProvider();
+      definitions.getDefinitionForWorkflowRun.mockResolvedValue({
+        definition: {
+          id: definitionId,
+          projectId,
+          name: 'Deploy',
+          configPath: '.shipfox/workflows/deploy.yml',
+          sourceSnapshot: {content: 'name: Deploy\njobs: {}\n', format: 'yaml'},
+        },
+      });
+      const session = await open(provider, kind);
+
+      const result = await session.call({
+        toolId: 'get_workflow_definition_source',
+        arguments: {workflow: '.shipfox/workflows/deploy.yml'},
+      });
+
+      expect(result.structuredContent).toMatchObject({
+        definition_id: definitionId,
+        source: 'name: Deploy\njobs: {}\n',
+        from_line: 1,
+        next_from_line: null,
+      });
+    });
+
+    it('searches the documentation', async () => {
+      const {docs, provider} = createProvider();
+      docs.search.mockResolvedValue([
+        {slug: 'how-to/debug', title: 'Debug', excerpt: 'Read logs', uri: 'docs://shipfox/x'},
+      ]);
+      const session = await open(provider, kind);
+
+      const result = await session.call({toolId: 'search_docs', arguments: {query: 'logs'}});
+
+      expect(result.structuredContent).toEqual({
+        hits: [{slug: 'how-to/debug', title: 'Debug', excerpt: 'Read logs'}],
+      });
+    });
+  });
+
+  it('pages a long source by whole lines', async () => {
+    const {definitions, provider} = createProvider();
+    const line = `${'a'.repeat(1023)}\n`;
+    definitions.getDefinitionForWorkflowRun.mockResolvedValue({
+      definition: {
+        id: definitionId,
+        projectId,
+        name: 'Deploy',
+        configPath: 'deploy.yml',
+        sourceSnapshot: {content: line.repeat(100), format: 'yaml'},
+      },
+    });
+    const session = await open(provider, 'conversation');
+
+    const first = await session.call({
+      toolId: 'get_workflow_definition_source',
+      arguments: {workflow: 'deploy.yml'},
+    });
+    const second = await session.call({
+      toolId: 'get_workflow_definition_source',
+      arguments: {workflow: 'deploy.yml', from_line: 65},
+    });
+
+    expect(first.structuredContent).toMatchObject({next_from_line: 65});
+    expect((first.structuredContent?.source as string).length).toBe(64 * 1024);
+    expect(second.structuredContent).toMatchObject({from_line: 65, next_from_line: null});
+    const past = await session.call({
+      toolId: 'get_workflow_definition_source',
+      arguments: {workflow: 'deploy.yml', from_line: 101},
+    });
+    expect(past).toMatchObject({isError: true});
+  });
+
+  it('refuses a source line above the page budget', async () => {
+    const {definitions, provider} = createProvider();
+    definitions.getDefinitionForWorkflowRun.mockResolvedValue({
+      definition: {
+        id: definitionId,
+        projectId,
+        name: 'Deploy',
+        configPath: 'deploy.yml',
+        sourceSnapshot: {content: `ok\n${'a'.repeat(70 * 1024)}\n`, format: 'yaml'},
+      },
+    });
+    const session = await open(provider, 'conversation');
+
+    const result = await session.call({
+      toolId: 'get_workflow_definition_source',
+      arguments: {workflow: 'deploy.yml', from_line: 2},
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{text: expect.stringContaining('Line 2')}],
+    });
+  });
+
+  it('flags job outputs the producer left out as too large', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+    workflows.getWorkflowJobDetail.mockResolvedValue({
+      workflow_run_id: parentRunId,
+      workflow_run_attempt: 1,
+      job: jobSummary(),
+      selected_execution: null,
+    });
+    workflows.getWorkflowJobExecutionContext.mockResolvedValue({
+      job_outputs: null,
+      oversized_fields: [{field: 'job_outputs'}],
+    });
+    const session = await open(provider, 'conversation');
+
+    const result = await session.call({toolId: 'get_workflow_job', arguments: {job_id: jobId}});
+
+    expect(result.structuredContent).toMatchObject({outputs: null, outputs_truncated: true});
+  });
+
+  it('reports a missing documentation site as an error', async () => {
+    const {docs, provider} = createProvider();
+    docs.search.mockRejectedValue(new DocsUnavailableError('Documentation is disabled'));
+    const session = await open(provider, 'conversation');
+
+    const result = await session.call({toolId: 'search_docs', arguments: {query: 'logs'}});
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'docs-unavailable'}});
+  });
+
+  it('rejects an unknown parameter and a malformed cursor', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+    const session = await open(provider, 'conversation');
+
+    const unknown = await session.call({
+      toolId: 'get_workflow_job',
+      arguments: {job_id: jobId, extra: true},
+    });
+    const cursor = await session.call({
+      toolId: 'list_workflow_step_attempts',
+      arguments: {step_id: stepId, cursor: 'not-a-cursor'},
+    });
+
+    expect(unknown).toMatchObject({isError: true});
+    expect(cursor).toMatchObject({isError: true, content: [{text: 'Invalid cursor'}]});
+  });
+
+  describe('for a conversation in another project', () => {
+    it.each([
+      {toolId: 'list_workflow_run_jobs', arguments: {run_id: parentRunId}},
+      {toolId: 'list_workflow_run_job_explanations', arguments: {run_id: parentRunId}},
+    ])('answers not found for $toolId on a foreign run', async (call) => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+      const session = await open(provider, 'conversation');
+
+      const result = await session.call(call);
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+      expect(workflows.listWorkflowRunJobs).not.toHaveBeenCalled();
+      expect(workflows.listWorkflowRunJobExplanations).not.toHaveBeenCalled();
+    });
+
+    it('answers not found for a job of a foreign run', async () => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+      workflows.getWorkflowJobDetail.mockResolvedValue({
+        workflow_run_id: parentRunId,
+        workflow_run_attempt: 1,
+        job: jobSummary(),
+        selected_execution: null,
+      });
+      const session = await open(provider, 'conversation');
+
+      const result = await session.call({toolId: 'get_workflow_job', arguments: {job_id: jobId}});
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+      expect(workflows.getWorkflowJobExecutionContext).not.toHaveBeenCalled();
+    });
+
+    it('answers not found for the attempts of a foreign step', async () => {
+      const {workflows, provider} = createProvider();
+      workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(otherProjectId));
+      const session = await open(provider, 'conversation');
+
+      const result = await session.call({
+        toolId: 'list_workflow_step_attempts',
+        arguments: {step_id: stepId},
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+      expect(workflows.listWorkflowStepAttempts).not.toHaveBeenCalled();
+    });
+
+    it('answers not found for a definition of another project', async () => {
+      const {definitions, provider} = createProvider();
+      definitions.getDefinitionForWorkflowRun.mockResolvedValue({
+        definition: {
+          id: definitionId,
+          projectId: otherProjectId,
+          name: 'Deploy',
+          configPath: 'deploy.yml',
+          sourceSnapshot: null,
+        },
+      });
+      const session = await open(provider, 'conversation');
+
+      const result = await session.call({
+        toolId: 'get_workflow_definition_source',
+        arguments: {workflow: 'deploy.yml'},
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+    });
+
+    it('rejects a project_id on the definition source', async () => {
+      const {definitions, provider} = createProvider();
+      const session = await open(provider, 'conversation');
+
+      const result = await session.call({
+        toolId: 'get_workflow_definition_source',
+        arguments: {workflow: 'deploy.yml', project_id: otherProjectId},
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+      expect(definitions.getDefinitionForWorkflowRun).not.toHaveBeenCalled();
+    });
   });
 });

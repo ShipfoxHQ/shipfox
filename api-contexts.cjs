@@ -105,6 +105,7 @@ const architecturePackages = {
     ],
     node: [
       'libs/shared/node/auth-root-key',
+      'libs/shared/node/docs-client',
       'libs/shared/node/drizzle',
       'libs/shared/node/egress-guard',
       'libs/shared/node/email',

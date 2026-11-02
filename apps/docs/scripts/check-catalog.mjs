@@ -83,8 +83,8 @@ assert.throws(
 );
 
 const shipfoxTools = readToolReference('shipfox').groups.flatMap((group) => group.tools);
-assert.equal(shipfoxTools.length, 7);
-assert.equal(shipfoxTools.filter((tool) => tool.access === 'read').length, 6);
+assert.equal(shipfoxTools.length, 13);
+assert.equal(shipfoxTools.filter((tool) => tool.access === 'read').length, 12);
 assert.equal(shipfoxTools.filter((tool) => tool.access === 'write').length, 1);
 
 const generatedGithubTools = readToolReference('github').markdown;

@@ -21,6 +21,13 @@ import {
   authInterModuleContract,
 } from '@shipfox/api-auth-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {
+  DOCS_INDEX_URI,
+  DOCS_TEMPLATE_URI,
+  type DocsCache,
+  DocsUnavailableError,
+  isValidDocsSlug,
+} from '@shipfox/node-docs-client';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getShippedSkillResource, listShippedSkillResources} from '@shipfox/workflow-templates';
@@ -31,13 +38,6 @@ import {
   createAgentAccessMcpInstructions,
 } from '#constants.js';
 import {AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY} from '#core/admin-tools.js';
-import {
-  DOCS_INDEX_URI,
-  DOCS_TEMPLATE_URI,
-  type DocsCache,
-  DocsUnavailableError,
-  isValidDocsSlug,
-} from '#core/docs.js';
 import {agentAccessError, serializeAgentAccessEnvelope} from '#core/envelope.js';
 import {AGENT_ACCESS_INTEGRATION_TOOL_NAMES} from '#core/integration-tools.js';
 import {type AgentAccessRateLimiter, createAgentAccessRateLimiter} from '#core/rate-limiter.js';

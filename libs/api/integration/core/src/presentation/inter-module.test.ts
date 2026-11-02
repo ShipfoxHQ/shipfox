@@ -1395,8 +1395,10 @@ describe('integrations inter-module callTool', () => {
         annotations: {listAnnotationsForRunAttempt},
         definitions: {
           getDefinitionByConfigPath: vi.fn(),
+          getDefinitionForWorkflowRun: vi.fn(),
           listDefinitionsByProject: vi.fn(),
         },
+        docs: {search: vi.fn()},
         projects: {
           listProjectsByWorkspace: vi.fn(),
           requireProjectForWorkspace: vi.fn(),
@@ -1410,7 +1412,10 @@ describe('integrations inter-module callTool', () => {
           getLatestRunAttempt: vi.fn().mockResolvedValue({attempt: 1}),
           getWorkflowRunOverview: vi.fn().mockResolvedValue({run: {project_id: runProjectId}}),
           getWorkflowStepAttemptDetail: vi.fn(),
+          getWorkflowJobExecutionContext: vi.fn(),
           listFailedStepAttempts: vi.fn(),
+          listWorkflowRunJobExplanations: vi.fn(),
+          listWorkflowStepAttempts: vi.fn(),
         },
       });
       const transport = createInMemoryInterModuleTransport();
@@ -1565,8 +1570,10 @@ describe('integrations inter-module callTool', () => {
           workflowId: crypto.randomUUID(),
           name: 'Child workflow',
         }),
+        getDefinitionForWorkflowRun: vi.fn(),
         listDefinitionsByProject: vi.fn(),
       },
+      docs: {search: vi.fn()},
       projects: {
         listProjectsByWorkspace: vi.fn(),
         requireProjectForWorkspace: vi.fn(),
@@ -1580,7 +1587,10 @@ describe('integrations inter-module callTool', () => {
         getLatestRunAttempt: vi.fn(),
         getWorkflowRunOverview: vi.fn().mockResolvedValue({run: {number: 7}}),
         getWorkflowStepAttemptDetail: vi.fn(),
+        getWorkflowJobExecutionContext: vi.fn(),
         listFailedStepAttempts: vi.fn(),
+        listWorkflowRunJobExplanations: vi.fn(),
+        listWorkflowStepAttempts: vi.fn(),
       },
     });
     const transport = createInMemoryInterModuleTransport();

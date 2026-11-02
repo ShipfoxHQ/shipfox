@@ -61,6 +61,7 @@
     "@shipfox/api-triggers-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
+    "@shipfox/node-docs-client": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*"
   },
   "devDependencies": {

@@ -170,6 +170,7 @@
     "@shipfox/integration-icons",
     "@shipfox/inter-module",
     "@shipfox/node-auth-root-key",
+    "@shipfox/node-docs-client",
     "@shipfox/node-drizzle",
     "@shipfox/node-egress-guard",
     "@shipfox/node-email",

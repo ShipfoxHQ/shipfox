@@ -50,6 +50,7 @@ describe('loadEnabledProviderModules', () => {
     const parts = await loadEnabledProviderModules({
       interModule: {
         definitions: {getDefinitionByConfigPath: vi.fn(), listDefinitionsByProject: vi.fn()},
+        docs: {search: vi.fn()},
         projects: {listProjectsByWorkspace: vi.fn(), requireProjectForWorkspace: vi.fn()},
         triggers: {fireManualTrigger: vi.fn()},
         workflows: {getWorkflowRunOverview: vi.fn()},

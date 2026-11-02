@@ -50,6 +50,7 @@ import {
   type WorkspacesInterModuleClient,
   workspacesInterModuleContract,
 } from '@shipfox/api-workspaces-dto/inter-module';
+import {createDocsCache} from '@shipfox/node-docs-client';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {createFeatureFlags, type FeatureFlags} from '@shipfox/node-feature-flags';
 import {durationToSeconds} from '@shipfox/node-jwt';
@@ -60,6 +61,7 @@ import {
 } from '@shipfox/node-module/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {shippedTemplateLoader} from '@shipfox/workflow-templates';
+import {config} from './config.js';
 
 export interface DefaultModulesOptions {
   /**
@@ -212,6 +214,8 @@ export async function defaultModules(
   const cacheClient = interModuleTransport.createClient(cacheInterModuleContract);
   const registryClient = interModuleTransport.createClient(registryInterModuleContract);
   const triggersClient = interModuleTransport.createClient(triggersInterModuleContract);
+  const docs = createDocsCache({baseUrl: config.DOCS_BASE_URL});
+  docs.start();
   const integrations = await createIntegrationsContext({
     workspaces: workspacesClient,
     secrets: {
@@ -260,6 +264,7 @@ export async function defaultModules(
     interModule: {
       annotations: annotationsClient,
       definitions: definitionsClient,
+      docs,
       logs: logsClient,
       projects: projectsClient,
       triggers: triggersClient,
@@ -343,6 +348,7 @@ export async function defaultModules(
       agent: agentClient,
       annotations: annotationsClient,
       apiPublicUrl: authConfig.API_PUBLIC_URL,
+      docs,
       clientBaseUrl: authConfig.CLIENT_BASE_URL,
       auth: authClient,
       cache: cacheClient,
