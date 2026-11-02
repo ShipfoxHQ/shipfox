@@ -3102,12 +3102,18 @@ importers:
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
+      '@shipfox/agent-transcript':
+        specifier: workspace:*
+        version: link:../../shared/agent/transcript
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../agent-dto
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../projects-dto
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto
@@ -3199,6 +3205,9 @@ importers:
       drizzle-kit:
         specifier: 'catalog:'
         version: 0.31.10
+      fishery:
+        specifier: 'catalog:'
+        version: 2.4.0
 
   libs/api/agent-access:
     dependencies:
@@ -3348,6 +3357,9 @@ importers:
 
   libs/api/agent-dto:
     dependencies:
+      '@shipfox/api-logs-dto':
+        specifier: workspace:*
+        version: link:../logs-dto
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module

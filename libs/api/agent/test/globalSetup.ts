@@ -12,6 +12,7 @@ export async function setup() {
   await db().execute(sql`TRUNCATE agent_workspace_settings CASCADE`);
   await db().execute(sql`TRUNCATE agent_sessions CASCADE`);
   await db().execute(sql`TRUNCATE agent_data_keys CASCADE`);
+  await db().execute(sql`TRUNCATE agent_conversations CASCADE`);
 
   closeDb();
   await closePostgresClient();

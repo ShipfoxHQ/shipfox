@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {ManagedModelProvider} from '@shipfox/api-agent-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
@@ -77,6 +78,8 @@ export interface CreateAgentModuleOptions {
    * so an external consumer can omit it and keep the module claim/release-free.
    */
   workflows?: WorkflowsModuleClient | undefined;
+  /** Serves the conversation routes. A composition without it has no conversations. */
+  projects?: ProjectsModuleClient | undefined;
 }
 
 export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModule {
@@ -98,6 +101,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
       // and the transcript routes are gated on the workflows client, so a
       // composition without workflows never constructs the store at all.
       sessionArtifactStore: params.workflows === undefined ? undefined : sessionArtifactStore(),
+      projects: params.projects,
     }),
     e2eRoutes: [
       createAgentE2eRoutes(

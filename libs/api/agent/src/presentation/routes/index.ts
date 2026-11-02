@@ -1,6 +1,7 @@
 import type {ManagedModelProvider, WorkspaceProvidersPolicy} from '@shipfox/api-agent-dto';
 import {SESSION_TRANSCRIPT_CONTENT_TYPE} from '@shipfox/api-agent-dto';
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {createRawBodyPlugin, type RouteGroup} from '@shipfox/node-fastify';
 import {config} from '#config.js';
@@ -8,6 +9,7 @@ import type {AgentSecretsClient} from '#core/secrets-client.js';
 import type {SessionArtifactStore} from '#core/session-artifacts/store.js';
 import type {WorkspaceProviderPolicyOptions} from '#core/workspace-provider-policy.js';
 import {createCommitSessionTranscriptRoute} from './commit-session-transcript.js';
+import {createConversationRoutes} from './conversations/index.js';
 import {createCustomModelProviderRoute} from './create-custom-model-provider.js';
 import {createDeleteModelProviderConfigRoute} from './delete-model-provider-config.js';
 import {createDiscoverCustomModelProviderModelsRoute} from './discover-custom-model-provider-models.js';
@@ -45,6 +47,8 @@ export function createAgentRoutes(
     workflows?: WorkflowsModuleClient | undefined;
     /** Encrypted session artifact store backing the transcript routes. */
     sessionArtifactStore?: SessionArtifactStore | undefined;
+    /** Projects client behind the conversation routes, which are omitted without it. */
+    projects?: ProjectsModuleClient | undefined;
   } = {},
 ): RouteGroup[] {
   const workspaceProviderPolicy: WorkspaceProviderPolicyOptions = {
@@ -115,6 +119,7 @@ export function createAgentRoutes(
       ],
     },
     ...sessionRoutes,
+    ...(options.projects === undefined ? [] : createConversationRoutes(options.projects)),
   ];
 }
 
