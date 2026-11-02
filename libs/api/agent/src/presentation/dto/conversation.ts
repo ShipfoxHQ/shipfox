@@ -32,15 +32,15 @@ export function toConversationSummaryDto(conversation: OpenConversation): Conver
 
 // The parser's fallback prints a whole message, so only these fields reach it. Signatures and
 // block types a later pi version adds stay on the server.
-const VISIBLE_ASSISTANT_BLOCK_FIELDS: Record<string, readonly string[]> = {
-  text: ['type', 'text'],
-  thinking: ['type', 'thinking'],
-  toolCall: ['type', 'id', 'name', 'arguments'],
-};
+const VISIBLE_ASSISTANT_BLOCK_FIELDS = new Map<string, readonly string[]>([
+  ['text', ['type', 'text']],
+  ['thinking', ['type', 'thinking']],
+  ['toolCall', ['type', 'id', 'name', 'arguments']],
+]);
 
 function toVisibleAssistantBlocks(block: unknown): Record<string, unknown>[] {
   if (!isRecord(block) || typeof block.type !== 'string') return [];
-  const fields = VISIBLE_ASSISTANT_BLOCK_FIELDS[block.type];
+  const fields = VISIBLE_ASSISTANT_BLOCK_FIELDS.get(block.type);
   return fields ? [Object.fromEntries(fields.map((field) => [field, block[field]]))] : [];
 }
 

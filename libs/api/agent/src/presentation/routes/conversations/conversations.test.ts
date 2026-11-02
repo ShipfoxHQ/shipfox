@@ -780,6 +780,21 @@ describe('conversation routes', () => {
         expect(res.body).not.toContain('secret-payload');
       });
 
+      it.each([
+        'constructor',
+        'toString',
+        '__proto__',
+      ])('hides a block whose type is %s', async (type) => {
+        const {res} = await arrangeEntry({
+          type: 'message',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          message: {role: 'assistant', content: [{type, payload: 'secret-payload'}]},
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).not.toContain('secret-payload');
+      });
+
       it('shows a tool argument named signature', async () => {
         const {last} = await arrangeEntry({
           type: 'message',
