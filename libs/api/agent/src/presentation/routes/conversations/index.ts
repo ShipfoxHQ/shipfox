@@ -10,6 +10,7 @@ import {markConversationReadRoute} from './mark-conversation-read.js';
 import {createPostConversationMessageRoute} from './post-conversation-message.js';
 import {createRetryConversationRoute} from './retry-conversation.js';
 import {stopConversationRoute} from './stop-conversation.js';
+import {streamConversationRoute} from './stream-conversation.js';
 
 /** Tells a conversation's workflow to look at its inputs again. See `wakeConversation`. */
 export type WakeConversation = (conversationId: string) => Promise<void>;
@@ -33,6 +34,7 @@ export function createConversationRoutes(
       routes: [
         getConversationRoute,
         listConversationItemsRoute,
+        streamConversationRoute,
         createPostConversationMessageRoute(wake),
         markConversationReadRoute,
         stopConversationRoute,

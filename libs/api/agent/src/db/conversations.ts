@@ -27,6 +27,7 @@ import type {
 import {db, type Transaction} from './db.js';
 import {conversationItems, toConversationItem} from './schema/conversation-items.js';
 import {conversations, toConversation} from './schema/conversations.js';
+import {turnStreamChunks} from './schema/turn-stream-chunks.js';
 import {toAgentTurn, turns} from './schema/turns.js';
 
 export interface NewConversationInput {
@@ -329,6 +330,45 @@ export async function claimQueuedConversationItemsInTransaction(
   return queued.length;
 }
 
+async function readTimeline(
+  tx: Transaction,
+  params: ListConversationTimelineParams,
+): Promise<ConversationTimeline> {
+  const readsForward = params.afterSeq !== undefined;
+  const inConversation = eq(conversationItems.conversationId, params.conversationId);
+
+  const claimedRows = await tx
+    .select()
+    .from(conversationItems)
+    .where(
+      and(
+        inConversation,
+        isNotNull(conversationItems.seq),
+        // In the page query, so a hidden entry can't leave a page with no cursor to follow.
+        sql`${conversationItems.meta}->>'role' IS DISTINCT FROM 'system'`,
+        params.afterSeq === undefined ? undefined : gt(conversationItems.seq, params.afterSeq),
+        params.beforeSeq === undefined ? undefined : lt(conversationItems.seq, params.beforeSeq),
+      ),
+    )
+    .orderBy(readsForward ? asc(conversationItems.seq) : desc(conversationItems.seq))
+    .limit(params.limit + 1);
+  const queuedRows = await tx
+    .select()
+    .from(conversationItems)
+    .where(and(inConversation, isNull(conversationItems.seq)))
+    .orderBy(asc(conversationItems.id))
+    .limit(params.queuedLimit + 1);
+
+  const page = claimedRows.slice(0, params.limit);
+  if (!readsForward) page.reverse();
+  return {
+    items: page.map(toConversationItem),
+    hasMore: claimedRows.length > params.limit,
+    queued: queuedRows.slice(0, params.queuedLimit).map(toConversationItem),
+    queuedHasMore: queuedRows.length > params.queuedLimit,
+  };
+}
+
 /**
  * Reads claimed items in ascending `seq` order, after a `seq`, before one, or
  * the latest page when neither is set, with the queued inputs. System entries
@@ -338,46 +378,109 @@ export async function claimQueuedConversationItemsInTransaction(
 export async function listConversationTimeline(
   params: ListConversationTimelineParams,
 ): Promise<ConversationTimeline> {
-  const readsForward = params.afterSeq !== undefined;
-  const inConversation = eq(conversationItems.conversationId, params.conversationId);
+  return await db().transaction((tx) => readTimeline(tx, params), {
+    isolationLevel: 'repeatable read',
+    accessMode: 'read only',
+  });
+}
 
+export interface StreamChunkCursor {
+  turnId: string;
+  modelCallIndex: number;
+  chunkSeq: number;
+}
+
+export interface StreamChunk {
+  modelCallIndex: number;
+  chunkSeq: number;
+  sealedChunk: Buffer;
+}
+
+export interface ReadConversationStreamParams {
+  conversationId: string;
+  afterSeq: number;
+  /** The last chunk the reader holds. The read starts at it, so the reader can check it is intact. */
+  chunkCursor?: StreamChunkCursor | undefined;
+  limit: number;
+  queuedLimit: number;
+}
+
+export interface ConversationStreamSnapshot extends ConversationTimeline {
+  /** False once the conversation is deleted. */
+  exists: boolean;
+  /** The latest turn, running or not. */
+  turn: AgentTurn | undefined;
+  /** Chunks of the turn when it is running, in write order. */
+  chunks: StreamChunk[];
+}
+
+const STREAM_CHUNKS_PER_READ = 500;
+
+/**
+ * One tick of a stream. A single snapshot covers the turn, its chunks, and the timeline, because
+ * the commit that stores a reply also deletes its chunks. Reading them apart could show a reader
+ * a reply without its chunks, which looks like a retry.
+ */
+export async function readConversationStream(
+  params: ReadConversationStreamParams,
+): Promise<ConversationStreamSnapshot> {
   return await db().transaction(
     async (tx) => {
-      const claimedRows = await tx
+      const existing = await tx
+        .select({id: conversations.id})
+        .from(conversations)
+        .where(eq(conversations.id, params.conversationId))
+        .limit(1);
+      const latestTurns = await tx
         .select()
-        .from(conversationItems)
-        .where(
-          and(
-            inConversation,
-            isNotNull(conversationItems.seq),
-            // In the page query, so a hidden entry can't leave a page with no cursor to follow.
-            sql`${conversationItems.meta}->>'role' IS DISTINCT FROM 'system'`,
-            params.afterSeq === undefined ? undefined : gt(conversationItems.seq, params.afterSeq),
-            params.beforeSeq === undefined
-              ? undefined
-              : lt(conversationItems.seq, params.beforeSeq),
-          ),
-        )
-        .orderBy(readsForward ? asc(conversationItems.seq) : desc(conversationItems.seq))
-        .limit(params.limit + 1);
-      const queuedRows = await tx
-        .select()
-        .from(conversationItems)
-        .where(and(inConversation, isNull(conversationItems.seq)))
-        .orderBy(asc(conversationItems.id))
-        .limit(params.queuedLimit + 1);
-
-      const page = claimedRows.slice(0, params.limit);
-      if (!readsForward) page.reverse();
-      return {
-        items: page.map(toConversationItem),
-        hasMore: claimedRows.length > params.limit,
-        queued: queuedRows.slice(0, params.queuedLimit).map(toConversationItem),
-        queuedHasMore: queuedRows.length > params.queuedLimit,
-      };
+        .from(turns)
+        .where(eq(turns.conversationId, params.conversationId))
+        .orderBy(desc(turns.startedAt), desc(turns.id))
+        .limit(1);
+      const turn = latestTurns[0] ? toAgentTurn(latestTurns[0]) : undefined;
+      const timeline = await readTimeline(tx, {
+        conversationId: params.conversationId,
+        afterSeq: params.afterSeq,
+        limit: params.limit,
+        queuedLimit: params.queuedLimit,
+      });
+      const chunks =
+        turn?.status === 'running' ? await readChunks(tx, turn.id, params.chunkCursor) : [];
+      return {exists: existing.length > 0, turn, chunks, ...timeline};
     },
     {isolationLevel: 'repeatable read', accessMode: 'read only'},
   );
+}
+
+async function readChunks(
+  tx: Transaction,
+  turnId: string,
+  chunkCursor?: StreamChunkCursor | undefined,
+): Promise<StreamChunk[]> {
+  const cursor = chunkCursor?.turnId === turnId ? chunkCursor : undefined;
+  const rows = await tx
+    .select()
+    .from(turnStreamChunks)
+    .where(
+      and(
+        eq(turnStreamChunks.turnId, turnId),
+        cursor
+          ? sql`(${turnStreamChunks.modelCallIndex}, ${turnStreamChunks.chunkSeq}) >= (${cursor.modelCallIndex}, ${cursor.chunkSeq})`
+          : undefined,
+      ),
+    )
+    .orderBy(asc(turnStreamChunks.modelCallIndex), asc(turnStreamChunks.chunkSeq))
+    .limit(STREAM_CHUNKS_PER_READ);
+  return rows.map((row) => ({
+    modelCallIndex: row.modelCallIndex,
+    chunkSeq: row.chunkSeq,
+    sealedChunk: row.body,
+  }));
+}
+
+/** The running turn's chunks from the first one, for a reader that must start over. */
+export async function listStreamChunks(turnId: string): Promise<StreamChunk[]> {
+  return await db().transaction((tx) => readChunks(tx, turnId));
 }
 
 export async function getRunningTurn(conversationId: string): Promise<AgentTurn | undefined> {

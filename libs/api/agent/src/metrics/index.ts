@@ -1,7 +1,10 @@
 export {
   agentRuntimeConfigResolvedCount,
+  type ConversationStreamOutcome,
   conversationFirstTokenSeconds,
   conversationModelCallCount,
+  conversationStreamCount,
+  conversationStreamTickSeconds,
   conversationThinkingDroppedCount,
   conversationToolCallCount,
   conversationTurnCount,
