@@ -9,7 +9,7 @@ import {
 } from '@shipfox/api-integration-spi';
 import {and, eq} from 'drizzle-orm';
 import {type TreeEntry, writeBlob, writeCommit, writeTree} from 'isomorphic-git';
-import {db} from '#db/db.js';
+import {db, type ManagedTx} from '#db/db.js';
 import {insertObjects} from '#db/objects.js';
 import {getRefCommitOid} from '#db/refs.js';
 import {getManagedRepository} from '#db/repositories.js';
@@ -145,49 +145,72 @@ export async function commitManagedChanges(
     },
   });
 
-  const moved = await db().transaction(async (tx) => {
-    // Shared, so writes run side by side and only a statement that needs the row exclusively waits.
-    const [locked] = await tx
-      .select({id: managedRepositories.id})
-      .from(managedRepositories)
-      .where(eq(managedRepositories.id, repository.id))
-      .for('share');
-    if (!locked) {
-      throw new IntegrationProviderError(
-        'repository-not-found',
-        `Managed repository ${repository.id} was deleted during the commit`,
-      );
-    }
+  try {
+    await db().transaction(async (tx) => {
+      // Shared, so writes run side by side and only a statement that needs the row exclusively waits.
+      const [locked] = await tx
+        .select({id: managedRepositories.id})
+        .from(managedRepositories)
+        .where(eq(managedRepositories.id, repository.id))
+        .for('share');
+      if (!locked) {
+        throw new IntegrationProviderError(
+          'repository-not-found',
+          `Managed repository ${repository.id} was deleted during the commit`,
+        );
+      }
 
-    await insertObjects({repositoryId: repository.id, objects: objects.bufferedObjects()}, {tx});
-    const now = params.now ?? new Date();
-    if (params.expectedHead === undefined) {
-      const inserted = await tx
-        .insert(managedRefs)
-        .values({repositoryId: repository.id, name: refName, commitOid: commit})
-        .onConflictDoNothing()
-        .returning({name: managedRefs.name});
-      return inserted.length > 0;
-    }
-    const updated = await tx
-      .update(managedRefs)
-      .set({commitOid: commit, updatedAt: now})
-      .where(
-        and(
-          eq(managedRefs.repositoryId, repository.id),
-          eq(managedRefs.name, refName),
-          eq(managedRefs.commitOid, params.expectedHead),
-        ),
-      )
-      .returning({name: managedRefs.name});
-    return updated.length > 0;
-  });
-
-  if (!moved) {
+      await insertObjects({repositoryId: repository.id, objects: objects.bufferedObjects()}, {tx});
+      const moved = await moveRef({
+        tx,
+        repositoryId: repository.id,
+        refName,
+        commit,
+        expectedHead: params.expectedHead,
+        now: params.now ?? new Date(),
+      });
+      // Throwing rolls the objects back, so a lost race leaves nothing behind.
+      if (!moved) throw new LostRaceError();
+    });
+  } catch (error) {
+    if (!(error instanceof LostRaceError)) throw error;
     const head = (await getRefCommitOid({repositoryId: repository.id, name: refName})) ?? null;
     throw new ManagedCommitRefusedError('stale-head', {branch, head});
   }
   return {branch, commit, parent};
+}
+
+class LostRaceError extends Error {}
+
+async function moveRef(params: {
+  tx: ManagedTx;
+  repositoryId: string;
+  refName: string;
+  commit: string;
+  expectedHead: string | undefined;
+  now: Date;
+}): Promise<boolean> {
+  const {tx, repositoryId, refName, commit, expectedHead, now} = params;
+  if (expectedHead === undefined) {
+    const inserted = await tx
+      .insert(managedRefs)
+      .values({repositoryId, name: refName, commitOid: commit})
+      .onConflictDoNothing()
+      .returning({name: managedRefs.name});
+    return inserted.length > 0;
+  }
+  const updated = await tx
+    .update(managedRefs)
+    .set({commitOid: commit, updatedAt: now})
+    .where(
+      and(
+        eq(managedRefs.repositoryId, repositoryId),
+        eq(managedRefs.name, refName),
+        eq(managedRefs.commitOid, expectedHead),
+      ),
+    )
+    .returning({name: managedRefs.name});
+  return updated.length > 0;
 }
 
 function normalizeBranch(input: string): string {

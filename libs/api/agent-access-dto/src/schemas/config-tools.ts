@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import type {AgentAccessObjectSchema} from './envelope.js';
 import {AGENT_ACCESS_DEFAULT_PAGE_LIMIT, AGENT_ACCESS_PAGE_LIMIT_MAX} from './paged-tools.js';
-import {idSchema} from './primitives.js';
+import {idSchema, isSafeRefInput} from './primitives.js';
 
 export const AGENT_ACCESS_CONFIG_COMMIT_MAX_CHANGES = 100;
 export const AGENT_ACCESS_CONFIG_COMMIT_MESSAGE_MAX_LENGTH = 4096;
@@ -10,19 +10,27 @@ const REF_MAX_LENGTH = 256;
 const REF_PATTERN = '^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$';
 const GIT_OBJECT_ID_PATTERN = '^[0-9a-f]{40}$';
 
-function isSafeRefInput(value: string): boolean {
-  return [...value].every((character) => {
-    const code = character.codePointAt(0) ?? 0;
-    return !(code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029);
-  });
-}
-
 const refSchema = z
   .string()
   .min(1)
   .max(REF_MAX_LENGTH)
   .refine(isSafeRefInput, 'Ref contains a control character');
 const pathSchema = z.string().min(1).max(CONFIG_PATH_MAX_LENGTH);
+const CONFIG_FILE_PATH_PATTERN =
+  '^\\.shipfox/[^\\\\\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$';
+// A file under .shipfox/, as Integrations reads it. Anything else would fail at its boundary.
+const configFilePathSchema = pathSchema.refine(
+  (path) =>
+    path.startsWith('.shipfox/') &&
+    isSafeRefInput(path) &&
+    !path.includes('\\') &&
+    path
+      .split('/')
+      .every(
+        (segment) => segment !== '' && segment !== '.' && segment !== '..' && segment !== '.git',
+      ),
+  'Path must be a file under .shipfox/',
+);
 const commitIdSchema = z.string().regex(new RegExp(GIT_OBJECT_ID_PATTERN));
 
 const uuidJson = {type: 'string', format: 'uuid'} as const;
@@ -70,7 +78,7 @@ export const listConfigFilesResultSchema = z
 export type ListConfigFilesResultDto = z.infer<typeof listConfigFilesResultSchema>;
 
 export const readConfigFileInputSchema = z
-  .object({project_id: idSchema, path: pathSchema, ref: refSchema.optional()})
+  .object({project_id: idSchema, path: configFilePathSchema, ref: refSchema.optional()})
   .strict();
 export type ReadConfigFileInputDto = z.output<typeof readConfigFileInputSchema>;
 
@@ -149,7 +157,7 @@ export const readConfigFileInputJsonSchema = {
   type: 'object',
   properties: {
     project_id: uuidJson,
-    path: pathJson,
+    path: {...pathJson, pattern: CONFIG_FILE_PATH_PATTERN},
     ref: {
       ...refJson,
       description:

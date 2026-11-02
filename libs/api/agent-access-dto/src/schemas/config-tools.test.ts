@@ -1,4 +1,5 @@
 import {Ajv} from 'ajv';
+import * as addFormatsModule from 'ajv-formats';
 import {
   commitConfigChangesInputJsonSchema,
   commitConfigChangesInputSchema,
@@ -11,7 +12,9 @@ import {
   readConfigFileResultJsonSchema,
 } from './config-tools.js';
 
-const ajv = new Ajv({strict: false, formats: {uuid: true}});
+const addFormats = addFormatsModule.default as unknown as (validator: Ajv) => void;
+const ajv = new Ajv({strict: false});
+addFormats(ajv);
 const projectId = '00000000-0000-4000-8000-000000000001';
 const commit = 'a'.repeat(40);
 
@@ -71,6 +74,31 @@ describe('config tool schemas', () => {
     expect(
       ajv.validate(readConfigFileInputJsonSchema, {project_id: projectId, path: '.shipfox/a.yml'}),
     ).toBe(true);
+  });
+
+  test.each([
+    'src/index.ts',
+    '.shipfox',
+    '.shipfox/../secret',
+    '.shipfox//a.yml',
+    '.shipfox/.git/config',
+    '.shipfox/a\\b.yml',
+    '.shipfox/a\nb.yml',
+    '.shipfox/a\u0085b.yml',
+  ])('the file read refuses the path %j', (path) => {
+    expect(readConfigFileInputSchema.safeParse({project_id: projectId, path}).success).toBe(false);
+  });
+
+  test('the file read JSON schema refuses a path outside .shipfox/ or with a control character', () => {
+    for (const path of ['src/index.ts', '.shipfox', '.shipfox/a\nb.yml']) {
+      expect(ajv.validate(readConfigFileInputJsonSchema, {project_id: projectId, path})).toBe(
+        false,
+      );
+    }
+  });
+
+  test('the project id must be a uuid in the JSON schema', () => {
+    expect(ajv.validate(listConfigFilesInputJsonSchema, {project_id: 'nope'})).toBe(false);
   });
 
   test('result JSON schemas accept their results', () => {

@@ -20,7 +20,7 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
 import {fitAgentAccessResponseToCeiling} from './response.js';
-import {invalidRequest, notFound, optionalField, parseInput, reducePage} from './tool-utils.js';
+import {invalidRequest, notFound, optionalField, parseInput} from './tool-utils.js';
 import type {AgentAccessTool} from './tools.js';
 
 const methods = integrationsInterModuleContract.methods;
@@ -69,9 +69,7 @@ function createListConfigFilesTool(integrations: IntegrationsModuleClient): Agen
           })),
           next_cursor: page.nextCursor,
         };
-        return reducePage(agentAccessSuccess(result), 'files', result.files, (item) =>
-          String(item.path),
-        );
+        return fitAgentAccessResponseToCeiling(agentAccessSuccess(result));
       } catch (error) {
         if (isInterModuleKnownError(methods.listConfigFiles, error)) {
           return mapConfigError(error.code, error.details);
@@ -125,7 +123,7 @@ function createCommitConfigChangesTool(integrations: IntegrationsModuleClient): 
     validateResult: (result) => commitConfigChangesResultSchema.safeParse(result).success,
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: false,
     },
@@ -202,6 +200,10 @@ function mapProviderFailure(details: Record<string, unknown>) {
     case 'binary-file-unsupported':
       return agentAccessError('content-not-text');
     default:
-      return agentAccessError('provider-unavailable');
+      return agentAccessError('provider-unavailable', {
+        ...(typeof details.retryAfterSeconds === 'number'
+          ? {retryAfterSeconds: details.retryAfterSeconds}
+          : {}),
+      });
   }
 }

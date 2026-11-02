@@ -1,5 +1,6 @@
 import {actionUploadsSchema, MAX_LOCAL_UPLOAD_BYTES} from '@shipfox/api-definitions-dto';
 import {z} from 'zod';
+import {isSafeRefInput} from './primitives.js';
 
 export const AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES = 16 * 1024;
 export const AGENT_ACCESS_IDEMPOTENCY_KEY_MAX_LENGTH = 128;
@@ -69,13 +70,6 @@ const createDevRunWarningSchema = z
     path: z.string().max(512).optional(),
   })
   .strict();
-
-function isSafeRefInput(value: string): boolean {
-  return [...value].every((character) => {
-    const code = character.codePointAt(0) ?? 0;
-    return !(code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029);
-  });
-}
 
 export const cancelWorkflowRunInputSchema = z
   .object({

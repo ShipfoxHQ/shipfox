@@ -1,6 +1,7 @@
 import {Buffer} from 'node:buffer';
 import {IntegrationProviderError, MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
-import {count, eq} from 'drizzle-orm';
+import {and, count, eq} from 'drizzle-orm';
+import {hashBlob} from 'isomorphic-git';
 import {
   commitManagedChanges,
   MAX_COMMIT_BYTES,
@@ -245,6 +246,29 @@ describe('commitManagedChanges', () => {
     expect(failure.refusal).toBe('stale-head');
     const winner = (winners[0] as PromiseFulfilledResult<{commit: string}>).value;
     expect(failure.details.head).toBe(winner.commit);
+  });
+
+  it('stores no object of the commit that loses a concurrent race', async () => {
+    const repository = await seedRepository();
+    const first = await commit(repository);
+    const contents = ['Racer one, with its own text.\n', 'Racer two, with its own text.\n'];
+
+    const results = await Promise.allSettled(
+      contents.map((content) =>
+        commit(repository, {expectedHead: first.commit, changes: [{path: PROMPT, content}]}),
+      ),
+    );
+
+    const loserIndex = results.findIndex((result) => result.status === 'rejected');
+    const loserBlob = await hashBlob({object: Buffer.from(contents[loserIndex] ?? '')});
+    const [stored] = await db()
+      .select({value: count()})
+      .from(managedObjects)
+      .where(
+        and(eq(managedObjects.repositoryId, repository.id), eq(managedObjects.oid, loserBlob.oid)),
+      );
+    expect(loserIndex).toBeGreaterThanOrEqual(0);
+    expect(stored?.value).toBe(0);
   });
 
   it('lets one of two racing commits create the same branch', async () => {

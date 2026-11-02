@@ -158,7 +158,7 @@ describe('commit_config_changes', () => {
         {path: WORKFLOW, content: 'name: Triage\n'},
         {path: '.shipfox/workflows/old.yml', content: null},
       ],
-      actor: {id: userId, name: expect.any(String)},
+      actor: {id: userId, name: 'Shipfox member'},
     });
     expect(commitConfigChangesResultSchema.parse(response.result)).toEqual({
       branch: 'shipfox/add-triage',
@@ -209,6 +209,32 @@ describe('commit_config_changes', () => {
     expect(response).toMatchObject({
       ok: false,
       error: {code: 'stale-head', details: {head: OTHER}},
+    });
+  });
+
+  test('is a destructive action, because a change can delete a file', () => {
+    const tool = toolNamed('commit_config_changes', {});
+
+    expect(tool.annotations).toMatchObject({readOnlyHint: false, destructiveHint: true});
+  });
+
+  test('keeps the retry hint of a rate-limited provider', async () => {
+    const readConfigFile = vi.fn().mockRejectedValue(
+      createInterModuleKnownError(methods.readConfigFile, 'provider-failure', {
+        reason: 'provider-rate-limited',
+        retryAfterSeconds: 30,
+      }),
+    );
+    const tool = toolNamed('read_config_file', {readConfigFile});
+
+    const response = await tool.execute({
+      context,
+      arguments: {project_id: projectId, path: WORKFLOW},
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: {code: 'provider-unavailable', retry_after_seconds: 30},
     });
   });
 
