@@ -37,7 +37,7 @@ describe('onProjectSourceBound', () => {
     expect(startMock).toHaveBeenCalledTimes(1);
     expect(startMock).toHaveBeenCalledWith('definitionSyncWorkflow', {
       taskQueue: 'definitions-sync',
-      workflowId: `definition-sync:${payload.projectId}:${payload.externalRepositoryId}`,
+      workflowId: `definition-sync:${payload.projectId}:${payload.sourceConnectionId}:${payload.externalRepositoryId}`,
       workflowIdConflictPolicy: 'USE_EXISTING',
       workflowIdReusePolicy: 'ALLOW_DUPLICATE',
       args: [

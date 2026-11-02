@@ -51,5 +51,5 @@ function buildWorkflowId(params: StartDefinitionSyncParams): string {
     return `definition-sync:${params.projectId}:${params.requestId}`;
   }
   // Keyed by source, so a bind to a new source never joins a sync still running on the old one.
-  return `definition-sync:${params.projectId}:${params.externalRepositoryId}`;
+  return `definition-sync:${params.projectId}:${params.sourceConnectionId}:${params.externalRepositoryId}`;
 }

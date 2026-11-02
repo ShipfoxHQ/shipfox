@@ -557,6 +557,8 @@ export async function moveVcsDefinitionsToRef(
   params: MoveVcsDefinitionsToRefParams,
 ): Promise<{movedCount: number; deletedCount: number}> {
   return await db().transaction(async (tx) => {
+    // Concurrent prepares would otherwise see each other's moved rows as collisions and delete them.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${params.projectId}, 1))`);
     const stale = await tx
       .select({id: workflowDefinitions.id, configPath: workflowDefinitions.configPath})
       .from(workflowDefinitions)

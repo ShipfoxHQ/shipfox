@@ -1135,6 +1135,24 @@ describe('definition queries', () => {
       expect(events.some((event) => event.definitionId === movedOnly.id)).toBe(false);
     });
 
+    test('moves every row once when two moves run at the same time', async () => {
+      const rows = await Promise.all(
+        ['a.yml', 'b.yml', 'c.yml', 'd.yml'].map((path) => upsertVcs(path, 'master')),
+      );
+
+      const results = await Promise.all([
+        moveVcsDefinitionsToRef({projectId, workspaceId, ref: 'main'}),
+        moveVcsDefinitionsToRef({projectId, workspaceId, ref: 'main'}),
+      ]);
+
+      expect(results.reduce((total, result) => total + result.movedCount, 0)).toBe(4);
+      expect(results.reduce((total, result) => total + result.deletedCount, 0)).toBe(0);
+      const live = await listDefinitionsByProject(projectId);
+      expect(live.map((definition) => definition.id).sort()).toEqual(
+        rows.map((row) => row.id).sort(),
+      );
+    });
+
     test('leaves rows already on the ref, manual rows, and other projects alone', async () => {
       const onRef = await upsertVcs('ci.yml', 'main');
       const manual = await upsertDefinition({
