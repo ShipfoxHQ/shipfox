@@ -539,6 +539,30 @@ describe('OctokitGithubApiClient.listCommits', () => {
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
   });
 
+  it('rejects a commit without a message', async () => {
+    listRepositoryCommitsMock.mockResolvedValue({
+      data: [
+        {
+          sha: 'a'.repeat(40),
+          html_url: 'https://github.com/x',
+          commit: {author: {name: 'Ada', date: '2026-10-01T10:00:00Z'}},
+        },
+      ],
+      headers: {},
+    });
+    const client = createGithubApiClient();
+
+    const result = client.listCommits({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      path: '.shipfox',
+      limit: 20,
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
   it('rejects a commit without an author date', async () => {
     listRepositoryCommitsMock.mockResolvedValue({
       data: [{sha: 'a'.repeat(40), html_url: 'https://github.com/x', commit: {message: 'm'}}],
