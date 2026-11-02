@@ -37,7 +37,7 @@ export const projectConfigQueryKeys = {
 
 /** A refusal such as a binary or oversized file answers the same on every try. */
 function retryServerFailures(failureCount: number, error: Error): boolean {
-  if (error instanceof ApiError && error.status < 500) return false;
+  if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false;
   return failureCount < 3;
 }
 

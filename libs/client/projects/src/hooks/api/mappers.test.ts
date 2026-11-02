@@ -105,7 +105,7 @@ describe('toConfigCommitPage', () => {
           authored_at: '2026-10-24T12:00:00.000Z',
         },
       ],
-      next_cursor: 'c'.repeat(40),
+      next_cursor: '2',
     });
 
     expect(page).toEqual({
@@ -125,7 +125,7 @@ describe('toConfigCommitPage', () => {
           htmlUrl: null,
         },
       ],
-      nextCursor: 'c'.repeat(40),
+      nextCursor: '2',
     });
   });
 });

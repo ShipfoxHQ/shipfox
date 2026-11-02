@@ -127,26 +127,28 @@ export function configReadProblem(errorCode: string | undefined): ConfigFileProb
   }
 }
 
-const CODE_LANGUAGES: Record<string, string> = {
-  yml: 'yaml',
-  yaml: 'yaml',
-  md: 'markdown',
-  json: 'json',
-  ts: 'typescript',
-  mts: 'typescript',
-  cts: 'typescript',
-  js: 'javascript',
-  mjs: 'javascript',
-  cjs: 'javascript',
-  sh: 'shellscript',
-};
+const CODE_LANGUAGES = new Map(
+  Object.entries({
+    yml: 'yaml',
+    yaml: 'yaml',
+    md: 'markdown',
+    json: 'json',
+    ts: 'typescript',
+    mts: 'typescript',
+    cts: 'typescript',
+    js: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    sh: 'shellscript',
+  }),
+);
 
 /** The highlighting language for a file, or null to show it as plain text. */
 export function configFileLanguage(path: string): string | null {
   const name = path.slice(path.lastIndexOf('/') + 1);
   const dot = name.lastIndexOf('.');
   if (dot <= 0) return null;
-  return CODE_LANGUAGES[name.slice(dot + 1).toLowerCase()] ?? null;
+  return CODE_LANGUAGES.get(name.slice(dot + 1).toLowerCase()) ?? null;
 }
 
 /** A history row shows one line, so only the subject of the message. */

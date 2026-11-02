@@ -33,6 +33,7 @@ import {
   WorkflowDefinitionsTable,
   type WorkflowRunError,
 } from '#components/workflow-definitions-table.js';
+import {normalizeConfigPath} from '#core/config-files.js';
 import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {useLatestWorkflowRunsQuery} from '#hooks/api/latest-runs.js';
 import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
@@ -389,14 +390,11 @@ function WorkflowSyncDiagnostics({
           {groups.map((group) => (
             <li key={group.key} className="flex flex-col gap-tight">
               {group.filePath ? (
-                <ConfigFileLink
+                <DiagnosticFilePath
+                  filePath={group.filePath}
                   workspaceSlug={workspaceSlug}
                   projectSlug={projectSlug}
-                  path={group.filePath}
-                  className="w-fit rounded-4 outline-none hover:underline focus-visible:shadow-border-interactive-with-active"
-                >
-                  <Code className="break-all text-foreground-neutral-muted">{group.filePath}</Code>
-                </ConfigFileLink>
+                />
               ) : null}
               <ul className="flex flex-col gap-tight">
                 {group.items.map(({key, diagnostic}) => {
@@ -428,6 +426,30 @@ function WorkflowSyncDiagnostics({
         </ul>
       </div>
     </Callout>
+  );
+}
+
+/** Only paths under `.shipfox` open on the Files tab. */
+function DiagnosticFilePath({
+  filePath,
+  workspaceSlug,
+  projectSlug,
+}: {
+  filePath: string;
+  workspaceSlug: string;
+  projectSlug: string;
+}) {
+  const code = <Code className="break-all text-foreground-neutral-muted">{filePath}</Code>;
+  if (!normalizeConfigPath(filePath)) return code;
+  return (
+    <ConfigFileLink
+      workspaceSlug={workspaceSlug}
+      projectSlug={projectSlug}
+      path={filePath}
+      className="w-fit rounded-4 outline-none hover:underline focus-visible:shadow-border-interactive-with-active"
+    >
+      {code}
+    </ConfigFileLink>
   );
 }
 

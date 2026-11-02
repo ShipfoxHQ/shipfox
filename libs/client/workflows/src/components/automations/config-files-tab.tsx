@@ -73,7 +73,7 @@ export function ConfigFilesTab({
       </Panel>
     );
   }
-  if (!commit || filesQuery.isError) {
+  if (!commit || (filesQuery.isError && !filesQuery.data)) {
     return (
       <Panel>
         <LoadErrorState
@@ -375,7 +375,7 @@ function ConfigFileCodeView({
       </div>
     );
   }
-  if (fileQuery.isError) {
+  if (fileQuery.isError && fileQuery.data === undefined) {
     const problem = configReadProblem(
       fileQuery.error instanceof ApiError ? fileQuery.error.code : undefined,
     );

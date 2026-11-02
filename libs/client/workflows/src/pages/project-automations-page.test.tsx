@@ -1000,17 +1000,17 @@ describe('ProjectAutomationsPage', () => {
     });
 
     test('hides History when the provider has no commit list', async () => {
-      configureApiClient({
-        fetchImpl: createProjectDetailFetch({
-          config: jsonResponse({...configDto(), history_supported: false}),
-        }),
+      const fetchImpl = createProjectDetailFetch({
+        config: jsonResponse({...configDto(), history_supported: false}),
       });
+      configureApiClient({fetchImpl});
 
       renderFilesPage('.shipfox/workflows/deploy.yml', {view: 'history'});
 
       const file = await screen.findByRole('region', {name: 'Config file'});
       await waitFor(() => expect(file).toHaveTextContent('name: Deploy production'));
       expect(screen.queryByRole('link', {name: 'History'})).not.toBeInTheDocument();
+      expect(commitRequests(fetchImpl)).toHaveLength(0);
     });
 
     test.each([
