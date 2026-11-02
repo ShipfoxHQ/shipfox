@@ -20,6 +20,26 @@ describe('assertEgressAllowed', () => {
     expect(lookupMock).toHaveBeenCalledTimes(2);
   });
 
+  it('resolves through an injected lookup instead of the system resolver', async () => {
+    const resolve = vi.fn().mockResolvedValue([{address: '10.0.0.7'}]);
+
+    const probe = assertEgressAllowed('http://models.example.test/v1', lockedPolicy(), {
+      lookup: resolve,
+    });
+
+    await expect(probe).rejects.toMatchObject({reason: 'private-network'});
+    expect(resolve).toHaveBeenCalledWith('models.example.test');
+    expect(lookupMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a host the injected lookup resolves to nothing', async () => {
+    const probe = assertEgressAllowed('http://models.example.test/v1', lockedPolicy(), {
+      lookup: () => Promise.resolve([]),
+    });
+
+    await expect(probe).rejects.toBeInstanceOf(EgressDeniedError);
+  });
+
   it('rejects non-http URL schemes', async () => {
     const probe = assertEgressAllowed('ftp://models.example.test/v1', lockedPolicy());
 

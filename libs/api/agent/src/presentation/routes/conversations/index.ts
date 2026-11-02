@@ -7,14 +7,23 @@ import {getConversationRoute} from './get-conversation.js';
 import {listConversationItemsRoute} from './list-conversation-items.js';
 import {createListConversationsRoute} from './list-conversations.js';
 import {markConversationReadRoute} from './mark-conversation-read.js';
-import {postConversationMessageRoute} from './post-conversation-message.js';
+import {createPostConversationMessageRoute} from './post-conversation-message.js';
 
-export function createConversationRoutes(projects: ProjectsModuleClient): RouteGroup[] {
+/** Tells a conversation's workflow to look at its inputs again. See `wakeConversation`. */
+export type WakeConversation = (conversationId: string) => Promise<void>;
+
+export function createConversationRoutes(
+  projects: ProjectsModuleClient,
+  wake: WakeConversation,
+): RouteGroup[] {
   return [
     {
       prefix: '/projects/:projectId/conversations',
       auth: AUTH_USER,
-      routes: [createListConversationsRoute(projects), createCreateConversationRoute(projects)],
+      routes: [
+        createListConversationsRoute(projects),
+        createCreateConversationRoute(projects, wake),
+      ],
     },
     {
       prefix: '/conversations',
@@ -22,7 +31,7 @@ export function createConversationRoutes(projects: ProjectsModuleClient): RouteG
       routes: [
         getConversationRoute,
         listConversationItemsRoute,
-        postConversationMessageRoute,
+        createPostConversationMessageRoute(wake),
         markConversationReadRoute,
         deleteConversationRoute,
       ],

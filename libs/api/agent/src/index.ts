@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {ManagedModelProvider} from '@shipfox/api-agent-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   WORKFLOWS_JOB_TERMINATED,
@@ -24,8 +25,14 @@ import {createAgentRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';
 import {onStepAttemptTerminated} from '#presentation/subscribers/on-step-attempt-terminated.js';
 import {onWorkflowRunTerminated} from '#presentation/subscribers/on-workflow-run-terminated.js';
+import {createConversationActivities} from '#temporal/activities/conversation.js';
 import {createAgentSessionActivities} from '#temporal/activities/index.js';
-import {AGENT_SESSION_LIFECYCLE_TASK_QUEUE} from '#temporal/constants.js';
+import {
+  AGENT_CONVERSATION_TASK_QUEUE,
+  AGENT_SESSION_LIFECYCLE_TASK_QUEUE,
+  CONVERSATION_MAX_CONCURRENT_ACTIVITIES,
+} from '#temporal/constants.js';
+import {wakeConversation} from '#temporal/wake-conversation.js';
 
 export {
   type AgentConfigResolutionContext,
@@ -84,6 +91,8 @@ export interface CreateAgentModuleOptions {
   workflows?: WorkflowsModuleClient | undefined;
   /** Serves the conversation routes. A composition without it has no conversations. */
   projects?: ProjectsModuleClient | undefined;
+  /** Serves the tools of a conversation turn. Turns run only with both this and `projects`. */
+  integrations?: IntegrationsModuleClient | undefined;
 }
 
 export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModule {
@@ -93,6 +102,8 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
   const subscriber = subscriberFactory<WorkflowsEventMapDto>();
+  const {projects, integrations} = params;
+  const runsTurns = projects !== undefined && integrations !== undefined;
 
   return {
     name: 'agent',
@@ -106,6 +117,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
       // composition without workflows never constructs the store at all.
       sessionArtifactStore: params.workflows === undefined ? undefined : sessionArtifactStore(),
       projects: params.projects,
+      wakeConversation: runsTurns ? wakeConversation : undefined,
     }),
     e2eRoutes: [
       createAgentE2eRoutes(
@@ -160,6 +172,24 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
           },
         ],
       },
+      ...(runsTurns
+        ? [
+            {
+              taskQueue: AGENT_CONVERSATION_TASK_QUEUE,
+              workflowsPath,
+              activities: () =>
+                createConversationActivities({
+                  secrets: params.secrets,
+                  integrations,
+                  projects,
+                  managedProvider: params.managedProvider,
+                  workspaceProviders: workspaceProvidersPolicy,
+                }),
+              workflows: [],
+              maxConcurrentActivityTaskExecutions: CONVERSATION_MAX_CONCURRENT_ACTIVITIES,
+            },
+          ]
+        : []),
     ],
   };
 }

@@ -35,7 +35,20 @@ type DenylistEntry =
   | {kind: 'ip'; address: ParsedAddress}
   | {kind: 'cidr'; range: [ParsedAddress, number]};
 
-export async function assertEgressAllowed(url: string, policy: EgressPolicy): Promise<void> {
+export interface EgressLookupRecord {
+  address: string;
+}
+
+export interface AssertEgressOptions {
+  /** Resolves a hostname for the check. Defaults to the system resolver. */
+  lookup?: ((hostname: string) => Promise<readonly EgressLookupRecord[]>) | undefined;
+}
+
+export async function assertEgressAllowed(
+  url: string,
+  policy: EgressPolicy,
+  options: AssertEgressOptions = {},
+): Promise<void> {
   const parsed = new URL(url);
   if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) {
     throw new EgressDeniedError('invalid-scheme', parsed.protocol);
@@ -43,7 +56,9 @@ export async function assertEgressAllowed(url: string, policy: EgressPolicy): Pr
 
   const hostname = normalizeHostname(parsed.hostname);
   const hostAddress = parseIpAddress(hostname);
-  const addresses = hostAddress ? [hostAddress] : await resolveHostname(hostname);
+  const addresses = hostAddress ? [hostAddress] : await resolveHostname(hostname, options.lookup);
+  // A host with nothing to check must not pass, whichever resolver answered.
+  if (addresses.length === 0) throw new EgressDeniedError('private-network', hostname);
   const denylist = parseDenylist(policy.hostDenylist ?? []);
 
   assertNotDenylisted(hostname, addresses, denylist);
@@ -72,8 +87,11 @@ function stripIpv6Brackets(value: string): string {
   return value.slice(1, -1);
 }
 
-async function resolveHostname(hostname: string): Promise<ParsedAddress[]> {
-  const records = await lookup(hostname, {all: true});
+async function resolveHostname(
+  hostname: string,
+  resolve: AssertEgressOptions['lookup'],
+): Promise<ParsedAddress[]> {
+  const records = resolve ? await resolve(hostname) : await lookup(hostname, {all: true});
   return records.map((record) => parseIpAddress(record.address)).filter(isParsedAddress);
 }
 

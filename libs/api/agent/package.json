@@ -87,6 +87,8 @@
     "@shipfox/agent-transcript": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
+    "@shipfox/api-integration-core-dto": "workspace:*",
+    "@shipfox/api-integration-shipfox-dto": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
@@ -107,6 +109,7 @@
     "@shipfox/node-temporal": "workspace:*",
     "@shipfox/redact": "workspace:*",
     "@temporalio/activity": "catalog:",
+    "@temporalio/common": "catalog:",
     "@temporalio/workflow": "catalog:",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
@@ -119,6 +122,9 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@temporalio/client": "catalog:",
+    "@temporalio/testing": "catalog:",
+    "@temporalio/worker": "catalog:",
     "@types/pg": "catalog:",
     "drizzle-kit": "catalog:",
     "fishery": "catalog:"

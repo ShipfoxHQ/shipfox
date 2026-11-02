@@ -51,6 +51,8 @@ export interface ModuleWorker {
   workflowsPath: string;
   activities: (context: ModuleRuntimeContext) => object;
   workflows: WorkflowStart[];
+  /** Caps the activities this process runs at once on the queue. Temporal queues the rest. */
+  maxConcurrentActivityTaskExecutions?: number;
 }
 
 export interface ModuleRuntimeContext {

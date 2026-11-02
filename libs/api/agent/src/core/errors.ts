@@ -365,3 +365,19 @@ export class ConversationTurnRunningError extends Error {
     this.name = 'ConversationTurnRunningError';
   }
 }
+
+/**
+ * A stored conversation row can't become a pi entry. A turn that skipped it would send a prompt
+ * with a gap in pi's entry chain, so the load fails instead.
+ */
+export class ConversationEntryUnreadableError extends Error {
+  readonly code = 'conversation_entry_unreadable';
+
+  constructor(
+    public readonly itemId: string,
+    options?: {cause?: unknown},
+  ) {
+    super(`Conversation entry ${itemId} can't be read`, options);
+    this.name = 'ConversationEntryUnreadableError';
+  }
+}

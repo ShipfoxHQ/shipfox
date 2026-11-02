@@ -57,6 +57,7 @@ function member(params: {workspaceId: string}) {
 describe('conversation routes', () => {
   let app: Awaited<ReturnType<typeof createApp>>;
   const projects = new Map<string, {workspaceId: string}>();
+  const wake = vi.fn<(conversationId: string) => Promise<void>>();
 
   function arrangeProject() {
     const workspaceId = crypto.randomUUID();
@@ -83,10 +84,16 @@ describe('conversation routes', () => {
       auth: [fakeUserAuth],
       routes: createAgentRoutes(undefined as never, {
         projects: createTestProjectsClient({projects}),
+        wakeConversation: wake,
       }),
       swagger: false,
     });
     await app.ready();
+  });
+
+  beforeEach(() => {
+    wake.mockReset();
+    wake.mockResolvedValue(undefined);
   });
 
   afterAll(async () => {
@@ -94,6 +101,21 @@ describe('conversation routes', () => {
   });
 
   describe('POST /projects/:projectId/conversations', () => {
+    it('wakes the conversation once its first message is committed', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(wake).toHaveBeenCalledExactlyOnceWith(res.json().conversation.id);
+    });
+
     it('creates a conversation owned by the caller, with its first message queued', async () => {
       const {workspaceId, projectId} = arrangeProject();
       const owner = member({workspaceId});
@@ -974,6 +996,47 @@ describe('conversation routes', () => {
   });
 
   describe('POST /conversations/:conversationId/messages', () => {
+    it('wakes the conversation once the message is committed', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversation.id}/messages`,
+        headers: {authorization: owner.authorization},
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(wake).toHaveBeenCalledExactlyOnceWith(conversation.id);
+    });
+
+    it('does not wake a conversation the caller does not own', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const other = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/conversations/${conversation.id}/messages`,
+        headers: {authorization: other.authorization},
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(wake).not.toHaveBeenCalled();
+    });
+
     async function arrangeConversation() {
       const {workspaceId, projectId} = arrangeProject();
       const owner = member({workspaceId});
@@ -1217,6 +1280,14 @@ describe('conversation routes', () => {
 
   it('omits the routes without a projects client', () => {
     const groups = createAgentRoutes(undefined as never);
+
+    expect(groups.some((group) => group.prefix === '/conversations')).toBe(false);
+  });
+
+  it('omits the routes without a wake handler, so no message is accepted that nothing would run', () => {
+    const groups = createAgentRoutes(undefined as never, {
+      projects: createTestProjectsClient({projects}),
+    });
 
     expect(groups.some((group) => group.prefix === '/conversations')).toBe(false);
   });

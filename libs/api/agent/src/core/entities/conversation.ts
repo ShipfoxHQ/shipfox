@@ -35,6 +35,11 @@ export interface OpenConversation extends Omit<Conversation, 'sealedTitle'> {
 export interface ConversationItemMeta {
   role?: string;
   page_context?: PageContextDto;
+  stop_reason?: string;
+  model?: string;
+  tool_call_id?: string;
+  tool_name?: string;
+  is_error?: boolean;
 }
 
 /**

@@ -625,6 +625,7 @@ describe('defaultModules', () => {
       secrets: expect.any(Object),
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      integrations: expect.any(Object),
     });
     expect(mocks.createAgentModule.mock.calls[0]?.[0].secrets).not.toHaveProperty('getSecret');
   });
@@ -661,6 +662,7 @@ describe('defaultModules', () => {
         getLeasedAgentSessionContext: expect.any(Function),
       }),
       projects: expect.objectContaining({getProjectById: expect.any(Function)}),
+      integrations: expect.any(Object),
     });
     expect(modules.find((module) => module.name === 'agent')?.routes).toBe(sessionTranscriptRoutes);
   });
@@ -711,6 +713,7 @@ describe('defaultModules', () => {
       secrets: expect.any(Object),
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      integrations: expect.any(Object),
     });
     expect(secretValues).toEqual({values: {}});
     expect(mocks.getSecretsByNamespace).toHaveBeenCalledWith(
@@ -723,6 +726,7 @@ describe('defaultModules', () => {
       secrets: agentSecrets,
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      integrations: expect.any(Object),
     });
     expect(mocks.createAgentModule).toHaveBeenCalledTimes(1);
     expect(modules.filter((module) => module.name === 'agent')).toEqual([customAgentModule]);
@@ -892,6 +896,7 @@ describe('defaultModules', () => {
       secrets: expect.any(Object),
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      integrations: expect.any(Object),
     });
     expect(mocks.createAgentModule).not.toHaveBeenCalled();
   });

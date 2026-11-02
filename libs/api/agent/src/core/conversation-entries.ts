@@ -13,6 +13,11 @@ export function conversationPageNote(pageContext: PageContextDto): string {
   return `<page_context ${attributes.join(' ')}/>`;
 }
 
+/** The pi entry wrapper around one message: a type and a timestamp. */
+export function messageEntry(message: object, timestamp: number): string {
+  return JSON.stringify({type: 'message', timestamp: new Date(timestamp).toISOString(), message});
+}
+
 /**
  * The pi entry for a user message, as stored. The user's text is always the
  * first block and the page note the second, because projections rely on that
@@ -33,7 +38,7 @@ export function userMessageEntry(params: {
     ],
     timestamp: now.getTime(),
   };
-  return JSON.stringify({type: 'message', timestamp: now.toISOString(), message});
+  return messageEntry(message, now.getTime());
 }
 
 export function parseConversationEntry(entry: string): Record<string, unknown> | undefined {
