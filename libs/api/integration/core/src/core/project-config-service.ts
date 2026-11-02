@@ -143,7 +143,10 @@ export function createProjectConfigService({
     async getConfigSource(project) {
       const connection = await loadConnection(project);
       const defaultBranch = await resolveDefaultBranch(project);
-      const adapter = registry.get(connection.provider).adapters.source_control;
+      // An unregistered provider must not hide the project row's source.
+      const adapter = registry
+        .list('source_control')
+        .find(({provider}) => provider === connection.provider)?.adapters.source_control;
 
       return {
         source: {

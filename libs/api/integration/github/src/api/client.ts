@@ -932,14 +932,19 @@ function githubFileEntryType(entry: GithubContentEntry): FileEntryType | null {
 function toGithubCommitSummary(commit: {
   sha?: unknown;
   html_url?: unknown;
-  commit: {message: string; author?: {name?: string; date?: string} | null};
+  commit?: {message?: unknown; author?: {name?: string; date?: string} | null} | undefined;
 }): GithubCommitSummary {
-  const {author} = commit.commit;
+  const author = commit.commit?.author;
+  const message = commit.commit?.message;
   const authoredAt = author?.date === undefined ? Number.NaN : Date.parse(author.date);
-  if (typeof commit.sha !== 'string' || typeof commit.html_url !== 'string') {
+  if (
+    typeof commit.sha !== 'string' ||
+    typeof commit.html_url !== 'string' ||
+    typeof message !== 'string'
+  ) {
     throw new GithubIntegrationProviderError(
       'malformed-provider-response',
-      'GitHub commit response is missing the commit sha or url',
+      'GitHub commit response is missing the commit sha, url, or message',
     );
   }
   if (Number.isNaN(authoredAt)) {
@@ -950,7 +955,7 @@ function toGithubCommitSummary(commit: {
   }
   return {
     sha: commit.sha,
-    message: commit.commit.message,
+    message,
     authorName: author?.name ?? 'Unknown',
     authoredAt: new Date(authoredAt),
     htmlUrl: commit.html_url,

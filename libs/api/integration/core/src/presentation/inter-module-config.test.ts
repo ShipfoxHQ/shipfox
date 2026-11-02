@@ -58,26 +58,33 @@ function projectsClient(
 function createClient(params: {
   sourceControl?: Partial<SourceControlProvider>;
   projects?: ProjectsModuleClient;
+  registerProvider?: boolean;
 }) {
   const transport = createInMemoryInterModuleTransport();
   const client = transport.createClient(integrationsInterModuleContract);
-  const registry = createIntegrationProviderRegistry([
-    {
-      provider: 'gitea',
-      displayName: 'Gitea',
-      adapters: {
-        source_control: {
-          listRepositories: vi.fn(),
-          resolveRepository: vi.fn(),
-          listFiles: vi.fn(async () => await Promise.resolve({files: [], nextCursor: null})),
-          fetchFile: vi.fn(),
-          resolveTriggerReference: () => null,
-          resolveRef: vi.fn(async (input) => await Promise.resolve({ref: input.ref, commit: HEAD})),
-          ...params.sourceControl,
-        },
-      },
-    },
-  ]);
+  const registry = createIntegrationProviderRegistry(
+    params.registerProvider === false
+      ? []
+      : [
+          {
+            provider: 'gitea',
+            displayName: 'Gitea',
+            adapters: {
+              source_control: {
+                listRepositories: vi.fn(),
+                resolveRepository: vi.fn(),
+                listFiles: vi.fn(async () => await Promise.resolve({files: [], nextCursor: null})),
+                fetchFile: vi.fn(),
+                resolveTriggerReference: () => null,
+                resolveRef: vi.fn(
+                  async (input) => await Promise.resolve({ref: input.ref, commit: HEAD}),
+                ),
+                ...params.sourceControl,
+              },
+            },
+          },
+        ],
+  );
   const getIntegrationConnectionById = async (id: string) => {
     await Promise.resolve();
     return id === connectionId ? connection : undefined;
@@ -183,6 +190,22 @@ describe('integrations inter-module config reads', () => {
       name: 'platform',
       defaultBranch: 'main',
     });
+  });
+
+  it('keeps the source readable when the connection provider is not registered', async () => {
+    const client = createClient({registerProvider: false});
+
+    const result = await client.getConfigSource(input);
+
+    expect(result.head).toBeNull();
+    expect(result.historySupported).toBe(false);
+    expect(result.source).toMatchObject({owner: 'gitea-owner', name: 'platform'});
+  });
+
+  it('rejects an empty ref', async () => {
+    const client = createClient({});
+
+    await expect(client.listConfigFiles({...input, ref: '', limit: 10})).rejects.toThrow();
   });
 
   it('lists the config files at the commit the default branch points at', async () => {

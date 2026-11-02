@@ -225,7 +225,7 @@ const configReadErrors = {
 };
 const configInput = z.object({workspaceId: id, projectId: id});
 // Omitting the ref reads the default branch.
-const configRef = z.object({ref: safeRef.optional()});
+const configRef = z.object({ref: safeRef.min(1).optional()});
 const checkoutErrors = {
   ...sourceErrors,
   ...repositoryAuthorizationErrors,

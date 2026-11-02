@@ -521,6 +521,24 @@ describe('OctokitGithubApiClient.listCommits', () => {
     expect(page).toEqual({commits: [], nextCursor: null});
   });
 
+  it('rejects a commit item without the nested commit object', async () => {
+    listRepositoryCommitsMock.mockResolvedValue({
+      data: [{sha: 'a'.repeat(40), html_url: 'https://github.com/x'}],
+      headers: {},
+    });
+    const client = createGithubApiClient();
+
+    const result = client.listCommits({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      path: '.shipfox',
+      limit: 20,
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
   it('rejects a commit without an author date', async () => {
     listRepositoryCommitsMock.mockResolvedValue({
       data: [{sha: 'a'.repeat(40), html_url: 'https://github.com/x', commit: {message: 'm'}}],
