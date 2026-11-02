@@ -42,14 +42,11 @@ describe('assertConversationProjects', () => {
     expect(requireProjectForWorkspace).not.toHaveBeenCalled();
   });
 
-  it.each([
-    'project-workspace-mismatch',
-    'project-not-found',
-  ] as const)('reports %s as an identity mismatch', async (code) => {
+  it('reports a project of another workspace as an identity mismatch', async () => {
     requireProjectForWorkspace.mockRejectedValue(
       createInterModuleKnownError(
         projectsInterModuleContract.methods.requireProjectForWorkspace,
-        code,
+        'project-workspace-mismatch',
         {projectId: PROJECT_ID, workspaceId: WORKSPACE_ID},
       ),
     );
@@ -57,6 +54,20 @@ describe('assertConversationProjects', () => {
     await expect(
       assertConversationProjects({projects, segments: [conversationSegment()]}),
     ).rejects.toThrow(`Inference segment identity mismatch for project ${PROJECT_ID}`);
+  });
+
+  it('accepts the last tokens of a deleted project', async () => {
+    requireProjectForWorkspace.mockRejectedValue(
+      createInterModuleKnownError(
+        projectsInterModuleContract.methods.requireProjectForWorkspace,
+        'project-not-found',
+        {projectId: PROJECT_ID},
+      ),
+    );
+
+    await expect(
+      assertConversationProjects({projects, segments: [conversationSegment()]}),
+    ).resolves.toBeUndefined();
   });
 
   it('surfaces a failed lookup unchanged, so the caller can retry', async () => {

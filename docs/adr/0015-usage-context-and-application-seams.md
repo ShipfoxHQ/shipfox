@@ -232,8 +232,10 @@ meters both subjects from the same event, and Usage still holds quantities, neve
 was the only proof that a project belongs to a workspace. Usage now confirms this through
 `requireProjectForWorkspace` on the Projects contract before it records a conversation segment. A
 project event can't replace the call, because a projection would have no row for a project created
-before it. A mismatch fails the batch, as a step identity mismatch does. Usage doesn't verify the
-conversation id itself, so the producer must take it from the conversation's owner.
+before it. A project in another workspace fails the batch, as a step identity mismatch does. An
+unknown project passes, because a project deleted before its usage is recorded still owes its last
+tokens and names no other tenant. Usage doesn't verify the conversation id itself, so the producer
+must take it from the conversation's owner.
 
 **2026-10-13: storage becomes a third usage record.** [ADR 0023](0023-cache-context.md) adds
 the storage sample for stored bytes, recorded once an hour by the Cache context. The `usagePricing`
