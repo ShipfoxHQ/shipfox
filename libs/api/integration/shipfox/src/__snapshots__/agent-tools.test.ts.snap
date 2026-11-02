@@ -1176,12 +1176,6 @@ exports[`Shipfox agent tools > keeps the tool catalog and selection catalog deli
                 "minimum": 0,
                 "type": "integer",
               },
-              "selected_execution": {
-                "type": [
-                  "object",
-                  "null",
-                ],
-              },
               "status": {
                 "type": "string",
               },
@@ -1205,7 +1199,6 @@ exports[`Shipfox agent tools > keeps the tool catalog and selection catalog deli
               "execution_count",
               "execution_status_counts",
               "default_execution",
-              "selected_execution",
             ],
             "type": "object",
           },
@@ -1316,12 +1309,6 @@ exports[`Shipfox agent tools > keeps the tool catalog and selection catalog deli
               "minimum": 0,
               "type": "integer",
             },
-            "selected_execution": {
-              "type": [
-                "object",
-                "null",
-              ],
-            },
             "status": {
               "type": "string",
             },
@@ -1345,7 +1332,6 @@ exports[`Shipfox agent tools > keeps the tool catalog and selection catalog deli
             "execution_count",
             "execution_status_counts",
             "default_execution",
-            "selected_execution",
           ],
           "type": "object",
         },

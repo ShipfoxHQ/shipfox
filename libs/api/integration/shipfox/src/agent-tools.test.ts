@@ -1904,6 +1904,50 @@ describe('Shipfox troubleshooting reads', () => {
     expect(past).toMatchObject({isError: true});
   });
 
+  it('refuses a source line above the page budget', async () => {
+    const {definitions, provider} = createProvider();
+    definitions.getDefinitionForWorkflowRun.mockResolvedValue({
+      definition: {
+        id: definitionId,
+        projectId,
+        name: 'Deploy',
+        configPath: 'deploy.yml',
+        sourceSnapshot: {content: `ok\n${'a'.repeat(70 * 1024)}\n`, format: 'yaml'},
+      },
+    });
+    const session = await open(provider, 'conversation');
+
+    const result = await session.call({
+      toolId: 'get_workflow_definition_source',
+      arguments: {workflow: 'deploy.yml', from_line: 2},
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{text: expect.stringContaining('Line 2')}],
+    });
+  });
+
+  it('flags job outputs the producer left out as too large', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue(runOverview(projectId));
+    workflows.getWorkflowJobDetail.mockResolvedValue({
+      workflow_run_id: parentRunId,
+      workflow_run_attempt: 1,
+      job: jobSummary(),
+      selected_execution: null,
+    });
+    workflows.getWorkflowJobExecutionContext.mockResolvedValue({
+      job_outputs: null,
+      oversized_fields: [{field: 'job_outputs'}],
+    });
+    const session = await open(provider, 'conversation');
+
+    const result = await session.call({toolId: 'get_workflow_job', arguments: {job_id: jobId}});
+
+    expect(result.structuredContent).toMatchObject({outputs: null, outputs_truncated: true});
+  });
+
   it('reports a missing documentation site as an error', async () => {
     const {docs, provider} = createProvider();
     docs.search.mockRejectedValue(new DocsUnavailableError('Documentation is disabled'));
@@ -2001,7 +2045,7 @@ describe('Shipfox troubleshooting reads', () => {
     });
 
     it('rejects a project_id on the definition source', async () => {
-      const {provider} = createProvider();
+      const {definitions, provider} = createProvider();
       const session = await open(provider, 'conversation');
 
       const result = await session.call({
@@ -2009,7 +2053,8 @@ describe('Shipfox troubleshooting reads', () => {
         arguments: {workflow: 'deploy.yml', project_id: otherProjectId},
       });
 
-      expect(result).toMatchObject({isError: true});
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+      expect(definitions.getDefinitionForWorkflowRun).not.toHaveBeenCalled();
     });
   });
 });

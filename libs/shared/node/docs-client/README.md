@@ -34,7 +34,7 @@ if (docs.enabled) {
 
 ## Behavior notes
 
-- **An empty base URL disables the cache.** `enabled` is `false`, and every read rejects with `DocsUnavailableError`.
+- **An empty base URL disables the cache.** `enabled` is `false`. `readIndex`, `readPage`, and `search` reject with `DocsUnavailableError`, while `hasSlug` resolves `false` and `isIndexCached` and `isPageCached` return `false`.
 - **An invalid base URL throws.** The URL must be absolute HTTP or HTTPS, with no credentials, query, or fragment.
 - **Cached content survives an outage.** The index refreshes every 15 minutes and pages after one hour, both with `ETag` revalidation. A failed refresh keeps the previous copy.
 - **Search returns at most five hits.** Only pages in the index count.

@@ -1,6 +1,6 @@
 ---
 "@shipfox/node-docs-client": minor
-"@shipfox/api-agent-access": patch
+"@shipfox/api-agent-access": minor
 "@shipfox/api-server": patch
 ---
 

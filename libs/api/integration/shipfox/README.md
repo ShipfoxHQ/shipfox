@@ -5,7 +5,7 @@ The `@shipfox/api-integration-shipfox` package provides the built-in Shipfox wor
 ## What it does
 
 - **`ShipfoxAgentToolsProvider`** starts workflows and reads projects, workflow definitions and their source, runs, jobs and job outputs, step attempts, job explanations, step logs, run annotations, and the documentation.
-- **`shipfoxAgentToolCatalog`** describes the thirteen current Shipfox tools for workflow definitions and documentation generation.
+- **`shipfoxAgentToolCatalog`** describes the thirteen current Shipfox tools for workflows, runs, jobs, logs, and documentation.
 - **`shipfoxConversationToolCatalog`** lists the tools a conversation can call. It omits `list_projects` and `start_workflow_run`, has no `project_id` parameter, and uses a flat `get_step_logs` schema because Claude rejects a top-level `oneOf`.
 - **`shipfoxAgentToolSelectionCatalog`** exposes the standalone tool selector.
 - **`createShipfoxAgentToolsProvider`** creates a provider with annotations, definitions, docs, logs, projects, triggers, and workflow clients.
@@ -19,7 +19,8 @@ Add the package to an integration composition package:
 ```json
 {
   "dependencies": {
-    "@shipfox/api-integration-shipfox": "workspace:*"
+    "@shipfox/api-integration-shipfox": "workspace:*",
+    "@shipfox/node-docs-client": "workspace:*"
   }
 }
 ```

@@ -8329,9 +8329,6 @@ export interface ShipfoxGetWorkflowJobResult {
     default_execution: {
       [k: string]: unknown;
     } | null;
-    selected_execution: {
-      [k: string]: unknown;
-    } | null;
   };
   selected_execution: {
     [k: string]: unknown;
@@ -8515,9 +8512,6 @@ export interface ShipfoxListWorkflowRunJobsResult {
       [k: string]: unknown;
     };
     default_execution: {
-      [k: string]: unknown;
-    } | null;
-    selected_execution: {
       [k: string]: unknown;
     } | null;
   }[];

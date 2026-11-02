@@ -259,39 +259,41 @@ const runOutputSchema = objectSchema(
     'parent_run',
   ],
 );
-const jobOutputSchema = objectSchema(
-  {
-    id: {type: 'string', format: 'uuid'},
-    key: {type: 'string'},
-    name: {type: ['string', 'null']},
-    position: {type: 'integer', minimum: 0},
-    status: {type: 'string'},
-    status_reason: {type: ['string', 'null']},
-    mode: {type: 'string'},
-    listener_status: {type: 'string'},
-    carried_over: {type: 'boolean'},
-    execution_count: {
-      anyOf: [{type: 'integer', minimum: 0, maximum: 100}, {const: '100+'}],
-    },
-    execution_status_counts: {type: 'object'},
-    default_execution: {type: ['object', 'null']},
-    selected_execution: {type: ['object', 'null']},
+const jobSummaryProperties = {
+  id: {type: 'string', format: 'uuid'},
+  key: {type: 'string'},
+  name: {type: ['string', 'null']},
+  position: {type: 'integer', minimum: 0},
+  status: {type: 'string'},
+  status_reason: {type: ['string', 'null']},
+  mode: {type: 'string'},
+  listener_status: {type: 'string'},
+  carried_over: {type: 'boolean'},
+  execution_count: {
+    anyOf: [{type: 'integer', minimum: 0, maximum: 100}, {const: '100+'}],
   },
-  [
-    'id',
-    'key',
-    'name',
-    'position',
-    'status',
-    'status_reason',
-    'mode',
-    'listener_status',
-    'carried_over',
-    'execution_count',
-    'execution_status_counts',
-    'default_execution',
-    'selected_execution',
-  ],
+  execution_status_counts: {type: 'object'},
+  default_execution: {type: ['object', 'null']},
+} satisfies Record<string, AgentToolJsonSchema>;
+const jobSummaryRequired = [
+  'id',
+  'key',
+  'name',
+  'position',
+  'status',
+  'status_reason',
+  'mode',
+  'listener_status',
+  'carried_over',
+  'execution_count',
+  'execution_status_counts',
+  'default_execution',
+];
+// get_workflow_run is the only tool that nests a selected execution in its jobs.
+const jobSummaryOutputSchema = objectSchema(jobSummaryProperties, jobSummaryRequired);
+const jobOutputSchema = objectSchema(
+  {...jobSummaryProperties, selected_execution: {type: ['object', 'null']}},
+  [...jobSummaryRequired, 'selected_execution'],
 );
 const listWorkflowRunsOutputSchema = objectSchema(
   {
@@ -500,7 +502,8 @@ const getRunAnnotationsOutputSchema = objectSchema(
   ['annotations', 'next_cursor'],
 );
 
-const ATTEMPT_JSON_SCHEMA = {type: 'integer', minimum: 1, maximum: 2_147_483_647} as const;
+const ATTEMPT_MAX = 2_147_483_647;
+const ATTEMPT_JSON_SCHEMA = {type: 'integer', minimum: 1, maximum: ATTEMPT_MAX} as const;
 const SOURCE_PAGE_MAX_BYTES = 64 * 1024;
 const JOB_OUTPUTS_MAX_BYTES = 64 * 1024;
 const TRACE_MAX_BYTES = 16 * 1024;
@@ -517,7 +520,7 @@ const listWorkflowRunJobsOutputSchema = objectSchema(
   {
     workflow_run_id: {type: 'string', format: 'uuid'},
     workflow_run_attempt: {type: 'integer', minimum: 1},
-    jobs: {type: 'array', items: jobOutputSchema},
+    jobs: {type: 'array', items: jobSummaryOutputSchema},
     next_cursor: {type: ['string', 'null']},
     total: {type: 'integer', minimum: 0},
   },
@@ -539,7 +542,7 @@ const getWorkflowJobOutputSchema = objectSchema(
   {
     workflow_run_id: {type: 'string', format: 'uuid'},
     workflow_run_attempt: {type: 'integer', minimum: 1},
-    job: jobOutputSchema,
+    job: jobSummaryOutputSchema,
     selected_execution: {type: ['object', 'null']},
     outputs: {
       type: ['object', 'null'],
@@ -1272,7 +1275,7 @@ export class ShipfoxAgentToolsProvider
     if (page === null) return notFound();
     return toolResult(
       fitPage({
-        items: page.items.map((job) => toWorkflowJob(job, null)),
+        items: page.items.map((job) => toWorkflowJobSummary(job)),
         sources: page.items,
         producerNextCursor: page.nextCursor,
         cursorFor: (job) => encodeStringIdCursor({value: String(job.position), id: job.id}),
@@ -1311,11 +1314,12 @@ export class ShipfoxAgentToolsProvider
           });
     const outputs = context?.job_outputs ?? null;
     const outputsFit =
-      outputs === null || serializedJsonByteLength(outputs) <= JOB_OUTPUTS_MAX_BYTES;
+      !(context?.oversized_fields ?? []).some((field) => field.field === 'job_outputs') &&
+      (outputs === null || serializedJsonByteLength(outputs) <= JOB_OUTPUTS_MAX_BYTES);
     return toolResult({
       workflow_run_id: detail.workflow_run_id,
       workflow_run_attempt: detail.workflow_run_attempt,
-      job: toWorkflowJob(detail.job, null),
+      job: toWorkflowJobSummary(detail.job),
       selected_execution: selected === null ? null : toSelectedExecution(selected),
       outputs: outputsFit ? outputs : null,
       ...(outputsFit ? {} : {outputs_truncated: true}),
@@ -1430,6 +1434,9 @@ export class ShipfoxAgentToolsProvider
       ? sourceLines(definition.sourceSnapshot.content, fromLine)
       : {source: null, nextFromLine: null};
     if (page === undefined) return toolError('from_line is past the last line of the source');
+    if (page === 'line-too-long') {
+      return toolError(`Line ${fromLine} is longer than ${SOURCE_PAGE_MAX_BYTES} bytes`);
+    }
     return toolResult({
       definition_id: definition.id,
       name: definition.name,
@@ -1976,7 +1983,13 @@ function toWorkflowRunDetail(overview: WorkflowRunOverview, caller: ShipfoxCalle
 }
 
 function toWorkflowJob(job: WorkflowRunJob, detail: WorkflowJobDetail | null) {
-  const source = detail?.job ?? job;
+  return {
+    ...toWorkflowJobSummary(detail?.job ?? job),
+    selected_execution: detail?.selected_execution ?? null,
+  };
+}
+
+function toWorkflowJobSummary(source: WorkflowRunJob) {
   return {
     id: source.id,
     key: source.key,
@@ -1990,7 +2003,6 @@ function toWorkflowJob(job: WorkflowRunJob, detail: WorkflowJobDetail | null) {
     execution_count: source.execution_count,
     execution_status_counts: source.execution_status_counts,
     default_execution: source.default_execution,
-    selected_execution: detail?.selected_execution ?? null,
   };
 }
 
@@ -2002,7 +2014,12 @@ function countJobStatuses(jobs: readonly {status: WorkflowRunJob['status']}[]) {
 
 function isPositionCursor(value: string): boolean {
   const cursor = decodeStringIdCursor(value);
-  return cursor !== undefined && DECIMAL_PATTERN.test(cursor.value) && isUuid(cursor.id);
+  return (
+    cursor !== undefined &&
+    DECIMAL_PATTERN.test(cursor.value) &&
+    Number(cursor.value) <= ATTEMPT_MAX &&
+    isUuid(cursor.id)
+  );
 }
 
 function isNumberCursor(value: string): boolean {
@@ -2072,7 +2089,7 @@ function toSelectedExecution(execution: NonNullable<WorkflowJobDetail['selected_
 function sourceLines(
   content: string,
   fromLine: number,
-): {source: string; nextFromLine: number | null} | undefined {
+): {source: string; nextFromLine: number | null} | 'line-too-long' | undefined {
   const lines = content.match(SOURCE_LINE_PATTERN) ?? [];
   // An empty file still answers from_line 1 with an empty page.
   if (fromLine > Math.max(lines.length, 1)) return undefined;
@@ -2080,7 +2097,10 @@ function sourceLines(
   let bytes = 0;
   while (end < lines.length) {
     const lineBytes = utf8Encoder.encode(lines[end] as string).byteLength;
-    if (bytes + lineBytes > SOURCE_PAGE_MAX_BYTES && end > fromLine - 1) break;
+    if (bytes + lineBytes > SOURCE_PAGE_MAX_BYTES) {
+      if (end === fromLine - 1) return 'line-too-long';
+      break;
+    }
     bytes += lineBytes;
     end += 1;
   }
