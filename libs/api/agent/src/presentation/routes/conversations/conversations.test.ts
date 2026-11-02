@@ -673,7 +673,7 @@ describe('conversation routes', () => {
     });
 
     describe('what a client sees', () => {
-      async function arrangeEntry(entry: string | Record<string, unknown>) {
+      async function arrangeEntry(entry: string | Record<string, unknown>, meta?: {role: string}) {
         const {workspaceId, projectId} = arrangeProject();
         const owner = member({workspaceId});
         const {conversation} = await conversationFactory.create({
@@ -682,7 +682,7 @@ describe('conversation routes', () => {
           ownerUserId: owner.userId,
         });
         await claimQueuedConversationItems(conversation.id);
-        await appendConversationEntry({conversation, entry});
+        await appendConversationEntry({conversation, entry, ...(meta ? {meta} : {})});
         const res = await app.inject({
           method: 'GET',
           url: `/conversations/${conversation.id}/items`,
@@ -692,20 +692,107 @@ describe('conversation routes', () => {
       }
 
       it('drops the pinned system entry', async () => {
-        const {res} = await arrangeEntry({
-          type: 'message',
-          timestamp: '2026-11-02T00:00:00.000Z',
-          message: {
-            role: 'system',
-            content: 'the-base-prompt',
-            toolsAdded: [{name: 'the_tool_name', description: 'd', parameters: {}}],
+        const {res} = await arrangeEntry(
+          {
+            type: 'message',
+            timestamp: '2026-11-02T00:00:00.000Z',
+            message: {
+              role: 'system',
+              content: 'the-base-prompt',
+              toolsAdded: [{name: 'the_tool_name', description: 'd', parameters: {}}],
+            },
           },
-        });
+          {role: 'system'},
+        );
 
         expect(res.statusCode).toBe(200);
         expect(res.json().items).toHaveLength(1);
         expect(res.body).not.toContain('the-base-prompt');
         expect(res.body).not.toContain('the_tool_name');
+      });
+
+      it('keeps paging forward past the pinned system entry', async () => {
+        const {workspaceId, projectId} = arrangeProject();
+        const owner = member({workspaceId});
+        const {conversation} = await conversationFactory.create({
+          workspaceId,
+          projectId,
+          ownerUserId: owner.userId,
+          body: 'First question',
+        });
+        await appendConversationEntry({
+          conversation,
+          entry: {type: 'message', message: {role: 'system', content: 'the-base-prompt'}},
+          meta: {role: 'system'},
+        });
+        await claimQueuedConversationItems(conversation.id);
+
+        const res = await app.inject({
+          method: 'GET',
+          url: `/conversations/${conversation.id}/items?after_seq=0&limit=1`,
+          headers: {authorization: owner.authorization},
+        });
+
+        expect(res.json().items).toMatchObject([
+          {seq: 2, content: {rows: [{text: 'First question'}]}},
+        ]);
+        expect(res.json().has_more).toBe(false);
+      });
+
+      it('leaves out a system entry that cannot be opened', async () => {
+        const {workspaceId, projectId} = arrangeProject();
+        const owner = member({workspaceId});
+        const {conversation} = await conversationFactory.create({
+          workspaceId,
+          projectId,
+          ownerUserId: owner.userId,
+        });
+        const systemItemId = await appendConversationEntry({
+          conversation,
+          entry: {type: 'message', message: {role: 'system', content: 'the-base-prompt'}},
+          meta: {role: 'system'},
+        });
+        await db()
+          .update(conversationItems)
+          .set({body: Buffer.from('not sealed')})
+          .where(eq(conversationItems.id, systemItemId));
+
+        const res = await app.inject({
+          method: 'GET',
+          url: `/conversations/${conversation.id}/items`,
+          headers: {authorization: owner.authorization},
+        });
+
+        expect(res.json().items).toEqual([]);
+      });
+
+      it('keeps a block type it does not know away from the fallback', async () => {
+        const {res} = await arrangeEntry({
+          type: 'message',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          message: {
+            role: 'assistant',
+            content: [{type: 'encrypted_reasoning', payload: 'secret-payload'}],
+          },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).not.toContain('secret-payload');
+      });
+
+      it('shows a tool argument named signature', async () => {
+        const {last} = await arrangeEntry({
+          type: 'message',
+          timestamp: '2026-11-02T00:00:00.000Z',
+          message: {
+            role: 'assistant',
+            content: [
+              {type: 'toolCall', id: 'c', name: 'read', arguments: {signature: 'a-document-field'}},
+            ],
+          },
+        });
+
+        expect(last.content.rows[0].input).toContain('a-document-field');
       });
 
       it('removes the page note from a user message', async () => {

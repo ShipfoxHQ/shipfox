@@ -30,35 +30,38 @@ export function toConversationSummaryDto(conversation: OpenConversation): Conver
   };
 }
 
-// The parser's fallback prints a whole message, so signatures have to go first.
-const SERVER_ONLY_ENTRY_FIELDS = new Set([
-  'signature',
-  'textSignature',
-  'thinkingSignature',
-  'thoughtSignature',
-]);
+// The parser's fallback prints a whole message, so only these fields reach it. Signatures and
+// block types a later pi version adds stay on the server.
+const VISIBLE_ASSISTANT_BLOCK_FIELDS: Record<string, readonly string[]> = {
+  text: ['type', 'text'],
+  thinking: ['type', 'thinking'],
+  toolCall: ['type', 'id', 'name', 'arguments'],
+};
 
-function withoutServerOnlyFields(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(withoutServerOnlyFields);
-  if (!isRecord(value)) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([name]) => !SERVER_ONLY_ENTRY_FIELDS.has(name))
-      .map(([name, field]) => [name, withoutServerOnlyFields(field)]),
-  );
+function toVisibleAssistantBlocks(block: unknown): Record<string, unknown>[] {
+  if (!isRecord(block) || typeof block.type !== 'string') return [];
+  const fields = VISIBLE_ASSISTANT_BLOCK_FIELDS[block.type];
+  return fields ? [Object.fromEntries(fields.map((field) => [field, block[field]]))] : [];
 }
 
-function withoutPageNote(entry: Record<string, unknown>): Record<string, unknown> {
+function toVisibleEntry(entry: Record<string, unknown>): Record<string, unknown> {
   const {message} = entry;
-  if (!isRecord(message) || message.role !== 'user' || !Array.isArray(message.content)) {
-    return entry;
+  if (!isRecord(message) || !Array.isArray(message.content)) return entry;
+  if (message.role === 'user') {
+    return {...entry, message: {...message, content: message.content.slice(0, 1)}};
   }
-  return {...entry, message: {...message, content: message.content.slice(0, 1)}};
+  if (message.role === 'assistant') {
+    return {
+      ...entry,
+      message: {...message, content: message.content.flatMap(toVisibleAssistantBlocks)},
+    };
+  }
+  return entry;
 }
 
 function toRowsContent(item: OpenConversationItem, entry: string): ConversationItemContentDto {
   const parsed = parseConversationEntry(entry);
-  const data = parsed ? JSON.stringify(withoutServerOnlyFields(withoutPageNote(parsed))) : entry;
+  const data = parsed ? JSON.stringify(toVisibleEntry(parsed)) : entry;
   const rows = parseSessionRecord({data, ts: item.createdAt.getTime()}, 'pi');
   // A `raw` row is the unparsed entry, and the chat ignores it, so only its label leaves.
   return {type: 'rows', rows: rows.map((row) => (row.kind === 'raw' ? {...row, raw: ''} : row))};

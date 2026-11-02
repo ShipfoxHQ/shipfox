@@ -17,7 +17,6 @@ import {appendConversationEntry} from '#test/fixtures/conversation-entries.js';
 import {
   CONVERSATION_SESSION_VERSION,
   conversationPageNote,
-  isSystemEntry,
   userMessageEntry,
 } from './conversation-entries.js';
 import {
@@ -105,20 +104,6 @@ describe('userMessageEntry', () => {
     const note = conversationPageNote({page: 'runs'});
 
     expect(note).toBe('<page_context page="runs"/>');
-  });
-});
-
-describe('isSystemEntry', () => {
-  it.each([
-    {entry: '{"type":"message","message":{"role":"system"}}', expected: true},
-    {entry: '{"type":"message","message":{"role":"user"}}', expected: false},
-    {entry: '{"type":"custom","customType":"system"}', expected: false},
-    {entry: 'not json', expected: false},
-    {entry: null, expected: false},
-  ])('returns $expected for $entry', ({entry, expected}) => {
-    const result = isSystemEntry(entry);
-
-    expect(result).toBe(expected);
   });
 });
 

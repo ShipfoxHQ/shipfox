@@ -319,7 +319,8 @@ export async function claimQueuedConversationItems(conversationId: string): Prom
 
 /**
  * Reads claimed items in ascending `seq` order, after a `seq`, before one, or
- * the latest page when neither is set, with the queued inputs. One snapshot
+ * the latest page when neither is set, with the queued inputs. System entries
+ * stay out, so the pinned prompt and tool names never reach a client. One snapshot
  * covers both reads, so a claim can't hide an item from them or show it twice.
  */
 export async function listConversationTimeline(
@@ -337,6 +338,8 @@ export async function listConversationTimeline(
           and(
             inConversation,
             isNotNull(conversationItems.seq),
+            // In the page query, so a hidden entry can't leave a page with no cursor to follow.
+            sql`${conversationItems.meta}->>'role' IS DISTINCT FROM 'system'`,
             params.afterSeq === undefined ? undefined : gt(conversationItems.seq, params.afterSeq),
             params.beforeSeq === undefined
               ? undefined

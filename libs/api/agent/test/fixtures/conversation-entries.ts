@@ -5,7 +5,7 @@ import {
   conversationDataKey,
   sealConversationEntry,
 } from '#core/conversation-sealing.js';
-import type {OpenConversation} from '#core/entities/conversation.js';
+import type {ConversationItemMeta, OpenConversation} from '#core/entities/conversation.js';
 import {newConversationRecordId} from '#db/conversations.js';
 import {db} from '#db/db.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
@@ -15,6 +15,7 @@ import {conversations} from '#db/schema/conversations.js';
 export async function appendConversationEntry(params: {
   conversation: Pick<OpenConversation, 'id' | 'workspaceId'>;
   entry: string | Record<string, unknown>;
+  meta?: ConversationItemMeta;
   turnId?: string;
   modelCallIndex?: number;
   callIndex?: number;
@@ -37,6 +38,7 @@ export async function appendConversationEntry(params: {
       seq: row?.seq as number,
       entryType: typeof entry === 'string' ? 'message' : String(entry.type),
       sessionVersion: CONVERSATION_SESSION_VERSION,
+      meta: params.meta,
       turnId: params.turnId,
       modelCallIndex: params.modelCallIndex,
       callIndex: params.callIndex,

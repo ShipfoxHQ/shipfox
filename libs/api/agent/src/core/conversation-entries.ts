@@ -48,9 +48,3 @@ export function parseConversationEntry(entry: string): Record<string, unknown> |
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-
-export function isSystemEntry(entry: string | null): boolean {
-  if (entry === null) return false;
-  const parsed = parseConversationEntry(entry);
-  return parsed?.type === 'message' && isRecord(parsed.message) && parsed.message.role === 'system';
-}

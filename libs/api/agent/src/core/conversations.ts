@@ -11,11 +11,7 @@ import {
   listWebConversations,
   newConversationRecordId,
 } from '#db/conversations.js';
-import {
-  CONVERSATION_SESSION_VERSION,
-  isSystemEntry,
-  userMessageEntry,
-} from './conversation-entries.js';
+import {CONVERSATION_SESSION_VERSION, userMessageEntry} from './conversation-entries.js';
 import {
   aadForConversationItem,
   aadForConversationTitle,
@@ -232,10 +228,7 @@ export async function listOpenConversationItems(params: {
   });
 
   return {
-    // The pinned prompt and tool names stay on the server.
-    items: timeline.items
-      .map((item) => openConversationItem(item, {key, workspaceId}))
-      .filter((item) => !isSystemEntry(item.entry)),
+    items: timeline.items.map((item) => openConversationItem(item, {key, workspaceId})),
     hasMore: timeline.hasMore,
     queued: timeline.queued.map((item) => openConversationItem(item, {key, workspaceId})),
     queuedHasMore: timeline.queuedHasMore,
