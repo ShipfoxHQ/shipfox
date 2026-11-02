@@ -220,7 +220,8 @@ existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` s
 agent turn calls a model with no run, so a segment no longer always has ids down to the step
 attempt. It now names exactly one subject: those ids, or a conversation id with the key of the
 agent the conversation talks to. The schemas and a database check reject a segment with neither,
-with both, with part of the step attempt ids, or with a conversation and no agent key. The project
+with both, with part of the step attempt ids, or with an agent key on one side only: a
+conversation with no agent key, or a step attempt with one. The project
 id stays required on every segment. A conversation has no job execution, so its segments skip the
 projection check and carry no workflow identity.
 

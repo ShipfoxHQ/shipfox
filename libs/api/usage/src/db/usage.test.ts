@@ -443,6 +443,7 @@ describe('Usage projections', () => {
       'both identities',
       {
         conversationId: crypto.randomUUID(),
+        agentKey: 'shippy',
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
         jobId: crypto.randomUUID(),
