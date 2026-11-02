@@ -26,7 +26,7 @@ type WorkspaceConnectionSnapshot = ReadonlyMap<
   {
     id: string;
     provider: IntegrationProviderKind;
-    capabilities: readonly ('source_control' | 'agent_tools')[];
+    capabilities: readonly ('source_control' | 'agent_tools' | 'interaction')[];
   }
 >;
 

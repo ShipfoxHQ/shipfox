@@ -1,4 +1,4 @@
-export type IntegrationCapability = 'source_control' | 'agent_tools';
+export type IntegrationCapability = 'source_control' | 'agent_tools' | 'interaction';
 export type ConnectionLifecycleStatus = 'active' | 'disabled' | 'error';
 
 export interface IntegrationProvider {

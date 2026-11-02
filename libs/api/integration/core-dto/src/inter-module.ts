@@ -14,7 +14,7 @@ const connectionInactive = z.object({
   providerAccess: integrationConnectionProviderAccessSchema.optional(),
 });
 const provider = z.string().min(1);
-const capability = z.enum(['source_control', 'agent_tools']);
+const capability = z.enum(['source_control', 'agent_tools', 'interaction']);
 const safeRef = z.string().refine(isSafeRefInput, 'Ref contains a control character');
 const connection = z.object({id, provider, slug: z.string().min(1)});
 const workspaceConnectionCursor = z.object({slug: z.string().min(1), id});
@@ -214,6 +214,27 @@ const sourceErrors = {
   'checkout-unsupported': z.object({provider}),
   'provider-failure': providerError,
 };
+const interactionErrors = {
+  'connection-not-found': z.object({connectionId: id}),
+  'connection-inactive': connectionInactive,
+  'connection-workspace-mismatch': z.object({connectionId: id}),
+  'provider-unavailable': z.object({provider}),
+  'capability-unavailable': z.object({provider, capability}),
+  'provider-failure': providerError,
+};
+const interactionRole = z.enum(['request', 'follow_up', 'stop']);
+const interactionConversation = z.object({
+  workspaceId: id,
+  connectionId: id,
+  conversationKey: z.string().min(1),
+});
+const interaction = z.object({
+  conversationKey: z.string().min(1),
+  role: interactionRole,
+  context: z.record(z.string(), z.unknown()),
+  author: z.object({externalId: z.string().min(1), displayName: z.string().optional()}).optional(),
+  text: z.string(),
+});
 const configReadErrors = {
   'project-not-found': z.object({projectId: id}),
   'connection-not-found': z.object({connectionId: id}),
@@ -511,6 +532,54 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       }),
       output: toolCallOutcome,
       errors: toolCallErrors,
+    },
+    /** What each provider with the interaction capability accepts, for definition sync and prompts. */
+    listInteractionProviders: {
+      input: z.object({}),
+      output: z.object({
+        providers: z.array(
+          z.object({
+            provider,
+            interactionEvents: z.record(z.string().min(1), interactionRole),
+            requestContextSchema: z.record(z.string(), z.unknown()),
+            replyGuidance: z.string(),
+          }),
+        ),
+      }),
+    },
+    /** Null when the event isn't meant for an agent, including an event the provider doesn't list. */
+    readInteraction: {
+      input: z.object({
+        workspaceId: id,
+        connectionId: id,
+        event: z.string().min(1),
+        payload: z.unknown(),
+      }),
+      output: interaction.nullable(),
+      errors: interactionErrors,
+    },
+    sendInteractionReply: {
+      input: interactionConversation.extend({
+        replyId: z.string().min(1),
+        kind: z.enum(['response', 'error']),
+        text: z.string(),
+        agent: z.object({name: z.string().min(1)}),
+      }),
+      output: z.discriminatedUnion('outcome', [
+        z.object({outcome: z.literal('delivered')}),
+        z.object({outcome: z.literal('undeliverable'), reason: z.string()}),
+      ]),
+      errors: interactionErrors,
+    },
+    /** `reported` is false when the provider can't show progress. */
+    reportInteractionProgress: {
+      input: interactionConversation.extend({
+        state: z.enum(['working', 'idle']),
+        detail: z.string().optional(),
+        links: z.array(z.object({label: z.string(), url: z.string().url()})).optional(),
+      }),
+      output: z.object({reported: z.boolean()}),
+      errors: interactionErrors,
     },
   },
 });

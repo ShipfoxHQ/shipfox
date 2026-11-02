@@ -100,6 +100,10 @@ export {
   RepositoryAuthorizerConfigurationError,
   WebhookProcessorNotConfiguredError,
 } from '#core/errors.js';
+export {
+  createInteractionIntegrationService,
+  type IntegrationInteractionService,
+} from '#core/interaction-service.js';
 export type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
@@ -116,6 +120,17 @@ export type {
   AgentToolsProvider,
   OpenAgentToolsSessionInput,
 } from '#core/providers/agent-tools.js';
+export type {
+  Interaction,
+  InteractionProgressState,
+  InteractionProvider,
+  InteractionReplyKind,
+  InteractionReplyOutcome,
+  InteractionRole,
+  ReadInteractionInput,
+  ReportInteractionProgressInput,
+  SendInteractionReplyInput,
+} from '#core/providers/interaction.js';
 export {redactCheckoutSpec} from '#core/providers/redact-checkout-spec.js';
 export {
   createIntegrationProviderRegistry,

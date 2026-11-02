@@ -18,7 +18,7 @@ export const connectionSlugSchema = z
 export const integrationProviderKindSchema = z.string().min(1);
 export type IntegrationProviderKindDto = z.infer<typeof integrationProviderKindSchema>;
 
-export const integrationCapabilitySchema = z.enum(['source_control', 'agent_tools']);
+export const integrationCapabilitySchema = z.enum(['source_control', 'agent_tools', 'interaction']);
 export type IntegrationCapabilityDto = z.infer<typeof integrationCapabilitySchema>;
 
 export const integrationConnectionLifecycleStatusSchema = z.enum(['active', 'disabled', 'error']);

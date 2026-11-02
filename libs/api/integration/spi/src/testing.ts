@@ -6,6 +6,8 @@ import {
   type SourceControlProvider,
 } from '#contracts.js';
 
+export * from '#fake-interaction.js';
+
 export interface SourceControlContractFile {
   path: string;
   content: string;

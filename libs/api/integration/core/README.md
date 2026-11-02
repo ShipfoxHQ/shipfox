@@ -62,6 +62,8 @@ A built-in provider still needs an `agent_tools` adapter. Its `openSession` rece
 
 A conversation reaches only the tools in a provider's optional `conversationCatalog`. The `listConversationTools` inter-module method offers them, and `callTool` refuses anything else for a conversation caller. A provider without that catalog offers a conversation nothing.
 
+A provider with an `interaction` adapter lets people talk to agents through it. Triggers and Agent reach it through the `readInteraction`, `sendInteractionReply`, and `reportInteractionProgress` inter-module methods, and `listInteractionProviders` returns each provider's events, context schema, and reply guidance for definition sync. An event the adapter doesn't list reads as `null`. `reportInteractionProgress` answers `reported: false` for a provider without `reportProgress`. The provider acknowledges a request in its webhook path, so acknowledgment isn't part of the adapter. `createFakeInteractionProvider` from `@shipfox/api-integration-spi/testing` stands in for a provider in tests.
+
 To call tools without the module, build a registry with `createIntegrationProviderRegistry` and pass it to `createIntegrationsInterModulePresentation`. Its `callTool` handler is the one tool steps reach, with the live catalog and method checks and the error codes. The integration contract suite runs its cases through it against the provider fakes.
 
 ## Behavior notes

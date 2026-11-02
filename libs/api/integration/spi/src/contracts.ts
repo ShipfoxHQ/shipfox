@@ -1,5 +1,5 @@
 export type IntegrationProviderKind = string;
-export type IntegrationCapability = 'source_control' | 'agent_tools';
+export type IntegrationCapability = 'source_control' | 'agent_tools' | 'interaction';
 export type IntegrationConnectionLifecycleStatus = 'active' | 'disabled' | 'error';
 export type IntegrationConnectionRepositoryAccessMode = 'selected' | 'all';
 
@@ -439,11 +439,85 @@ export interface AgentToolsProvider<
   downloadFile?(input: AgentToolDownloadFileInput<Connection>): Promise<AgentToolFileDownload>;
 }
 
+/** What an event does to a conversation: starts one, continues one, or stops its running turn. */
+export type InteractionRole = 'request' | 'follow_up' | 'stop';
+export type InteractionReplyKind = 'response' | 'error';
+export type InteractionProgressState = 'working' | 'idle';
+
+export interface Interaction {
+  conversationKey: string;
+  role: InteractionRole;
+  /** Where the request was made. Routing filters read it as `request`. */
+  context: Record<string, unknown>;
+  /** Absent when no person caused it. */
+  author?: {externalId: string; displayName?: string | undefined} | undefined;
+  /** Prose for the model. Treated as untrusted data. */
+  text: string;
+}
+
+export interface ReadInteractionInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> {
+  connection: Connection;
+  event: string;
+  payload: unknown;
+}
+
+export interface SendInteractionReplyInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> {
+  connection: Connection;
+  conversationKey: string;
+  /** Stable across retries. */
+  replyId: string;
+  kind: InteractionReplyKind;
+  /** Markdown. The provider converts it. */
+  text: string;
+  agent: {name: string};
+}
+
+export type InteractionReplyOutcome =
+  | {outcome: 'delivered'}
+  | {outcome: 'undeliverable'; reason: string};
+
+export interface ReportInteractionProgressInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> {
+  connection: Connection;
+  conversationKey: string;
+  state: InteractionProgressState;
+  /** Such as a tool's label. */
+  detail?: string | undefined;
+  /** Such as the run link. */
+  links?: {label: string; url: string}[] | undefined;
+}
+
+/**
+ * Lets people talk to agents through a provider. The provider acknowledges a request in its
+ * webhook path, before the outbox, so acknowledgment is not part of this contract.
+ */
+export interface InteractionProvider<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> {
+  /** What each event can do. An event not listed never reaches an agent. */
+  interactionEvents: Readonly<Record<string, InteractionRole>>;
+  /** JSON Schema of `Interaction.context`, for docs and filter checks. */
+  requestContextSchema: Record<string, unknown>;
+  /** Returns undefined for an event that isn't meant for an agent. */
+  readInteraction(input: ReadInteractionInput<Connection>): Promise<Interaction | undefined>;
+  sendReply(input: SendInteractionReplyInput<Connection>): Promise<InteractionReplyOutcome>;
+  /** Shows work in progress, and clears it with `idle`. */
+  reportProgress?(input: ReportInteractionProgressInput<Connection>): Promise<void>;
+  /** Plain prose for the system prompt: length, tone, and format on this surface. */
+  replyGuidance: string;
+}
+
 export interface IntegrationProviderAdapters<
   Connection extends IntegrationConnection = IntegrationConnection,
 > {
   source_control?: SourceControlProvider<Connection> | undefined;
   agent_tools?: AgentToolsProvider<Connection> | undefined;
+  interaction?: InteractionProvider<Connection> | undefined;
 }
 
 /** Processes one provider-neutral inbound webhook request. */
