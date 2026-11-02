@@ -217,6 +217,23 @@ describe('project routes', () => {
       });
     });
 
+    test('deletes the repository when creating it fails halfway', async () => {
+      flags = createTestFeatureFlags({'managed-config-repos': true});
+      await closeApp();
+      app = await createApp({
+        auth: [fakeUserAuth],
+        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        swagger: false,
+      });
+      const request = arrangeManagedSource();
+      vi.mocked(integrations.createManagedRepository).mockRejectedValue(new Error('boom'));
+
+      const res = await app.inject(request);
+
+      expect(res.statusCode).toBe(500);
+      expect(integrations.deleteManagedRepository).toHaveBeenCalledTimes(1);
+    });
+
     test('reads a body that mixes a managed kind with linked fields as managed, not linked', async () => {
       const request = arrangeManagedSource();
 

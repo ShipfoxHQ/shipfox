@@ -6,6 +6,7 @@ import {
   type ProjectsEventMap,
 } from '@shipfox/api-projects-dto';
 import {isUniqueViolation} from '@shipfox/node-drizzle';
+import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
@@ -57,17 +58,18 @@ export interface CreateManagedProjectParams {
 
 /**
  * Creates a project whose config lives in a repository Shipfox hosts. The repository comes first,
- * because every project row needs a source. When the project can't be created afterward, for a slug
- * conflict for example, the new repository is deleted again.
+ * because every project row needs a source. When anything fails afterward, for a slug conflict for
+ * example, the new repository is deleted on a best-effort basis. A failed delete is logged and
+ * leaves a repository with no project: one commit that nothing reads.
  */
 export async function createManagedProject(params: CreateManagedProjectParams): Promise<Project> {
   const projectId = await generateProjectId();
-  const repository = await params.integrations.createManagedRepository({
-    workspaceId: params.workspaceId,
-    projectId,
-    ...(params.files === undefined ? {} : {files: [...params.files]}),
-  });
   try {
+    const repository = await params.integrations.createManagedRepository({
+      workspaceId: params.workspaceId,
+      projectId,
+      ...(params.files === undefined ? {} : {files: [...params.files]}),
+    });
     const source = await params.integrations.resolveSourceRepository({
       workspaceId: params.workspaceId,
       connectionId: repository.connectionId,
@@ -77,7 +79,12 @@ export async function createManagedProject(params: CreateManagedProjectParams): 
   } catch (error) {
     await params.integrations
       .deleteManagedRepository({workspaceId: params.workspaceId, projectId})
-      .catch(() => undefined);
+      .catch((cleanupError: unknown) => {
+        logger().error(
+          {err: cleanupError, projectId, workspaceId: params.workspaceId},
+          'Could not delete the managed repository of a project that was not created',
+        );
+      });
     throw error;
   }
 }

@@ -70,13 +70,14 @@ A create body with `source: {kind: 'managed', files?}` makes a project with no
 repository. The `managed-config-repos` workspace flag gates it, and it defaults
 to off: a workspace without it gets `422 managed-source-unavailable`. The
 project asks Integrations for the repository first, because every project row
-needs a source, then inserts the row with the same id. A project insert that
-fails afterward leaves a repository with no project, which costs one commit.
-`files` is the tree of the first commit and must stay under `.shipfox/`; a
-refused file returns `422 invalid-source-file` with the problem and the path.
-The path is empty when the whole seed is refused, for too many files or over
-1 MiB. The project DTO
-derives `source.kind` from the repository id, so no column holds it.
+needs a source, then inserts the row with the same id. When anything fails
+afterward, the project deletes the new repository on a best-effort basis. A
+failed delete is logged and leaves a repository with no project, which costs one
+commit. `files` is the tree of the first commit and must stay under
+`.shipfox/`; a refused file returns `422 invalid-source-file` with the problem
+and the path. The path is empty when the seed as a whole is over 1 MiB. More
+than 100 files fails request validation with `400`. The project DTO derives
+`source.kind` from the repository id, so no column holds it.
 
 The create form derives an editable default slug from the project name. The API
 requires an explicit slug and never adds a suffix when the value is taken. A
