@@ -99,14 +99,28 @@ interface Connection {
   afterSeq: number;
   turnRunning: boolean;
   turnFinal: boolean;
-  /** The stream delivered an item the caller did not hold. Replayed text does not count. */
+  /** The stream delivered an item the caller did not hold, or more text than any earlier one. */
   progressed: boolean;
+  /** Text of the running call as this connection has rebuilt it since its `reset`. */
+  textLength: number;
+  /** The most text any connection has rebuilt for the running call. Replays do not beat it. */
+  longestText: number;
 }
 
 function observe(connection: Connection, event: ConversationStreamEvent<ConversationStreamItem>) {
   if (event.kind === 'item' && event.item.seq !== null && event.item.seq > connection.afterSeq) {
     connection.afterSeq = event.item.seq;
     connection.progressed = true;
+    connection.textLength = 0;
+    connection.longestText = 0;
+  }
+  if (event.kind === 'reset') connection.textLength = 0;
+  if (event.kind === 'text') {
+    connection.textLength += event.text.length;
+    if (connection.textLength > connection.longestText) {
+      connection.longestText = connection.textLength;
+      connection.progressed = true;
+    }
   }
   if (event.kind === 'turn') {
     connection.turnFinal = isFinalTurnStatus(event.status);
@@ -123,6 +137,7 @@ async function* readConnection(params: {
   connection.turnRunning = false;
   connection.turnFinal = false;
   connection.progressed = false;
+  connection.textLength = 0;
   const query = new URLSearchParams({after_seq: String(connection.afterSeq)});
   const messages = checkedApiEventStream(
     conversationStreamEventSchema,
@@ -165,6 +180,8 @@ export async function* streamConversationEvents(
     turnRunning: false,
     turnFinal: false,
     progressed: false,
+    textLength: 0,
+    longestText: 0,
   };
   let failuresInARow = 0;
 

@@ -284,6 +284,27 @@ describe('streamConversationEvents', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(6);
   });
 
+  it('keeps following a call whose text grows across drops', async () => {
+    vi.useFakeTimers();
+    const dropped = (length: number) =>
+      streamResponse([turn('running'), reset('reconnect'), delta('x'.repeat(length))], {
+        dropsAfter: true,
+      });
+    const fetchImpl = vi.fn();
+    for (let length = 1; length <= 7; length += 1) {
+      fetchImpl.mockResolvedValueOnce(dropped(length));
+    }
+    fetchImpl.mockResolvedValueOnce(streamResponse([turn('running'), reply(2), turn('succeeded')]));
+    configureApiClient({fetchImpl});
+
+    const done = follow({afterSeq: 1});
+    await vi.advanceTimersByTimeAsync(60_000);
+    const {final} = await done;
+
+    expect(fetchImpl).toHaveBeenCalledTimes(8);
+    expect(final.items.map((item) => item.seq)).toEqual([2]);
+  });
+
   it('does not retry a refused request', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({code: 'conversation-not-found', message: 'Not found'}), {
