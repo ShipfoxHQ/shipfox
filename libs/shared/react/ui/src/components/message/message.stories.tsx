@@ -2,14 +2,7 @@ import type {Meta, StoryObj} from '@storybook/react';
 import {Badge} from '#components/badge/index.js';
 import {Bubble} from '#components/bubble/index.js';
 import {Markdown} from '#components/markdown/index.js';
-import {
-  Trace,
-  TraceCollapsible,
-  TraceCollapsibleTrigger,
-  TraceDescription,
-  TraceLine,
-  TraceTitle,
-} from '#components/trace/index.js';
+import {Trace, TraceDescription, TraceLine, TraceTitle} from '#components/trace/index.js';
 import {Message, MessageFooter} from './message.js';
 
 const meta = {
@@ -71,14 +64,10 @@ export const Compositions: Story = {
         <Bubble>Why did this fail?</Bubble>
       </Message>
       <Trace>
-        <TraceCollapsible>
-          <TraceCollapsibleTrigger>
-            <TraceLine status="succeeded">
-              <TraceTitle>Read run</TraceTitle>
-              <TraceDescription>deploy-preview #214</TraceDescription>
-            </TraceLine>
-          </TraceCollapsibleTrigger>
-        </TraceCollapsible>
+        <TraceLine status="succeeded">
+          <TraceTitle>Read run</TraceTitle>
+          <TraceDescription>deploy-preview #214</TraceDescription>
+        </TraceLine>
       </Trace>
       <Message>
         <Bubble variant="muted">

@@ -795,10 +795,12 @@ Navigation never wears a standalone bordered tile. A grid of openable things is
 
 ### Chat transcript
 
-- **Bubbles:** the user's `Bubble` aligns right on the inline fill. The agent's
-  aligns left in the `muted` variant, on `background-bubble-muted` with a
-  hairline border. That token resolves to canvas, one step below the panel. Neither carries orange, because orange is the focus ring. A bubble
-  takes at most 85% of the transcript width.
+- **Bubbles:** `Message` owns alignment, and `Bubble` owns the fill. The user's
+  turn is `Message align="end"` with a default `Bubble` on the inline fill. The
+  agent's turn starts at the left with a `muted` `Bubble`, on
+  `background-bubble-muted` with a hairline border. That token resolves to
+  canvas, one step below the panel. Neither carries orange, because orange is
+  the focus ring. A bubble takes at most 85% of the transcript width.
 - **No avatar:** Shippy stays in the panel header, so a long reply isn't a column
   of foxes.
 - **Spacing:** rows sit 12px apart. Consecutive tool rows share one `Trace`, so

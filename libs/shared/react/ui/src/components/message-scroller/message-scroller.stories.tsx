@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from '@storybook/react';
-import {type ReactNode, useState} from 'react';
+import {Fragment, type ReactNode, useState} from 'react';
 import {expect, fireEvent, userEvent, waitFor, within} from 'storybook/test';
 import {Bubble} from '#components/bubble/index.js';
 import {Button} from '#components/button/index.js';
@@ -118,21 +118,24 @@ function TranscriptRow({row}: {row: Row}) {
     return (
       <MessageScrollerItem messageId={row.id}>
         <Trace>
-          {row.calls.map((call) => (
-            <TraceCollapsible key={call.title} defaultOpen={Boolean(call.detail)}>
-              <TraceCollapsibleTrigger>
-                <TraceLine status="succeeded">
-                  <TraceTitle>{call.title}</TraceTitle>
-                  <TraceDescription>{call.target}</TraceDescription>
-                </TraceLine>
-              </TraceCollapsibleTrigger>
-              {call.detail ? (
+          {row.calls.map((call) => {
+            const line = (
+              <TraceLine status="succeeded">
+                <TraceTitle>{call.title}</TraceTitle>
+                <TraceDescription>{call.target}</TraceDescription>
+              </TraceLine>
+            );
+            if (!call.detail) return <Fragment key={call.title}>{line}</Fragment>;
+
+            return (
+              <TraceCollapsible key={call.title} defaultOpen>
+                <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
                 <TraceCollapsibleContent>
                   <TraceDetail>{call.detail}</TraceDetail>
                 </TraceCollapsibleContent>
-              ) : null}
-            </TraceCollapsible>
-          ))}
+              </TraceCollapsible>
+            );
+          })}
         </Trace>
       </MessageScrollerItem>
     );
