@@ -7,9 +7,11 @@ Shipfox Agent Transcript turns agent session entries into `SessionView` rows.
 - **`parseSessionRecord(record, harness, context?)`**: Parses one pi or Claude
   session entry into `SessionView` rows. An entry it can't parse becomes a
   single `raw` row.
-- **`createClaudeParseContext`**, **`claudeInitSessionId`**, **`flushPendingToolRows`**:
-  Carry the Claude parser state. Claude tool calls stay pending until their result
-  arrives, so the caller keeps this state between entries.
+- **`createClaudeParseContext`**: Creates the Claude parser state. Pass it to
+  `parseSessionRecord` through `SessionParseContext` and reuse it across entries.
+- **`claudeInitSessionId`**: Returns the session ID of a Claude init entry.
+- **`flushPendingToolRows`**: Returns and clears the tool rows held in the Claude
+  parser state.
 - **`AgentSessionRecord`**, **`SessionParseContext`**, **`ClaudeParseContext`**:
   Types for the input record and the parser state.
 
@@ -17,12 +19,8 @@ The `SessionView` row schemas stay in `@shipfox/api-logs-dto`.
 
 ## Installation and setup
 
-```json
-{
-  "dependencies": {
-    "@shipfox/agent-transcript": "workspace:*"
-  }
-}
+```sh
+npm install @shipfox/agent-transcript
 ```
 
 ## Usage

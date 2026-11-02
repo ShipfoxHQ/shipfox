@@ -3,4 +3,4 @@
 "@shipfox/api-logs": patch
 ---
 
-Moves the agent session parser out of Logs into the new `@shipfox/agent-transcript` package, so Logs and Agent turn session entries into `SessionView` rows with one parser. Logs reads and ingestion behave as before.
+Adds `@shipfox/agent-transcript`, which turns pi and Claude agent session entries into `SessionView` rows through `parseSessionRecord`, with helpers for the Claude parser state. Logs now uses it in place of its own parser, and its reads and ingestion behave as before.
