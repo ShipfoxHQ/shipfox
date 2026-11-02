@@ -55,6 +55,7 @@ const defaultArgs = {
   onRun: () => undefined,
   onDismissRunError: () => undefined,
   onRefreshDefinitions: () => undefined,
+  readiness: new Map(),
   runError: null,
   runningDefinitionId: null,
   sync,
@@ -157,6 +158,41 @@ export const RefusedStart: Story = {
       />
     </div>
   ),
+};
+
+export const NeedsSetup: Story = {
+  args: {
+    readiness: new Map([
+      [
+        'deploy-production',
+        [
+          {
+            kind: 'variable-missing',
+            key: 'DEPLOY_ENABLED',
+            locations: [{jobKey: 'deploy', field: 'job.if'}],
+            effect: 'blocks-start',
+          },
+          {
+            kind: 'secret-missing',
+            key: 'DEPLOY_TOKEN',
+            locations: [{jobKey: 'deploy', field: 'env', envKey: 'TOKEN'}],
+            effect: 'fails-job',
+          },
+        ],
+      ],
+      [
+        'nightly-verification',
+        [
+          {
+            kind: 'secret-missing',
+            key: 'SLACK_TOKEN',
+            locations: [{jobKey: 'notify', field: 'env', envKey: 'TOKEN'}],
+            effect: 'fails-job',
+          },
+        ],
+      ],
+    ]),
+  },
 };
 
 function createDefinition(
