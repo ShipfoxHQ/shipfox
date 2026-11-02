@@ -341,8 +341,8 @@ export function mapProducerError(
       details: {ref: boundErrorDetail(details.ref)},
     });
   }
-  const devRunDetails = mapDevRunErrorDetails(code, details);
-  if (devRunDetails !== undefined) return agentAccessError(code, {details: devRunDetails});
+  const devRunError = mapDevRunError(code, details);
+  if (devRunError !== undefined) return devRunError;
   if (code === 'admission-denied' && typeof details.reason === 'string') {
     const requiredAction = mapRequiredAction(details.requiredAction);
     return agentAccessError(code, {
@@ -503,6 +503,20 @@ function mapSizeFailure(
 
 function quote(value: string): string {
   return `\`${boundErrorDetail(value)}\``;
+}
+
+function mapDevRunError(
+  code: string,
+  details: Record<string, unknown>,
+): ReturnType<typeof agentAccessError> | undefined {
+  if (code === 'source-unavailable' && details.sourceCode === 'connection-inactive') {
+    return agentAccessError('integration-connection-inactive', {
+      message:
+        "The project's source connection is unavailable, so Shipfox can't read the workflow file. Restore the connection in Shipfox, then try again.",
+    });
+  }
+  const devRunDetails = mapDevRunErrorDetails(code, details);
+  return devRunDetails === undefined ? undefined : agentAccessError(code, {details: devRunDetails});
 }
 
 function mapDevRunErrorDetails(

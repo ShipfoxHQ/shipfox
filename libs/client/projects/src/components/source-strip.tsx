@@ -1,11 +1,13 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {useSourceConnectionsQuery} from '@shipfox/client-integrations';
+import {ConnectionStatusBadge, useIntegrationConnectionsQuery} from '@shipfox/client-integrations';
 import {StatusBadge} from '@shipfox/react-ui/badge';
+import {Button} from '@shipfox/react-ui/button';
 import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import {Panel} from '@shipfox/react-ui/panel';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import {Link} from '@tanstack/react-router';
 import type {DefinitionSyncSummary} from '#core/definition.js';
 
 /**
@@ -26,8 +28,12 @@ export function SourceStrip({
   isPending: boolean;
 }) {
   const workspace = useActiveWorkspace();
-  const connectionsQuery = useSourceConnectionsQuery(workspace.id);
+  const connectionsQuery = useIntegrationConnectionsQuery(workspace.id);
   const connection = connectionsQuery.data?.find((c) => c.id === connectionId);
+  // Only a resolved list can prove the connection is missing, so a failed fetch
+  // keeps the neutral label instead of flagging the source.
+  const status = connectionsQuery.isSuccess ? (connection?.lifecycleStatus ?? 'error') : undefined;
+  const unavailable = status !== undefined && status !== 'active';
 
   return (
     <Panel
@@ -42,9 +48,12 @@ export function SourceStrip({
               <Skeleton className="h-16 w-160" />
             ) : (
               <Text size="sm" bold className="truncate">
-                {connection?.displayName ?? 'Connected source'}
+                {unavailable
+                  ? 'Source unavailable'
+                  : (connection?.displayName ?? 'Connected source')}
               </Text>
             )}
+            {unavailable ? <ConnectionStatusBadge status={status} className="shrink-0" /> : null}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Code variant="label" className="truncate text-foreground-neutral-muted">
@@ -55,7 +64,26 @@ export function SourceStrip({
             </Tooltip>
           </div>
         </div>
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-inline">
+          {unavailable ? (
+            <Button asChild variant="transparent" size="sm">
+              {connection ? (
+                <Link
+                  to="/w/$workspaceSlug/settings/integrations/$connectionSlug"
+                  params={{workspaceSlug: workspace.slug, connectionSlug: connection.slug}}
+                >
+                  Open connection
+                </Link>
+              ) : (
+                <Link
+                  to="/w/$workspaceSlug/settings/integrations"
+                  params={{workspaceSlug: workspace.slug}}
+                >
+                  Open integrations
+                </Link>
+              )}
+            </Button>
+          ) : null}
           <SyncBadge sync={sync} isPending={isPending} />
         </div>
       </section>

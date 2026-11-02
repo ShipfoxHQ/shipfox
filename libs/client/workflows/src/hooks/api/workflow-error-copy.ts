@@ -1,8 +1,10 @@
 import type {ApiError} from '@shipfox/client-api';
+import {INTEGRATIONS_PATH, type IssueAction} from '#core/run-issue-copy.js';
 
 export interface WorkflowErrorCopy {
   title: string;
   message: string;
+  action?: IssueAction | undefined;
 }
 
 /**
@@ -40,6 +42,12 @@ export function sharedWorkflowErrorCopy(error: ApiError): WorkflowErrorCopy | un
       return {
         title: 'Provider rate limited',
         message: 'The provider is asking us to slow down. Try again shortly.',
+      };
+    case 'integration-connection-inactive':
+      return {
+        title: 'Project source is unavailable',
+        message: "The project's source connection is unavailable. Restore it, then try again.",
+        action: {kind: 'link', label: 'Open integrations', to: INTEGRATIONS_PATH},
       };
     case 'source-unavailable':
       return {

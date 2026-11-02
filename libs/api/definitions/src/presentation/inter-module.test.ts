@@ -604,6 +604,16 @@ describe('definitions inter-module presentation', () => {
         },
       },
       {code: 'source-unavailable', details: {}, expected: {}},
+      {
+        code: 'source-unavailable',
+        details: {sourceCode: 'connection-inactive'},
+        expected: {sourceCode: 'connection-inactive'},
+      },
+      {
+        code: 'source-unavailable',
+        details: {sourceCode: 'provider-failure', sourceReason: 'timeout'},
+        expected: {},
+      },
     ];
 
     for (const {code, details, expected} of cases) {

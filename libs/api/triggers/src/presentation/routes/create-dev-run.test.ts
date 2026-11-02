@@ -545,6 +545,12 @@ describe('POST /dev-runs', () => {
     ['ref-moved', 409, 'ref-moved', {ref: VALID_BODY.ref, expectedCommit: COMMIT}],
     ['content-too-large', 422, 'content-too-large', {configPath: VALID_BODY.config_path}],
     ['source-unavailable', 502, 'source-unavailable', {}],
+    [
+      'source-unavailable',
+      422,
+      'integration-connection-inactive',
+      {sourceCode: 'connection-inactive'},
+    ],
   ] as const)('maps a resolveDefinitionAtRef %s to %i %s', async (code, status, expectedCode, details) => {
     createDevRunMock.mockRejectedValue(
       createInterModuleKnownError(
