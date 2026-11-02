@@ -20,6 +20,7 @@ const definition: Definition = {
   workflowDocument: {},
   workflowModel: {},
   manualTrigger: {name: 'on_demand'},
+  triggers: [{key: 'on_demand', source: 'manual', event: 'fire', schedule: null}],
   fetchedAt: '2026-05-07T01:00:00.000Z',
   createdAt: '2026-05-07T01:00:00.000Z',
   updatedAt: '2026-05-07T01:00:00.000Z',
@@ -41,6 +42,8 @@ const defaultProps: WorkflowDefinitionsTableProps = {
   onRefreshDefinitions: vi.fn(),
   runError: null,
   runningDefinitionId: null,
+  searchQuery: '',
+  onSearchChange: vi.fn(),
   sync: null,
   workspaceSlug: 'acme',
 };

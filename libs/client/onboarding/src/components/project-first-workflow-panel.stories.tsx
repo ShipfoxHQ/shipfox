@@ -1,7 +1,7 @@
 import {agentGrantsQueryOptions} from '@shipfox/client-agent';
 import {configureApiClient, resetApiClient} from '@shipfox/client-api';
 import {type AuthState, authStateAtom, ChromeProvider} from '@shipfox/client-shell/runtime';
-import {ProjectWorkflowsPage} from '@shipfox/client-workflows';
+import {ProjectAutomationsPage} from '@shipfox/client-workflows';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
@@ -39,7 +39,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * The real workflows page after a sync that found no workflow files, with the
+ * The real Automations page after a sync that found no workflow files, with the
  * panel in place of the empty list.
  */
 export const NoWorkflowFiles: Story = {
@@ -49,7 +49,7 @@ export const NoWorkflowFiles: Story = {
     await expect(
       canvas.findByRole('heading', {name: 'Create your first workflow'}),
     ).resolves.toBeVisible();
-    await expect(canvas.findByText('Acme GitHub')).resolves.toBeVisible();
+    await expect(canvas.findByText('acme/platform')).resolves.toBeVisible();
     await expect(canvas.queryByRole('region', {name: 'Workflow definitions'})).toBeNull();
   },
 };
@@ -82,14 +82,20 @@ function EmptyProjectWorkflowsStory() {
   }, []);
   const router = useMemo(() => {
     const rootRoute = createRootRoute({component: Outlet});
-    const workflowsRoute = createRoute({
+    const automationsRoute = createRoute({
       getParentRoute: () => rootRoute,
-      path: '/w/$workspaceSlug/p/$projectSlug/workflows',
-      component: () => <ProjectWorkflowsPage projectId={PROJECT_ID} />,
+      path: '/w/$workspaceSlug/p/$projectSlug/automations',
+      component: () => (
+        <ProjectAutomationsPage
+          projectId={PROJECT_ID}
+          workspaceSlug="acme"
+          projectSlug="platform"
+        />
+      ),
     });
     return createRouter({
-      routeTree: rootRoute.addChildren([workflowsRoute]),
-      history: createMemoryHistory({initialEntries: ['/w/acme/p/platform/workflows']}),
+      routeTree: rootRoute.addChildren([automationsRoute]),
+      history: createMemoryHistory({initialEntries: ['/w/acme/p/platform/automations']}),
     });
   }, []);
 
@@ -121,6 +127,7 @@ function EmptyProjectWorkflowsStory() {
 function storyFetch(input: RequestInfo | URL): Promise<Response> {
   const url = new URL(input instanceof Request ? input.url : String(input));
   if (url.pathname === `/projects/${PROJECT_ID}`) return json(projectDto());
+  if (url.pathname === `/projects/${PROJECT_ID}/config`) return json(configDto());
   if (url.pathname === '/integration-connections') return json(connectionsDto());
   if (url.pathname === '/definitions' && url.searchParams.get('limit') !== '1') {
     return json(definitionsDto());
@@ -146,6 +153,22 @@ function projectDto() {
     source: {kind: 'linked', connection_id: CONNECTION_ID, external_repository_id: 'platform'},
     created_at: '2026-09-28T09:00:00.000Z',
     updated_at: '2026-09-28T09:00:00.000Z',
+  };
+}
+
+function configDto() {
+  return {
+    source: {
+      kind: 'linked',
+      provider: 'github',
+      connection_id: CONNECTION_ID,
+      external_repository_id: 'platform',
+      owner: 'acme',
+      name: 'platform',
+      default_branch: 'main',
+    },
+    head: {ref: 'refs/heads/main', commit: '3f9a21c0d6e4b8a17c2e5f9d0b3a6c8e1f4d7a20'},
+    history_supported: true,
   };
 }
 

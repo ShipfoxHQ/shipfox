@@ -58,15 +58,20 @@ function createComponentRouter(element: ReactElement) {
     component: () => null,
   });
   // The unfiltered empty state links here.
-  const workflowsRoute = createRoute({
+  const automationsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/w/$workspaceSlug/p/$projectSlug/workflows',
+    path: '/w/$workspaceSlug/p/$projectSlug/automations',
     component: () => null,
   });
 
   return createRouter({
     history: createMemoryHistory({initialEntries: ['/']}),
-    routeTree: rootRoute.addChildren([indexRoute, runDetailRoute, jobDetailRoute, workflowsRoute]),
+    routeTree: rootRoute.addChildren([
+      indexRoute,
+      runDetailRoute,
+      jobDetailRoute,
+      automationsRoute,
+    ]),
   });
 }
 

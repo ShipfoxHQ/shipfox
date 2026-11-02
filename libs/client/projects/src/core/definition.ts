@@ -9,9 +9,22 @@ export interface Definition {
   workflowDocument: unknown;
   workflowModel: unknown;
   manualTrigger: {name: string} | null;
+  triggers: DefinitionTrigger[];
   fetchedAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What starts a workflow, read from its model. */
+export interface DefinitionTrigger {
+  /** The trigger's name in the workflow file, unique within one workflow. */
+  key: string;
+  /** `manual`, `cron`, or the slug of the integration connection that emits the event. */
+  source: string;
+  /** Absent when the trigger listens to every event of its source. */
+  event: string | null;
+  /** The cron expression of a `cron` trigger. */
+  schedule: string | null;
 }
 
 export interface DefinitionSyncSummary {

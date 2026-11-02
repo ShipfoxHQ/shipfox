@@ -37,7 +37,7 @@ import * as projectIndexRouteModule from "@shipfox/client-projects/routes/projec
 import * as projectSettingsIndexRouteModule from "@shipfox/client-projects/routes/project-settings-index";
 import * as projectSettingsRouteModule from "@shipfox/client-projects/routes/project-settings";
 import * as runPermalinkRouteModule from "@shipfox/client-workflows/routes/run-permalink";
-import * as workflowsRouteModule from "@shipfox/client-workflows/routes/workflows";
+import * as automationsRouteModule from "@shipfox/client-workflows/routes/automations";
 import * as runsRouteModule from "@shipfox/client-workflows/routes/runs";
 import * as runDetailRouteModule from "@shipfox/client-workflows/routes/run-detail";
 import * as jobDetailRouteModule from "@shipfox/client-workflows/routes/job-detail";
@@ -78,10 +78,10 @@ const skeleton = buildAnchorSkeleton({
       "order": 100
     },
     {
-      "id": "nav.workflows",
+      "id": "nav.automations",
       "scope": "project",
-      "label": "Workflows",
-      "to": "/w/$workspaceSlug/p/$projectSlug/workflows",
+      "label": "Automations",
+      "to": "/w/$workspaceSlug/p/$projectSlug/automations",
       "order": 200
     },
     {
@@ -388,10 +388,10 @@ const runPermalinkRoute = createRoute({
   ...routeOptions(runPermalinkRouteModule.default, "@shipfox/client-workflows/routes/run-permalink", "/runs/$workflowRunId"),
 });
 
-const workflowsRoute = createRoute({
+const automationsRoute = createRoute({
   getParentRoute: () => skeleton.projectLayout,
-  path: "/workflows",
-  ...routeOptions(workflowsRouteModule.default, "@shipfox/client-workflows/routes/workflows", "/w/$workspaceSlug/p/$projectSlug/workflows"),
+  path: "/automations",
+  ...routeOptions(automationsRouteModule.default, "@shipfox/client-workflows/routes/automations", "/w/$workspaceSlug/p/$projectSlug/automations"),
 });
 
 const runsRoute = createRoute({
@@ -491,7 +491,7 @@ const generalRoute = createRoute({
 });
 
 const projectSettings = skeleton.projectSettings.addChildren([projectSettingsIndexRoute, projectSettingsRoute]);
-const projectLayout = skeleton.projectLayout.addChildren([projectIndexRoute, workflowsRoute, runsRoute, runDetailRoute, jobDetailRoute,
+const projectLayout = skeleton.projectLayout.addChildren([projectIndexRoute, automationsRoute, runsRoute, runDetailRoute, jobDetailRoute,
   projectSettings]);
 const workspaceSettings = skeleton.workspaceSettings.addChildren([integrationsSettingsRoute, connectionDetailsRoute, agentsSettingsRoute, agentAccessSettingsRoute, runnersSettingsRoute, provisionersSettingsRoute, secretsSettingsRoute, variablesSettingsRoute, eventsSettingsRoute, workspaceSettingsIndexRoute, workspaceSettingsMembersRoute, generalRoute]);
 const workspaceLayout = skeleton.workspaceLayout.addChildren([

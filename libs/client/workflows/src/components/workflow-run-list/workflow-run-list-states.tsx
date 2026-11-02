@@ -79,10 +79,10 @@ export function WorkflowRunListEmpty({
         workspaceSlug && projectSlug ? (
           <Button asChild type="button" size="sm" variant="primary">
             <Link
-              to="/w/$workspaceSlug/p/$projectSlug/workflows"
+              to="/w/$workspaceSlug/p/$projectSlug/automations"
               params={{workspaceSlug, projectSlug}}
             >
-              View workflows
+              View automations
             </Link>
           </Button>
         ) : null
