@@ -36,7 +36,7 @@ export function ShippyLauncher({placement}: {placement: ShippyPlacement}) {
     >
       <Shippy
         pose={floating ? 'body' : 'face'}
-        className={cn('block [image-rendering:pixelated]', floating ? 'h-64' : 'h-32')}
+        className={cn('block', floating ? 'h-64' : 'h-32')}
       />
     </button>
   );

@@ -45,8 +45,8 @@ export const Poses: Story = {
 export const LauncherSprites: Story = {
   render: () => (
     <div className="flex items-end gap-region">
-      <Shippy pose="body" className="h-64 [image-rendering:pixelated]" />
-      <Shippy pose="face" className="h-32 [image-rendering:pixelated]" />
+      <Shippy pose="body" className="h-64" />
+      <Shippy pose="face" className="h-32" />
     </div>
   ),
 };
