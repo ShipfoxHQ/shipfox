@@ -153,10 +153,14 @@ describe('checkedApiEventStream', () => {
     ]);
   });
 
-  it('rejects a message the schema does not know without exposing it', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(streamResponse(['event: delta\ndata: {"text":"secret",\n\n']));
+  it.each([
+    {name: 'malformed JSON', body: 'event: delta\ndata: {"text":"secret",\n\n'},
+    {
+      name: 'a payload the schema rejects',
+      body: 'event: delta\ndata: {"text":123,"secret":"secret"}\n\n',
+    },
+  ])('rejects $name without exposing it', async ({body}) => {
+    const fetchImpl = vi.fn().mockResolvedValue(streamResponse([body]));
     configureApiClient({fetchImpl});
 
     const error = await collect(checkedApiEventStream(schema, '/stream')).catch((e) => e);
@@ -258,6 +262,7 @@ describe('checkedApiEventStream', () => {
     configureApiClient({fetchImpl});
 
     const pending = collect(checkedApiEventStream(schema, '/stream', {signal: controller.signal}));
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     controller.abort();
 
     const error = await pending.catch((e) => e);

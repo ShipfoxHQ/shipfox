@@ -194,6 +194,35 @@ describe('streamConversation', () => {
       {type: 'delta', turnId: turn.id, modelCallIndex: 0, text: 'Looking. '},
       {type: 'delta', turnId: turn.id, modelCallIndex: 1, text: 'Found it.'},
     ]);
+    expect(stream.types()).toEqual(['turn', 'reset', 'delta', 'item', 'delta', 'turn']);
+  });
+
+  it('sends every page of items before the text of the running call', async () => {
+    const conversation = await arrangeConversation();
+    for (let index = 0; index < 120; index += 1) {
+      await appendConversationEntry({
+        conversation,
+        entry: {type: 'message', message: {role: 'user', content: [{type: 'text', text: 'hi'}]}},
+        meta: {role: 'user'},
+      });
+    }
+    const turn = await turnFactory.create({conversationId: conversation.id});
+    await storeStreamChunk({
+      conversation,
+      turnId: turn.id,
+      modelCallIndex: 0,
+      chunkSeq: 0,
+      text: 'Live',
+    });
+
+    const stream = follow({conversation});
+    await vi.waitFor(() => expect(stream.text()).toBe('Live'));
+    stream.stop();
+    await stream.finished;
+
+    const types = stream.types();
+    expect(types.filter((type) => type === 'item')).toHaveLength(121);
+    expect(types.indexOf('delta')).toBeGreaterThan(types.lastIndexOf('item'));
   });
 
   it('waits for a turn while an input is queued, and announces the input once', async () => {
@@ -219,7 +248,10 @@ describe('streamConversation', () => {
 
     const stream = follow({conversation, afterSeq: 1});
     await vi.waitFor(() => expect(stream.types()).toEqual(['queued']));
-    const next = await turnFactory.create({conversationId: conversation.id});
+    const next = await turnFactory.create({
+      conversationId: conversation.id,
+      startedAt: new Date(earlier.startedAt.getTime() + 1),
+    });
     await vi.waitFor(() => expect(stream.types()).toContain('turn'));
     await endTurn({turnId: next.id, status: 'succeeded'});
     await stream.finished;

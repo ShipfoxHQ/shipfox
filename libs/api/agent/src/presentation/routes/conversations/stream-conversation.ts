@@ -50,6 +50,8 @@ export const streamConversationRoute = defineRoute({
     const onClose = () => controller.abort();
     response.once('close', onClose);
     reply.hijack();
+    // The reader can leave while the conversation loads, and its close event has then fired.
+    if (response.destroyed) return;
     const headers: OutgoingHttpHeaders = {
       ...(reply.getHeaders() as OutgoingHttpHeaders),
       ...SSE_HEADERS,
@@ -94,7 +96,9 @@ export const streamConversationRoute = defineRoute({
       clearInterval(heartbeat);
       response.off('close', onClose);
       conversationStreamCount.add(1, {outcome});
-      response.end();
+      // A failure cuts the connection, so the reader retries. A clean end would read as done.
+      if (outcome === 'failed') response.destroy();
+      else response.end();
     }
   },
 });

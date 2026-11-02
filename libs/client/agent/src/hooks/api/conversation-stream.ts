@@ -99,14 +99,14 @@ interface Connection {
   afterSeq: number;
   turnRunning: boolean;
   turnFinal: boolean;
-  /** The stream delivered an item or text, so the connection worked. */
+  /** The stream delivered an item the caller did not hold. Replayed text does not count. */
   progressed: boolean;
 }
 
 function observe(connection: Connection, event: ConversationStreamEvent<ConversationStreamItem>) {
-  if (event.kind === 'item' || event.kind === 'text') connection.progressed = true;
-  if (event.kind === 'item' && event.item.seq !== null) {
-    connection.afterSeq = Math.max(connection.afterSeq, event.item.seq);
+  if (event.kind === 'item' && event.item.seq !== null && event.item.seq > connection.afterSeq) {
+    connection.afterSeq = event.item.seq;
+    connection.progressed = true;
   }
   if (event.kind === 'turn') {
     connection.turnFinal = isFinalTurnStatus(event.status);
@@ -193,7 +193,8 @@ export interface UseConversationStreamParams {
 /**
  * The live state of a conversation's active turn. The query stays fetching while the stream is
  * open and holds what the stream has sent so far. It is an exception to the shared query policy
- * because the stream never refetches, and an open connection owns its own retries.
+ * because it refetches only when enabled again for the next turn, and an open connection owns its
+ * own retries.
  */
 export function useConversationStream({
   conversationId,
@@ -213,7 +214,8 @@ export function useConversationStream({
       refetchMode: 'reset',
     }),
     enabled: enabled && conversationId !== undefined,
-    staleTime: Number.POSITIVE_INFINITY,
+    // A finished stream is stale, so enabling the hook for the next turn opens a new one.
+    staleTime: 0,
     gcTime: 0,
     retry: false,
     refetchOnMount: false,

@@ -422,6 +422,7 @@ async function openEventStream(
     {signal: options.signal},
     hasCallerAuthorization,
   );
+  options.signal?.throwIfAborted();
   if (accessToken && !hasCallerAuthorization) headers.set('authorization', `Bearer ${accessToken}`);
 
   const url = joinUrl(defaultBaseUrl(), path);
@@ -436,6 +437,7 @@ async function openEventStream(
       options.signal,
       rejected,
     );
+    options.signal?.throwIfAborted();
     if (!refreshedToken) throw rejected;
     headers.set('authorization', `Bearer ${refreshedToken}`);
     response = await fetchEventStream(url, headers, options.signal);

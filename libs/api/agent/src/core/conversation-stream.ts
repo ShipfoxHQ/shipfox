@@ -117,9 +117,11 @@ class ConversationTail {
       if (this.firstTick) events.push({type: 'reset', reason: 'reconnect'});
     }
     // Items come before text. A reader clears partial text on an item of the turn, so text of a
-    // later call must not arrive ahead of the tool result that precedes it.
+    // later call must not arrive ahead of the tool result that precedes it, even across pages.
     events.push(...this.itemEvents(snapshot));
-    if (turn?.status === 'running') events.push(...(await this.chunkEvents(turn.id, snapshot)));
+    if (turn?.status === 'running' && !snapshot.hasMore) {
+      events.push(...(await this.chunkEvents(turn.id, snapshot)));
+    }
 
     const done = this.isDone(snapshot, turn);
     if (done && turn && isFinal(turn.status)) {

@@ -1,8 +1,9 @@
 import {z} from 'zod';
-import {agentTurnStatusSchema, conversationItemDtoSchema} from './conversation.js';
-
-// `seq` columns are int4, so a larger value would reach Postgres and fail as a 500.
-const CONVERSATION_SEQ_MAX = 2_147_483_647;
+import {
+  agentTurnStatusSchema,
+  CONVERSATION_SEQ_MAX,
+  conversationItemDtoSchema,
+} from './conversation.js';
 
 export const conversationStreamQuerySchema = z.object({
   /** The last `seq` the client holds. The stream sends the items after it. */

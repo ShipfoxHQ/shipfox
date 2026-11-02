@@ -51,7 +51,7 @@ const conversationStreamQueryException = {
   file: 'libs/client/agent/src/hooks/api/conversation-stream.ts',
   owner: 'conversation stream adapter',
   reason:
-    'The query holds a live server-sent stream that reconnects on its own and never refetches or retries.',
+    'The query holds a live server-sent stream that reconnects on its own, refetches only when enabled for the next turn, and never retries.',
   test: 'libs/client/agent/src/hooks/api/conversation-stream.test.tsx',
 } as const;
 

@@ -217,6 +217,29 @@ describe('streamConversationEvents', () => {
     expect(final.partialText).toBe('');
   });
 
+  it('holds a queued input until the agent claims it', async () => {
+    const queuedItem = itemDto({id: itemId(3), seq: null, turnId: null});
+    const claimedItem = {...queuedItem, seq: 3};
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        streamResponse([
+          message('queued', queuedItem),
+          turn('running'),
+          message('item', claimedItem),
+          reply(4),
+          turn('succeeded'),
+        ]),
+      );
+    configureApiClient({fetchImpl});
+
+    const {states, final} = await follow({afterSeq: 2});
+
+    expect(states.map((state) => state.queued.length)).toContain(1);
+    expect(final.queued).toEqual([]);
+    expect(final.items.map((item) => item.seq)).toEqual([3, 4]);
+  });
+
   it('ends without reconnecting when no turn runs', async () => {
     const fetchImpl = vi
       .fn()
@@ -234,6 +257,24 @@ describe('streamConversationEvents', () => {
   it('gives up after repeated drops', async () => {
     vi.useFakeTimers();
     const fetchImpl = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    configureApiClient({fetchImpl});
+
+    const done = follow({afterSeq: 1}).catch((error) => error);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(await done).toMatchObject({code: 'network-error'});
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+  });
+
+  it('gives up when each connection only replays text before it drops', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          streamResponse([turn('running'), reset('reconnect'), delta('Hel')], {dropsAfter: true}),
+        ),
+      );
     configureApiClient({fetchImpl});
 
     const done = follow({afterSeq: 1}).catch((error) => error);
@@ -300,6 +341,29 @@ describe('useConversationStream', () => {
     expect(result.current.data?.items.map((item) => item.id)).toEqual([itemId(2)]);
     expect(result.current.data?.partialText).toBe('');
     expect(result.current.data?.turn).toMatchObject({status: 'succeeded'});
+  });
+
+  it('opens a new stream when enabled again for the next turn', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(streamResponse([turn('running'), reply(2), turn('succeeded')])),
+      );
+    configureApiClient({fetchImpl});
+    const queryClient = new QueryClient();
+    const wrapper = ({children}: {children: ReactNode}) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const {result, rerender} = renderHook(
+      ({enabled}) => useConversationStream({conversationId: CONVERSATION_ID, afterSeq: 1, enabled}),
+      {wrapper, initialProps: {enabled: true}},
+    );
+    await waitFor(() => expect(result.current.fetchStatus).toBe('idle'));
+
+    rerender({enabled: false});
+    rerender({enabled: true});
+
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
   });
 
   it('opens no stream while no turn is active', () => {

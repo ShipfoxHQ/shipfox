@@ -49,7 +49,10 @@ function member(params: {workspaceId: string}) {
   return {...user, authorization};
 }
 
-const CLIENT_ORIGIN = process.env.CLIENT_BASE_URL ?? 'http://localhost:3000';
+const CLIENT_ORIGIN =
+  process.env.BROWSER_ALLOWED_ORIGIN?.split(',')[0]?.trim() ??
+  process.env.CLIENT_BASE_URL ??
+  'http://localhost:3000';
 
 /** Reads a live response piece by piece, keeping what it has received. */
 function readLive(body: ReadableStream<Uint8Array>) {
