@@ -234,12 +234,13 @@ describe('Linear webhook processor', () => {
       const connection = fakeConnection();
       await seedInstallation({connectionId: connection.id, organizationId: 'org-failed-ack'});
       const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
+      const acknowledgeAgentSession = vi.fn(() => Promise.reject(new Error('Linear is down')));
       const processor = createLinearWebhookProcessor({
         coreDb: db,
         publishIntegrationEventReceived,
         recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
         getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
-        acknowledgeAgentSession: vi.fn(() => Promise.reject(new Error('Linear is down'))),
+        acknowledgeAgentSession,
       });
 
       const result = await processor.process(
@@ -247,6 +248,10 @@ describe('Linear webhook processor', () => {
       );
 
       expect(result).toMatchObject({outcome: 'processed'});
+      expect(acknowledgeAgentSession).toHaveBeenCalledWith({
+        connectionId: connection.id,
+        agentSessionId: 'session-1',
+      });
       expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     });
 

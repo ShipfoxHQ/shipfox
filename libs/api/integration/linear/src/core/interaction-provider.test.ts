@@ -109,16 +109,37 @@ describe('LinearInteractionProvider', () => {
       expect(interaction?.context).toMatchObject({trigger: 'delegation'});
     });
 
-    it('reads the issue from the API when the payload leaves out labels and the project', async () => {
+    it.each([
+      {
+        omitted: 'team',
+        issue: {id: 'issue-1', identifier: 'ENG-12', labels: [], project: null},
+      },
+      {
+        omitted: 'labels',
+        issue: {
+          id: 'issue-1',
+          identifier: 'ENG-12',
+          team: {id: 'team-1', key: 'ENG'},
+          project: null,
+        },
+      },
+      {
+        omitted: 'project',
+        issue: {
+          id: 'issue-1',
+          identifier: 'ENG-12',
+          team: {id: 'team-1', key: 'ENG'},
+          labels: [],
+        },
+      },
+    ])('reads the issue from the API when the payload omits the $omitted', async ({issue}) => {
       const {provider, getIssueContext, getAccessToken} = setup();
       const conn = connection();
 
       const interaction = await provider.readInteraction({
         connection: conn,
         event: 'agentSession.created',
-        payload: created({
-          issue: {id: 'issue-1', identifier: 'ENG-12', team: {id: 'team-1', key: 'ENG'}},
-        }),
+        payload: created({issue}),
       });
 
       expect(getAccessToken).toHaveBeenCalledWith({connectionId: conn.id});

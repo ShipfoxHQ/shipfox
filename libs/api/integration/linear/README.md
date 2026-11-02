@@ -64,7 +64,7 @@ otherwise `delegation`), `team_id`, `team_key`, `labels` (names), `project_id`,
 `project_name`, and `issue_identifier`. When the payload doesn't carry the labels,
 the project, or the team, the provider reads the issue from the API before routing,
 and fails the read, so the event is retried, when that call fails. A follow-up or a
-stop carries no context, and a prompt with no text is ignored.
+stop carries no context, and a non-stop prompt with no text is ignored.
 
 Linear marks a session unresponsive without an activity within 10 seconds of
 `agentSession.created`, which can't wait for the outbox and routing. The webhook
