@@ -40,6 +40,11 @@ export {
   probeHarnessProviderCredentials,
 } from './harness/index.js';
 export {
+  type AgentLocalTool,
+  type AgentLocalToolResult,
+  createReadSkillTool,
+} from './local-tools/read-skill.js';
+export {
   buildModelProviderCatalog,
   buildModelProviderCatalogResponse,
   type ModelProviderCatalogResponse,

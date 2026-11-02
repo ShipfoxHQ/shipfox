@@ -91,6 +91,9 @@ vi.mock('@shipfox/api-agent', () => ({createAgentModule: mocks.createAgentModule
 vi.mock('@shipfox/api-agent-access', () => ({
   createAgentAccessModule: mocks.createAgentAccessModule,
 }));
+vi.mock('@shipfox/node-docs-client', () => ({
+  createDocsCache: () => ({enabled: false, start: vi.fn(), search: vi.fn()}),
+}));
 vi.mock('@shipfox/api-auth/config', () => ({
   config: {
     API_PUBLIC_URL: 'https://api.example.test',
@@ -523,6 +526,7 @@ describe('defaultModules', () => {
       agent: expect.any(Object),
       annotations: expect.any(Object),
       apiPublicUrl: 'https://api.example.test',
+      docs: expect.any(Object),
       clientBaseUrl: 'https://client.example.test',
       auth: expect.any(Object),
       cache: expect.any(Object),
@@ -569,6 +573,7 @@ describe('defaultModules', () => {
       agent: expect.any(Object),
       annotations: expect.any(Object),
       apiPublicUrl: 'https://api.example.test',
+      docs: expect.any(Object),
       clientBaseUrl: 'https://client.example.test',
       auth: expect.any(Object),
       cache: expect.any(Object),
@@ -1254,6 +1259,7 @@ describe('defaultModules', () => {
       interModule: {
         annotations: expect.objectContaining({listAnnotationsForRunAttempt: expect.any(Function)}),
         definitions: expect.objectContaining({listDefinitionsByProject: expect.any(Function)}),
+        docs: expect.objectContaining({search: expect.any(Function)}),
         logs: expect.objectContaining({readStepLogTail: expect.any(Function)}),
         projects: expect.objectContaining({getProjectBySource: expect.any(Function)}),
         triggers: expect.objectContaining({fireManualTrigger: expect.any(Function)}),

@@ -96,6 +96,7 @@
     "@shipfox/workflow-templates": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/feature-flags": "workspace:*",
+    "@shipfox/node-docs-client": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-feature-flags": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",

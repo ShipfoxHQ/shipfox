@@ -14,6 +14,7 @@ import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import {createDocsCache} from '@shipfox/node-docs-client';
 import {
   type AuthMethod,
   ClientError,
@@ -22,7 +23,6 @@ import {
   type FastifyRequest,
 } from '@shipfox/node-fastify';
 import {AGENT_ACCESS_MCP_BODY_LIMIT_BYTES} from '#constants.js';
-import {createDocsCache} from '#core/docs.js';
 import {agentAccessSuccess} from '#core/envelope.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {type AgentAccessTool, createAgentAccessFixtureTool} from '#core/tools.js';

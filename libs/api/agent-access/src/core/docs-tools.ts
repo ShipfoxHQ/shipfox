@@ -5,8 +5,7 @@ import {
   searchDocsResultJsonSchema,
   searchDocsResultSchema,
 } from '@shipfox/api-agent-access-dto';
-import type {DocsCache} from './docs.js';
-import {DocsUnavailableError} from './docs.js';
+import {type DocsCache, DocsUnavailableError} from '@shipfox/node-docs-client';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
 import type {AgentAccessTool} from './tools.js';
 

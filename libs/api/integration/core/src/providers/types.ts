@@ -6,6 +6,7 @@ import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import type {DocsCache} from '@shipfox/node-docs-client';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {
   ModuleDatabase,
@@ -32,6 +33,8 @@ export interface IntegrationBuiltinConnection {
 export interface IntegrationProviderInterModuleClients {
   annotations: AnnotationsInterModuleClient;
   definitions: DefinitionsInterModuleClient;
+  /** The shared documentation cache behind the Shipfox `search_docs` tool. */
+  docs: DocsCache;
   logs: LogsModuleClient;
   projects: ProjectsModuleClient;
   triggers: TriggersInterModuleClient;

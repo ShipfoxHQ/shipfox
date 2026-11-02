@@ -23,6 +23,7 @@ async function loadShipfoxModuleParts(
                 annotations: interModule.annotations,
                 clientBaseUrl: config.CLIENT_BASE_URL,
                 definitions: interModule.definitions,
+                docs: interModule.docs,
                 projects: interModule.projects,
                 logs: interModule.logs,
                 triggers: interModule.triggers,
