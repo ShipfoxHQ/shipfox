@@ -136,10 +136,10 @@ describe('WorkflowDefinitionsTable last run', () => {
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
-  test('holds the row back until its page answers', () => {
-    render(table({latestRuns: new Map()}));
+  test('shows a placeholder until its page answers', () => {
+    const {container} = render(table({latestRuns: new Map()}));
 
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
     expect(screen.queryByText('No runs yet')).not.toBeInTheDocument();
-    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
   });
 });

@@ -5,7 +5,8 @@ import {
 import {checkedApiRequest} from '@shipfox/client-api';
 import {queryOptions, useQueries} from '@tanstack/react-query';
 import type {LatestRunLookup, LatestRuns, LatestWorkflowRun} from '#core/latest-run.js';
-import {workflowRunsQueryKeys} from './workflow-runs.js';
+import {isWorkflowRunTerminal} from '#core/workflow-run.js';
+import {ACTIVE_POLL_MS, workflowRunsQueryKeys} from './workflow-runs.js';
 
 function latestRunsPageKey(projectId: string, definitionIds: readonly string[]) {
   return [...workflowRunsQueryKeys.latest(projectId), definitionIds.join(',')] as const;
@@ -49,6 +50,9 @@ export function latestWorkflowRunsQueryOptions(
   return queryOptions({
     queryKey: latestRunsPageKey(projectId, definitionIds),
     queryFn: ({signal}) => listLatestWorkflowRuns({projectId, definitionIds, signal}),
+    // A run that is still going changes its glyph, so poll until every run on the page ended.
+    refetchInterval: (query) =>
+      query.state.data?.some((run) => !isWorkflowRunTerminal(run.status)) ? ACTIVE_POLL_MS : false,
   });
 }
 
@@ -56,9 +60,10 @@ function pageLookups(
   definitionIds: readonly string[],
   page: {isError: boolean; data: LatestWorkflowRun[] | undefined},
 ): [string, LatestRunLookup][] {
-  if (page.isError) return definitionIds.map((id) => [id, {status: 'error'}]);
   const data = page.data;
-  if (data === undefined) return [];
+  // A failed refetch keeps the runs already loaded, so only a page with nothing to show is an error.
+  if (data === undefined)
+    return page.isError ? definitionIds.map((id) => [id, {status: 'error'}]) : [];
   const runs = new Map(data.map((run) => [run.definitionId, run]));
   return definitionIds.map((id) => {
     const run = runs.get(id);

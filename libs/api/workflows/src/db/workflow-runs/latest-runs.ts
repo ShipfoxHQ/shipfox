@@ -20,9 +20,11 @@ interface LatestSyncedWorkflowRunRow extends Record<string, unknown> {
 
 /**
  * The newest synced run of each definition, in one statement. The lateral probe reads
- * `workflows_wr_project_definition_created_id_idx` backwards once per definition, so the cost
- * follows the number of definitions and not the length of their run history. Dev runs never
- * count: a branch experiment says nothing about the workflow's health on the default branch.
+ * `workflows_wr_project_definition_created_id_idx` backwards once per definition and stops at
+ * the first synced run. `origin` is not in that index, so dev runs newer than the last synced
+ * run are read and skipped: the cost grows with those, not with the whole history. Dev runs
+ * never count: a branch experiment says nothing about the workflow's health on the default
+ * branch.
  */
 export async function listLatestSyncedWorkflowRuns(params: {
   projectId: string;
@@ -31,7 +33,7 @@ export async function listLatestSyncedWorkflowRuns(params: {
   if (params.definitionIds.length === 0) return [];
 
   const requested = sql.join(
-    params.definitionIds.map((definitionId) => sql`(${definitionId}::uuid)`),
+    [...new Set(params.definitionIds)].map((definitionId) => sql`(${definitionId}::uuid)`),
     sql`, `,
   );
   const result = await db().execute<LatestSyncedWorkflowRunRow>(sql`

@@ -74,6 +74,18 @@ describe('listLatestSyncedWorkflowRuns', () => {
     expect(runs).toEqual([]);
   });
 
+  test('returns one run per definition when an id repeats', async () => {
+    const definitionId = crypto.randomUUID();
+    await createTestRun({workspaceId, projectId, definitionId});
+
+    const runs = await listLatestSyncedWorkflowRuns({
+      projectId,
+      definitionIds: [definitionId, definitionId],
+    });
+
+    expect(runs).toHaveLength(1);
+  });
+
   test('returns nothing without definitions', async () => {
     await expect(listLatestSyncedWorkflowRuns({projectId, definitionIds: []})).resolves.toEqual([]);
   });

@@ -180,7 +180,7 @@ export async function fireManualWorkflow({
   return {workflowRunId: response.workflow_run_id};
 }
 
-const ACTIVE_POLL_MS = 4_000;
+export const ACTIVE_POLL_MS = 4_000;
 const IDLE_POLL_MS = 30_000;
 export type RunListInfinite = InfiniteData<WorkflowRunListPage, string | undefined>;
 

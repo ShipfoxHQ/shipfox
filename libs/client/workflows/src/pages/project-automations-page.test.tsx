@@ -17,6 +17,7 @@ const LATEST_RUN_ID = '99999999-9999-4999-8999-999999999999';
 const HEAD_COMMIT = '3f9a21c0d6e4b8a17c2e5f9d0b3a6c8e1f4d7a20';
 const DEPLOY_WORKFLOW_ROW_REGEX = /Deploy production/;
 const FAILED_RUN_LINK_REGEX = /Failed/;
+const PENDING_RUN_LINK_REGEX = /Pending/;
 
 describe('ProjectAutomationsPage', () => {
   test('renders the config source above the workflow definitions', async () => {
@@ -528,7 +529,7 @@ describe('ProjectAutomationsPage', () => {
   });
 
   describe('last run column', () => {
-    test("shows the status and time of a workflow's latest synced run", async () => {
+    test("links a workflow's latest synced run with its status", async () => {
       configureApiClient({
         fetchImpl: createProjectDetailFetch({
           latestRuns: jsonResponse({runs: [latestRunDto({status: 'failed'})]}),
@@ -570,23 +571,75 @@ describe('ProjectAutomationsPage', () => {
       expect(within(row).queryByText('No runs yet')).not.toBeInTheDocument();
     });
 
-    test('reads the latest runs once for each page of definitions', async () => {
+    const ARCHIVE_ID = '77777777-7777-4777-8777-777777777777';
+
+    function twoPageFetch() {
       const deployDefinition = baseDefinitionsDto().definitions[0];
       if (!deployDefinition) throw new Error('Deploy definition fixture is missing');
-      const archiveId = '77777777-7777-4777-8777-777777777777';
       const archiveDefinition = {
         ...deployDefinition,
-        id: archiveId,
+        id: ARCHIVE_ID,
         name: 'Archive artifacts',
         config_path: '.shipfox/workflows/archive.yml',
       };
-      const fetchImpl = createProjectDetailFetch({
+      return createProjectDetailFetch({
         definitions: jsonResponse(definitionsDto({next_cursor: 'cursor-1'})),
         definitionsAfterCursor: jsonResponse(
           definitionsDto({definitions: [archiveDefinition], next_cursor: null}),
         ),
-        latestRuns: jsonResponse({runs: []}),
       });
+    }
+
+    test('fails only the rows of the page whose runs could not be read', async () => {
+      const detailFetch = twoPageFetch();
+      configureApiClient({
+        fetchImpl: vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = new URL(requestInputUrl(input));
+          if (
+            url.pathname === '/workflows/runs/latest' &&
+            url.searchParams.get('definition_ids') === ARCHIVE_ID
+          ) {
+            return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+          }
+          return detailFetch(input, init);
+        }),
+      });
+
+      renderAutomationsPage();
+
+      const table = await screen.findByRole('table', {name: 'Workflow definitions table'});
+      expect(await within(table).findByText('Unavailable')).toBeInTheDocument();
+      expect(await within(table).findByText('No runs yet')).toBeInTheDocument();
+    });
+
+    test('shows the run a manual launch just created', async () => {
+      const detailFetch = createProjectDetailFetch();
+      let launched = false;
+      configureApiClient({
+        fetchImpl: vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = new URL(requestInputUrl(input));
+          if (url.pathname.endsWith('/fire-manual')) launched = true;
+          if (url.pathname === '/workflows/runs/latest') {
+            return Promise.resolve(
+              jsonResponse({runs: launched ? [latestRunDto({status: 'pending'})] : []}),
+            );
+          }
+          return detailFetch(input, init);
+        }),
+      });
+
+      renderAutomationsPage();
+
+      const [runButton] = await screen.findAllByRole('button', {name: 'Run'});
+      if (!runButton) throw new Error('Run button was not rendered');
+      expect(await screen.findByText('No runs yet')).toBeInTheDocument();
+      fireEvent.click(runButton);
+
+      expect(await screen.findByRole('link', {name: PENDING_RUN_LINK_REGEX})).toBeInTheDocument();
+    });
+
+    test('reads the latest runs once for each page of definitions', async () => {
+      const fetchImpl = twoPageFetch();
       configureApiClient({fetchImpl});
 
       renderAutomationsPage();
@@ -598,7 +651,7 @@ describe('ProjectAutomationsPage', () => {
         .filter((url) => url.pathname === '/workflows/runs/latest');
       expect(latestRunRequests.map((url) => url.searchParams.get('definition_ids'))).toEqual([
         DEFINITION_ID,
-        archiveId,
+        ARCHIVE_ID,
       ]);
     });
   });
