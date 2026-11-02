@@ -15,6 +15,7 @@ import {verifyHexHmacSignature} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {config} from '#config.js';
+import type {AcknowledgeLinearAgentSession} from '#core/agent-session-acknowledgement.js';
 import {handleLinearWebhook} from '#core/webhook.js';
 
 const DELIVERY_HEADER = 'linear-delivery';
@@ -27,6 +28,7 @@ export interface CreateLinearWebhookProcessorOptions {
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  acknowledgeAgentSession?: AcknowledgeLinearAgentSession | undefined;
 }
 
 export interface LinearWebhookProcessor {
@@ -106,6 +108,7 @@ async function processLinearWebhookRequest(
       publishIntegrationEventReceived: options.publishIntegrationEventReceived,
       recordDeliveryOnly: options.recordDeliveryOnly,
       getIntegrationConnectionById: options.getIntegrationConnectionById,
+      acknowledgeAgentSession: options.acknowledgeAgentSession,
     }),
   );
 

@@ -52,6 +52,10 @@ function linearClient(overrides: Partial<LinearApiClient> = {}): LinearApiClient
       throw new Error('not used');
     }),
     revokeToken: vi.fn(() => Promise.resolve()),
+    createAgentActivity: vi.fn(() => Promise.resolve()),
+    getIssueContext: vi.fn(() => {
+      throw new Error('not used');
+    }),
     getIdentity: vi.fn(() =>
       Promise.resolve({
         appUserId: 'app-user-id',

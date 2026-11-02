@@ -39,6 +39,8 @@ function createConnectionContext() {
       getIdentity: vi.fn(),
       refreshAccessToken,
       revokeToken: vi.fn(),
+      createAgentActivity: vi.fn(),
+      getIssueContext: vi.fn(),
     },
   });
 

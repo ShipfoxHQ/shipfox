@@ -152,4 +152,140 @@ describe('Linear webhook processor', () => {
       expect.objectContaining({provider: 'linear', deliveryId}),
     );
   });
+
+  describe('agent session acknowledgement', () => {
+    function agentSessionRequest(input: {action: 'created' | 'prompted'; organizationId: string}) {
+      const receivedAt = new Date().toISOString();
+      return signedRequest({
+        receivedAt,
+        body: {
+          action: input.action,
+          type: 'AgentSessionEvent',
+          organizationId: input.organizationId,
+          appUserId: 'app-user-1',
+          webhookTimestamp: new Date(receivedAt).getTime(),
+          agentSession: {id: 'session-1'},
+        },
+      });
+    }
+
+    it('starts the acknowledgement before a delayed outbox publish settles', async () => {
+      const connection = fakeConnection();
+      await seedInstallation({connectionId: connection.id, organizationId: 'org-ack'});
+      let releasePublish: (result: {published: boolean}) => void = () => undefined;
+      const publishGate = new Promise<{published: boolean}>((resolve) => {
+        releasePublish = resolve;
+      });
+      const events: string[] = [];
+      const publishIntegrationEventReceived = vi.fn(async () => {
+        events.push('publish-started');
+        const result = await publishGate;
+        events.push('publish-settled');
+        return result;
+      });
+      const acknowledgeAgentSession = vi.fn(() => {
+        events.push('acknowledged');
+        return Promise.resolve();
+      });
+      const processor = createLinearWebhookProcessor({
+        coreDb: db,
+        publishIntegrationEventReceived,
+        recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
+        getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+        acknowledgeAgentSession,
+      });
+
+      const processing = processor.process(
+        agentSessionRequest({action: 'created', organizationId: 'org-ack'}),
+      );
+      await vi.waitFor(() => expect(publishIntegrationEventReceived).toHaveBeenCalled());
+      releasePublish({published: true});
+      const result = await processing;
+
+      expect(result).toMatchObject({outcome: 'processed'});
+      expect(acknowledgeAgentSession).toHaveBeenCalledWith({
+        connectionId: connection.id,
+        agentSessionId: 'session-1',
+      });
+      expect(events).toEqual(['acknowledged', 'publish-started', 'publish-settled']);
+    });
+
+    it('answers the webhook while the acknowledgement is still running', async () => {
+      const connection = fakeConnection();
+      await seedInstallation({connectionId: connection.id, organizationId: 'org-slow-ack'});
+      const acknowledgeAgentSession = vi.fn(() => new Promise<void>(() => undefined));
+      const processor = createLinearWebhookProcessor({
+        coreDb: db,
+        publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
+        recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
+        getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+        acknowledgeAgentSession,
+      });
+
+      const result = await processor.process(
+        agentSessionRequest({action: 'created', organizationId: 'org-slow-ack'}),
+      );
+
+      expect(result).toMatchObject({outcome: 'processed'});
+      expect(acknowledgeAgentSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('still publishes the event when the acknowledgement fails', async () => {
+      const connection = fakeConnection();
+      await seedInstallation({connectionId: connection.id, organizationId: 'org-failed-ack'});
+      const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
+      const processor = createLinearWebhookProcessor({
+        coreDb: db,
+        publishIntegrationEventReceived,
+        recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
+        getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+        acknowledgeAgentSession: vi.fn(() => Promise.reject(new Error('Linear is down'))),
+      });
+
+      const result = await processor.process(
+        agentSessionRequest({action: 'created', organizationId: 'org-failed-ack'}),
+      );
+
+      expect(result).toMatchObject({outcome: 'processed'});
+      expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not acknowledge a prompt, which continues a session that already has activity', async () => {
+      const connection = fakeConnection();
+      await seedInstallation({connectionId: connection.id, organizationId: 'org-prompted'});
+      const acknowledgeAgentSession = vi.fn(() => Promise.resolve());
+      const processor = createLinearWebhookProcessor({
+        coreDb: db,
+        publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
+        recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
+        getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+        acknowledgeAgentSession,
+      });
+
+      await processor.process(
+        agentSessionRequest({action: 'prompted', organizationId: 'org-prompted'}),
+      );
+
+      expect(acknowledgeAgentSession).not.toHaveBeenCalled();
+    });
+
+    it('does not acknowledge a session of a connection that is not active', async () => {
+      const connection = fakeConnection({lifecycleStatus: 'disabled'});
+      await seedInstallation({connectionId: connection.id, organizationId: 'org-disabled'});
+      const acknowledgeAgentSession = vi.fn(() => Promise.resolve());
+      const processor = createLinearWebhookProcessor({
+        coreDb: db,
+        publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
+        recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
+        getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+        acknowledgeAgentSession,
+      });
+
+      await processor.process(
+        agentSessionRequest({action: 'created', organizationId: 'org-disabled'}),
+      );
+
+      expect(acknowledgeAgentSession).not.toHaveBeenCalled();
+    });
+  });
 });

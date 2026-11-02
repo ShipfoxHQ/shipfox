@@ -206,7 +206,7 @@ describe('GET /integration-connections', () => {
     ]);
   });
 
-  it('advertises agent tools on Linear module connections', async () => {
+  it('advertises agent tools and interaction on Linear module connections', async () => {
     const {provider} = await linearProviderModule.load();
     const app = await createTestApp([provider]);
     await upsertIntegrationConnection({
@@ -228,7 +228,7 @@ describe('GET /integration-connections', () => {
     expect(res.json().connections).toMatchObject([
       {
         provider: 'linear',
-        capabilities: ['agent_tools'],
+        capabilities: ['agent_tools', 'interaction'],
       },
     ]);
   });

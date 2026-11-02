@@ -44,9 +44,39 @@ can distinguish the context. Authors can get the Linear app user id from an
 observed event or the Linear app identity, then compare it with `appUserId` in a
 filter literal. `AgentSessionEvent.prompted` publishes `agentSession.prompted`;
 it can start a subscribed workflow or reach an explicitly configured job listener,
-but never automatically resumes a run from its AgentSession. The module does not
-acknowledge sessions or emit Linear agent activities. See [Linear's agent-session
-behavior](https://linear.app/developers/agent-interaction).
+but never automatically resumes a run from its AgentSession. See [Linear's
+agent-session behavior](https://linear.app/developers/agent-interaction).
+
+## Agent sessions
+
+The provider advertises the `interaction` capability when it is created with an
+`interaction` token store, so people can talk to agents from Linear. It reads two
+events:
+
+| Event | Role | Text |
+| -- | -- | -- |
+| `agentSession.created` | `request` | `promptContext` |
+| `agentSession.prompted` | `follow_up`, or `stop` with signal `stop` | `agentActivity.body` |
+
+The conversation key is the agent session ID. A request carries this context, from
+`agentSession.issue`: `trigger` (`mention` when `agentSession.comment` is present,
+otherwise `delegation`), `team_id`, `team_key`, `labels` (names), `project_id`,
+`project_name`, and `issue_identifier`. When the payload doesn't carry the labels,
+the project, or the team, the provider reads the issue from the API before routing,
+and fails the read, so the event is retried, when that call fails. A follow-up or a
+stop carries no context, and a prompt with no text is ignored.
+
+Linear marks a session unresponsive without an activity within 10 seconds of
+`agentSession.created`, which can't wait for the outbox and routing. The webhook
+path starts a `thought` activity as soon as it has resolved an active connection,
+before it publishes the event, and doesn't wait for it. The webhook response stays
+well under Linear's 5 seconds, and a failed acknowledgement is logged without
+failing the webhook. A prompt isn't acknowledged, because its session already has
+activity.
+
+Replying and progress belong to the reply path. `sendReply` reports every reply
+as undeliverable until Linear activities are posted from it, and the provider has
+no `reportProgress`.
 
 Signed but unsupported webhook shapes are recorded and dropped with a 200
 response so Linear does not retry or disable the webhook endpoint.
