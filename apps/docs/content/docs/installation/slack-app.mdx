@@ -1,0 +1,127 @@
+---
+title: "Create the Slack App for a Self-Hosted Deployment"
+sidebarTitle: "Slack App"
+description: "Create the Slack app that a self-hosted Shipfox deployment installs, and configure the API with its credentials."
+---
+
+A self-hosted deployment installs its own Slack app in each connected Slack
+workspace. This guide creates that app from a manifest and gives its
+credentials to the Shipfox API. Shipfox Cloud already runs this app, so Cloud
+workspaces skip this page.
+
+## Before you begin
+
+- Permission to create apps in a Slack workspace.
+- The public URL of the Shipfox dashboard, such as `https://shipfox.example.com`.
+- The public URL of the Shipfox API, such as `https://api.shipfox.example.com`.
+  Slack sends events and slash commands to it.
+
+## Create the app from a manifest
+
+Open [Slack apps](https://api.slack.com/apps), select **Create New App**, then
+**From a manifest**. Paste the manifest below. Replace the two example URLs
+with your own.
+
+```yaml
+display_information:
+  name: Shipfox
+features:
+  bot_user:
+    display_name: Shipfox
+    always_online: true
+  agent_view:
+    agent_description: "Ask Shippy about your Shipfox workflows and runs: why a run failed, what's running now, or what a workflow does."
+    suggested_prompts:
+      - title: Why did my run fail?
+        message: Why did the most recent failed run fail, and how do I fix it?
+      - title: What's running now?
+        message: Which workflow runs are in progress or queued right now?
+      - title: Explain my workflows
+        message: List my workflows and explain what each one does and what triggers it.
+      - title: Summarize this week
+        message: "Summarize this week's runs: what succeeded, what failed, and what keeps failing."
+oauth_config:
+  redirect_urls:
+    - https://shipfox.example.com/integrations/slack/callback
+  scopes:
+    bot:
+      - app_mentions:read
+      - assistant:write
+      - canvases:read
+      - canvases:write
+      - channels:history
+      - channels:read
+      - chat:write
+      - chat:write.customize
+      - commands
+      - groups:history
+      - groups:read
+      - im:history
+      - im:read
+      - mpim:history
+      - mpim:read
+      - reactions:read
+      - reactions:write
+      - users:read
+settings:
+  event_subscriptions:
+    request_url: https://api.shipfox.example.com/webhooks/integrations/slack/events
+    bot_events:
+      - agent_session_stopped
+      - app_context_changed
+      - app_mention
+      - app_uninstalled
+      - assistant_thread_started
+      - message.channels
+      - message.groups
+      - message.im
+      - reaction_added
+      - tokens_revoked
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
+```
+
+The `agent_view` feature puts the app in Slack's Agents entry. The
+`chat:write.customize` scope lets each agent reply with its own name and
+avatar, and `assistant:write` lets agents show their status in the agent view.
+Shipfox doesn't support token rotation or Enterprise Grid installations, so keep
+both turned off.
+
+To trigger workflows from a slash command, add the command under **Slash
+Commands** with the request URL
+`https://api.shipfox.example.com/webhooks/integrations/slack/commands`.
+
+## Configure the Shipfox API
+
+Copy the credentials from the app's **Basic Information** page into the API
+environment:
+
+| Variable | Value |
+| --- | --- |
+| `SLACK_OAUTH_CLIENT_ID` | The app's client ID |
+| `SLACK_OAUTH_CLIENT_SECRET` | The app's client secret |
+| `SLACK_SIGNING_SECRET` | The app's signing secret |
+| `SLACK_OAUTH_REDIRECT_URL` | The redirect URL from the manifest |
+| `INTEGRATIONS_ENABLE_SLACK_PROVIDER` | `true` |
+
+Restart the API. Slack then verifies the event request URL. If the verification
+fails, check that Slack can reach the API URL from the internet.
+
+## Update an existing app
+
+An app created before agents lacks the `agent_view` feature, the
+`chat:write.customize` and `assistant:write` scopes, and the events
+`message.channels`, `message.groups`, `message.im`, `assistant_thread_started`,
+`app_context_changed`, and `agent_session_stopped`. Add them from the app's
+**App Manifest** page.
+
+Each existing Slack integration connection must then
+[reconnect](/how-to/set-up-work/manage-integration-connections#reconnect-an-integration-connection)
+to grant the new scopes.
+
+## Verify the Slack app
+
+[Connect Slack](/integrations/slack/setup) to a Shipfox workspace. Check that the
+Slack integration connection is active and that Shipfox appears in Slack's
+Agents entry.

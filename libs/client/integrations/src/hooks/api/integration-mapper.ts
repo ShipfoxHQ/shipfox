@@ -60,6 +60,7 @@ export function toIntegrationConnection(dto: IntegrationConnectionDto): Integrat
     lifecycleStatus: dto.lifecycle_status,
     capabilities: dto.capabilities,
     externalUrl: dto.external_url,
+    reconnectRequired: dto.reconnect_required,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   };

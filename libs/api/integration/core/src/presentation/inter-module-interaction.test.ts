@@ -30,11 +30,19 @@ function connectionFor(provider: string, lifecycleStatus: 'active' | 'disabled' 
 }
 
 function createClient(
-  options: FakeInteractionProviderOptions & {lifecycleStatus?: 'active' | 'disabled'} = {},
+  options: FakeInteractionProviderOptions & {
+    lifecycleStatus?: 'active' | 'disabled';
+    reconnectRequired?: boolean;
+  } = {},
 ) {
   const fake = createFakeInteractionProvider(options);
   const registry = createIntegrationProviderRegistry([
-    {provider: 'chat', displayName: 'Chat', adapters: {interaction: fake.provider}},
+    {
+      provider: 'chat',
+      displayName: 'Chat',
+      adapters: {interaction: fake.provider},
+      connectionReconnectRequired: () => Promise.resolve(options.reconnectRequired ?? false),
+    },
     {provider: 'plain', displayName: 'Plain', adapters: {}},
   ]);
   const plainConnection = {...connectionFor('plain'), id: crypto.randomUUID()};
@@ -190,6 +198,20 @@ describe('integrations inter-module interaction operations', () => {
     const result = await client.readInteraction({
       ...target,
       event,
+      payload: {conversationKey: 'c1'},
+    });
+
+    expect(result).toBeNull();
+    expect(readInteraction).not.toHaveBeenCalled();
+  });
+
+  it('answers null without calling the provider while the connection must reconnect', async () => {
+    const {client, fake} = createClient({reconnectRequired: true});
+    const readInteraction = vi.spyOn(fake.provider, 'readInteraction');
+
+    const result = await client.readInteraction({
+      ...target,
+      event: 'fake.request',
       payload: {conversationKey: 'c1'},
     });
 

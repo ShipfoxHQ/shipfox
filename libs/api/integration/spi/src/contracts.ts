@@ -561,6 +561,11 @@ export interface IntegrationProvider<
   ): Promise<
     import('@shipfox/api-integration-core-dto').IntegrationConnectionProviderAccess | undefined
   >;
+  /**
+   * Whether an active connection must be connected again, such as when it predates a scope the
+   * provider now requires. Its page asks for that, and agents ignore its events until then.
+   */
+  connectionReconnectRequired?(connection: Connection): Promise<boolean>;
   /** Prepares provider-owned remote cleanup and returns a callback for after local deletion commits. */
   deleteConnectionRemoteResources?(
     connection: Connection,

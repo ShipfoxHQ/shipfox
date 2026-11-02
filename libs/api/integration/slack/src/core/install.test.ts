@@ -3,6 +3,7 @@ import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {SlackApiClient} from '#api/client.js';
 import type {ConnectSlackInstallationInput} from './install.js';
 import {handleSlackCallback} from './install.js';
+import {SLACK_BOT_SCOPES} from './scopes.js';
 import {signSlackInstallState} from './state.js';
 
 function authorization(overrides: Record<string, unknown> = {}) {
@@ -12,24 +13,7 @@ function authorization(overrides: Record<string, unknown> = {}) {
     appId: 'A123',
     teamId: 'T123',
     teamName: 'Acme',
-    scopes: [
-      'app_mentions:read',
-      'im:history',
-      'im:read',
-      'mpim:history',
-      'mpim:read',
-      'chat:write',
-      'channels:history',
-      'groups:history',
-      'channels:read',
-      'groups:read',
-      'users:read',
-      'reactions:read',
-      'reactions:write',
-      'canvases:read',
-      'canvases:write',
-      'commands',
-    ],
+    scopes: [...SLACK_BOT_SCOPES],
     ...overrides,
   };
 }

@@ -3,6 +3,7 @@ import type {RouteGroup} from '@shipfox/node-fastify';
 import {createSlackApiClient, type SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';
 import {SlackAgentToolsProvider} from '#core/agent-tools-provider.js';
+import {missingSlackBotScopes} from '#core/scopes.js';
 import type {SlackTokenStore} from '#core/tokens.js';
 import {createSlackWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
@@ -61,6 +62,7 @@ export {handleSlackCallback, handleSlackOAuthCallbackError} from '#core/install.
 export {
   assertSlackAuthorizationScopes,
   formatSlackBotScopes,
+  missingSlackBotScopes,
   SLACK_BOT_SCOPES,
 } from '#core/scopes.js';
 export type {VerifySlackSignatureParams} from '#core/signature.js';
@@ -181,6 +183,11 @@ export function createSlackIntegrationProvider(
       const installation = await getInstallationByConnectionId(connection.id);
       if (!installation) return undefined;
       return `https://app.slack.com/client/${encodeURIComponent(installation.teamId)}`;
+    },
+    async connectionReconnectRequired(connection: {id: string}): Promise<boolean> {
+      const installation = await getInstallationByConnectionId(connection.id);
+      if (installation?.status !== 'installed') return false;
+      return missingSlackBotScopes(installation.scopes).length > 0;
     },
     ...options.cleanup,
     routes,

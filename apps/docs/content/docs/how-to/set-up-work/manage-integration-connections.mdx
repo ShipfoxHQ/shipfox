@@ -1,7 +1,7 @@
 ---
-title: "Inspect, Pause, or Delete an Integration Connection"
+title: "Inspect, Pause, Reconnect, or Delete an Integration Connection"
 sidebarTitle: "Manage Integration Connections"
-description: "Copy an integration connection slug, check its recent events, pause it, or delete it safely."
+description: "Copy an integration connection slug, check its recent events, pause it, reconnect it, or delete it safely."
 ---
 
 Use this guide to work with an existing integration connection:
@@ -9,6 +9,7 @@ Use this guide to work with an existing integration connection:
 - Inspecting a connection changes nothing.
 - While a connection is paused, Shipfox drops its events. It doesn't replay
   them later.
+- Reconnecting a connection keeps its slug and its workflows.
 - Deleting a connection can't be undone.
 
 ## Before you begin
@@ -79,6 +80,17 @@ connection stays in the workspace.
 
 If the fresh event does not arrive, repeat the setup check on the provider's
 setup page in the [integrations catalog](/integrations).
+
+## Reconnect an integration connection
+
+A connection must reconnect when Shipfox needs a permission that the connection
+didn't grant, such as a new Slack scope for agents. Its page in
+**Settings → Integrations** then shows **New permissions needed**. Until it
+reconnects, agents don't answer through it. Workflows keep running.
+
+Select the reconnect button on that page, such as **Reconnect Slack**. Approve
+the requested permissions with the same external account. The notice disappears
+when Shipfox has the new permissions.
 
 ## Delete an integration connection
 

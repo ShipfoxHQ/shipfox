@@ -37,6 +37,8 @@ export interface IntegrationConnection {
   lifecycleStatus: ConnectionLifecycleStatus;
   capabilities: IntegrationCapability[];
   externalUrl?: string | undefined;
+  /** The connection must be connected again, such as to grant a new scope. */
+  reconnectRequired?: boolean | undefined;
   createdAt: string;
   updatedAt: string;
 }

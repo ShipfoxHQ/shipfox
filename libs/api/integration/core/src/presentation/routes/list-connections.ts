@@ -1,10 +1,11 @@
 import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
-  type IntegrationConnectionProviderAccess,
   listIntegrationConnectionsQuerySchema,
   listIntegrationConnectionsResponseSchema,
 } from '@shipfox/api-integration-spi';
 import {defineRoute} from '@shipfox/node-fastify';
+import type {FastifyRequest} from 'fastify';
+import type {IntegrationConnection} from '#core/entities/connection.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {listIntegrationConnections} from '#db/connections.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
@@ -33,34 +34,33 @@ export function createListIntegrationConnectionsRoute(registry: IntegrationProvi
         connections.map(async (connection) => {
           const provider = providers.get(connection.provider);
           if (!provider) return undefined;
-          // Best-effort: the external link is cosmetic, so a failing or missing
-          // provider-side lookup must never fail the whole connections list.
-          let externalUrl: string | undefined;
-          try {
-            externalUrl = await provider.connectionExternalUrl?.(connection);
-          } catch (error) {
-            request.log.warn(
-              {connectionId: connection.id, provider: connection.provider, err: error},
-              'Could not resolve integration connection external URL',
-            );
-          }
-          // Same best-effort rule as the external link. Only a connection that isn't
-          // active can have lost provider access.
-          let providerAccess: IntegrationConnectionProviderAccess | undefined;
-          if (connection.lifecycleStatus !== 'active') {
-            try {
-              providerAccess = await provider.connectionProviderAccess?.(connection);
-            } catch (error) {
-              request.log.warn(
-                {connectionId: connection.id, provider: connection.provider, err: error},
-                'Could not resolve integration connection provider access',
-              );
-            }
-          }
+          // Best-effort: these details are cosmetic, so a failing provider-side
+          // lookup must never fail the whole connections list.
+          const lookup = <T>(message: string, fn: () => Promise<T> | undefined) =>
+            bestEffort({request, connection, message, fn});
+          const isActive = connection.lifecycleStatus === 'active';
+          const [externalUrl, providerAccess, reconnectRequired] = await Promise.all([
+            lookup('Could not resolve integration connection external URL', () =>
+              provider.connectionExternalUrl?.(connection),
+            ),
+            // Only a connection that isn't active can have lost provider access.
+            isActive
+              ? undefined
+              : lookup('Could not resolve integration connection provider access', () =>
+                  provider.connectionProviderAccess?.(connection),
+                ),
+            // Only an active connection can need new permissions.
+            isActive
+              ? lookup('Could not resolve whether an integration connection must reconnect', () =>
+                  provider.connectionReconnectRequired?.(connection),
+                )
+              : undefined,
+          ]);
           return toIntegrationConnectionDto(connection, {
             capabilities: provider.capabilities,
             externalUrl,
             providerAccess,
+            reconnectRequired,
           });
         }),
       );
@@ -68,4 +68,21 @@ export function createListIntegrationConnectionsRoute(registry: IntegrationProvi
       return {connections: connectionDtos.filter((connection) => connection !== undefined)};
     },
   });
+}
+
+async function bestEffort<T>(params: {
+  request: FastifyRequest;
+  connection: IntegrationConnection;
+  message: string;
+  fn: () => Promise<T> | undefined;
+}): Promise<T | undefined> {
+  try {
+    return await params.fn();
+  } catch (error) {
+    params.request.log.warn(
+      {connectionId: params.connection.id, provider: params.connection.provider, err: error},
+      params.message,
+    );
+    return undefined;
+  }
 }

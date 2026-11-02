@@ -100,6 +100,65 @@ describe('GET /integration-connections', () => {
     expect(res.json().connections[0]).not.toHaveProperty('provider_access');
   });
 
+  it('marks an active connection that must reconnect', async () => {
+    const connectionReconnectRequired = vi.fn(() => Promise.resolve(true));
+    const app = await createTestApp([sourceProvider({connectionReconnectRequired})]);
+    const active = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-active',
+      slug: 'gitea_active',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+    });
+    const errored = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-error',
+      slug: 'gitea_error',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+      lifecycleStatus: 'error',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    const byId = new Map(
+      res.json().connections.map((connection: {id: string}) => [connection.id, connection]),
+    );
+    expect(res.statusCode).toBe(200);
+    expect(byId.get(active.id)).toMatchObject({reconnect_required: true});
+    expect(byId.get(errored.id)).not.toHaveProperty('reconnect_required');
+    expect(connectionReconnectRequired).toHaveBeenCalledTimes(1);
+  });
+
+  it('still lists a connection when the reconnect lookup fails', async () => {
+    const app = await createTestApp([
+      sourceProvider({connectionReconnectRequired: () => Promise.reject(new Error('boom'))}),
+    ]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-active',
+      slug: 'gitea_active',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections[0]).not.toHaveProperty('reconnect_required');
+  });
+
   it('drops connections whose provider misses the capability filter', async () => {
     const app = await createTestApp([
       sourceProvider(),

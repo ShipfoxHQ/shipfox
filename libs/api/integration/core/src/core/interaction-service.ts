@@ -58,6 +58,11 @@ export function createInteractionIntegrationService(params: {
     return {connection, interaction: registry.getAdapter(connection.provider, 'interaction')};
   }
 
+  async function reconnectRequired(connection: IntegrationConnection): Promise<boolean> {
+    const provider = registry.get(connection.provider);
+    return (await provider.connectionReconnectRequired?.(connection)) ?? false;
+  }
+
   return {
     listProviders() {
       return registry.list('interaction').flatMap(({provider, adapters}) => {
@@ -79,6 +84,8 @@ export function createInteractionIntegrationService(params: {
       const {connection, interaction} = await resolve(workspaceId, connectionId);
       // An event the provider doesn't list never reaches an agent, whatever the provider returns.
       if (!Object.hasOwn(interaction.interactionEvents, event)) return null;
+      // Agents stay silent until the connection grants what they need to reply.
+      if (await reconnectRequired(connection)) return null;
       return (await interaction.readInteraction({connection, event, payload})) ?? null;
     },
 
