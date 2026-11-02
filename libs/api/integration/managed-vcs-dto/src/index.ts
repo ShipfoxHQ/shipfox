@@ -1,11 +1,11 @@
 import {isUuid} from '@shipfox/regex';
 
-export const MANAGED_PROVIDER = 'managed';
-export type ManagedProvider = typeof MANAGED_PROVIDER;
+export const MANAGED_VCS_PROVIDER = 'managed-vcs';
+export type ManagedVcsProvider = typeof MANAGED_VCS_PROVIDER;
 
 export const MANAGED_DEFAULT_BRANCH = 'main';
 
-const REPOSITORY_ID_PREFIX = `${MANAGED_PROVIDER}:`;
+const REPOSITORY_ID_PREFIX = `${MANAGED_VCS_PROVIDER}:`;
 
 export function isManagedRepositoryId(externalRepositoryId: string): boolean {
   return (

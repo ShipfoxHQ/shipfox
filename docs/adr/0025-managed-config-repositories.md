@@ -26,9 +26,9 @@ already live in Postgres as `bytea`.
 ### A managed repo is a provider, with objects and refs in Postgres
 
 **A managed repo is a `SourceControlProvider`, next to GitHub and Gitea.** The provider kind is
-`managed`, and a repository id is `managed:<uuid>`. Consumers keep their code paths.
+`managed-vcs`, and a repository id is `managed-vcs:<uuid>`. Consumers keep their code paths.
 
-**Git objects and refs live in the `integrations_managed` namespace.** Objects are standard git
+**Git objects and refs live in the `integrations_managed_vcs` namespace.** Objects are standard git
 objects, deflated, addressed by SHA-1, and immutable. A managed repo is primary data, and Postgres
 backups cover objects and refs together, so a restore can't leave a ref pointing at a missing
 object. Objects are not packed, because packs save little at this size and add a compaction job.

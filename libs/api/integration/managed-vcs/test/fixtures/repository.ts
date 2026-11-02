@@ -1,4 +1,4 @@
-import {MANAGED_PROVIDER} from '@shipfox/api-integration-managed-dto';
+import {MANAGED_VCS_PROVIDER} from '@shipfox/api-integration-managed-vcs-dto';
 import {buildProviderRepositoryId, type IntegrationConnection} from '@shipfox/api-integration-spi';
 import {type TreeEntry, writeBlob, writeCommit, writeTree} from 'isomorphic-git';
 import {createObjectFs, MANAGED_GITDIR, type ObjectFs} from '#core/object-fs.js';
@@ -7,7 +7,7 @@ import {insertObjects} from '#db/objects.js';
 import {managedRefs} from '#db/schema/refs.js';
 import {managedRepositories} from '#db/schema/repositories.js';
 
-export type ManagedConnection = IntegrationConnection<typeof MANAGED_PROVIDER>;
+export type ManagedConnection = IntegrationConnection<typeof MANAGED_VCS_PROVIDER>;
 
 export type SeedContent = string | Uint8Array | {symlink: string} | {submodule: string};
 
@@ -31,7 +31,7 @@ export function managedConnection(workspaceId: string): ManagedConnection {
   return {
     id: crypto.randomUUID(),
     workspaceId,
-    provider: MANAGED_PROVIDER,
+    provider: MANAGED_VCS_PROVIDER,
     externalAccountId: workspaceId,
     slug: 'shipfox-managed',
     displayName: 'Shipfox',
@@ -51,7 +51,7 @@ export async function createRepositoryRow(workspaceId: string = crypto.randomUUI
   return {
     id: row.id,
     workspaceId,
-    externalRepositoryId: buildProviderRepositoryId(MANAGED_PROVIDER, row.id),
+    externalRepositoryId: buildProviderRepositoryId(MANAGED_VCS_PROVIDER, row.id),
     connection: managedConnection(workspaceId),
   };
 }

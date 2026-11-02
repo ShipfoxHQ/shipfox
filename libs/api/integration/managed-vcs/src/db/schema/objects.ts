@@ -12,7 +12,7 @@ export const managedObjects = pgTable(
   (table) => [
     primaryKey({columns: [table.repositoryId, table.oid]}),
     foreignKey({
-      name: 'integrations_managed_objects_repository_fk',
+      name: 'integrations_managed_vcs_objects_repository_fk',
       columns: [table.repositoryId],
       foreignColumns: [managedRepositories.id],
     }).onDelete('cascade'),

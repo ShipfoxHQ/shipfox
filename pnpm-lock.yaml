@@ -5180,11 +5180,11 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
-  libs/api/integration/managed:
+  libs/api/integration/managed-vcs:
     dependencies:
-      '@shipfox/api-integration-managed-dto':
+      '@shipfox/api-integration-managed-vcs-dto':
         specifier: workspace:*
-        version: link:../managed-dto
+        version: link:../managed-vcs-dto
       '@shipfox/api-integration-spi':
         specifier: workspace:*
         version: link:../spi
@@ -5229,7 +5229,7 @@ importers:
         specifier: 'catalog:'
         version: 0.31.10
 
-  libs/api/integration/managed-dto:
+  libs/api/integration/managed-vcs-dto:
     dependencies:
       '@shipfox/regex':
         specifier: workspace:*

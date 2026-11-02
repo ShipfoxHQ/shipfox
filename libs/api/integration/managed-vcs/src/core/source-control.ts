@@ -1,8 +1,8 @@
 import {
   isManagedRepositoryId,
   MANAGED_DEFAULT_BRANCH,
-  MANAGED_PROVIDER,
-} from '@shipfox/api-integration-managed-dto';
+  MANAGED_VCS_PROVIDER,
+} from '@shipfox/api-integration-managed-vcs-dto';
 import {
   buildProviderRepositoryId,
   type CommitPage,
@@ -38,7 +38,7 @@ import {
 import {fileEntryType, type GitEntry, GitReader} from './git-reader.js';
 import {mapStoreFailure} from './store-failure.js';
 
-type ManagedConnection = IntegrationConnection<typeof MANAGED_PROVIDER>;
+type ManagedConnection = IntegrationConnection<typeof MANAGED_VCS_PROVIDER>;
 
 const DEFAULT_MAX_COMMITS_SCANNED = 500;
 const OFFSET_CURSOR_RE = /^\d+$/u;
@@ -211,7 +211,7 @@ async function requireRepository(
 ): Promise<ManagedRepository> {
   const repository = isManagedRepositoryId(input.externalRepositoryId)
     ? await getManagedRepository({
-        id: parseProviderRepositoryId(input.externalRepositoryId, MANAGED_PROVIDER),
+        id: parseProviderRepositoryId(input.externalRepositoryId, MANAGED_VCS_PROVIDER),
         workspaceId: input.connection.workspaceId,
       })
     : undefined;
@@ -317,7 +317,7 @@ function decodeFile(bytes: Uint8Array, path: string): string {
 
 function toRepositorySnapshot(repository: ManagedRepository): RepositorySnapshot {
   return {
-    externalRepositoryId: buildProviderRepositoryId(MANAGED_PROVIDER, repository.id),
+    externalRepositoryId: buildProviderRepositoryId(MANAGED_VCS_PROVIDER, repository.id),
     owner: MANAGED_REPOSITORY_OWNER,
     name: repository.id,
     fullName: `${MANAGED_REPOSITORY_OWNER}/${repository.id}`,

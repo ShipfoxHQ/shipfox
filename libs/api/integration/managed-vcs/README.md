@@ -1,4 +1,4 @@
-# Shipfox API Integration Managed
+# Shipfox API Integration Managed VCS
 
 Shipfox API Integration Managed stores a project's `.shipfox/` tree in a git
 repository in Postgres and reads it through `SourceControlProvider`.
@@ -20,7 +20,7 @@ Add the package to a workspace package:
 ```json
 {
   "dependencies": {
-    "@shipfox/api-integration-managed": "workspace:*",
+    "@shipfox/api-integration-managed-vcs": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*"
   }
 }
@@ -28,16 +28,16 @@ Add the package to a workspace package:
 
 The provider needs no configuration. It uses the API's Postgres connection.
 Apply the migrations in `drizzle/` under the migration table
-`__drizzle_migrations_integrations_managed`.
+`__drizzle_migrations_integrations_managed_vcs`.
 
 ## Usage
 
 ```ts
-import {ManagedSourceControlProvider} from '@shipfox/api-integration-managed';
+import {ManagedSourceControlProvider} from '@shipfox/api-integration-managed-vcs';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 
-declare const connection: IntegrationConnection<'managed'>;
-const externalRepositoryId = 'managed:01890000-0000-7000-8000-000000000001';
+declare const connection: IntegrationConnection<'managed-vcs'>;
+const externalRepositoryId = 'managed-vcs:01890000-0000-7000-8000-000000000001';
 
 const provider = new ManagedSourceControlProvider();
 const {commit} = await provider.resolveRef({connection, externalRepositoryId, ref: 'main'});
@@ -51,18 +51,18 @@ const file = await provider.fetchFile({
 
 ## Data model
 
-The `integrations_managed` namespace owns three tables. Refs and objects
+The `integrations_managed_vcs` namespace owns three tables. Refs and objects
 cascade from their repository, so deleting a repository is one statement.
 
 | Table | Holds |
 | --- | --- |
-| `integrations_managed_repositories` | One repository per project, with its workspace. |
-| `integrations_managed_refs` | Branch names and their commit. A foreign key ties each ref to a commit object in the same repository. |
-| `integrations_managed_objects` | Standard deflated git objects, by repository and object id. |
+| `integrations_managed_vcs_repositories` | One repository per project, with its workspace. |
+| `integrations_managed_vcs_refs` | Branch names and their commit. A foreign key ties each ref to a commit object in the same repository. |
+| `integrations_managed_vcs_objects` | Standard deflated git objects, by repository and object id. |
 
 ## Behavior notes
 
-A repository id is `managed:<uuid>`. Every read checks that the repository belongs
+A repository id is `managed-vcs:<uuid>`. Every read checks that the repository belongs
 to the connection's workspace, and answers `repository-not-found` if not.
 
 | Method | Behavior |
@@ -94,9 +94,9 @@ records the design.
 ## Development
 
 ```sh
-turbo check --filter=@shipfox/api-integration-managed
-turbo type --filter=@shipfox/api-integration-managed
-turbo test --filter=@shipfox/api-integration-managed
+turbo check --filter=@shipfox/api-integration-managed-vcs
+turbo type --filter=@shipfox/api-integration-managed-vcs
+turbo test --filter=@shipfox/api-integration-managed-vcs
 ```
 
 The tests need the repository's Postgres service. `src/core/source-control-contract.test.ts`

@@ -44,9 +44,9 @@ describe('ManagedSourceControlProvider', () => {
     });
 
     it.each([
-      ['a value that is not a UUID', 'managed:acme/config'],
+      ['a value that is not a UUID', 'managed-vcs:acme/config'],
       ['another provider', 'github:01890000-0000-7000-8000-000000000001'],
-      ['an unknown repository', 'managed:01890000-0000-7000-8000-000000000001'],
+      ['an unknown repository', 'managed-vcs:01890000-0000-7000-8000-000000000001'],
     ])('reports %s as not found', async (_, externalRepositoryId) => {
       const {connection} = await createRepositoryRow();
 
@@ -827,7 +827,7 @@ describe('ManagedSourceControlProvider', () => {
         .values({repositoryId: id, name: 'refs/heads/main', commitOid: foreignCommit as string});
 
       await expect(insert).rejects.toMatchObject({
-        cause: {constraint: 'integrations_managed_refs_commit_fk'},
+        cause: {constraint: 'integrations_managed_vcs_refs_commit_fk'},
       });
     });
 

@@ -13,8 +13,8 @@ export const managedRepositories = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('integrations_managed_repositories_project_unique').on(table.projectId),
-    index('integrations_managed_repositories_workspace_idx').on(table.workspaceId, table.id),
+    uniqueIndex('integrations_managed_vcs_repositories_project_unique').on(table.projectId),
+    index('integrations_managed_vcs_repositories_workspace_idx').on(table.workspaceId, table.id),
   ],
 );
 

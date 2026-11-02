@@ -7,7 +7,7 @@ import {migrationsPath} from '#db/migrations.js';
 export async function setup() {
   createPostgresClient();
 
-  await runMigrations(db(), migrationsPath, '__drizzle_migrations_integrations_managed');
+  await runMigrations(db(), migrationsPath, '__drizzle_migrations_integrations_managed_vcs');
 
   closeDb();
   await closePostgresClient();

@@ -1,11 +1,11 @@
 {
-  "id": "0fedff62-c56b-4ad1-a24c-8a468e43d07b",
+  "id": "5a4daf67-78bb-4cf3-9684-2e872da87ead",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.integrations_managed_objects": {
-      "name": "integrations_managed_objects",
+    "public.integrations_managed_vcs_objects": {
+      "name": "integrations_managed_vcs_objects",
       "schema": "",
       "columns": {
         "repository_id": {
@@ -29,10 +29,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "integrations_managed_objects_repository_fk": {
-          "name": "integrations_managed_objects_repository_fk",
-          "tableFrom": "integrations_managed_objects",
-          "tableTo": "integrations_managed_repositories",
+        "integrations_managed_vcs_objects_repository_fk": {
+          "name": "integrations_managed_vcs_objects_repository_fk",
+          "tableFrom": "integrations_managed_vcs_objects",
+          "tableTo": "integrations_managed_vcs_repositories",
           "columnsFrom": ["repository_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
@@ -40,8 +40,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "integrations_managed_objects_repository_id_oid_pk": {
-          "name": "integrations_managed_objects_repository_id_oid_pk",
+        "integrations_managed_vcs_objects_repository_id_oid_pk": {
+          "name": "integrations_managed_vcs_objects_repository_id_oid_pk",
           "columns": ["repository_id", "oid"]
         }
       },
@@ -50,8 +50,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.integrations_managed_refs": {
-      "name": "integrations_managed_refs",
+    "public.integrations_managed_vcs_refs": {
+      "name": "integrations_managed_vcs_refs",
       "schema": "",
       "columns": {
         "repository_id": {
@@ -89,19 +89,19 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "integrations_managed_refs_repository_fk": {
-          "name": "integrations_managed_refs_repository_fk",
-          "tableFrom": "integrations_managed_refs",
-          "tableTo": "integrations_managed_repositories",
+        "integrations_managed_vcs_refs_repository_fk": {
+          "name": "integrations_managed_vcs_refs_repository_fk",
+          "tableFrom": "integrations_managed_vcs_refs",
+          "tableTo": "integrations_managed_vcs_repositories",
           "columnsFrom": ["repository_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "integrations_managed_refs_commit_fk": {
-          "name": "integrations_managed_refs_commit_fk",
-          "tableFrom": "integrations_managed_refs",
-          "tableTo": "integrations_managed_objects",
+        "integrations_managed_vcs_refs_commit_fk": {
+          "name": "integrations_managed_vcs_refs_commit_fk",
+          "tableFrom": "integrations_managed_vcs_refs",
+          "tableTo": "integrations_managed_vcs_objects",
           "columnsFrom": ["repository_id", "commit_oid"],
           "columnsTo": ["repository_id", "oid"],
           "onDelete": "cascade",
@@ -109,8 +109,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "integrations_managed_refs_repository_id_name_pk": {
-          "name": "integrations_managed_refs_repository_id_name_pk",
+        "integrations_managed_vcs_refs_repository_id_name_pk": {
+          "name": "integrations_managed_vcs_refs_repository_id_name_pk",
           "columns": ["repository_id", "name"]
         }
       },
@@ -119,8 +119,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.integrations_managed_repositories": {
-      "name": "integrations_managed_repositories",
+    "public.integrations_managed_vcs_repositories": {
+      "name": "integrations_managed_vcs_repositories",
       "schema": "",
       "columns": {
         "id": {
@@ -158,8 +158,8 @@
         }
       },
       "indexes": {
-        "integrations_managed_repositories_project_unique": {
-          "name": "integrations_managed_repositories_project_unique",
+        "integrations_managed_vcs_repositories_project_unique": {
+          "name": "integrations_managed_vcs_repositories_project_unique",
           "columns": [
             {
               "expression": "project_id",
@@ -173,8 +173,8 @@
           "method": "btree",
           "with": {}
         },
-        "integrations_managed_repositories_workspace_idx": {
-          "name": "integrations_managed_repositories_workspace_idx",
+        "integrations_managed_vcs_repositories_workspace_idx": {
+          "name": "integrations_managed_vcs_repositories_workspace_idx",
           "columns": [
             {
               "expression": "workspace_id",

@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/api-integration-managed-dto",
+  "name": "@shipfox/api-integration-managed-vcs",
   "license": "MIT",
   "version": "33.2.1",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/api/integration/managed-dto"
+    "directory": "libs/api/integration/managed-vcs"
   },
   "private": false,
   "type": "module",
@@ -36,11 +36,18 @@
     "check:fix": "shipfox-biome-check --write",
     "depcruise": "shipfox-depcruise",
     "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/regex": "workspace:*"
+    "@shipfox/api-integration-managed-vcs-dto": "workspace:*",
+    "@shipfox/api-integration-spi": "workspace:*",
+    "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-error-monitoring": "workspace:*",
+    "@shipfox/node-postgres": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "isomorphic-git": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -48,6 +55,8 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*"
+    "@shipfox/vitest": "workspace:*",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:"
   }
 }

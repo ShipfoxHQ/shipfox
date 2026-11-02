@@ -15,13 +15,13 @@ export const managedRefs = pgTable(
   (table) => [
     primaryKey({columns: [table.repositoryId, table.name]}),
     foreignKey({
-      name: 'integrations_managed_refs_repository_fk',
+      name: 'integrations_managed_vcs_refs_repository_fk',
       columns: [table.repositoryId],
       foreignColumns: [managedRepositories.id],
     }).onDelete('cascade'),
     // Cascades so deleting a repository stays one statement, whichever cascade runs first.
     foreignKey({
-      name: 'integrations_managed_refs_commit_fk',
+      name: 'integrations_managed_vcs_refs_commit_fk',
       columns: [table.repositoryId, table.commitOid],
       foreignColumns: [managedObjects.repositoryId, managedObjects.oid],
     }).onDelete('cascade'),
