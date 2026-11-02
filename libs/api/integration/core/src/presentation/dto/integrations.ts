@@ -24,6 +24,7 @@ export function toIntegrationConnectionDto(
     capabilities: IntegrationCapability[];
     externalUrl?: string | undefined;
     providerAccess?: IntegrationConnectionProviderAccess | undefined;
+    reconnectRequired?: boolean | undefined;
   },
 ) {
   return mapIntegrationConnection(connection, options);
@@ -35,10 +36,12 @@ function mapIntegrationConnection(
     capabilities,
     externalUrl,
     providerAccess,
+    reconnectRequired,
   }: {
     capabilities: IntegrationCapability[];
     externalUrl?: string | undefined;
     providerAccess?: IntegrationConnectionProviderAccess | undefined;
+    reconnectRequired?: boolean | undefined;
   },
 ) {
   return {
@@ -52,6 +55,7 @@ function mapIntegrationConnection(
     capabilities,
     ...(externalUrl ? {external_url: externalUrl} : {}),
     ...(providerAccess ? {provider_access: providerAccess} : {}),
+    ...(reconnectRequired ? {reconnect_required: true as const} : {}),
     created_at: connection.createdAt.toISOString(),
     updated_at: connection.updatedAt.toISOString(),
   };

@@ -72,6 +72,8 @@ export const integrationConnectionDtoSchema = z.object({
   capabilities: z.array(integrationCapabilitySchema),
   external_url: z.string().url().optional(),
   provider_access: integrationConnectionProviderAccessSchema.optional(),
+  /** Set when the connection must be connected again, such as to grant a new scope. */
+  reconnect_required: z.literal(true).optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });

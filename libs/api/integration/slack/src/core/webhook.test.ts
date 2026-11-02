@@ -110,6 +110,23 @@ describe('Slack webhook handlers', () => {
     );
   });
 
+  it('publishes an agent view event so agents can read it', async () => {
+    const deps = handlers();
+    await seedInstallation(deps.connection);
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev-stop',
+      envelope: eventEnvelope({event: {type: 'agent_session_stopped', channel: 'D1'}}),
+      ...deps,
+    });
+
+    expect(result.outcome).toBe('published');
+    expect(deps.publishIntegrationEventReceived).toHaveBeenCalledWith(
+      expect.objectContaining({event: expect.objectContaining({event: 'agent_session_stopped'})}),
+    );
+  });
+
   it('reports a duplicate for a repeated Slack event delivery id', async () => {
     const deps = handlers();
     deps.publishIntegrationEventReceived.mockResolvedValue({published: false});

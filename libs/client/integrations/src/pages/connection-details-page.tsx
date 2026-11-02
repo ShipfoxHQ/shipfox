@@ -63,6 +63,9 @@ export function ConnectionDetailsPage({
       connectionName={connection.displayName}
       title={connectionDetailsTitle(connection)}
     >
+      {connection.reconnectRequired ? (
+        <ReconnectNotice connection={connection} workspaceSlug={workspaceSlug} />
+      ) : null}
       <ConnectionSettings connection={connection} workspaceSlug={workspaceSlug} />
     </ConnectionDetailsShell>
   );
@@ -91,6 +94,8 @@ function ConnectionSettings({
         workspaceSlug={workspaceSlug}
       />
     );
+  // The reconnect notice is this connection's only action.
+  if (connection.reconnectRequired) return null;
   return (
     <EmptyState
       icon="settings3Line"
@@ -98,6 +103,34 @@ function ConnectionSettings({
       title="No settings to change"
       description="This integration connection has no settings on this page."
     />
+  );
+}
+
+function ReconnectNotice({
+  connection,
+  workspaceSlug,
+}: {
+  connection: IntegrationConnection;
+  workspaceSlug: string;
+}) {
+  const catalog = PROVIDER_CATALOG[connection.provider];
+  const providerName = catalog?.displayName ?? 'this integration';
+  return (
+    <Callout role="alert" type="warning">
+      <CalloutContent>
+        <CalloutTitle>New permissions needed</CalloutTitle>
+        <CalloutDescription>
+          Until you reconnect, agents don&apos;t answer here. Workflows keep running.
+        </CalloutDescription>
+        {catalog?.kind === 'redirect-install' ? (
+          <Button asChild size="sm" className="w-fit">
+            <Link to={catalog.setupPath} params={{workspaceSlug}}>
+              Reconnect {providerName}
+            </Link>
+          </Button>
+        ) : null}
+      </CalloutContent>
+    </Callout>
   );
 }
 

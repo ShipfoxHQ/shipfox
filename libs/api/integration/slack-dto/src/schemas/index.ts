@@ -5,6 +5,16 @@ export const SLACK_PROVIDER = 'slack';
 export type SlackProvider = typeof SLACK_PROVIDER;
 
 export const slackApiEventTypes = ['app_mention', 'message', 'reaction_added'] as const;
+/** Agent view events. They reach agents only, so the workflow event catalog leaves them out. */
+export const slackInteractionEventTypes = [
+  'assistant_thread_started',
+  'app_context_changed',
+  'agent_session_stopped',
+] as const;
+export const slackPublishedEventTypes = [
+  ...slackApiEventTypes,
+  ...slackInteractionEventTypes,
+] as const;
 export const SLACK_SLASH_COMMAND_EVENT = 'slash_command' as const;
 export const SLACK_APP_UNINSTALLED_EVENT = 'app_uninstalled' as const;
 export const SLACK_TOKENS_REVOKED_EVENT = 'tokens_revoked' as const;
@@ -15,6 +25,7 @@ export const slackLifecycleEventTypes = [
 export const slackEventNames = [...slackApiEventTypes, SLACK_SLASH_COMMAND_EVENT] as const;
 
 export type SlackApiEventType = (typeof slackApiEventTypes)[number];
+export type SlackInteractionEventType = (typeof slackInteractionEventTypes)[number];
 export type SlackLifecycleEventType = (typeof slackLifecycleEventTypes)[number];
 export type SlackEventName = (typeof slackEventNames)[number];
 
@@ -26,7 +37,7 @@ export const slackInnerEventBaseSchema = z
 
 export const slackInnerEventSchema = z
   .object({
-    type: z.enum(slackApiEventTypes),
+    type: z.enum(slackPublishedEventTypes),
   })
   .passthrough();
 

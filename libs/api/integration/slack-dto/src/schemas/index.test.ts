@@ -11,6 +11,7 @@ import {
   slackEventNames,
   slackEventPayloadSchema,
   slackEventsRequestSchema,
+  slackInteractionEventTypes,
   slackLifecycleEventTypes,
   slackSlashCommandPayloadSchema,
   slackSlashCommandSchema,
@@ -58,6 +59,12 @@ describe('Slack event vocabulary', () => {
     expect(slackApiEventTypes).not.toContain(SLACK_APP_UNINSTALLED_EVENT);
     expect(slackApiEventTypes).not.toContain(SLACK_TOKENS_REVOKED_EVENT);
   });
+
+  it('keeps agent view events out of the workflow event names', () => {
+    const result = slackEventNames;
+
+    for (const type of slackInteractionEventTypes) expect(result).not.toContain(type);
+  });
 });
 
 describe('Slack event schemas', () => {
@@ -65,6 +72,14 @@ describe('Slack event schemas', () => {
     const result = slackEventEnvelopeSchema.parse(eventEnvelope);
 
     expect(result.event.type).toBe('app_mention');
+  });
+
+  it.each([
+    ...slackInteractionEventTypes,
+  ])('accepts the %s agent view event for publishing', (type) => {
+    const result = slackEventEnvelopeSchema.safeParse({...eventEnvelope, event: {type}});
+
+    expect(result.success).toBe(true);
   });
 
   it('keeps unsupported Events API envelopes available for record-and-drop handling', () => {

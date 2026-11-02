@@ -10,6 +10,7 @@ import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {SlackApiClient} from '#api/client.js';
 import {SlackTokenRotationUnsupportedError} from '#core/errors.js';
 import type {ConnectSlackInstallationInput} from '#core/install.js';
+import {SLACK_BOT_SCOPES} from '#core/scopes.js';
 import {verifySlackInstallState} from '#core/state.js';
 import type {SlackTokenStore} from '#core/tokens.js';
 import {createSlackIntegrationProvider} from '#index.js';
@@ -44,24 +45,7 @@ function slackClient(overrides: Partial<SlackApiClient> = {}): SlackApiClient {
         appId: 'A123',
         teamId: 'T123',
         teamName: 'Acme',
-        scopes: [
-          'app_mentions:read',
-          'im:history',
-          'im:read',
-          'mpim:history',
-          'mpim:read',
-          'chat:write',
-          'channels:history',
-          'groups:history',
-          'channels:read',
-          'groups:read',
-          'users:read',
-          'reactions:read',
-          'reactions:write',
-          'canvases:read',
-          'canvases:write',
-          'commands',
-        ],
+        scopes: [...SLACK_BOT_SCOPES],
       }),
     ),
     revokeToken: vi.fn(() => Promise.resolve()),

@@ -7,6 +7,8 @@ export const SLACK_BOT_SCOPES = Object.freeze([
   'mpim:history',
   'mpim:read',
   'chat:write',
+  'chat:write.customize',
+  'assistant:write',
   'channels:history',
   'groups:history',
   'channels:read',
@@ -23,8 +25,13 @@ export function formatSlackBotScopes(scopes = SLACK_BOT_SCOPES): string {
   return scopes.join(',');
 }
 
-export function assertSlackAuthorizationScopes(scopes: string[]): void {
+/** The required scopes a grant lacks. An installation from before a scope was added lacks it. */
+export function missingSlackBotScopes(scopes: readonly string[]): string[] {
   const grantedScopes = new Set(scopes);
-  const missingScopes = SLACK_BOT_SCOPES.filter((scope) => !grantedScopes.has(scope));
+  return SLACK_BOT_SCOPES.filter((scope) => !grantedScopes.has(scope));
+}
+
+export function assertSlackAuthorizationScopes(scopes: string[]): void {
+  const missingScopes = missingSlackBotScopes(scopes);
   if (missingScopes.length > 0) throw new SlackAuthorizationScopeMismatchError(missingScopes);
 }

@@ -172,6 +172,31 @@ function ConnectionSwitcher() {
   );
 }
 
+const slackConnection = {
+  ...githubConnection,
+  provider: 'slack',
+  external_account_id: 'T1',
+  slug: 'slack_acme',
+  display_name: 'Slack Acme',
+  capabilities: ['agent_tools'],
+} satisfies IntegrationConnectionDto;
+
+function renderSlackDetails(connection: IntegrationConnectionDto) {
+  configureApiClient({
+    baseUrl: 'https://api.example.test',
+    fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({connections: [connection]}))),
+  });
+  return renderIntegrationsPage({
+    path: '/w/acme/settings/integrations/slack_acme',
+    routePath: '/w/$workspaceSlug/settings/integrations/$connectionSlug',
+    element: <ConnectionDetailsPage workspaceSlug="acme" connectionSlug="slack_acme" />,
+    extraRoutes: [
+      '/w/$workspaceSlug/settings/integrations',
+      '/w/$workspaceSlug/integrations/slack',
+    ],
+  });
+}
+
 describe('ConnectionDetailsPage', () => {
   test('renders project-backed targets, mode copy, and the GitHub installation link', async () => {
     renderDetails(detailsFetch());
@@ -347,5 +372,23 @@ describe('ConnectionDetailsPage', () => {
       'The previous mode still applies. Try again.',
     );
     expect(screen.getByRole('button', {name: 'Save changes'})).toBeEnabled();
+  });
+
+  test('asks a connection missing new permissions to reconnect', async () => {
+    renderSlackDetails({...slackConnection, reconnect_required: true});
+
+    expect(await screen.findByText('New permissions needed')).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Reconnect Slack'})).toHaveAttribute(
+      'href',
+      '/w/acme/integrations/slack',
+    );
+    expect(screen.queryByText('No settings to change')).not.toBeInTheDocument();
+  });
+
+  test('shows no reconnect notice for an up-to-date connection', async () => {
+    renderSlackDetails(slackConnection);
+
+    expect(await screen.findByText('No settings to change')).toBeVisible();
+    expect(screen.queryByText('New permissions needed')).not.toBeInTheDocument();
   });
 });
