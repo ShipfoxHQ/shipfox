@@ -160,6 +160,37 @@ export const workflowRunAggregatesQuerySchema = runListQueryBaseSchema
 
 export type WorkflowRunAggregatesQueryDto = z.infer<typeof workflowRunAggregatesQuerySchema>;
 
+/** One definitions page, so a table reads every row's latest run in a single request. */
+export const WORKFLOW_LATEST_RUNS_DEFINITION_LIMIT = 100;
+
+export const workflowLatestRunsQuerySchema = z.object({
+  project_id: z.string().uuid(),
+  // Comma-separated, because a repeated query key doesn't survive every HTTP client.
+  definition_ids: z
+    .string()
+    .transform((value) => value.split(',').filter((id) => id !== ''))
+    .pipe(z.array(z.string().uuid()).min(1).max(WORKFLOW_LATEST_RUNS_DEFINITION_LIMIT)),
+});
+
+export type WorkflowLatestRunsQueryDto = z.input<typeof workflowLatestRunsQuerySchema>;
+
+export const workflowLatestRunDtoSchema = z.object({
+  id: z.string().uuid(),
+  definition_id: z.string().uuid(),
+  number: z.number().int().positive(),
+  status: workflowRunStatusSchema,
+  created_at: z.string().datetime(),
+});
+
+export type WorkflowLatestRunDto = z.infer<typeof workflowLatestRunDtoSchema>;
+
+export const workflowLatestRunsResponseSchema = z.object({
+  /** At most one run per requested definition. A definition with no synced run is absent. */
+  runs: z.array(workflowLatestRunDtoSchema),
+});
+
+export type WorkflowLatestRunsResponseDto = z.infer<typeof workflowLatestRunsResponseSchema>;
+
 export const workflowSourceSnapshotSchema = z.object({
   content: z.string(),
   format: z.literal('yaml'),

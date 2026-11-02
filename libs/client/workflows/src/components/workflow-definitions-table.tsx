@@ -7,12 +7,16 @@ import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {LoadErrorState} from '@shipfox/react-ui/load-error-state';
 import {RelativeTime} from '@shipfox/react-ui/relative-time';
 import {SearchInline} from '@shipfox/react-ui/search';
+import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import {Link} from '@tanstack/react-router';
 import {createColumnHelper, metaHelper, tableFeatures, useTable} from '@tanstack/react-table';
 import {type ReactNode, useMemo} from 'react';
 import {matchesWorkflowSearch, workflowTriggerLabel} from '#core/automations.js';
+import {type LatestRunLookup, type LatestRuns, PENDING_LATEST_RUN} from '#core/latest-run.js';
 import type {IssueCopy} from '#core/run-issue-copy.js';
 import {RunIssueCallout} from './run-issue-callout.js';
+import {WorkflowStatusIcon} from './workflow-status/workflow-status-icon.js';
 
 export interface WorkflowRunError {
   definitionId: string;
@@ -24,8 +28,10 @@ interface WorkflowDefinitionsTableMeta {
   onRun: (definition: Definition) => void;
   onDismissRunError: () => void;
   onRefreshDefinitions: () => void;
+  latestRuns: LatestRuns;
   runError: WorkflowRunError | null;
   runningDefinitionId: string | null;
+  projectSlug: string | undefined;
   workspaceSlug: string | undefined;
 }
 
@@ -75,6 +81,17 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
     header: 'Starts on',
     cell: ({getValue}) => <WorkflowTriggers triggers={getValue()} />,
   }),
+  workflowDefinitionColumnHelper.display({
+    id: 'lastRun',
+    header: 'Last run',
+    cell: ({row, table}) => (
+      <LastRun
+        lookup={table.options.meta?.latestRuns.get(row.original.id) ?? PENDING_LATEST_RUN}
+        workspaceSlug={table.options.meta?.workspaceSlug}
+        projectSlug={table.options.meta?.projectSlug}
+      />
+    ),
+  }),
   workflowDefinitionColumnHelper.accessor('updatedAt', {
     header: 'Updated',
     cell: ({getValue}) => (
@@ -121,12 +138,15 @@ export interface WorkflowDefinitionsTableProps {
   onRun: (definition: Definition) => void;
   onDismissRunError: () => void;
   onRefreshDefinitions: () => void;
+  /** The latest synced run of each definition, read once per page of definitions. */
+  latestRuns: LatestRuns;
   runError: WorkflowRunError | null;
   runningDefinitionId: string | null;
   /** Filters the loaded definitions. Search waits until every page is loaded. */
   searchQuery: string;
   onSearchChange: (query: string) => void;
   sync: DefinitionSyncSummary | null;
+  projectSlug: string | undefined;
   workspaceSlug: string | undefined;
 }
 
@@ -144,11 +164,13 @@ export function WorkflowDefinitionsTable({
   onRun,
   onDismissRunError,
   onRefreshDefinitions,
+  latestRuns,
   runError,
   runningDefinitionId,
   searchQuery,
   onSearchChange,
   sync,
+  projectSlug,
   workspaceSlug,
 }: WorkflowDefinitionsTableProps) {
   // Every page must be loaded before a local search can claim to cover the project. A failed
@@ -172,8 +194,10 @@ export function WorkflowDefinitionsTable({
       onRun,
       onDismissRunError,
       onRefreshDefinitions,
+      latestRuns,
       runError,
       runningDefinitionId,
+      projectSlug,
       workspaceSlug,
     },
   });
@@ -208,7 +232,7 @@ export function WorkflowDefinitionsTable({
         isRefreshing={isRefreshing}
         loadingLabel="Loading workflows"
         loadingRowCount={3}
-        minimumWidth={760}
+        minimumWidth={880}
         toolbar={
           <WorkflowSearchToolbar
             count={isComplete ? visibleDefinitions.length : undefined}
@@ -345,6 +369,54 @@ function WorkflowTriggers({triggers}: {triggers: Definition['triggers']}) {
         );
       })}
     </ul>
+  );
+}
+
+function LastRun({
+  lookup,
+  workspaceSlug,
+  projectSlug,
+}: {
+  lookup: LatestRunLookup;
+  workspaceSlug: string | undefined;
+  projectSlug: string | undefined;
+}) {
+  if (lookup.status === 'pending') return <Skeleton aria-hidden className="h-16 w-80" />;
+  if (lookup.status === 'error') {
+    return (
+      <Text size="sm" className="text-foreground-neutral-muted">
+        Unavailable
+      </Text>
+    );
+  }
+  if (lookup.status === 'none') {
+    return (
+      <Text size="sm" className="text-foreground-neutral-muted">
+        No runs yet
+      </Text>
+    );
+  }
+
+  const {run} = lookup;
+  const content = (
+    <>
+      <WorkflowStatusIcon status={run.status} />
+      <Text size="sm" className="whitespace-nowrap text-foreground-neutral-muted">
+        <RelativeTime value={run.createdAt} />
+      </Text>
+    </>
+  );
+  const className = 'inline-flex items-center gap-inline';
+  if (!workspaceSlug || !projectSlug) return <span className={className}>{content}</span>;
+
+  return (
+    <Link
+      to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
+      params={{workspaceSlug, projectSlug, workflowRunId: run.id}}
+      className={`${className} rounded-4 outline-none focus-visible:shadow-border-interactive-with-active`}
+    >
+      {content}
+    </Link>
   );
 }
 

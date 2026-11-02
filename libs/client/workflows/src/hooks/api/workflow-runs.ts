@@ -50,6 +50,7 @@ export const workflowRunsQueryKeys = {
   lists: (projectId: string) => [...workflowRunsQueryKeys.all, 'list', projectId] as const,
   list: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
+  latest: (projectId: string) => [...workflowRunsQueryKeys.all, 'latest', projectId] as const,
   attempts: (workflowRunId: string) =>
     [...workflowRunsQueryKeys.all, 'attempts', workflowRunId] as const,
   heads: (workflowRunId: string) => [...workflowRunsQueryKeys.all, 'head', workflowRunId] as const,
@@ -179,7 +180,7 @@ export async function fireManualWorkflow({
   return {workflowRunId: response.workflow_run_id};
 }
 
-const ACTIVE_POLL_MS = 4_000;
+export const ACTIVE_POLL_MS = 4_000;
 const IDLE_POLL_MS = 30_000;
 export type RunListInfinite = InfiniteData<WorkflowRunListPage, string | undefined>;
 
@@ -513,6 +514,9 @@ export function useFireManualWorkflowMutation() {
       }
       void queryClient.invalidateQueries({
         queryKey: workflowRunsQueryKeys.lists(variables.projectId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: workflowRunsQueryKeys.latest(variables.projectId),
       });
     },
   });

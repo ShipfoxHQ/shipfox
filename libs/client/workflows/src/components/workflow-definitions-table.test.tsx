@@ -1,12 +1,15 @@
 import type {Definition} from '@shipfox/client-projects';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {render, screen} from '@testing-library/react';
+import type {LatestRuns} from '#core/latest-run.js';
+import {renderWithRouter} from '#test/render.js';
 import {
   WorkflowDefinitionsTable,
   type WorkflowDefinitionsTableProps,
 } from './workflow-definitions-table.js';
 
 const REFRESH_ERROR = /Could not refresh workflows/u;
+const SUCCEEDED_RUN_LINK_REGEX = /Succeeded/u;
 const NEXT_PAGE_ERROR = /Could not load more rows\. 1 row loaded/u;
 
 const definition: Definition = {
@@ -40,11 +43,13 @@ const defaultProps: WorkflowDefinitionsTableProps = {
   onRun: vi.fn(),
   onDismissRunError: vi.fn(),
   onRefreshDefinitions: vi.fn(),
+  latestRuns: new Map(),
   runError: null,
   runningDefinitionId: null,
   searchQuery: '',
   onSearchChange: vi.fn(),
   sync: null,
+  projectSlug: 'platform',
   workspaceSlug: 'acme',
 };
 
@@ -101,5 +106,40 @@ describe('WorkflowDefinitionsTable search', () => {
     render(table({definitions: [], hasNextPage: false, searchQuery: 'archive'}));
 
     expect(screen.getByRole('button', {name: 'Show all workflows'})).toBeInTheDocument();
+  });
+});
+
+describe('WorkflowDefinitionsTable last run', () => {
+  const latestRun = {
+    id: '66666666-6666-4666-8666-666666666666',
+    definitionId: definition.id,
+    number: 7,
+    status: 'succeeded',
+    createdAt: new Date().toISOString(),
+  } as const;
+
+  test('links the latest run with its status', async () => {
+    const latestRuns: LatestRuns = new Map([[definition.id, {status: 'found', run: latestRun}]]);
+
+    renderWithRouter(table({latestRuns}));
+
+    const link = await screen.findByRole('link', {name: SUCCEEDED_RUN_LINK_REGEX});
+    expect(link).toHaveAttribute('href', `/w/acme/p/platform/runs/${latestRun.id}`);
+  });
+
+  test.each([
+    ['none', 'No runs yet'],
+    ['error', 'Unavailable'],
+  ] as const)('says %s in words', (status, text) => {
+    render(table({latestRuns: new Map([[definition.id, {status}]])}));
+
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  test('shows a placeholder until its page answers', () => {
+    const {container} = render(table({latestRuns: new Map()}));
+
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
+    expect(screen.queryByText('No runs yet')).not.toBeInTheDocument();
   });
 });

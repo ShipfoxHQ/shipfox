@@ -32,6 +32,7 @@ import {
   type WorkflowRunError,
 } from '#components/workflow-definitions-table.js';
 import {runStartErrorCopy} from '#core/run-issue-copy.js';
+import {useLatestWorkflowRunsQuery} from '#hooks/api/latest-runs.js';
 import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
@@ -65,6 +66,12 @@ function ProjectAutomationsPageInner({
   useLoadEveryDefinitionPage(definitionsQuery);
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const sync = definitionsQuery.data?.pages[0]?.sync;
+  const latestRuns = useLatestWorkflowRunsQuery(
+    projectId,
+    definitionsQuery.data?.pages.map((page) =>
+      page.definitions.map((definition) => definition.id),
+    ) ?? [],
+  );
 
   async function handleRun(definition: Definition) {
     setRunError(null);
@@ -136,6 +143,7 @@ function ProjectAutomationsPageInner({
                   isError={definitionsQuery.isError}
                   isRefreshing={definitionsQuery.isRefetching}
                   sync={sync ?? null}
+                  latestRuns={latestRuns}
                   runError={runError}
                   runningDefinitionId={
                     fireManual.isPending && fireManual.variables
@@ -158,6 +166,7 @@ function ProjectAutomationsPageInner({
                     setRunError(null);
                     void definitionsQuery.refetch();
                   }}
+                  projectSlug={projectSlug}
                   workspaceSlug={workspaceSlug}
                 />
               </FirstWorkflowSlot>
