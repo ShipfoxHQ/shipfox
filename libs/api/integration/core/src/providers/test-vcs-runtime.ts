@@ -28,6 +28,7 @@ import {
   isValidTestVcsBranchName,
   isValidTestVcsRefreshTiming,
   type TestVcsFileInput,
+  TestVcsPullRequestError,
   type TestVcsRenewalMode,
 } from '#providers/test-vcs-fixture.js';
 import type {IntegrationModuleParts} from '#providers/types.js';
@@ -313,12 +314,8 @@ async function pullRequestAction<T>(action: () => Promise<T>): Promise<T> {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof ClientError) throw error;
-    throw new ClientError(
-      error instanceof Error ? error.message : 'Test VCS pull request action failed',
-      'test-vcs-pull-request-invalid',
-      {status: 409},
-    );
+    if (!(error instanceof TestVcsPullRequestError)) throw error;
+    throw new ClientError(error.message, 'test-vcs-pull-request-invalid', {status: 409});
   }
 }
 

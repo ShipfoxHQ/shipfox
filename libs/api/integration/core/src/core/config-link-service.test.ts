@@ -353,7 +353,9 @@ describe('config link service', () => {
       const managed = await import('@shipfox/api-integration-managed-vcs');
       // The move landed but the repository never finished.
       vi.spyOn(managed, 'completeManagedLink').mockResolvedValueOnce(false);
-      await links.link(current(projectId), linkInput()).catch(() => undefined);
+      await expect(links.link(current(projectId), linkInput())).rejects.toBeInstanceOf(
+        ConfigLinkUnconfirmedError,
+      );
       expect((await repositoryOf(projectId)).status).toBe('linking');
       projects.client.moveProjectSource = () => Promise.reject(new Error('must not move again'));
 
@@ -370,8 +372,11 @@ describe('config link service', () => {
       const projectId = await managedProject();
       fake.host.failBeforeOpen = new IntegrationProviderError('timeout', 'slow');
       const links = await service();
-      await links.link(current(projectId), linkInput()).catch(() => undefined);
-      fake.host.failBeforeOpen = new IntegrationProviderError('access-denied', 'rate limited');
+      await expect(links.link(current(projectId), linkInput())).rejects.toBeInstanceOf(
+        ConfigLinkUnconfirmedError,
+      );
+      fake.host.failBeforeOpen = undefined;
+      fake.host.resolveError = new IntegrationProviderError('access-denied', 'rate limited');
 
       const result = links.link(current(projectId), linkInput());
 
@@ -383,7 +388,9 @@ describe('config link service', () => {
       const projectId = await managedProject();
       fake.host.failBeforeOpen = new IntegrationProviderError('timeout', 'slow');
       const links = await service();
-      await links.link(current(projectId), linkInput()).catch(() => undefined);
+      await expect(links.link(current(projectId), linkInput())).rejects.toBeInstanceOf(
+        ConfigLinkUnconfirmedError,
+      );
 
       const result = links.link(current(projectId), linkInput({dryRun: true}));
 
@@ -492,7 +499,9 @@ describe('config link service', () => {
       const projectId = await managedProject();
       fake.host.failBeforeOpen = new IntegrationProviderError('timeout', 'slow');
       const links = await service();
-      await links.link(current(projectId), linkInput()).catch(() => undefined);
+      await expect(links.link(current(projectId), linkInput())).rejects.toBeInstanceOf(
+        ConfigLinkUnconfirmedError,
+      );
 
       const result = await links.readMoveState(current(projectId));
 

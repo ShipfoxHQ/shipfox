@@ -33,6 +33,9 @@ const GIT_TREE_FIELD_PATTERN = /\s+/u;
 const GIT_REPOSITORY_PATH_PATTERN = /^\/([^/]+)\/([^/]+)\.git(?:\/|$)/u;
 const MINIMUM_REFRESH_DELAY_MS = 50;
 
+/** A pull request action the caller got wrong, as opposed to a git failure. */
+export class TestVcsPullRequestError extends Error {}
+
 export type TestVcsRenewalMode = 'refresh-at' | 'on-rejection';
 
 export interface TestVcsFileInput {
@@ -342,7 +345,8 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
     mergePullRequest: (input) =>
       serialized(async () => {
         const record = requirePullRequest(input);
-        if (record.state === 'closed') throw new Error('Test VCS pull request is closed');
+        if (record.state === 'closed')
+          throw new TestVcsPullRequestError('Test VCS pull request is closed');
         if (record.state === 'merged') return toPullRequest(record);
         const repository = requireRepository(input.owner, input.name);
         const seed = repository.seedPath;
@@ -358,7 +362,8 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
 
     closePullRequest(input) {
       const record = requirePullRequest(input);
-      if (record.state === 'merged') throw new Error('Test VCS pull request is merged');
+      if (record.state === 'merged')
+        throw new TestVcsPullRequestError('Test VCS pull request is merged');
       record.state = 'closed';
       return toPullRequest(record);
     },
@@ -644,7 +649,8 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
         candidate.name === input.name &&
         candidate.number === input.number,
     );
-    if (!record) throw new Error(`Test VCS pull request not found: #${input.number}`);
+    if (!record)
+      throw new TestVcsPullRequestError(`Test VCS pull request not found: #${input.number}`);
     return record;
   }
 

@@ -32,6 +32,7 @@ export function createFakeHost() {
     failBeforeOpen: undefined as Error | undefined,
     openState: 'open' as PullRequestState,
     readError: undefined as Error | undefined,
+    resolveError: undefined as Error | undefined,
     owner: 'acme',
     name: 'app',
     externalRepositoryId: 'gitea:acme/app',
@@ -43,16 +44,18 @@ export function createFakeHost() {
       source_control: {
         listRepositories: () => Promise.resolve({repositories: [], nextCursor: null}),
         resolveRepository: ({externalRepositoryId}) =>
-          Promise.resolve({
-            externalRepositoryId,
-            owner: host.owner,
-            name: host.name,
-            fullName: `${host.owner}/${host.name}`,
-            defaultBranch: 'trunk',
-            visibility: 'private',
-            cloneUrl: 'https://gitea.local/acme/app.git',
-            htmlUrl: 'https://gitea.local/acme/app',
-          }),
+          host.resolveError
+            ? Promise.reject(host.resolveError)
+            : Promise.resolve({
+                externalRepositoryId,
+                owner: host.owner,
+                name: host.name,
+                fullName: `${host.owner}/${host.name}`,
+                defaultBranch: 'trunk',
+                visibility: 'private',
+                cloneUrl: 'https://gitea.local/acme/app.git',
+                htmlUrl: 'https://gitea.local/acme/app',
+              }),
         listFiles: () =>
           Promise.resolve({
             files: host.existingFiles.map((path) => ({path, type: 'file' as const, size: 1})),

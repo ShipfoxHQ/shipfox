@@ -338,6 +338,14 @@ describe('Test VCS pull requests', () => {
         limit: 10,
       });
       expect(two.files.map((file) => file.path)).toEqual(['.shipfox/workflows/b.yml']);
+      const one = await fixture.listFiles({
+        owner: 'acme',
+        name: 'app',
+        ref: 'one',
+        prefix: '.shipfox/',
+        limit: 10,
+      });
+      expect(one.files.map((file) => file.path)).toEqual(['.shipfox/workflows/a.yml']);
     } finally {
       await fixture.close();
     }
