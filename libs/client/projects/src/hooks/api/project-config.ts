@@ -35,10 +35,14 @@ export const projectConfigQueryKeys = {
     [...projectConfigQueryKeys.all, 'commits', projectId, commit, path] as const,
 };
 
-/** A refusal such as a binary or oversized file answers the same on every try. */
+/**
+ * Retries only failures that can clear on their own. A refusal such as a binary file, or an
+ * adopted-session gate, answers the same on every try, and this replaces the shell's default.
+ */
 function retryServerFailures(failureCount: number, error: Error): boolean {
-  if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false;
-  return failureCount < 3;
+  const isTransient =
+    error instanceof ApiError && (error.status >= 500 || error.code === 'network-error');
+  return isTransient && failureCount < 3;
 }
 
 type ProjectConfigQueryKey =
