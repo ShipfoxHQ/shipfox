@@ -18,6 +18,7 @@ import {
   createAgentAccessActionTools,
   createAgentAccessAuthoringContextTools,
   createAgentAccessCacheTools,
+  createAgentAccessConfigTools,
   createAgentAccessDiagnosticTools,
   createAgentAccessIntegrationTools,
   createAgentAccessLogTools,
@@ -501,6 +502,10 @@ const mcpToolGroups = [
   },
   {title: 'Step logs', tools: ['get_step_logs', 'get_step_log_download']},
   {
+    title: 'Project config',
+    tools: ['list_config_files', 'read_config_file', 'commit_config_changes'],
+  },
+  {
     title: 'Trigger events',
     tools: ['list_trigger_events', 'get_trigger_event', 'get_trigger_event_facets'],
   },
@@ -530,6 +535,7 @@ function listMcpTools() {
       workflows: stub,
     }),
     ...createAgentAccessIntegrationTools(stub),
+    ...createAgentAccessConfigTools(stub),
     ...createAgentAccessTemplateTools({
       agent: stub,
       projects: stub,

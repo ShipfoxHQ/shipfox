@@ -1,161 +1,167 @@
 ---
 title: "Integrations, integration connections, and tools"
 sidebarTitle: "Integrations & Tools"
-description: "See how integration connections carry events and tools without exposing saved credentials."
+description: "Connect your tools once. Events from them start workflows, and your agents and workflows get access to them."
 ---
 
-An **integration** is Shipfox support for an external provider, such as GitHub
-or Sentry. An **integration connection** links one workspace to one account or
-installation at that provider.
+An **integration** connects Shipfox to a tool your team already uses, such as
+GitHub, Sentry, or Slack. An **integration connection** is one account or
+source you connected, for example your company's GitHub organization.
 
-A workspace can connect the same provider more than once. Each
-integration connection has its own events, its own reach, and its own saved
-credential.
+An integration connection can do two things for you. Most tools do both, and
+some do only one:
 
-An integration connection can bring events in, give a workflow tools to act
-outside the run, and provide checkout access to code. None of these grants
-another one by itself. Name the account, the tool, and the repository, and add
-write access only when the task needs it. The workflow then shows both the
-account and the allowed action.
+- **It starts workflows.** When something happens in the tool, such as a new
+  issue or a new pull request, a workflow can start.
+- **It gives agents and workflows access to the tool.** A step can read data
+  from the tool or make a change in it, such as commenting on an issue.
 
-## What each term means
+```text
+GitHub (acme)                                   Your workflow
+      |                                               |
+      |  event: a pull request was opened  ---------> |  starts
+      |                                               |
+      | <--------- tool: comment on the pull request  |  a step acts
+      |                                               |
+```
 
-| Term | Meaning |
-| --- | --- |
-| Provider | The external service, such as GitHub or Sentry. |
-| Integration | How Shipfox works with that provider. |
-| Integration connection | One account or installation linked to the workspace. |
-| Slug of an integration connection | The name a workflow uses for that integration connection. |
-| Event source | The integration connection that sent an event. |
-| Project source | The integration connection and repository used for workflow files and checkout. |
-| Native agent tool | A harness action inside the runner, such as reading or editing files. |
-| Integration tool | An external operation that a tool step or an agent performs through an integration connection. |
+You decide what each workflow can do. A workflow names the account it uses and
+the actions it needs. Nothing else is allowed. A workspace may hold several
+connections to the same tool, for example one GitHub organization per team.
 
-Each term answers a different question. The provider is the external system.
-The integration connection is the account. The project source is the
-repository that owns the work. A tool is one operation that a step can
-perform.
+## Start workflows from events
 
-## An integration connection can receive events, provide tools, or both
+Each integration connection has a short name, called its slug, such as
+`github_acme`. A workflow uses that slug to say which account it listens to.
 
-An integration connection can play one or both roles.
+```yaml
+triggers:
+  on_push:
+    source: github_acme # The slug of the integration connection.
+    event: push
+```
 
-- **Event source:** the provider delivers events that triggers or listening
-  jobs can match.
-- **Tool provider:** a tool step calls one operation, or an agent receives
-  selected operations, to read or change data in that system.
+The slug matters when you connect the same tool twice. Two GitHub
+organizations both send a `push` event. The slug tells Shipfox which one you
+mean, so a workflow never reacts to the wrong account.
 
-An event grants no tool. A read tool grants no write tool. The workflow makes
-each choice separately.
+```text
+github_acme       push  ----->  deploys the main product
+github_acme_labs  push  ----->  nothing: no workflow listens to this slug
+```
 
-This separation means an event can start work that has little authority. For
-example, a Sentry issue can start an agent that reads only the project
-checkout. A later, checked step can then receive one narrow GitHub operation to
-open a pull request.
+[Events and triggers](/understand/events-and-triggers) explains how a workflow
+chooses its events. [Set up work](/how-to/set-up-work) explains how to connect
+a tool.
 
-## A tool step and an agent step use the same tools
+## Give agents and workflows access to tools
 
-A **tool step** names one tool and its inputs in the workflow. Shipfox makes
-the call on its API and stores the response as step outputs. No model chooses
-the call, so the same run data always produces the same call.
+A workflow can use a tool in two ways.
 
-An **agent step** receives a selection of tools. The agent decides when to call
-them and with which values. That freedom fits work that needs judgment. It
-costs a model turn and makes the exact calls less predictable.
+<Tabs items={['Tool step', 'Agent step']}>
+  <Tab value="Tool step">
 
-Both paths use the same tool catalog, the same integration connection checks,
-and the same audit record. Use a tool step when the workflow already knows the
-operation and its values. Use an agent step with tools when the agent must
-decide.
+    You name one action and its values. Shipfox makes exactly that call. Use
+    it when you already know the exact action.
 
-The two paths treat writes differently. An agent step must set `allow_write`
-to receive a write tool, because the model chooses the calls. A tool step needs
-no flag, because naming the write tool is the choice. The run view marks the
-step as a write either way.
+    ```yaml
+    steps:
+      - key: notify
+        tool: send_message        # One action.
+        connection: slack_acme    # On this account.
+        with:                     # With these values.
+          channel_id: C0ABC12345
+          message: "Run #${{ run.number }} started."
+    ```
 
-## A slug names one integration connection
+  </Tab>
+  <Tab value="Agent step">
 
-Triggers, tool steps, and agent tools use the slug of an
-integration connection. The slug names one integration connection in the
-workspace, not a kind of provider.
+    You give the agent a set of tools. The agent decides when to use them and
+    with which values. Use it when the work needs judgment.
 
-Two GitHub integration connections can send the same event name. Their slugs
-keep those events apart. The same rule stops a tool from switching to another
-account without notice.
+    ```yaml
+    steps:
+      - key: review
+        prompt: Review this pull request and report the two biggest risks.
+        integrations:
+          - include: [pull_request_read]   # Read tools only.
+    ```
 
-The [workflow schema reference](/reference/workflow-schema#trigger-fields)
-defines the exact trigger contract. [Set up work](/how-to/set-up-work) explains
-how to create an integration connection.
+  </Tab>
+</Tabs>
 
-## Checkout access is separate from tools
+Each permission is a separate choice. An event that starts a workflow gives it
+no access to the tool. Read access gives no write access. An agent can only
+make changes in a tool when the workflow says so. Reading and editing the code
+is not a tool either: it comes from the job's checkout, which
+[Jobs and steps](/understand/jobs-and-steps#what-lands-at-the-job-root)
+explains.
 
-A project chooses one source integration connection and one repository.
-Shipfox uses that choice to find workflow files and to prepare job checkouts.
+This keeps the first steps of a workflow safe. In the example below, a new
+Sentry issue starts an agent that works on your code with no integration
+tools. A later step, after the tests pass, gets one permission on GitHub: open
+a pull request.
 
-Checkout permission controls authenticated Git reads and writes for the whole
-job. It doesn't grant issue, pull request, monitoring, or ticket operations.
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Fix a Sentry issue
+runner: shipfox
 
-Integration tools cover those external operations. They don't change the
-checkout credential. An agent can therefore have this mix:
+triggers:
+  on_issue:
+    source: sentry_acme          # Sentry starts the workflow.
+    event: issue.created         # That gives no access to Sentry or GitHub.
 
-- A local checkout that it can edit but not push.
-- A read-only pull request tool but no issue tool.
-- A write tool for one operation and one repository.
+jobs:
+  fix:
+    steps:
+      - key: fix
+        prompt: Find the cause of the issue and fix it.
+        # No integrations: this agent can only read and edit the code.
 
-These separate paths mean that "GitHub access" is never one broad permission.
+      - key: test
+        run: npm test            # A check between the fix and the change.
 
-## Repository access adds two boundaries
+      - key: open_pr
+        prompt: Open a pull request with the fix.
+        integrations:
+          - include: [create_pull_request]   # One action.
+            allow_write: true                # Named as a change, on purpose.
+```
 
-The provider sets the outer repository boundary. For GitHub, this is the
-repository selection on the GitHub App installation.
+Use [Call an integration tool](/how-to/author-workflows/call-integration-tool)
+for a tool step and [Give an agent read-only GitHub tools](/integrations/github/guides/read-pull-request)
+for an agent with tools. The [tool step fields](/reference/workflow-schema#tool-step-fields)
+and [agent integration fields](/reference/workflow-schema#agent-integration-fields)
+list the exact settings.
 
-Shipfox can add a direct-target guardrail inside that boundary. In `selected`
-mode, explicit checkouts and direct tool targets must match repositories used by
-Shipfox projects. In `all` mode, Shipfox skips that project check.
+## Which repositories a workflow can reach
 
-This guardrail does not resolve opaque IDs or every indirect provider effect.
-The provider installation remains the boundary for those operations. The
-[GitHub tool catalog](/integrations/github/tools) marks each classification and
-indirect target.
+Two settings decide this, one on each side.
 
-## The workflow never receives the credential
+```text
+All repositories in your GitHub organization
+`-- Repositories the Shipfox app can see        <- you choose this on GitHub
+    `-- Repositories a workflow can name         <- you choose this in Shipfox
+```
 
-The workflow names an integration connection and the selected operations. It
-doesn't receive the saved provider credential. A tool step or an agent gets a
-tool interface, and Shipfox makes the authorized calls behind it.
+- **On GitHub**, you choose which repositories the Shipfox app can see when
+  you install it. Shipfox can never reach a repository outside that list.
+- **In Shipfox**, each integration connection has an access mode. A new
+  integration connection can reach every repository the app can see. Its
+  settings narrow that to the repositories your projects use.
 
-This limits both disclosure and use.
+A project with [managed config](/understand/configuration#in-your-repository-or-managed-by-shipfox) has no repository
+of its own. Its jobs check out only the repositories they name.
 
-- The prompt can't print a credential it never receives.
-- The tool accepts only its defined input shape.
-- Repository scope limits where the operation can act.
-- Read and write access stay explicit in the workflow.
+[Manage GitHub repository access](/integrations/github/guides/manage-repository-access)
+explains how to change both settings. The
+[GitHub tool catalog](/integrations/github/tools) says which tools the access
+mode can and can't check.
 
-The boundary doesn't make every tool call safe. A tool step can carry a bad
-value from the event, and an agent can act on misleading event data. Use the smallest tool selection, put
-writes after checks, and read back important external results.
-
-## Give each step only the access it needs
-
-Start with no integration tool. Add a read operation when a step needs
-external context. Add a write operation only when the workflow intends an
-external change. Prefer a tool step for a write with known values, so the
-workflow states the exact call.
-
-Keep the repository boundary as narrow as the work. For GitHub, use `selected`
-mode and a narrow App installation when the task concerns one repository.
-
-A general credential supports many operations but hides the real reach of the
-step. A small tool selection makes that reach visible in the workflow and at
-sync time.
-
-Use [Call an integration
-tool](/how-to/author-workflows/call-integration-tool) for a tool step and
-[Agent access](/integrations/github/guides/read-pull-request) for an agent
-with tools. The reference for [tool step
-fields](/reference/workflow-schema#tool-step-fields) and [agent integration
-fields](/reference/workflow-schema#agent-integration-fields) lists the exact
-selection and write fields. [Agents](/understand/agents) explains how this
-access fits with the harness, model, and native tools. [Manage GitHub repository
-access](/integrations/github/guides/manage-repository-access) explains how to
-change both repository boundaries.
+<Cards>
+  <Card title="Agents" href="/understand/agents">
+    See how tool access fits with the model and the agent's own abilities.
+  </Card>
+</Cards>

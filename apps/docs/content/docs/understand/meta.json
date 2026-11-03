@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "workspaces-and-projects",
+    "configuration",
     "workflows-and-runs",
     "events-and-triggers",
     "jobs-and-steps",

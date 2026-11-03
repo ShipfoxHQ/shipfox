@@ -2,6 +2,7 @@
   "title": "Set Up Work",
   "pages": [
     "create-project",
+    "move-config-to-repository",
     "manage-integration-connections",
     "configure-model-providers",
     "secrets-and-variables",
