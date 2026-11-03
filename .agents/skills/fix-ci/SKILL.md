@@ -15,8 +15,11 @@ Find why a pull request's checks fail, fix the cause, and push the fix.
 the current branch:
 
 ```bash
-gh pr view --json number,url,headRefName
+gh pr view [pr] --json number,url,headRefName
 ```
+
+Use the returned `number` in every later command. If the current branch is not
+`headRefName`, run `gh pr checkout <number>`.
 
 ## Process
 
@@ -34,8 +37,9 @@ gh pr view --json number,url,headRefName
    gh pr checks <number> --json name,bucket,link --jq '.[] | select(.bucket == "fail")'
    ```
 
-   Each `link` has the form `.../actions/runs/<run-id>/job/<job-id>`. If
-   nothing failed, report that and stop.
+   A GitHub Actions `link` has the form
+   `.../actions/runs/<run-id>/job/<job-id>`. For other checks, such as Vercel,
+   open the link to read the failure. If nothing failed, report that and stop.
 
 3. Read the failure from the job log. For E2E failures, download the
    diagnostics artifact before you form a theory:
@@ -51,8 +55,8 @@ gh pr view --json number,url,headRefName
    to pick the task.
 5. Fix the cause. Do not skip, weaken, or delete a test to make it pass.
 6. If the failure is unrelated to the diff, such as a known flaky test or an
-   infrastructure error, rerun only the failed jobs once instead of changing
-   code:
+   infrastructure error, rerun only the failed jobs instead of changing code.
+   Rerun only when `gh run view <run-id> --json attempt` reports attempt 1:
 
    ```bash
    gh run rerun <run-id> --failed

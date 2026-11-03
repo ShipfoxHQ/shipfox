@@ -14,8 +14,8 @@ Take one Linear issue from implementation to a green, reviewed pull request.
 - `<issue>` is a Linear issue key, ID, or URL. If it is missing, ask for it and
   stop.
 - `--max-iterations` caps the review loop. The default is 10.
-- `--watch-minutes` sets how often the watch phase checks for conflicts. The
-  default is 10.
+- `--watch-minutes` sets how often the watch phase checks for conflicts and
+  new comments. The default is 10.
 
 ## Process
 
@@ -25,8 +25,8 @@ Take one Linear issue from implementation to a green, reviewed pull request.
    and opens the pull request.
 3. Record the pull request number with `gh pr view --json number,url`.
 4. Run the loop below until a stop condition holds.
-5. If the loop ended with CI green and no open comment, print the summary and
-   enter the watch phase.
+5. Print the summary whenever the loop stops. If it stopped with CI green and
+   no open comment, enter the watch phase.
 
 ## Loop
 
@@ -90,12 +90,13 @@ Do not merge the pull request or mark the Linear issue done.
 Every `--watch-minutes` minutes, check the pull request:
 
 ```bash
-gh pr view <number> --json state,mergeable
+gh pr view <number> --json state,mergeable,reviews,comments
 ```
 
 - If `state` is `MERGED` or `CLOSED`, stop and print the final summary.
-- If `mergeable` is `CONFLICTING`, run the loop again with a fresh iteration
-  count. Its sync step rebases the branch.
+- If `mergeable` is `CONFLICTING`, or a review, comment, or unresolved review
+  thread appeared since the last pass, run the loop again with a fresh
+  iteration count. Review bots often post after CI turns green.
 
 Run each wait in the background if the shell has a command timeout.
 
