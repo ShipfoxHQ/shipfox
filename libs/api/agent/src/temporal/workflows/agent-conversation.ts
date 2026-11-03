@@ -4,6 +4,7 @@ import {
   CancelledFailure,
   continueAsNew,
   defineSignal,
+  log,
   proxyActivities,
   setHandler,
   TimeoutFailure,
@@ -23,6 +24,11 @@ const {beginTurn, claimPendingInputs, finishTurn} = proxyActivities<Conversation
   startToCloseTimeout: '30 seconds',
 });
 
+const {deliverReply: deliverReplyActivity} = proxyActivities<ConversationActivities>({
+  startToCloseTimeout: '1 minute',
+  retry: {maximumAttempts: 3},
+});
+
 const {modelCall, compactConversation} = proxyActivities<ConversationActivities>({
   startToCloseTimeout: '10 minutes',
   heartbeatTimeout: '30 seconds',
@@ -39,6 +45,22 @@ export const wakeSignal = defineSignal(CONVERSATION_WAKE_SIGNAL_NAME);
 
 export interface AgentConversationInput {
   conversationId: string;
+}
+
+/**
+ * Sends a turn's outcome, or a denial's when there is no turn. A reply that can't be sent doesn't
+ * end the conversation: the next input still gets its turn.
+ */
+async function deliverReply(input: {conversationId: string; turnId?: string}): Promise<void> {
+  try {
+    await deliverReplyActivity(input);
+  } catch (error) {
+    if (error instanceof CancelledFailure) throw error;
+    log.warn('Failed to deliver the reply of an agent conversation', {
+      conversationId: input.conversationId,
+      error: String(error),
+    });
+  }
 }
 
 function failureCodeOf(error: unknown): TurnFailureCode {
@@ -160,11 +182,14 @@ export async function agentConversationWorkflow({
     woken = false;
     const turn = await beginTurn({conversationId});
     if (turn === undefined) {
+      // A denial opens no turn, and its notice is the only reply it has.
+      await deliverReply({conversationId});
       // A wake that arrived while beginTurn ran may have queued something it missed.
       if (woken) continue;
       return;
     }
     await runTurn({conversationId, turnId: turn.turnId});
+    await deliverReply({conversationId, turnId: turn.turnId});
     if (workflowInfo().continueAsNewSuggested)
       await continueAsNew<typeof agentConversationWorkflow>({conversationId});
   }

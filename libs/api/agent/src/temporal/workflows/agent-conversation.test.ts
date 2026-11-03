@@ -19,6 +19,8 @@ interface Scenario {
   /** Whether the claim before a model call finds a requested stop. */
   stopRequested?: () => boolean;
   compact: (input: unknown) => Promise<{compacted: boolean}> | {compacted: boolean};
+  /** Runs inside each deliverReply. Throwing makes the delivery fail. */
+  deliverReply?: () => Promise<void> | void;
 }
 
 let testEnv: TestWorkflowEnvironment;
@@ -61,6 +63,10 @@ beforeAll(async () => {
       },
       finishTurn: (input: unknown) => {
         calls.push({name: 'finishTurn', input});
+      },
+      deliverReply: async (input: unknown) => {
+        calls.push({name: 'deliverReply', input});
+        await scenario.deliverReply?.();
       },
     },
   });
@@ -111,7 +117,9 @@ describe('agentConversationWorkflow', () => {
       'claimPendingInputs',
       'modelCall',
       'finishTurn',
+      'deliverReply',
       'beginTurn',
+      'deliverReply',
     ]);
     expect(named('toolCall')).toEqual([
       {conversationId, turnId: 'turn-1', modelCallIndex: 0, callIndex: 0},
@@ -288,6 +296,38 @@ describe('agentConversationWorkflow', () => {
 
     expect(named('compactConversation')).toHaveLength(2);
     expect(named('finishTurn')).toMatchObject([{status: 'succeeded'}]);
+  });
+
+  it('delivers the reply of each turn, and tells a denial when no turn opens', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+
+    const conversationId = await run();
+
+    expect(named('deliverReply')).toEqual([{conversationId, turnId: 'turn-1'}, {conversationId}]);
+  });
+
+  it('delivers the reply of a stopped turn', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+    scenario.stopRequested = () => true;
+
+    const conversationId = await run();
+
+    expect(named('finishTurn')).toEqual([{conversationId, turnId: 'turn-1', status: 'stopped'}]);
+    expect(named('deliverReply')[0]).toEqual({conversationId, turnId: 'turn-1'});
+  });
+
+  it('goes on to the next turn when a reply can not be delivered', async () => {
+    scenario.turns = [{turnId: 'turn-1'}, {turnId: 'turn-2'}];
+    scenario.deliverReply = () => {
+      throw ApplicationFailure.nonRetryable('Slack is down');
+    };
+
+    const conversationId = await run();
+
+    expect(named('finishTurn')).toEqual([
+      {conversationId, turnId: 'turn-1', status: 'succeeded'},
+      {conversationId, turnId: 'turn-2', status: 'succeeded'},
+    ]);
   });
 
   it('looks again when a wake arrives while it finds nothing to do', async () => {

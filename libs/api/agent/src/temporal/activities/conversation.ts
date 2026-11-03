@@ -14,6 +14,7 @@ import {
   claimConversationInputs,
   compactConversation,
   createServerModelRuntime,
+  deliverConversationReply,
   finishConversationTurn,
   type ModelCallResult,
   runModelCall,
@@ -151,6 +152,12 @@ export function createConversationActivities(deps: ConversationActivityDeps) {
     }): Promise<void> => {
       await finishConversationTurn(input);
     },
+
+    deliverReply: async (input: {
+      conversationId: string;
+      turnId?: string | undefined;
+    }): Promise<void> =>
+      await deliverConversationReply({...input, integrations: deps.integrations}),
 
     recoverConversations: async (): Promise<{woken: number}> =>
       await recoverConversations({wake: deps.wake ?? wakeConversation}),

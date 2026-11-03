@@ -7,6 +7,7 @@ import {
   insertQueuedUserMessage,
   newConversationRecordId,
 } from '#db/conversations.js';
+import {requestTurnStop} from '#db/turn-runtime.js';
 import {CONVERSATION_SESSION_VERSION, userMessageEntry} from './conversation-entries.js';
 import {
   aadForConversationItem,
@@ -111,7 +112,12 @@ async function deliverToOwner(args: {
   // owner hit.
   const startedHere = owner.clientMessageId === messageId;
   const outcome = startedHere ? 'default' : 'owner';
-  if (params.interaction.role === 'stop') return routed(outcome, owner);
+  if (params.interaction.role === 'stop') {
+    // The running turn ends at its next check and sends its own final reply. A stop with no
+    // running turn has nothing to end.
+    await requestTurnStop(owner.id);
+    return routed(outcome, owner);
+  }
 
   const key = await conversationDataKey(owner.workspaceId);
   const itemId = await newConversationRecordId();

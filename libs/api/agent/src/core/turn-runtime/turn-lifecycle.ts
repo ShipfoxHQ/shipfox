@@ -139,7 +139,7 @@ async function resolveTurnModel(
   }
 }
 
-async function sealTurnNotice(
+export async function sealTurnNotice(
   conversation: Conversation,
   notice: ConversationTurnNoticeDto,
 ): Promise<NewTimelineEntry> {

@@ -36,6 +36,7 @@ import {
 } from './errors.js';
 
 export const SHIPPY_AGENT_KEY = 'shippy';
+export const SHIPPY_AGENT_NAME = 'Shippy';
 const CONVERSATION_TITLE_MAX_CHARS = 80;
 const CONVERSATION_QUEUED_ITEMS_CAP = 100;
 

@@ -199,6 +199,15 @@ export const conversationTurnCount = meter.createCounter<{
     'Agent conversation turns by conversation origin, trigger, and outcome. A denied turn never opened: admission or a departed owner refused its inputs',
 });
 
+export const conversationReplyCount = meter.createCounter<{
+  provider: string;
+  kind: 'response' | 'error';
+  outcome: 'delivered' | 'undeliverable';
+}>('agent_conversation_replies', {
+  description:
+    'Replies sent back to an integration conversation by provider, kind, and outcome. An undeliverable reply is not retried',
+});
+
 export const conversationFirstTokenSeconds = meter.createHistogram<{
   origin: 'web' | 'integration';
 }>('agent_conversation_first_token_seconds', {
