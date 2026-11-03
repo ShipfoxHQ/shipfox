@@ -116,6 +116,20 @@ describe('isConnectionNarrowed', () => {
     ).toBe(true);
   });
 
+  test('is true for an empty list on a connection that is not the config source', () => {
+    const policy = managedPolicy([scope(GITHUB_OSS, [])]);
+
+    expect(
+      isConnectionNarrowed(policy, {connectionId: GITHUB_OSS, resourceKind: 'repository'}),
+    ).toBe(true);
+    expect(
+      evaluateResourceAccess(policy, {
+        connectionId: GITHUB_OSS,
+        target: {kind: 'external-id', resourceKind: 'repository', externalId: 'github:1'},
+      }),
+    ).toEqual({allowed: false, reason: 'resource_not_allowed'});
+  });
+
   test('is false for a kind the selected resources do not hold', () => {
     const policy = managedPolicy([
       scope(LINEAR, [{kind: 'team', externalId: 't1', lookupName: 'a'}]),
@@ -214,7 +228,7 @@ describe('evaluateResourceAccess', () => {
     ).toEqual({allowed: false, reason: 'resource_not_allowed'});
   });
 
-  test('does not let a stale name match a repository that reused it', () => {
+  test('denies an unstored repository id, so a reused id cannot match', () => {
     const policy = managedPolicy([scope(GITHUB_OSS, [sdk])]);
 
     const decision = evaluateResourceAccess(policy, {

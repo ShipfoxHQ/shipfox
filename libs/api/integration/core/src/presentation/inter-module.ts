@@ -339,14 +339,15 @@ export function createIntegrationsInterModulePresentation(params: {
       const connection = await getIntegrationConnectionByWorkspaceId({workspaceId, connectionId});
       if (!connection) return null;
       const provider = params.registry.find(connection.provider);
+      if (!provider) return null;
       return {
         id: connection.id,
         provider: connection.provider,
         slug: connection.slug,
         displayName: connection.displayName,
         lifecycleStatus: connection.lifecycleStatus,
-        internal: provider?.internal === true,
-        resourceKinds: (provider?.resourceKinds ?? []).map(({kind, label}) => ({kind, label})),
+        internal: provider.internal === true,
+        resourceKinds: (provider.resourceKinds ?? []).map(({kind, label}) => ({kind, label})),
       };
     },
     resolveScopeResource: async (input) => {

@@ -13,10 +13,11 @@ import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
-import {sql} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
+import {projects} from '#db/schema/projects.js';
 import {projectFactory} from '#test/index.js';
 import {createProjectRoutes} from './index.js';
 
@@ -426,6 +427,51 @@ describe('project access routes', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().connections[0].resources).toHaveLength(1);
+  });
+
+  test('stores one row when two requested spellings resolve to the same resource', async () => {
+    const project = await projectFactory.create({workspaceId});
+    const oss = addConnection();
+    resources.set('github:1-alias', resources.get('github:1') as never);
+
+    const res = await put(project.id, {
+      connections: [
+        {
+          connection_id: oss.id,
+          resources: [
+            {kind: 'repository', external_id: 'github:1'},
+            {kind: 'repository', external_id: 'github:1-alias'},
+          ],
+        },
+      ],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections[0].resources).toHaveLength(1);
+  });
+
+  test('refuses a write when the config source moved during validation', async () => {
+    const project = await projectFactory.create({workspaceId});
+    addConnection({id: project.sourceConnectionId});
+    vi.mocked(integrations.resolveScopeResource).mockImplementationOnce(async () => {
+      await db()
+        .update(projects)
+        .set({sourceConnectionId: crypto.randomUUID()})
+        .where(eq(projects.id, project.id));
+      return resources.get('github:1') ?? null;
+    });
+
+    const res = await put(project.id, {
+      connections: [
+        {
+          connection_id: project.sourceConnectionId,
+          resources: [{kind: 'repository', external_id: 'github:1'}],
+        },
+      ],
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({code: 'source-changed'});
   });
 
   test('refuses a write from a workspace member who is not an admin', async () => {

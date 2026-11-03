@@ -16,9 +16,20 @@ export async function loadProjectAccessByIds(
   projectIds: readonly string[],
   options: {executor?: Executor | undefined} = {},
 ): Promise<Map<string, StoredProjectAccess>> {
+  if (projectIds.length === 0) return new Map();
+  if (options.executor) return await readProjectAccess(options.executor, projectIds);
+  // One snapshot, so a concurrent replacement can't pair old scopes with new resources.
+  return await db().transaction((tx) => readProjectAccess(tx, projectIds), {
+    isolationLevel: 'repeatable read',
+    accessMode: 'read only',
+  });
+}
+
+async function readProjectAccess(
+  executor: Executor,
+  projectIds: readonly string[],
+): Promise<Map<string, StoredProjectAccess>> {
   const result = new Map<string, StoredProjectAccess>();
-  if (projectIds.length === 0) return result;
-  const executor = options.executor ?? db();
 
   const [projectRows, scopeRows, resourceRows] = await Promise.all([
     executor

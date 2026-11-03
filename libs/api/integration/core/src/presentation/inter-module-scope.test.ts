@@ -97,6 +97,16 @@ describe('integrations scope inter-module presentation', () => {
       expect(result?.internal).toBe(true);
     });
 
+    it('answers null when the provider of the connection is not registered', async () => {
+      const workspaceId = crypto.randomUUID();
+      const connection = await createConnection(workspaceId);
+      const client = createClient([]);
+
+      await expect(
+        client.getScopeConnection({workspaceId, connectionId: connection.id}),
+      ).resolves.toBeNull();
+    });
+
     it('answers null for a missing connection and for one of another workspace', async () => {
       const connection = await createConnection(crypto.randomUUID());
       const client = createClient([scopeProvider()]);

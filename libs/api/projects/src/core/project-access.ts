@@ -31,6 +31,7 @@ import {
   ProjectAccessInvalidError,
   ProjectAccessProviderError,
   ProjectNotFoundError,
+  ProjectSourceChangedError,
 } from './errors.js';
 
 const RESOLVE_CONCURRENCY = 10;
@@ -135,11 +136,22 @@ export async function setProjectAccess(params: SetProjectAccessParams): Promise<
 
   return await db().transaction(async (tx) => {
     const [locked] = await tx
-      .select({id: projects.id})
+      .select({
+        id: projects.id,
+        sourceConnectionId: projects.sourceConnectionId,
+        sourceExternalRepositoryId: projects.sourceExternalRepositoryId,
+      })
       .from(projects)
       .where(eq(projects.id, project.id))
       .for('update');
     if (!locked) throw new ProjectNotFoundError(project.id);
+    // The config source counts toward the resource minimum, so a move during validation voids it.
+    if (
+      locked.sourceConnectionId !== project.sourceConnectionId ||
+      locked.sourceExternalRepositoryId !== project.sourceExternalRepositoryId
+    ) {
+      throw new ProjectSourceChangedError(project.id);
+    }
 
     await replaceProjectAccess({tx, projectId: project.id, access});
     await writeOutboxEvent<ProjectsEventMap>(tx, projectsOutbox, {
@@ -192,15 +204,16 @@ async function buildStoredAccess(
     const resources = await mapWithConcurrency(connection.resources, (resource) =>
       resolveResource(params, connection.connectionId, resource),
     );
-    scopes.push({connectionId: connection.connectionId, resources});
+    // Two spellings of one resource resolve to the same provider id.
+    scopes.push({connectionId: connection.connectionId, resources: dedupeResources(resources)});
   }
   return {connectionAccess: 'selected', scopes};
 }
 
-function dedupeResources(
-  resources: ReadonlyArray<{kind: string; externalId: string}>,
-): Array<{kind: string; externalId: string}> {
-  const seen = new Map<string, {kind: string; externalId: string}>();
+function dedupeResources<Resource extends {kind: string; externalId: string}>(
+  resources: ReadonlyArray<Resource>,
+): Resource[] {
+  const seen = new Map<string, Resource>();
   for (const resource of resources) {
     seen.set(`${resource.kind}\u0000${resource.externalId}`, resource);
   }

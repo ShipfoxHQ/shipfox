@@ -482,7 +482,7 @@ async function writeConnectionAvailableEvent(
   });
 }
 
-export async function writeConnectionDeletedEvent(
+async function writeConnectionDeletedEvent(
   connection: IntegrationConnection,
   options: {tx: IntegrationDb | IntegrationTx},
 ): Promise<void> {
@@ -498,15 +498,26 @@ export async function writeConnectionDeletedEvent(
   });
 }
 
+/**
+ * Deletes the connection and writes `INTEGRATION_CONNECTION_DELETED` in the same transaction, so
+ * every deletion path tells consumers that key rows on the connection id.
+ */
 export async function deleteIntegrationConnection(
   params: {id: string},
   options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
 ): Promise<boolean> {
-  const executor = options.tx ?? db();
-  const result = await executor
+  if (options.tx === undefined) {
+    return await db().transaction((tx) => deleteIntegrationConnection(params, {tx}));
+  }
+
+  const [row] = await options.tx
     .delete(integrationConnections)
-    .where(eq(integrationConnections.id, params.id));
-  return (result.rowCount ?? 0) > 0;
+    .where(eq(integrationConnections.id, params.id))
+    .returning();
+  if (!row) return false;
+
+  await writeConnectionDeletedEvent(toIntegrationConnection(row), {tx: options.tx});
+  return true;
 }
 
 export type DeleteIntegrationConnectionFn = typeof deleteIntegrationConnection;

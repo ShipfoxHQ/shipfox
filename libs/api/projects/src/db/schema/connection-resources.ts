@@ -27,12 +27,6 @@ export const projectsConnectionResources = pgTable(
       columns: [table.projectId, table.connectionId],
       foreignColumns: [projectsConnectionScopes.projectId, projectsConnectionScopes.connectionId],
     }).onDelete('cascade'),
-    index('projects_connection_resources_lookup_idx').on(
-      table.projectId,
-      table.connectionId,
-      table.resourceKind,
-      table.lookupName,
-    ),
     index('projects_connection_resources_external_idx').on(
       table.connectionId,
       table.resourceKind,

@@ -104,6 +104,22 @@ describe('GET /integration-connections/:connectionId/scope-resources', () => {
     expect(res.json().code).toBe('integration-resource-kind-unsupported');
   });
 
+  it('refuses an internal provider without listing its resources', async () => {
+    const provider = scopeProvider({internal: true});
+    const app = await createTestApp([provider]);
+    const connection = await createConnection();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections/${connection.id}/scope-resources?kind=repository`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('integration-resource-kind-unsupported');
+    expect(provider.listScopeResources).not.toHaveBeenCalled();
+  });
+
   it('refuses a provider that declares no resource kind', async () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await createConnection();

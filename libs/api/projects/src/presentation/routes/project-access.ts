@@ -15,6 +15,7 @@ import {
   ProjectAccessInvalidError,
   ProjectAccessProviderError,
   ProjectNotFoundError,
+  ProjectSourceChangedError,
 } from '#core/errors.js';
 import type {ProjectAccessView} from '#core/project-access.js';
 import {getProjectAccess, setProjectAccess} from '#core/project-access.js';
@@ -41,6 +42,9 @@ function providerStatus(reason: string): number {
 function handleAccessError(error: unknown): never {
   if (error instanceof ProjectNotFoundError) {
     throw new ClientError('Project not found', 'project-not-found', {status: 404});
+  }
+  if (error instanceof ProjectSourceChangedError) {
+    throw new ClientError('Project source changed', 'source-changed', {status: 409});
   }
   if (error instanceof ProjectAccessInvalidError) {
     throw new ClientError(error.message, invalidReasonCodes[error.reason], {

@@ -21,6 +21,5 @@ CREATE TABLE "projects_connection_scopes" (
 ALTER TABLE "projects_projects" ADD COLUMN "connection_access" text DEFAULT 'all' NOT NULL;--> statement-breakpoint
 ALTER TABLE "projects_connection_resources" ADD CONSTRAINT "projects_connection_resources_scope_fk" FOREIGN KEY ("project_id","connection_id") REFERENCES "public"."projects_connection_scopes"("project_id","connection_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "projects_connection_scopes" ADD CONSTRAINT "projects_connection_scopes_project_id_projects_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects_projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "projects_connection_resources_lookup_idx" ON "projects_connection_resources" USING btree ("project_id","connection_id","resource_kind","lookup_name");--> statement-breakpoint
 CREATE INDEX "projects_connection_resources_external_idx" ON "projects_connection_resources" USING btree ("connection_id","resource_kind","external_resource_id");--> statement-breakpoint
 CREATE INDEX "projects_connection_scopes_connection_idx" ON "projects_connection_scopes" USING btree ("connection_id");

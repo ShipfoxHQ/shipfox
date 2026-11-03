@@ -7,7 +7,6 @@ Shipfox API Projects manages project resources and their source repository bindi
 - **`createProjectFromSource`**: Creates a project from a repository in an integration connection.
 - **`createManagedProject`**: Creates a project whose config lives in a repository Shipfox hosts, with optional seed files.
 - **`updateProjectDetails`**: Changes a project's name or slug and writes the update event.
-- **`setProjectAccess`**: Replaces the connections and resources a project's workloads can use. See [Access](#access).
 - **`createProjectRoutes`**: Mounts project and administrator HTTP routes.
 - **`Project`**: Represents the project identity, URL slug, source repository, and timestamps.
 
@@ -78,7 +77,8 @@ resources they can reach. Nothing enforces it yet; this module stores and serves
   `lookup_name` for name targets, and the provider's `display_name`.
 - **`PUT` replaces everything** in one transaction and writes `PROJECT_ACCESS_CHANGED`, an audit
   event with the actor, the correlation id, and a count of resources per connection. The body is
-  `{"connections": "all"}` or a list of `{connection_id, resources: "all" | [{kind, external_id}]}`.
+  `{"connections": "all"}` or
+  `{"connections": [{connection_id, resources: "all" | [{kind, external_id}]}]}`.
 - **Validation** goes through the integrations client. Each listed connection must belong to the
   workspace, be active, and not be internal. A listed resource must be a `repository` that the
   connection's provider declares and can resolve, or the request answers `422 resource-not-found`.

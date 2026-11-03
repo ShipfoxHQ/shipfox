@@ -85,9 +85,9 @@ export function evaluateConnectionAccess(
 
 /**
  * Whether the connection limits the project to some resources of this kind. A listed connection
- * limits a kind it holds resources of. The config source connection also limits repositories to
- * its config repository when the project does not list the connection, since the config
- * repository counts as the one resource.
+ * limits a kind it holds resources of, and an empty list limits every kind. The config source
+ * connection also limits repositories to its config repository when the project does not list the
+ * connection, since the config repository counts as the one resource.
  */
 export function isConnectionNarrowed(
   policy: ProjectAccessPolicy,
@@ -99,7 +99,11 @@ export function isConnectionNarrowed(
   const scope = findScope(policy, connectionId);
   if (!scope) return isConfigConnection;
   if (scope.resources === 'all') return false;
-  return isConfigConnection || scope.resources.some((resource) => resource.kind === resourceKind);
+  return (
+    isConfigConnection ||
+    scope.resources.length === 0 ||
+    scope.resources.some((resource) => resource.kind === resourceKind)
+  );
 }
 
 /**

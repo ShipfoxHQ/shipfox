@@ -10,7 +10,7 @@
 
 A project can store and read its access: the connections it can use and, for each, the repositories it can reach. Nothing enforces it yet.
 
-- **Projects:** `GET` and `PUT /projects/:projectId/access`, with admin-only writes and a `PROJECT_ACCESS_CHANGED` audit event. New `connection_access` column and `connection_scopes` and `connection_resources` tables. `getProjectAccessPolicy` and `getProjectAccessPolicies` on the inter-module contract.
-- **Projects DTO:** a browser-safe evaluator (`evaluateConnectionAccess`, `evaluateResourceAccess`, `isConnectionNarrowed`, `soleListedConnection`, `defaultCheckoutRepository`) and the policy types.
-- **Integrations:** providers can declare `resourceKinds`, `listScopeResources`, and `resolveScopeResource`. GitHub and Gitea do so for repositories. New `GET /integration-connections/:connectionId/scope-resources`, and `getScopeConnection` and `resolveScopeResource` on the inter-module contract.
-- **Connection deletion** writes `integrations.connection.deleted`, and Projects removes the matching scopes.
+- **Projects:** `GET` and `PUT /projects/:projectId/access`, with admin-only writes. A linked project's config connection can be saved with zero repositories, which means only the config repository. A repository rename updates the stored names of a listed repository.
+- **Projects DTO:** a browser-safe access evaluator and the policy types, and `getProjectAccessPolicy` and `getProjectAccessPolicies` on the inter-module contract.
+- **Integrations:** providers can declare resource kinds and list and resolve their resources. GitHub and Gitea do so for repositories, and `GET /integration-connections/:connectionId/scope-resources` serves the picker.
+- **Connection deletion** of every kind writes `integrations.connection.deleted`, and Projects removes the matching scopes.

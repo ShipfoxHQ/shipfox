@@ -316,7 +316,8 @@ export const integrationsInterModuleContract = defineInterModuleContract({
     /**
      * What a project needs to know before it lists a connection in its access: whether the
      * connection exists in the workspace, is internal, and which resource kinds its provider
-     * declares. Null when the connection is missing or belongs to another workspace.
+     * declares. Null when the connection is missing, belongs to another workspace, or has a
+     * provider that is not registered.
      */
     getScopeConnection: {
       input: z.object({workspaceId: id, connectionId: id}),
