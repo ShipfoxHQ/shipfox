@@ -69,7 +69,7 @@ export function FirstUse({prompts, onPrompt}: FirstUseProps) {
         description="Shippy reads this project's runs, logs, and workflows, and explains what failed. It can't start work yet."
       />
       {prompts.length > 0 ? (
-        <Suggestions aria-label="Suggested questions">
+        <Suggestions role="group" aria-label="Suggested questions">
           {prompts.map((prompt) => (
             <Suggestion key={prompt} suggestion={prompt} onClick={onPrompt} />
           ))}

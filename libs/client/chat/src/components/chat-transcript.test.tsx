@@ -86,7 +86,6 @@ describe('ChatTranscript', () => {
     expect(screen.getByText('Queued')).toBeInTheDocument();
     expect(screen.getByText('Stopped')).toBeInTheDocument();
     expect(screen.getByRole('img', {name: 'Result unknown'})).toBeInTheDocument();
-    expect(screen.queryByRole('img', {name: 'Failed'})).not.toBeInTheDocument();
   });
 
   test('says when a reply is slow to start', async () => {

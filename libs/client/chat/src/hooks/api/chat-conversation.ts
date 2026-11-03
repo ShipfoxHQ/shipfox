@@ -118,7 +118,8 @@ function useLiveTurn(params: {
   );
   return {
     streaming,
-    live: streaming ? live : undefined,
+    // A stream that dropped keeps its text on screen while the turn still runs.
+    live: streaming || params.turnRunning ? live : undefined,
     stored: live,
     reconnecting: useElapsed(disconnectedSince, RECONNECTING_NOTICE_MS),
   };
@@ -179,7 +180,7 @@ export function useChatConversation({
   );
 
   const createMutation = useCreateConversationMutation(projectId);
-  const sendMutation = useSendConversationMessageMutation(conversationId);
+  const sendMutation = useSendConversationMessageMutation({projectId, conversationId});
   const stopMutation = useStopConversationMutation(conversationId);
   const retryMutation = useRetryConversationMutation(conversationId);
   useMarkRead({
@@ -206,7 +207,12 @@ export function useChatConversation({
   const stop = useCallback(async () => {
     if (runningTurnId === undefined) return;
     setStopTurnId(runningTurnId);
-    await stopMutation.mutateAsync();
+    try {
+      await stopMutation.mutateAsync();
+    } catch {
+      // `Stop reply` comes back, so the user can press it again.
+      setStopTurnId(undefined);
+    }
   }, [runningTurnId, stopMutation]);
 
   const {start: startRetry, cancel: cancelRetry} = retryPickup;

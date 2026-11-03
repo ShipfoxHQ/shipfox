@@ -6,6 +6,9 @@ export const OLD_TURN_ID = '33333333-3333-4333-8333-333333333333';
 
 export const itemId = (seq: number) => `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`;
 
+let queuedCount = 0;
+const queuedId = () => `00000000-0000-4000-9000-${String(++queuedCount).padStart(12, '0')}`;
+
 export function rowsItem(params: {
   seq: number | null;
   rows: SessionViewRow[];
@@ -13,7 +16,7 @@ export function rowsItem(params: {
   id?: string;
 }): ConversationItem {
   return {
-    id: params.id ?? itemId(params.seq ?? 999),
+    id: params.id ?? (params.seq === null ? queuedId() : itemId(params.seq)),
     seq: params.seq,
     turnId: params.turnId ?? null,
     clientMessageId: null,

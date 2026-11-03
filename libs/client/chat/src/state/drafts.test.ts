@@ -32,4 +32,13 @@ describe('createDraftStore', () => {
     createDraftStore(undefined).write('key', 'text');
     expect(createDraftStore(undefined).read('key')).toBe('');
   });
+
+  test('keeps every other draft when one is emptied', () => {
+    const store = createDraftStore('user-1');
+    for (let index = 0; index < 20; index += 1) store.write(`key-${index}`, 'text');
+
+    store.write('absent', '');
+
+    expect(store.read('key-0')).toBe('text');
+  });
 });

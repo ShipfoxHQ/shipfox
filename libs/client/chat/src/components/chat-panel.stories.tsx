@@ -125,6 +125,7 @@ function Panel({
                 onStop: () => undefined,
                 disabled,
                 error,
+                submitBlocked: error !== undefined,
               }
             : undefined
         }
@@ -468,6 +469,7 @@ export const History: Story = {
             onDelete={async () => true}
             deleting={false}
             deleteError={undefined}
+            onDeleteDismissed={noop}
           />
         }
         composer={undefined}

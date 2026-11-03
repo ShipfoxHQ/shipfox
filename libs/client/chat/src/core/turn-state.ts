@@ -127,5 +127,5 @@ export const CONTEXT_OVERFLOW_NOTICE_CODE = 'context_overflow';
 
 /** A denied message can be sent again once its cause is resolved. */
 export function canSendAgain(code: string): boolean {
-  return code === ADMISSION_DENIED_NOTICE_CODE;
+  return code === ADMISSION_DENIED_NOTICE_CODE || code === 'workspace-suspended';
 }

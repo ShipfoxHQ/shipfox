@@ -34,6 +34,8 @@ export interface ChatHistoryProps {
   /** Resolves false when the delete was refused, so the modal stays open with the reason. */
   onDelete: (conversationId: string) => Promise<boolean>;
   deleteError: string | undefined;
+  /** Clears a failed delete, so its reason doesn't follow the user to another conversation. */
+  onDeleteDismissed: () => void;
   deleting: boolean;
 }
 
@@ -48,9 +50,16 @@ export function ChatHistory({
   onSelect,
   onDelete,
   deleteError,
+  onDeleteDismissed,
   deleting,
 }: ChatHistoryProps) {
-  const [pendingDelete, setPendingDelete] = useState<ConversationSummary | undefined>(undefined);
+  const [pendingDelete, setPendingDeleteState] = useState<ConversationSummary | undefined>(
+    undefined,
+  );
+  const setPendingDelete = (conversation: ConversationSummary | undefined) => {
+    if (!conversation) onDeleteDismissed();
+    setPendingDeleteState(conversation);
+  };
 
   if (loading) {
     return <FullPageLoader className="h-auto flex-1" />;

@@ -237,6 +237,7 @@ function ProjectChat({project}: {project: Project}) {
               }}
               deleting={deleteMutation.isPending}
               deleteError={deleteErrorCopy(deleteMutation.error)}
+              onDeleteDismissed={deleteMutation.reset}
             />
           ) : (
             <ConversationBody
@@ -264,6 +265,7 @@ function ProjectChat({project}: {project: Project}) {
                 onStop: () => void chat.stop(),
                 disabled: blocked || resolving,
                 error: sendError,
+                submitBlocked: isMessageTooLong(draft.value),
               }
             : undefined
         }

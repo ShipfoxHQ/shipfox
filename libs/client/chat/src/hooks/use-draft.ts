@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {createDraftStore, draftKey} from '#state/drafts.js';
 
 export interface Draft {
@@ -21,56 +21,44 @@ export function useDraft(params: {
   projectId: string;
   conversationId: string | undefined;
 }): Draft {
-  const store = useMemo(() => createDraftStore(params.userId), [params.userId]);
-  const key = draftKey(params.projectId, params.conversationId);
-  const [state, setState] = useState(() => ({key, value: store.read(key)}));
-  const latest = useRef(state);
-  latest.current = state;
+  const {userId, projectId, conversationId} = params;
+  const store = useMemo(() => createDraftStore(userId), [userId]);
+  const key = draftKey(projectId, conversationId);
+  const [value, setValueState] = useState(() => store.read(key));
+  const valueRef = useRef(value);
 
-  // Another conversation opens with its own draft. The one left behind keeps what it held.
-  if (state.key !== key) {
-    store.write(state.key, state.value);
-    const next = {key, value: store.read(key)};
-    latest.current = next;
-    setState(next);
-  }
+  const setValue = useCallback((next: string) => {
+    valueRef.current = next;
+    setValueState(next);
+  }, []);
 
-  const save = useCallback(() => store.write(latest.current.key, latest.current.value), [store]);
+  const save = useCallback(() => store.write(key, valueRef.current), [store, key]);
 
-  useEffect(() => {
+  // Each conversation and each user has its own draft. The one left behind keeps what it held.
+  // A layout effect swaps it before paint, so the old text never shows in the new conversation.
+  useLayoutEffect(() => {
+    setValue(store.read(key));
     window.addEventListener('pagehide', save);
     return () => {
       window.removeEventListener('pagehide', save);
       save();
     };
-  }, [save]);
-
-  const setValue = useCallback((value: string) => {
-    setState((current) => ({...current, value}));
-  }, []);
+  }, [store, key, save, setValue]);
 
   const take = useCallback(() => {
-    const {key: current, value} = latest.current;
-    store.write(current, '');
-    latest.current = {key: current, value: ''};
-    setState(latest.current);
-    return value;
-  }, [store]);
+    const taken = valueRef.current;
+    setValue('');
+    store.write(key, '');
+    return taken;
+  }, [store, key, setValue]);
 
   const moveTo = useCallback(
-    (conversationId: string | undefined) => {
-      const {key: from, value} = latest.current;
-      store.write(from, '');
-      store.write(draftKey(params.projectId, conversationId), value);
+    (target: string | undefined) => {
+      store.write(draftKey(projectId, target), valueRef.current);
+      setValue('');
     },
-    [store, params.projectId],
+    [store, projectId, setValue],
   );
 
-  return {
-    value: state.key === key ? state.value : latest.current.value,
-    setValue,
-    save,
-    take,
-    moveTo,
-  };
+  return {value, setValue, save, take, moveTo};
 }

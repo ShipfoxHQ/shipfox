@@ -23,8 +23,10 @@ export interface ChatComposerProps {
   stopping: boolean;
   onStop: () => void;
   disabled: boolean;
-  /** Keeps the draft editable but unsendable, with the reason below the field. */
+  /** Shown below the field. */
   error: string | undefined;
+  /** Keeps the draft editable but unsendable, as for a message over the limit. */
+  submitBlocked: boolean;
   onKeyDown?: ((event: KeyboardEvent<HTMLTextAreaElement>) => void) | undefined;
 }
 
@@ -40,6 +42,7 @@ export function ChatComposer({
   onStop,
   disabled,
   error,
+  submitBlocked,
   onKeyDown,
 }: ChatComposerProps) {
   const errorId = useId();
@@ -50,7 +53,7 @@ export function ChatComposer({
       onValueChange={onValueChange}
       onSubmit={onSubmit}
       disabled={disabled}
-      submitDisabled={error !== undefined}
+      submitDisabled={submitBlocked}
       onBlur={onBlur}
       className="border-t border-border-neutral-base p-tight"
     >

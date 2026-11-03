@@ -17,6 +17,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import {useCallback} from 'react';
 import type {
   ConversationDetail,
   ConversationItem,
@@ -244,7 +245,11 @@ export async function postConversationMessage(
   );
 }
 
-export function useSendConversationMessageMutation(conversationId: string | undefined) {
+export function useSendConversationMessageMutation(params: {
+  projectId: string;
+  conversationId: string | undefined;
+}) {
+  const {projectId, conversationId} = params;
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: SendMessageInput) =>
@@ -254,7 +259,11 @@ export function useSendConversationMessageMutation(conversationId: string | unde
       queryClient.setQueryData<ItemsData>(conversationQueryKeys.items(conversationId), (data) =>
         withQueuedItem(data, item),
       );
-      await queryClient.invalidateQueries({queryKey: conversationQueryKeys.detail(conversationId)});
+      // Sending moves the conversation to the top of the history.
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey: conversationQueryKeys.detail(conversationId)}),
+        queryClient.invalidateQueries({queryKey: conversationQueryKeys.list(projectId)}),
+      ]);
     },
   });
 }
@@ -340,11 +349,11 @@ export function useMarkConversationReadMutation(projectId: string) {
 /** Reads the conversation again once a stream ends, because polling paused while it was open. */
 export function useConversationRefresh(conversationId: string | undefined) {
   const queryClient = useQueryClient();
-  return async () => {
+  return useCallback(async () => {
     if (!conversationId) return;
     await Promise.all([
       queryClient.invalidateQueries({queryKey: conversationQueryKeys.detail(conversationId)}),
       queryClient.invalidateQueries({queryKey: conversationQueryKeys.items(conversationId)}),
     ]);
-  };
+  }, [queryClient, conversationId]);
 }

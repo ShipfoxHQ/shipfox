@@ -50,8 +50,10 @@ export function createDraftStore(userId: string | undefined): DraftStore {
     read: (key) => storage.read()?.[key] ?? '',
     write: (key, text) => {
       const {[key]: _previous, ...rest} = storage.read() ?? {};
-      const kept = Object.entries(rest).slice(-(MAX_DRAFTS - 1));
-      storage.write(Object.fromEntries(text ? [...kept, [key, text]] : kept));
+      const kept = Object.entries(rest);
+      storage.write(
+        Object.fromEntries(text ? [...kept.slice(-(MAX_DRAFTS - 1)), [key, text]] : kept),
+      );
     },
   };
 }

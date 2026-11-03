@@ -357,11 +357,11 @@ function runViewPageContext(params: {
   if (params.activeJobId === undefined) {
     return {page: 'run', runId, runNumber, attempt, status: params.status};
   }
+  // A job id already names its attempt, and the run's head attempt may be a different one.
   return {
     page: 'job',
     runId,
     runNumber,
-    attempt,
     jobId: params.activeJobId,
     stepId: params.stepId,
     status: params.jobStatus,

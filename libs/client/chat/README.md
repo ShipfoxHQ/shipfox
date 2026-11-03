@@ -1,12 +1,13 @@
 # Shipfox Client Chat
 
-Chat with Shippy, the project agent, in a panel beside every project page.
+Chat with Shippy, the project agent, in a panel beside project pages.
 
 ## What it does
 
 - **`chatFeature`**: a client feature with one `projectDock` contribution. The
-  shell mounts the dock on every project page and keeps it mounted across them,
-  so a reply keeps streaming while the user moves around the project.
+  shell mounts the dock on project pages, except focused frames and the
+  pre-project gate, and keeps it mounted across them, so a reply keeps streaming
+  while the user moves around the project.
 - **The panel**: a header with History, New conversation, and Close, a
   transcript, and a composer with a context chip that shows which page the
   agent sees.
@@ -49,7 +50,8 @@ registered when it was sent.
 
 - The panel polls the conversation every 5 seconds while no turn runs, and
   follows `GET /conversations/:id/stream` while one does. Reads pause while the
-  panel is closed and in a hidden tab.
+  panel is closed. Polling also pauses in a hidden tab, but an open stream
+  continues until its turn ends.
 - A sent message shows at once with a `Queued` chip, below the reply, until a
   turn claims it.
 - `Mod+.` opens or closes the panel. `Enter` sends, `Shift+Enter` adds a line,

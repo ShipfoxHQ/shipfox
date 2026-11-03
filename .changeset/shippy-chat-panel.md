@@ -7,7 +7,6 @@
 "@shipfox/api-agent-dto": minor
 "@shipfox/client-workflows": patch
 "@shipfox/client-projects": patch
-"@shipfox/client-agent": patch
 ---
 
 Add the Shippy chat panel beside every project page.
@@ -19,4 +18,3 @@ Add the Shippy chat panel beside every project page.
 - **Agent:** `GET /conversations/:conversationId` returns `latest_turn`, with its status, failure code, and model.
 - **Agent DTO:** adds `conversationLatestTurnDtoSchema`, and `latest_turn` on `conversationDetailDtoSchema`.
 - **Client workflows and projects:** the runs, run, job, automations, and project settings pages tell Shippy where the user is.
-- **Client agent:** the conversation stream moved to `@shipfox/client-chat`. It was never exported.

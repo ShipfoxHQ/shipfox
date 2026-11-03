@@ -21,6 +21,9 @@ describe('suggestedPrompts', () => {
 describe('pageContextLabel', () => {
   test('names the run the way the page does', () => {
     expect(pageContextLabel({page: 'run', runId: 'run', runNumber: 214})).toBe('Viewing run #214');
+    expect(pageContextLabel({page: 'job', runId: 'run', runNumber: 214, jobId: 'job'})).toBe(
+      'Viewing a job in run #214',
+    );
     expect(pageContextLabel({page: 'job', runId: 'run', jobId: 'job'})).toBe(
       'Viewing a job in a run',
     );
