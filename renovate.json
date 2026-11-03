@@ -135,13 +135,6 @@
       "matchPackageNames": ["fumadocs-core", "fumadocs-mdx", "fumadocs-ui"]
     },
     {
-      "description": "Fastify 5.12.1 makes a numeric trustProxy hop count trust no proxy, and API_TRUST_PROXY accepts hop counts. Keep Fastify updates in their own PR so the API trust-proxy configuration moves with them.",
-      "groupName": "fastify",
-      "groupSlug": "fastify",
-      "matchManagers": ["npm"],
-      "matchPackageNames": ["fastify"]
-    },
-    {
       "description": "sonner 2.0.8 changed toast lifecycle: Strict Mode renders duplicate toasts and dismissed toasts stay mounted in the client tests. Keep sonner updates in their own PR so the notification behavior gets its own review.",
       "groupName": "sonner",
       "groupSlug": "sonner",

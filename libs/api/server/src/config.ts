@@ -1,7 +1,7 @@
 import {isIP} from 'node:net';
 import {bool, createConfig, port, str} from '@shipfox/config';
 
-export type ApiTrustProxy = false | true | number | string;
+export type ApiTrustProxy = boolean | string;
 
 const INTEGER_PATTERN = /^\d+$/;
 
@@ -23,7 +23,7 @@ export const config = createConfig({
     default: 'https://www.shipfox.io/docs',
   }),
   API_TRUST_PROXY: str({
-    desc: 'Controls how the API trusts proxy headers for client IP detection. Use false when clients connect directly, true only when every caller is a trusted proxy, a positive hop count such as 1, or a trusted proxy IP/CIDR such as 10.0.0.0/8.',
+    desc: 'Controls how the API trusts proxy headers for client IP detection. Use false when clients connect directly, true only when every caller is a trusted proxy, or the trusted proxy IP/CIDR such as 10.0.0.0/8. Hop counts are not accepted because they cannot verify the peer that sent the headers.',
     default: 'false',
   }),
 });
@@ -44,15 +44,15 @@ export function parseApiTrustProxy(value: string): ApiTrustProxy {
   if (trimmed === 'false') return false;
   if (trimmed === 'true') return true;
 
+  // Fastify trusts no proxy for a hop count because it cannot verify the peer that set the
+  // X-Forwarded-* headers, so a hop count would silently attribute every request to the proxy.
   if (INTEGER_PATTERN.test(trimmed)) {
-    const hops = Number(trimmed);
-    if (Number.isSafeInteger(hops) && hops > 0) return hops;
-    throw new Error('API_TRUST_PROXY hop count must be a positive safe integer');
+    throw new Error(
+      'API_TRUST_PROXY no longer accepts a hop count. Set the trusted proxy IP/CIDR instead, such as the load balancer subnet.',
+    );
   }
 
   if (isIP(trimmed) !== 0 || parseCidr(trimmed)) return trimmed;
 
-  throw new Error(
-    'API_TRUST_PROXY must be false, true, a positive hop count, or a trusted proxy IP/CIDR',
-  );
+  throw new Error('API_TRUST_PROXY must be false, true, or a trusted proxy IP/CIDR');
 }

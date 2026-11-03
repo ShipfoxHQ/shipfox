@@ -4,8 +4,6 @@ describe('parseApiTrustProxy', () => {
   it.each([
     ['false', false],
     [' true ', true],
-    ['1', 1],
-    ['3', 3],
     ['127.0.0.1', '127.0.0.1'],
     ['10.0.0.0/8', '10.0.0.0/8'],
     ['2001:db8::/32', '2001:db8::/32'],
@@ -29,5 +27,11 @@ describe('parseApiTrustProxy', () => {
     const act = () => parseApiTrustProxy(value);
 
     expect(act).toThrow('API_TRUST_PROXY');
+  });
+
+  it.each(['1', '3'])('rejects the hop count %s with a CIDR hint', (value) => {
+    const act = () => parseApiTrustProxy(value);
+
+    expect(act).toThrow('no longer accepts a hop count');
   });
 });

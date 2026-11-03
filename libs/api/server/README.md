@@ -122,7 +122,7 @@ node --import @shipfox/api-server/instrumentation ./dist/index.js
 | `API_URL` | `http://localhost:3000` in development and tests | Base API URL. Production requires an explicit value. |
 | `API_PUBLIC_URL` | `API_URL` | Public API origin used by MCP OAuth metadata and redirect flows. Set it when the public origin differs from `API_URL`. Use HTTPS outside localhost. |
 | `API_PORT` | shared `PORT` | Sets the listener port. |
-| `API_TRUST_PROXY` | `false` | Sets proxy IP checks. |
+| `API_TRUST_PROXY` | `false` | Sets which proxies the API trusts for the client IP: `false`, `true`, or a trusted proxy IP/CIDR. Hop counts are rejected. |
 
 ## Behavior notes
 
