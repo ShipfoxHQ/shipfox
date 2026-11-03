@@ -171,6 +171,39 @@ describe('agent config in turns', () => {
     });
   });
 
+  it('reads the thinking of the agent file at the start of each turn', async () => {
+    const {conversation, projectId, definitions, deps} = await arrange();
+    definitions.agents.set(projectId, [
+      projectAgentSnapshot({key: 'shippy', document: {thinking: 'low'}}),
+    ]);
+    const first = await beginConversationTurn({conversationId: conversation.id, deps});
+    if (!first) throw new Error('No turn began');
+    definitions.agents.set(projectId, [
+      projectAgentSnapshot({key: 'shippy', document: {thinking: 'high'}}),
+    ]);
+
+    const resumed = await beginConversationTurn({conversationId: conversation.id, deps});
+    await finishConversationTurn({
+      conversationId: conversation.id,
+      turnId: first.turnId,
+      status: 'succeeded',
+    });
+    await queueMessage(conversation.id, 'And now?');
+    const second = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(resumed?.turnId).toBe(first.turnId);
+    expect(await getTurnById(first.turnId)).toMatchObject({thinking: 'low'});
+    expect(await getTurnById(second?.turnId ?? '')).toMatchObject({thinking: 'high'});
+  });
+
+  it('uses the workspace default thinking when the agent file sets none', async () => {
+    const {conversation, deps} = await arrange();
+
+    const turn = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect((await getTurnById(turn?.turnId ?? ''))?.thinking).toEqual(expect.any(String));
+  });
+
   it('refuses a message queued for a custom agent that was deleted since', async () => {
     const {conversation, projectId, definitions, deps} = await arrange({
       agentKey: 'reviewer',

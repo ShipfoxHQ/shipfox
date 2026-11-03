@@ -61,6 +61,18 @@ describe('createServerModelRuntime', () => {
     });
   });
 
+  it('uses the thinking the turn started with', async () => {
+    const {conversation, turn} = await setup();
+    const {provider} = managedProvider();
+
+    const runtime = await createServerModelRuntime({
+      secrets: undefined as never,
+      managedProvider: provider,
+    })({conversation, turn: {...turn, thinking: 'high'}, renewal: false});
+
+    expect(runtime.thinking).toBe('high');
+  });
+
   it('sends the request to the gateway with the managed token and the conversation as cache key', async () => {
     const {conversation, turn} = await setup();
     const {provider} = managedProvider();

@@ -19,6 +19,7 @@ export const turnFactory = Factory.define<AgentTurn>(({onCreate}) => {
     stopRequestedAt: null,
     model: null,
     provider: null,
+    thinking: null,
     modelCallCount: 0,
     startedAt: new Date(),
     finishedAt: null,

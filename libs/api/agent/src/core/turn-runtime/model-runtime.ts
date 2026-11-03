@@ -115,6 +115,7 @@ export function createServerModelRuntime(deps: ServerModelRuntimeDeps): CreateMo
         ...builtInAgentConfigInput,
         provider: turn.provider,
         model: turn.model,
+        ...(turn.thinking === null ? {} : {thinking: turn.thinking}),
       });
       const resolved = await resolveRuntimeCredentials(
         {

@@ -132,17 +132,24 @@ async function integrationPromptContext(
     : undefined;
 }
 
+interface TurnModelSelection {
+  provider: string | null;
+  model: string | null;
+  thinking: string | null;
+}
+
 /**
- * The model a new turn uses: the agent file's `provider` and `model` when it sets them, and the
- * workspace defaults for the rest. The file is read at every turn start, because the model isn't
- * part of the pinned prompt. A custom agent that is gone throws `ProjectAgentNotFoundError`.
+ * The model a new turn uses: the agent file's `provider`, `model`, and `thinking` when it sets
+ * them, and the workspace defaults for the rest. The file is read at every turn start, because
+ * the model isn't part of the pinned prompt. A custom agent that is gone throws
+ * `ProjectAgentNotFoundError`.
  * Defaults that no longer resolve open the turn with no model, and its first model call fails it
  * with a recorded cause. Throwing here would retry without end.
  */
 async function resolveTurnModel(
   conversation: Conversation,
   deps: TurnLifecycleDeps,
-): Promise<{provider: string | null; model: string | null}> {
+): Promise<TurnModelSelection> {
   const agent = await resolveConversationAgent(conversation, deps);
   try {
     const resolveConfig = await createWorkspaceAgentDefaultsResolver(
@@ -151,19 +158,20 @@ async function resolveTurnModel(
       deps.workspaceProviders,
     );
     const selection = agent.kind === 'configured' ? agent.agent.document : {};
-    const {provider, model} = resolveConfig({
+    const {provider, model, thinking} = resolveConfig({
       ...builtInAgentConfigInput,
       ...(selection.provider === undefined ? {} : {provider: selection.provider}),
       ...(selection.model === undefined ? {} : {model: selection.model}),
+      ...(selection.thinking === undefined ? {} : {thinking: selection.thinking}),
     });
-    return {provider, model};
+    return {provider, model, thinking};
   } catch (error) {
     if (!isAgentConfigResolutionError(error)) throw error;
     logger().warn(
       {err: error, conversationId: conversation.id},
       'No model resolves for a conversation',
     );
-    return {provider: null, model: null};
+    return {provider: null, model: null, thinking: null};
   }
 }
 
@@ -251,7 +259,7 @@ export async function beginConversationTurn(params: {
     return undefined;
   }
 
-  let selection: {provider: string | null; model: string | null};
+  let selection: TurnModelSelection;
   try {
     selection = await resolveTurnModel(conversation, params.deps);
   } catch (error) {
@@ -260,8 +268,7 @@ export async function beginConversationTurn(params: {
     await settleRefusedTurn(conversation, {notice: AGENT_UNAVAILABLE_NOTICE});
     return undefined;
   }
-  const {provider, model} = selection;
-  const opened = await openTurn({conversationId: conversation.id, model, provider});
+  const opened = await openTurn({conversationId: conversation.id, ...selection});
   return opened ? {turnId: opened.turn.id} : undefined;
 }
 
