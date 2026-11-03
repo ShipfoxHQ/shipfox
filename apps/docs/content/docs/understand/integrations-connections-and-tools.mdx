@@ -26,8 +26,8 @@ GitHub (acme)                                   Your workflow
 ```
 
 You decide what each workflow can do. A workflow names the account it uses and
-the actions it needs. Nothing else is allowed. You can connect the same tool
-more than once, for example one GitHub organization per team.
+the actions it needs. Nothing else is allowed. A workspace may hold several
+connections to the same tool, for example one GitHub organization per team.
 
 ## Start workflows from events
 
@@ -149,8 +149,8 @@ All repositories in your GitHub organization
 - **On GitHub**, you choose which repositories the Shipfox app can see when
   you install it. Shipfox can never reach a repository outside that list.
 - **In Shipfox**, each integration connection has an access mode. A new
-  integration connection can reach every repository the app can see. You can
-  narrow it to the repositories your projects use.
+  integration connection can reach every repository the app can see. Its
+  settings narrow that to the repositories your projects use.
 
 A project with [managed config](/understand/configuration#in-your-repository-or-managed-by-shipfox) has no repository
 of its own. Its jobs check out only the repositories they name.
