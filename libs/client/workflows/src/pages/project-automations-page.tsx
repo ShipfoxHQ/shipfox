@@ -11,7 +11,7 @@ import {
   useProjectConfigQuery,
   useProjectQuery,
 } from '@shipfox/client-projects';
-import {useChrome} from '@shipfox/client-shell/runtime';
+import {useAgentPageContext, useChrome} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -281,6 +281,11 @@ function WorkflowsTab({
   );
   const fireManual = useFireManualWorkflowMutation();
   const [selectedDefinition, setSelectedDefinition] = useState<Definition | null>(null);
+  useAgentPageContext(
+    selectedDefinition
+      ? {page: 'workflow', definitionId: selectedDefinition.id, name: selectedDefinition.name}
+      : {page: 'workflows'},
+  );
   const [runError, setRunError] = useState<WorkflowRunError | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 

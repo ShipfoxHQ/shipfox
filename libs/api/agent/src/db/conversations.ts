@@ -584,6 +584,17 @@ export async function getRunningTurn(conversationId: string): Promise<AgentTurn 
   return row ? toAgentTurn(row) : undefined;
 }
 
+export async function getLatestTurn(conversationId: string): Promise<AgentTurn | undefined> {
+  const rows = await db()
+    .select()
+    .from(turns)
+    .where(eq(turns.conversationId, conversationId))
+    .orderBy(desc(turns.startedAt), desc(turns.id))
+    .limit(1);
+  const row = rows[0];
+  return row ? toAgentTurn(row) : undefined;
+}
+
 /** Only moves forward, and never past an item the conversation already has. */
 export async function markConversationRead(params: {
   conversationId: string;

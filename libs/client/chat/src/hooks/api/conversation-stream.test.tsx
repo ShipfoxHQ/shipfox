@@ -146,6 +146,24 @@ describe('streamConversationEvents', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it('reports a dropped connection until the next event arrives', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(streamResponse([turn('running')], {dropsAfter: true}))
+      .mockResolvedValueOnce(streamResponse([turn('running'), reply(2), turn('succeeded')]));
+    configureApiClient({fetchImpl});
+
+    const done = follow({afterSeq: 1});
+    await vi.advanceTimersByTimeAsync(1_000);
+    const {events, states, final} = await done;
+
+    const dropped = events.findIndex((event) => event.kind === 'dropped');
+    expect(dropped).toBeGreaterThan(-1);
+    expect(states[dropped + 1]?.reconnecting).toBe(true);
+    expect(final.reconnecting).toBe(false);
+  });
+
   it('reconnects from the last item it received', async () => {
     vi.useFakeTimers();
     const fetchImpl = vi

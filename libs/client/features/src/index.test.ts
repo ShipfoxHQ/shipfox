@@ -16,6 +16,7 @@ describe('defaultFeatures', () => {
       'shipfox.workflows',
       'shipfox.agent',
       'shipfox.agent-access',
+      'shipfox.chat',
       'shipfox.runners',
       'shipfox.secrets',
       'shipfox.triggers',
@@ -23,7 +24,7 @@ describe('defaultFeatures', () => {
     ]);
   });
 
-  it('declares every default route implementation package as a peer dependency', () => {
+  it('declares every default route implementation and dock package as a peer dependency', () => {
     const peerPackageNames = Object.keys(manifest.peerDependencies ?? {}).filter((name) =>
       name.startsWith('@shipfox/client-'),
     );
@@ -34,8 +35,18 @@ describe('defaultFeatures', () => {
         .map(({impl}) => SHIPFOX_PACKAGE_PATTERN.exec(impl)?.[1])
         .filter((name): name is string => name !== undefined),
     );
+    // The dock loads through a dynamic import, so its package has no `impl` string.
+    routePackageNames.add('@shipfox/client-chat');
 
     expect([...routePackageNames].sort()).toEqual(peerPackageNames.sort());
+  });
+
+  it('contributes the project dock from the chat feature', () => {
+    expect(
+      defaultFeatures()
+        .filter((feature) => feature.projectDock)
+        .map((feature) => feature.id),
+    ).toEqual(['shipfox.chat']);
   });
 
   it('composes each navigation and settings contribution exactly once', () => {

@@ -1,11 +1,10 @@
 import {
-  type ConversationItemContentDto,
-  type ConversationItemDto,
   type ConversationStreamEventDto,
   conversationStreamEventSchema,
 } from '@shipfox/api-agent-dto';
 import {ApiError, checkedApiEventStream} from '@shipfox/client-api';
 import {experimental_streamedQuery as streamedQuery, useQuery} from '@tanstack/react-query';
+import type {ConversationItem} from '#core/conversation.js';
 import {
   type ConversationStreamEvent,
   type ConversationStreamState,
@@ -13,15 +12,10 @@ import {
   isFinalTurnStatus,
   reconnectDelayMs,
   reduceConversationStream,
-  type StreamedItem,
 } from '#core/conversation-stream.js';
+import {toConversationItem} from './conversation-mapper.js';
 
-export interface ConversationStreamItem extends StreamedItem {
-  entryType: string;
-  /** Null when the stored entry cannot be opened. */
-  content: ConversationItemContentDto | null;
-  createdAt: string;
-}
+export type ConversationStreamItem = ConversationItem;
 
 export type ConversationStreamSnapshot = ConversationStreamState<ConversationStreamItem>;
 
@@ -35,25 +29,14 @@ const MAX_FAILURES_IN_A_ROW = 5;
 /** A stream that closes with its turn still running is reopened soon, not at once. */
 const REOPEN_DELAY_MS = 250;
 
-function toStreamItem(dto: ConversationItemDto): ConversationStreamItem {
-  return {
-    id: dto.id,
-    seq: dto.seq,
-    turnId: dto.turn_id,
-    entryType: dto.entry_type,
-    content: dto.content,
-    createdAt: dto.created_at,
-  };
-}
-
 function toStreamEvent(
   message: ConversationStreamEventDto,
 ): ConversationStreamEvent<ConversationStreamItem> {
   switch (message.event) {
     case 'queued':
-      return {kind: 'queued', item: toStreamItem(message.data)};
+      return {kind: 'queued', item: toConversationItem(message.data)};
     case 'item':
-      return {kind: 'item', item: toStreamItem(message.data)};
+      return {kind: 'item', item: toConversationItem(message.data)};
     case 'delta':
       return {kind: 'text', text: message.data.text};
     case 'reset':
@@ -190,6 +173,7 @@ export async function* streamConversationEvents(
       yield* readConnection({conversationId, connection, signal});
     } catch (error) {
       failuresInARow = countFailure({error, failuresInARow, connection, signal});
+      yield {kind: 'dropped'};
       await wait(reconnectDelayMs(failuresInARow), signal);
       continue;
     }
