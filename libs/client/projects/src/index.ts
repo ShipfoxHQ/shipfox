@@ -21,9 +21,17 @@ export type {
   ConfigFileEntry,
   ConfigFileList,
   ConfigFileType,
+  ConfigMoveCheck,
+  ConfigMoveResult,
+  ConfigMoveStatus,
+  ConfigPullRequestState,
   ConfigSourceKind,
+  MoveProjectConfigCommand,
   ProjectConfig,
+  ProjectConfigMove,
+  ProjectConfigPullRequest,
   ProjectConfigSource,
+  RepositoryVisibility,
 } from '#core/project-config.js';
 export {
   ProjectBreadcrumb,

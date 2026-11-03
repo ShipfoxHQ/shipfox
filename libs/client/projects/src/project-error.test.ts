@@ -1,5 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
-import {projectErrorCopy} from './project-error.js';
+import {configMoveErrorCopy, projectErrorCopy} from './project-error.js';
 
 function apiError(code: string, details?: unknown) {
   return new ApiError({
@@ -56,5 +56,48 @@ describe('projectErrorCopy', () => {
 
     expect(network.title).toBe('Network problem');
     expect(unknown.title).toBe('Something went wrong');
+  });
+});
+
+describe('configMoveErrorCopy', () => {
+  test.each([
+    ['config-exists', 'Repository already has config'],
+    ['repository-in-use', 'Repository already in use'],
+    ['repository-empty', 'Repository has no commits'],
+    ['connection-inactive', 'Connection unavailable'],
+    ['integration-connection-inactive', 'Connection unavailable'],
+    ['integration-connection-not-found', 'Connection unavailable'],
+    ['link-unsupported', 'Connection not supported'],
+    ['access-denied', 'GitHub refused the pull request'],
+    ['provider-rejected', 'GitHub refused the pull request'],
+    ['repository-not-found', 'Repository not found'],
+    ['pull-request-closed', 'Pull request closed'],
+    ['source-already-bound', 'Another project took this repository'],
+    ['source-changed', 'Config source changed'],
+    ['move-in-progress', 'A move is already running'],
+    ['already-moved', 'Project already moved'],
+    ['project-not-managed', 'Project not managed by Shipfox'],
+    ['no-pull-request', 'No config to add'],
+    ['pull-request-not-closed', 'Pull request not closed'],
+    ['move-unconfirmed', "We couldn't confirm the move"],
+    ['impersonation-not-permitted', 'Not available while impersonating'],
+  ])('maps %s', (code, title) => {
+    const result = configMoveErrorCopy(apiError(code));
+
+    expect(result.title).toBe(title);
+    expect(result.message).not.toBe('');
+  });
+
+  test('names the repository', () => {
+    const result = configMoveErrorCopy(apiError('config-exists'), {
+      repositoryName: 'acme/payments',
+    });
+
+    expect(result.message).toContain('acme/payments already has a .shipfox/ directory');
+  });
+
+  test('falls back to the project copy', () => {
+    expect(configMoveErrorCopy(apiError('timeout')).title).toBe('Provider timed out');
+    expect(configMoveErrorCopy(new Error('boom')).title).toBe('Something went wrong');
   });
 });

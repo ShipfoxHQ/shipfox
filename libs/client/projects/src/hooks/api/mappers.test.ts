@@ -1,4 +1,10 @@
-import {toConfigCommitPage, toDefinitionSyncSummary, toDefinitionTriggers} from './mappers.js';
+import {
+  toConfigCommitPage,
+  toConfigMoveResult,
+  toDefinitionSyncSummary,
+  toDefinitionTriggers,
+  toProjectConfig,
+} from './mappers.js';
 
 describe('toDefinitionSyncSummary', () => {
   it('maps diagnostics with severity and file path while preserving an absent path', () => {
@@ -126,6 +132,78 @@ describe('toConfigCommitPage', () => {
         },
       ],
       nextCursor: '2',
+    });
+  });
+});
+
+describe('toProjectConfig', () => {
+  it('maps a move and its pull request', () => {
+    const config = toProjectConfig({
+      source: {
+        kind: 'linked',
+        provider: 'github',
+        connection_id: '33333333-3333-4333-8333-333333333333',
+        external_repository_id: '918273645',
+        owner: 'acme',
+        name: 'payments',
+        default_branch: 'main',
+      },
+      head: null,
+      history_supported: true,
+      move: {
+        status: 'linked',
+        target: {
+          connection_id: '33333333-3333-4333-8333-333333333333',
+          external_repository_id: '918273645',
+          full_name: null,
+        },
+        started_by: '77777777-7777-4777-8777-777777777777',
+        started_at: '2026-11-02T18:00:00.000Z',
+      },
+      pull_request: {url: 'https://github.com/acme/payments/pull/128', number: 128, state: 'open'},
+    });
+
+    expect(config.move).toEqual({
+      status: 'linked',
+      target: {
+        connectionId: '33333333-3333-4333-8333-333333333333',
+        externalRepositoryId: '918273645',
+        fullName: null,
+      },
+      startedBy: '77777777-7777-4777-8777-777777777777',
+      startedAt: '2026-11-02T18:00:00.000Z',
+    });
+    expect(config.pullRequest).toEqual({
+      url: 'https://github.com/acme/payments/pull/128',
+      number: 128,
+      state: 'open',
+    });
+  });
+});
+
+describe('toConfigMoveResult', () => {
+  it('maps the checked repository and the file count', () => {
+    const result = toConfigMoveResult({
+      status: 'ready',
+      repository: {
+        external_repository_id: '918273645',
+        full_name: 'acme/payments',
+        default_branch: 'trunk',
+        visibility: 'public',
+      },
+      file_count: 3,
+      pull_request: null,
+    });
+
+    expect(result).toEqual({
+      repository: {
+        externalRepositoryId: '918273645',
+        fullName: 'acme/payments',
+        defaultBranch: 'trunk',
+        visibility: 'public',
+      },
+      fileCount: 3,
+      pullRequest: null,
     });
   });
 });

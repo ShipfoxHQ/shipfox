@@ -48,7 +48,20 @@ export interface ConfigFilesTabProps {
 }
 
 /** The `.shipfox/` tree on the default branch, pinned to the head commit, beside a reader. */
-export function ConfigFilesTab({
+export function ConfigFilesTab(props: ConfigFilesTabProps) {
+  return (
+    <>
+      <ConfigFilesTabContent {...props} />
+      {props.config?.source.kind === 'managed' ? (
+        <Text size="sm" className="text-foreground-neutral-muted">
+          Config changes through the project agent, or a coding agent with the Shipfox MCP server.
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
+function ConfigFilesTabContent({
   projectId,
   workspaceSlug,
   projectSlug,
@@ -91,6 +104,19 @@ export function ConfigFilesTab({
     );
   }
   if (!filesQuery.data || filesQuery.data.files.length === 0) {
+    const pullRequest = config?.pullRequest;
+    if (pullRequest?.state === 'open') {
+      return (
+        <Panel>
+          <EmptyState
+            icon="gitPullRequestLine"
+            title="Files appear after the merge"
+            description={`Config is moving to this repository. Its files show here once pull request #${pullRequest.number} merges.`}
+            variant="panel"
+          />
+        </Panel>
+      );
+    }
     return (
       <Panel>
         <EmptyState

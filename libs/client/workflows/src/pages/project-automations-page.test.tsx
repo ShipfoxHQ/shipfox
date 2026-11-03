@@ -22,6 +22,9 @@ const FAILED_RUN_LINK_REGEX = /Failed/;
 const PENDING_RUN_LINK_REGEX = /Pending/;
 const PIN_COMMIT_ROW_REGEX = /Pin the deploy action/;
 const FILE_HISTORY_LINK_REGEX = /File history, updated/;
+const ADDS_THREE_FILES_REGEX = /adds 3 files to/;
+const MIRA_IS_MOVING_REGEX = /Mira Okafor is moving this project to/;
+const MERGES_REGEX = /once pull request #128 merges/;
 
 describe('ProjectAutomationsPage', () => {
   test('renders the config source above the workflow definitions', async () => {
@@ -1080,6 +1083,285 @@ describe('ProjectAutomationsPage', () => {
     );
   });
 
+  describe('moving a managed project', () => {
+    test('checks a repository on selection and moves once the member confirms', async () => {
+      const flow = createMoveFlow();
+      configureApiClient({fetchImpl: createProjectDetailFetch({route: flow.route})});
+      const user = userEvent.setup();
+
+      renderAutomationsPage();
+
+      await user.click(await screen.findByRole('button', {name: 'Move to your repository'}));
+      const dialog = await screen.findByRole('dialog');
+      const legacy = await within(dialog).findByRole('radio', {name: 'acme/legacy main · Private'});
+      expect(within(dialog).queryByRole('radio', {checked: true})).not.toBeInTheDocument();
+      expect(within(dialog).getByRole('button', {name: 'Continue'})).toBeDisabled();
+
+      await user.click(legacy);
+
+      const refusal = await within(dialog).findByRole('alert');
+      expect(refusal).toHaveTextContent('Repository already has config');
+      expect(refusal).toHaveTextContent('acme/legacy already has a .shipfox/ directory');
+      await waitFor(() => expect(refusal.contains(document.activeElement)).toBe(true));
+      expect(legacy).toBeChecked();
+      expect(within(dialog).getByRole('button', {name: 'Continue'})).toBeDisabled();
+
+      await user.click(within(dialog).getByRole('radio', {name: 'acme/payments main · Public'}));
+      const continueButton = within(dialog).getByRole('button', {name: 'Continue'});
+      await waitFor(() => expect(continueButton).toBeEnabled());
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+      await user.click(continueButton);
+
+      const changes = within(dialog).getByRole('list', {name: 'What changes'});
+      expect(within(dialog).getByText(ADDS_THREE_FILES_REGEX)).toBeInTheDocument();
+      expect(changes).toHaveTextContent('The repository is public, so anyone can read it.');
+      await user.click(within(dialog).getByRole('button', {name: 'Move to acme/payments'}));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      const source = screen.getByRole('region', {name: 'Config source'});
+      expect(
+        await within(source).findByText('Merge pull request #128 to finish moving your config'),
+      ).toBeInTheDocument();
+      expect(within(source).getByText('Waiting for merge')).toBeInTheDocument();
+      expect(flow.linkBodies).toEqual([
+        {connection_id: CONNECTION_ID, external_repository_id: '111', dry_run: true},
+        {connection_id: CONNECTION_ID, external_repository_id: '918273645', dry_run: true},
+        {connection_id: CONNECTION_ID, external_repository_id: '918273645', dry_run: false},
+      ]);
+    });
+
+    test('offers a retry when the repositories fail to load', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(managedConfigDto()),
+          route: ({url}) => {
+            if (url.pathname === '/integration-connections') {
+              return jsonResponse({connections: [connectionDto()]});
+            }
+            if (url.pathname === `/integration-connections/${CONNECTION_ID}/repositories`) {
+              return jsonResponse({code: 'provider-unavailable'}, {status: 503});
+            }
+            return undefined;
+          },
+        }),
+      });
+      const user = userEvent.setup();
+
+      renderAutomationsPage();
+      await user.click(await screen.findByRole('button', {name: 'Move to your repository'}));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(await within(dialog).findByText("Couldn't load repositories")).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole('button', {name: 'Retry loading repositories'}),
+      ).toBeEnabled();
+    });
+
+    test('links to Integrations when the workspace has no source control connection', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(managedConfigDto()),
+          route: ({url}) =>
+            url.pathname === '/integration-connections'
+              ? jsonResponse({connections: []})
+              : undefined,
+        }),
+      });
+      const user = userEvent.setup();
+
+      renderAutomationsPage();
+      await user.click(await screen.findByRole('button', {name: 'Move to your repository'}));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(await within(dialog).findByRole('link', {name: 'Go to Integrations'})).toHaveAttribute(
+        'href',
+        `/w/${PROJECT_TEST_WSLUG}/integrations`,
+      );
+    });
+
+    test('shows a second member who is moving the project, not Retry', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(managedConfigDto({move: moveDto({startedAgoMs: 20_000})})),
+          route: ({url}) =>
+            url.pathname === `/workspaces/${PROJECT_TEST_WID}/members`
+              ? jsonResponse({
+                  members: [
+                    {
+                      id: '88888888-8888-4888-8888-888888888888',
+                      user_id: MOVER_ID,
+                      workspace_id: PROJECT_TEST_WID,
+                      user_email: 'mira@example.com',
+                      user_name: 'Mira Okafor',
+                      created_at: '2026-05-07T01:00:00.000Z',
+                      updated_at: '2026-05-07T01:00:00.000Z',
+                    },
+                  ],
+                })
+              : undefined,
+        }),
+      });
+
+      renderAutomationsPage();
+
+      const source = await screen.findByRole('region', {name: 'Config source'});
+      expect(await within(source).findByText(MIRA_IS_MOVING_REGEX)).toBeInTheDocument();
+      expect(within(source).getByText('acme/payments')).toBeInTheDocument();
+      expect(within(source).getByText('Moving')).toBeInTheDocument();
+      expect(within(source).queryByRole('button', {name: 'Retry'})).not.toBeInTheDocument();
+      expect(
+        within(source).queryByRole('button', {name: 'Move to your repository'}),
+      ).not.toBeInTheDocument();
+    });
+
+    test('retries a stopped move with its stored target', async () => {
+      const linkBodies: unknown[] = [];
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(managedConfigDto({move: moveDto({startedAgoMs: 10 * 60_000})})),
+          route: ({url, method, body}) => {
+            if (url.pathname !== `/projects/${PROJECT_ID}/config/link` || method !== 'POST') {
+              return undefined;
+            }
+            linkBodies.push(body);
+            return jsonResponse(
+              {code: 'move-unconfirmed', message: 'We could not confirm the move.'},
+              {status: 503},
+            );
+          },
+        }),
+      });
+      const user = userEvent.setup();
+
+      renderAutomationsPage();
+
+      const source = await screen.findByRole('region', {name: 'Config source'});
+      expect(await within(source).findByText("We couldn't confirm the move")).toBeInTheDocument();
+      expect(within(source).getByText('Move stopped')).toBeInTheDocument();
+      await user.click(within(source).getByRole('button', {name: 'Retry'}));
+
+      const alert = await within(source).findByRole('alert');
+      expect(alert).toHaveTextContent('A retry never opens a second pull request.');
+      await waitFor(() => expect(alert.contains(document.activeElement)).toBe(true));
+      expect(linkBodies).toEqual([
+        {connection_id: CONNECTION_ID, external_repository_id: '918273645', dry_run: false},
+      ]);
+    });
+
+    test('shows the open pull request instead of the expected sync failure', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(movedConfigDto('open')),
+          definitions: jsonResponse(
+            definitionsDto({
+              sync: {
+                ref: 'main',
+                status: 'failed',
+                last_sync_at: '2026-05-07T01:00:00.000Z',
+                started_at: '2026-05-07T01:00:00.000Z',
+                finished_at: null,
+                last_error_code: 'no-workflow-files',
+                last_error_message: 'No workflow files found',
+                diagnostics: [],
+              },
+            }),
+          ),
+        }),
+      });
+
+      renderAutomationsPage();
+
+      const source = await screen.findByRole('region', {name: 'Config source'});
+      expect(await within(source).findByText('Waiting for merge')).toBeInTheDocument();
+      expect(within(source).getByRole('link', {name: 'Open pull request'})).toHaveAttribute(
+        'href',
+        PULL_REQUEST_URL,
+      );
+      expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
+      expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
+    });
+
+    test('explains the empty Files tab while the pull request waits', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(movedConfigDto('open')),
+          files: jsonResponse({commit: HEAD_COMMIT, files: [], next_cursor: null}),
+        }),
+      });
+
+      renderFilesPage();
+
+      expect(await screen.findByText('Files appear after the merge')).toBeInTheDocument();
+      expect(screen.getByText(MERGES_REGEX)).toBeInTheDocument();
+    });
+
+    test.each([
+      'closed',
+      'unknown',
+    ] as const)('shows the plain empty Files state for a %s pull request', async (state) => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(movedConfigDto(state)),
+          files: jsonResponse({commit: HEAD_COMMIT, files: [], next_cursor: null}),
+        }),
+      });
+
+      renderFilesPage();
+
+      expect(await screen.findByText('No config files')).toBeInTheDocument();
+      expect(screen.queryByText('Files appear after the merge')).not.toBeInTheDocument();
+    });
+
+    test('says how config changes on a managed project', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({config: jsonResponse(managedConfigDto())}),
+      });
+
+      renderFilesPage();
+
+      expect(
+        await screen.findByText(
+          'Config changes through the project agent, or a coding agent with the Shipfox MCP server.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    test('opens a new pull request after the previous one closed', async () => {
+      let reopened = false;
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          route: ({url, method}) => {
+            if (url.pathname === `/projects/${PROJECT_ID}/config`) {
+              return jsonResponse(movedConfigDto(reopened ? 'open' : 'closed'));
+            }
+            if (
+              url.pathname === `/projects/${PROJECT_ID}/config/link/pull-request` &&
+              method === 'POST'
+            ) {
+              reopened = true;
+              return jsonResponse({
+                pull_request: {url: PULL_REQUEST_URL, number: 129, state: 'open'},
+              });
+            }
+            return undefined;
+          },
+        }),
+      });
+      const user = userEvent.setup();
+
+      renderAutomationsPage();
+
+      const source = await screen.findByRole('region', {name: 'Config source'});
+      expect(
+        await within(source).findByText('Pull request #128 was closed without merging'),
+      ).toBeInTheDocument();
+      await user.click(within(source).getByRole('button', {name: 'Open a new pull request'}));
+
+      expect(await within(source).findByText('Waiting for merge')).toBeInTheDocument();
+      expect(reopened).toBe(true);
+    });
+  });
+
   test('renders not found state', async () => {
     configureApiClient({
       fetchImpl: vi.fn((input) => {
@@ -1191,6 +1473,7 @@ function createProjectDetailFetch({
   run = jsonResponse(runDto(), {status: 201}),
   packageUpdates = jsonResponse({updates: []}),
   latestRuns = jsonResponse({runs: []}),
+  route,
 }: {
   project?: Response;
   config?: Response;
@@ -1203,6 +1486,8 @@ function createProjectDetailFetch({
   files?: Response;
   fileRead?: Response;
   commits?: Response;
+  /** Answers a request before the defaults, or returns undefined to fall through to them. */
+  route?: (request: {url: URL; method: string; body: unknown}) => Response | undefined;
 } = {}) {
   const responsesByPath: Record<string, Response> = {
     [`/projects/${PROJECT_ID}`]: project,
@@ -1226,10 +1511,11 @@ function createProjectDetailFetch({
     return jsonResponse({code: 'not-found'}, {status: 404});
   }
 
-  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(requestInputUrl(input));
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-    return Promise.resolve(respond(url, method).clone());
+    const routed = route?.({url, method, body: await requestBody(input)});
+    return (routed ?? respond(url, method)).clone();
   });
 }
 
@@ -1242,6 +1528,13 @@ function latestRunDto(overrides: Partial<{status: string}> = {}) {
     created_at: new Date().toISOString(),
     ...overrides,
   };
+}
+
+/** The API client passes a `Request`, whose JSON body is read from a clone. */
+async function requestBody(input: RequestInfo | URL): Promise<unknown> {
+  if (!(input instanceof Request)) return undefined;
+  const text = await input.clone().text();
+  return text ? JSON.parse(text) : undefined;
 }
 
 function requestInputUrl(input: RequestInfo | URL) {
@@ -1265,7 +1558,7 @@ function projectDto() {
   };
 }
 
-function configDto(overrides: Partial<{head: {ref: string; commit: string} | null}> = {}) {
+function configDto(overrides: Record<string, unknown> = {}) {
   return {
     source: {
       kind: 'linked',
@@ -1281,6 +1574,143 @@ function configDto(overrides: Partial<{head: {ref: string; commit: string} | nul
     move: null,
     pull_request: null,
     ...overrides,
+  };
+}
+
+const MANAGED_REPOSITORY_ID = 'managed:8b1f0c2e-5d7a-4c3b-9e6f-1a2b3c4d5e6f';
+const MANAGED_CONNECTION_ID = '22222222-2222-4222-8222-222222222222';
+const MOVER_ID = '77777777-7777-4777-8777-777777777777';
+const PULL_REQUEST_URL = 'https://github.com/acme/payments/pull/128';
+
+function managedConfigDto(overrides: Record<string, unknown> = {}) {
+  return configDto({
+    source: {
+      kind: 'managed',
+      provider: 'managed',
+      connection_id: MANAGED_CONNECTION_ID,
+      external_repository_id: MANAGED_REPOSITORY_ID,
+      owner: null,
+      name: null,
+      default_branch: 'main',
+    },
+    ...overrides,
+  });
+}
+
+function moveDto({startedAgoMs}: {startedAgoMs: number}) {
+  return {
+    status: 'linking',
+    target: {
+      connection_id: CONNECTION_ID,
+      external_repository_id: '918273645',
+      full_name: 'acme/payments',
+    },
+    started_by: MOVER_ID,
+    started_at: new Date(Date.now() - startedAgoMs).toISOString(),
+  };
+}
+
+function movedConfigDto(state: 'open' | 'closed' | 'unknown') {
+  return configDto({
+    source: {
+      kind: 'linked',
+      provider: 'github',
+      connection_id: CONNECTION_ID,
+      external_repository_id: '918273645',
+      owner: 'acme',
+      name: 'payments',
+      default_branch: 'main',
+    },
+    move: {
+      ...moveDto({startedAgoMs: 60_000}),
+      status: 'linked',
+      target: {...moveDto({startedAgoMs: 0}).target, full_name: null},
+    },
+    pull_request: {url: PULL_REQUEST_URL, number: 128, state},
+  });
+}
+
+/**
+ * A managed project with one GitHub connection and two repositories: `acme/legacy` already has
+ * config, and `acme/payments` passes. A confirmed move turns the config into an open pull request.
+ */
+function createMoveFlow() {
+  let moved = false;
+  const linkBodies: unknown[] = [];
+  const fixed: Record<string, () => Response> = {
+    [`/projects/${PROJECT_ID}/config`]: () =>
+      jsonResponse(moved ? movedConfigDto('open') : managedConfigDto()),
+    '/integration-connections': () => jsonResponse({connections: [connectionDto()]}),
+    [`/integration-connections/${CONNECTION_ID}/repositories`]: () =>
+      jsonResponse({
+        repositories: [
+          repositoryDto('legacy', '111'),
+          repositoryDto('payments', '918273645', 'public'),
+        ],
+        next_cursor: null,
+      }),
+  };
+
+  function link(body: {external_repository_id: string; dry_run: boolean}): Response {
+    linkBodies.push(body);
+    const {external_repository_id: target, dry_run: dryRun} = body;
+    if (target === '111') {
+      return jsonResponse(
+        {code: 'config-exists', message: 'The repository already has config'},
+        {status: 409},
+      );
+    }
+    if (!dryRun) moved = true;
+    return jsonResponse({
+      status: dryRun ? 'ready' : 'linked',
+      repository: {
+        external_repository_id: target,
+        full_name: 'acme/payments',
+        default_branch: 'main',
+        visibility: 'public',
+      },
+      file_count: 3,
+      pull_request: dryRun ? null : {url: PULL_REQUEST_URL, number: 128, state: 'open'},
+    });
+  }
+
+  return {
+    linkBodies,
+    route: ({url, method, body}: {url: URL; method: string; body: unknown}) => {
+      if (url.pathname === `/projects/${PROJECT_ID}/config/link` && method === 'POST') {
+        return link(body as {external_repository_id: string; dry_run: boolean});
+      }
+      return fixed[url.pathname]?.();
+    },
+  };
+}
+
+function connectionDto() {
+  return {
+    id: CONNECTION_ID,
+    workspace_id: PROJECT_TEST_WID,
+    provider: 'github',
+    external_account_id: '1001',
+    slug: 'acme',
+    display_name: 'acme',
+    lifecycle_status: 'active',
+    capabilities: ['source_control'],
+    created_at: '2026-05-07T01:00:00.000Z',
+    updated_at: '2026-05-07T01:00:00.000Z',
+  };
+}
+
+function repositoryDto(name: string, externalRepositoryId: string, visibility = 'private') {
+  return {
+    connection_id: CONNECTION_ID,
+    external_repository_id: externalRepositoryId,
+    owner: 'acme',
+    name,
+    full_name: `acme/${name}`,
+    default_branch: 'main',
+    visibility,
+    clone_url: `https://github.com/acme/${name}.git`,
+    html_url: `https://github.com/acme/${name}`,
   };
 }
 

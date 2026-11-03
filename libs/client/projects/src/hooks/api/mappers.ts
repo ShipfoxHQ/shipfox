@@ -1,5 +1,6 @@
 import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import type {
+  LinkProjectConfigResponseDto,
   ListProjectConfigCommitsResponseDto,
   ProjectConfigResponseDto,
   ReadProjectConfigFileResponseDto,
@@ -16,6 +17,7 @@ import type {
   ConfigCommitPage,
   ConfigFile,
   ConfigFileEntry,
+  ConfigMoveResult,
   ProjectConfig,
 } from '#core/project-config.js';
 
@@ -126,6 +128,30 @@ export function toProjectConfig(dto: ProjectConfigResponseDto): ProjectConfig {
     },
     head: dto.head,
     historySupported: dto.history_supported,
+    move: dto.move && {
+      status: dto.move.status,
+      target: {
+        connectionId: dto.move.target.connection_id,
+        externalRepositoryId: dto.move.target.external_repository_id,
+        fullName: dto.move.target.full_name,
+      },
+      startedBy: dto.move.started_by,
+      startedAt: dto.move.started_at,
+    },
+    pullRequest: dto.pull_request,
+  };
+}
+
+export function toConfigMoveResult(dto: LinkProjectConfigResponseDto): ConfigMoveResult {
+  return {
+    repository: {
+      externalRepositoryId: dto.repository.external_repository_id,
+      fullName: dto.repository.full_name,
+      defaultBranch: dto.repository.default_branch,
+      visibility: dto.repository.visibility,
+    },
+    fileCount: dto.file_count,
+    pullRequest: dto.pull_request,
   };
 }
 
