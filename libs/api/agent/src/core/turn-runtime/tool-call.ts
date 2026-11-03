@@ -2,6 +2,7 @@ import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/i
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {newConversationRecordId} from '#db/conversations.js';
 import {appendTurnEntry, getConversationById, getTurnById, getTurnEntry} from '#db/turn-runtime.js';
 import {conversationToolCallCount} from '#metrics/index.js';
@@ -158,6 +159,36 @@ async function executeTool(params: {
 }
 
 /**
+ * Shows an integration conversation's tool call on its surface, when the provider can. The call
+ * is more useful than the status, so a failure here is logged and the call goes on.
+ */
+async function reportToolProgress(params: {
+  conversation: Conversation;
+  label: string;
+  integrations: IntegrationsModuleClient;
+}): Promise<void> {
+  const {conversation} = params;
+  if (
+    conversation.originKind !== 'integration' ||
+    conversation.originConnectionId === null ||
+    conversation.originKey === null
+  ) {
+    return;
+  }
+  try {
+    await params.integrations.reportInteractionProgress({
+      workspaceId: conversation.workspaceId,
+      connectionId: conversation.originConnectionId,
+      conversationKey: conversation.originKey,
+      state: 'working',
+      detail: params.label,
+    });
+  } catch (error) {
+    logger().warn({err: error, conversationId: conversation.id}, 'Failed to report tool progress');
+  }
+}
+
+/**
  * One tool call of a stored assistant reply. It reads the call from the stored entry, runs it,
  * and stores a `toolResult` entry, capped and wrapped as untrusted data. The result is unique per
  * call, so a repeat after a crash returns what the first attempt stored. When the activity has no
@@ -188,6 +219,8 @@ export async function runToolCall(params: ToolCallParams): Promise<ToolCallResul
     modelCallIndex: params.modelCallIndex,
     callIndex: params.callIndex,
   });
+
+  await reportToolProgress({conversation, label: call.name, integrations: params.integrations});
 
   let output: ToolOutput;
   try {

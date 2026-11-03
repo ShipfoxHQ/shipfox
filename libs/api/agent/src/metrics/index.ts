@@ -4,6 +4,7 @@ export {
   conversationCompactionCount,
   conversationFirstTokenSeconds,
   conversationModelCallCount,
+  conversationReplyCount,
   conversationStreamCount,
   conversationStreamTickSeconds,
   conversationThinkingDroppedCount,

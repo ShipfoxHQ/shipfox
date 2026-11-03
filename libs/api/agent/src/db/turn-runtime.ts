@@ -11,6 +11,7 @@ import {claimQueuedConversationItemsInTransaction} from './conversations.js';
 import {db, type Transaction} from './db.js';
 import {conversationItems, toConversationItem} from './schema/conversation-items.js';
 import {conversations, toConversation} from './schema/conversations.js';
+import {replyDeliveries} from './schema/reply-deliveries.js';
 import {turnStreamChunks} from './schema/turn-stream-chunks.js';
 import {toAgentTurn, turns} from './schema/turns.js';
 
@@ -361,6 +362,51 @@ export async function finishTurnRow(params: {
       await advanceConversation(tx, {conversationId: params.conversationId, seq});
     }
     return toAgentTurn(row);
+  });
+}
+
+/**
+ * Notes that a reply could not be delivered, and puts the notice that says so on the timeline.
+ * The reply and the notice are settled together, so a repeat writes neither again, and the notice
+ * is never taken for a denial that still needs telling.
+ */
+export async function settleUndeliverableReply(params: {
+  replyId: string;
+  conversationId: string;
+  notice: NewTimelineEntry;
+}): Promise<boolean> {
+  return await db().transaction(async (tx) => {
+    const conversation = await lockConversation(tx, params.conversationId);
+    if (!conversation) return false;
+
+    const [recorded] = await tx
+      .insert(replyDeliveries)
+      .values({
+        replyId: params.replyId,
+        conversationId: params.conversationId,
+        outcome: 'undeliverable',
+      })
+      .onConflictDoNothing()
+      .returning({replyId: replyDeliveries.replyId});
+    if (!recorded) return false;
+
+    const seq = conversation.lastSeq + 1;
+    await tx.insert(conversationItems).values({
+      id: params.notice.id,
+      conversationId: params.conversationId,
+      seq,
+      entryType: params.notice.entryType,
+      sessionVersion: params.notice.sessionVersion,
+      body: params.notice.sealedEntry,
+      meta: params.notice.meta,
+    });
+    await tx.insert(replyDeliveries).values({
+      replyId: params.notice.id,
+      conversationId: params.conversationId,
+      outcome: 'skipped',
+    });
+    await advanceConversation(tx, {conversationId: params.conversationId, seq});
+    return true;
   });
 }
 
