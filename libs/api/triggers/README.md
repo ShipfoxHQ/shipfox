@@ -307,9 +307,10 @@ dropped. An `owner` or `default` decision makes the event `routed`, but agents s
 `matched_count`, which counts workflows. Routing uses the event ID as its
 delivery key, so a replay of the same event creates one conversation and one
 message. Without both the `integrations` and `agent` clients, no event reaches
-an agent. A provider that fails to read the event is skipped and logged, so
-agents never delay workflows. A failure of the Agent module fails the event after the
-workflows ran, and the outbox replays it.
+an agent. A read failure that Integrations declares, such as a provider outage or an inactive
+connection, is skipped and logged, so agents never delay workflows, and a key over 256
+characters is skipped the same way. Any other failure, including the Agent module's, fails
+the event after the workflows ran, and the outbox replays it.
 
 ## Events
 

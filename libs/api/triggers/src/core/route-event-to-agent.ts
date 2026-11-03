@@ -1,5 +1,12 @@
-import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {
+  type AgentInterModuleClient,
+  MAX_CONVERSATION_KEY_LENGTH,
+} from '@shipfox/api-agent-dto/inter-module';
+import {
+  type IntegrationsModuleClient,
+  integrationsInterModuleContract,
+} from '@shipfox/api-integration-core-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {TriggerHistoryRecorder} from './record-trigger-history.js';
 
@@ -33,15 +40,35 @@ export const NOT_ROUTED_TO_AGENT: AgentRoutingState = {routed: false};
 /**
  * Hands an event from a connection with the interaction capability to the agent that owns its
  * conversation, or to the default agent. Routing is idempotent per event, so a replay converges.
- * Agents are best-effort next to workflows: an event the provider can't read is skipped, because a
- * replay would delay every later event. Only a failure of the Agent module itself is returned for
- * the caller to replay.
+ * Agents are best-effort next to workflows. A failure the Integrations module declares for the
+ * read, such as a provider outage or an inactive connection, skips the event, because a replay
+ * would delay every later event and an acknowledgment window is gone by then. Any other failure,
+ * including the Agent module's, is returned for the caller to replay.
  */
 export async function routeEventToAgent(
   params: RouteEventToAgentParams,
 ): Promise<AgentRoutingState> {
-  const interaction = await readInteraction(params);
+  let interaction: Awaited<ReturnType<typeof readInteraction>>;
+  try {
+    interaction = await readInteraction(params);
+  } catch (error) {
+    if (!isInterModuleKnownError(integrationsInterModuleContract.methods.readInteraction, error)) {
+      return {routed: false, transientError: {error}};
+    }
+    logger().warn(
+      {err: error, eventRef: params.eventRef, connectionId: params.connectionId},
+      'Skipped agent routing for an event that could not be read',
+    );
+    return NOT_ROUTED_TO_AGENT;
+  }
   if (!interaction) return NOT_ROUTED_TO_AGENT;
+  if (interaction.conversationKey.length > MAX_CONVERSATION_KEY_LENGTH) {
+    logger().warn(
+      {eventRef: params.eventRef, connectionId: params.connectionId},
+      'Skipped agent routing for an interaction whose key is too long',
+    );
+    return NOT_ROUTED_TO_AGENT;
+  }
 
   try {
     const result = await params.agent.routeInteraction({
@@ -64,23 +91,15 @@ export async function routeEventToAgent(
 }
 
 async function readInteraction(params: RouteEventToAgentParams) {
-  try {
-    const {providers} = await params.integrations.listInteractionProviders({});
-    const capability = providers.find(({provider}) => provider === params.provider);
-    if (!capability || !Object.hasOwn(capability.interactionEvents, params.event)) {
-      return undefined;
-    }
-    return await params.integrations.readInteraction({
-      workspaceId: params.workspaceId,
-      connectionId: params.connectionId,
-      event: params.event,
-      payload: params.payload,
-    });
-  } catch (error) {
-    logger().warn(
-      {err: error, eventRef: params.eventRef, connectionId: params.connectionId},
-      'Skipped agent routing for an event that could not be read',
-    );
+  const {providers} = await params.integrations.listInteractionProviders({});
+  const capability = providers.find(({provider}) => provider === params.provider);
+  if (!capability || !Object.hasOwn(capability.interactionEvents, params.event)) {
     return undefined;
   }
+  return await params.integrations.readInteraction({
+    workspaceId: params.workspaceId,
+    connectionId: params.connectionId,
+    event: params.event,
+    payload: params.payload,
+  });
 }

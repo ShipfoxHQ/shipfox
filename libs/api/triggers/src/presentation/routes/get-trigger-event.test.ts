@@ -192,7 +192,10 @@ describe('GET /trigger-events/:id', () => {
   test('serializes an agent decision with a null subscription id next to a workflow decision', async () => {
     const event = await receivedEventFactory.create({workspaceId, matchedCount: 1});
     const projectId = crypto.randomUUID();
-    await decisionFactory.create({receivedEventId: event.id, decision: 'triggered'});
+    const workflowDecision = await decisionFactory.create({
+      receivedEventId: event.id,
+      decision: 'triggered',
+    });
     await decisionFactory.create({
       receivedEventId: event.id,
       subscriptionKind: 'agent',
@@ -208,8 +211,11 @@ describe('GET /trigger-events/:id', () => {
     const res = await app.inject({method: 'GET', url: `/trigger-events/${event.id}`});
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().decisions).toEqual(
+    const decisions = res.json().decisions;
+    expect(decisions).toHaveLength(2);
+    expect(decisions).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({id: workflowDecision.id, decision: 'triggered'}),
         expect.objectContaining({
           subscription_kind: 'agent',
           subscription_id: null,

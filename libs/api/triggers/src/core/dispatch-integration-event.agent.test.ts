@@ -289,6 +289,26 @@ describe('dispatchIntegrationEvent with agent routing', () => {
     expect(routeInteraction).not.toHaveBeenCalled();
   });
 
+  test('replays the event when Integrations fails in a way it does not declare', async () => {
+    const eventRef = crypto.randomUUID();
+    readInteraction.mockRejectedValue(new Error('transport closed'));
+
+    await expect(dispatch({eventRef})).rejects.toThrow('transport closed');
+
+    expect(routeInteraction).not.toHaveBeenCalled();
+    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'failed'});
+  });
+
+  test('skips an interaction whose key is too long for an agent', async () => {
+    const eventRef = crypto.randomUUID();
+    readInteraction.mockResolvedValue(request({conversationKey: 'k'.repeat(257)}));
+
+    await dispatch({eventRef});
+
+    expect(routeInteraction).not.toHaveBeenCalled();
+    expect(await agentDecisions(eventRef)).toEqual([]);
+  });
+
   test('replays the event when routing fails, after the workflows have run', async () => {
     const workspaceId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({

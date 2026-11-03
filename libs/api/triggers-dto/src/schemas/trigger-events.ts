@@ -248,7 +248,7 @@ const triggerDecisionDtoBaseSchema = z.object({
   id: z.string().uuid(),
   received_event_id: z.string().uuid(),
   subscription_kind: triggerDecisionSubscriptionKindSchema,
-  // Null for `dev` decisions: a dev journal entry has no subscription row.
+  // Null for `dev` and `agent` decisions: neither has a subscription row yet.
   subscription_id: z.string().uuid().nullable(),
   subscription_name: z.string(),
   workflow_definition_id: z.string().uuid().nullable(),
