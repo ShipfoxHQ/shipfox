@@ -20,16 +20,9 @@ export function truncateAgentAccessUtf8(
   if (totalBytes <= maxBytes) return {value, truncated: false, totalBytes};
   if (maxBytes <= 0) return {value: '', truncated: true, totalBytes};
 
-  let bytes = 0;
-  let result = '';
-  for (const codePoint of value) {
-    const codePointBytes = utf8Encoder.encode(codePoint).byteLength;
-    if (bytes + codePointBytes > maxBytes) break;
-    result += codePoint;
-    bytes += codePointBytes;
-  }
-
-  return {value: result, truncated: true, totalBytes};
+  // encodeInto stops before a code point that would not fit, so `read` ends on a boundary.
+  const {read} = utf8Encoder.encodeInto(value, new Uint8Array(maxBytes));
+  return {value: value.slice(0, read), truncated: true, totalBytes};
 }
 
 export function serializedAgentAccessEnvelopeByteLength(envelope: AgentAccessEnvelopeDto): number {
