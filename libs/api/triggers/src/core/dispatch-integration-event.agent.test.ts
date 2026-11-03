@@ -12,6 +12,7 @@ import {dispatchIntegrationEvent} from './dispatch-integration-event.js';
 const startRun = vi.fn();
 const listInteractionProviders = vi.fn();
 const readInteraction = vi.fn();
+const reportInteractionProgress = vi.fn();
 const routeInteraction = vi.fn();
 
 const workflows = {
@@ -22,6 +23,7 @@ const workflows = {
 const integrations = {
   listInteractionProviders: (...args: unknown[]) => listInteractionProviders(...args),
   readInteraction: (...args: unknown[]) => readInteraction(...args),
+  reportInteractionProgress: (...args: unknown[]) => reportInteractionProgress(...args),
 } as unknown as AgentRoutingIntegrations;
 const agent = {
   routeInteraction: (...args: unknown[]) => routeInteraction(...args),
@@ -83,6 +85,8 @@ describe('dispatchIntegrationEvent with agent routing', () => {
     startRun.mockReset();
     listInteractionProviders.mockReset();
     readInteraction.mockReset();
+    reportInteractionProgress.mockReset();
+    reportInteractionProgress.mockResolvedValue({reported: true});
     routeInteraction.mockReset();
     startRun.mockResolvedValue({id: crypto.randomUUID(), name: 'Build and test'});
     listInteractionProviders.mockResolvedValue({
@@ -178,6 +182,49 @@ describe('dispatchIntegrationEvent with agent routing', () => {
     expect(await agentDecisions(eventRef)).toEqual([
       expect.objectContaining({subscriptionKind: 'agent', decision: 'owner'}),
     ]);
+  });
+
+  test('clears the progress of a request dropped for lack of a project', async () => {
+    const workspaceId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    readInteraction.mockResolvedValue(request({conversationKey: 'D1:1.1'}));
+    routeInteraction.mockResolvedValue({outcome: 'dropped', reason: 'no-project'});
+
+    await dispatch({workspaceId, connectionId});
+
+    expect(reportInteractionProgress).toHaveBeenCalledWith({
+      workspaceId,
+      connectionId,
+      conversationKey: 'D1:1.1',
+      state: 'idle',
+    });
+  });
+
+  test('still records a dropped request when clearing its progress fails', async () => {
+    const eventRef = crypto.randomUUID();
+    routeInteraction.mockResolvedValue({outcome: 'dropped', reason: 'no-project'});
+    reportInteractionProgress.mockRejectedValue(new Error('slack is down'));
+
+    await dispatch({eventRef});
+
+    expect(await agentDecisions(eventRef)).toEqual([
+      expect.objectContaining({decision: 'dropped', reason: 'no-project'}),
+    ]);
+  });
+
+  test('leaves the progress alone when the agent takes the request', async () => {
+    await dispatch();
+
+    expect(reportInteractionProgress).not.toHaveBeenCalled();
+  });
+
+  test('leaves the progress alone when a dropped event is not a request', async () => {
+    readInteraction.mockResolvedValue(request({role: 'stop', text: ''}));
+    routeInteraction.mockResolvedValue({outcome: 'dropped', reason: 'no-owner'});
+
+    await dispatch();
+
+    expect(reportInteractionProgress).not.toHaveBeenCalled();
   });
 
   test('records a stop with no owner as dropped', async () => {
