@@ -207,6 +207,27 @@ describe('Slack interaction provider', () => {
   });
 
   it.each([
+    'me_message',
+    'thread_broadcast',
+    'file_share',
+  ])('reads a thread reply with the %s subtype as a follow-up', async (subtype) => {
+    const result = await read('message', {
+      channel: 'C1',
+      user: 'U1',
+      text: 'waves',
+      ts: '2.1',
+      thread_ts: '1.1',
+      subtype,
+    });
+
+    expect(result).toMatchObject({
+      conversationKey: `${connection.id}:C1:1.1`,
+      role: 'follow_up',
+      text: 'waves',
+    });
+  });
+
+  it.each([
     'message_changed',
     'message_deleted',
     'channel_join',
