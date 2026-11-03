@@ -16,7 +16,7 @@ import {pgTable} from './common.js';
 import {jobListenerMatcherKindEnum} from './job-listener-subscriptions.js';
 import {triggersReceivedEvents} from './received-events.js';
 
-const triggerDecisionSubscriptionKinds = ['trigger', 'listener', 'dev'] as const;
+const triggerDecisionSubscriptionKinds = ['trigger', 'listener', 'dev', 'agent'] as const;
 
 export const triggersDecisions = pgTable(
   'decisions',
@@ -26,7 +26,7 @@ export const triggersDecisions = pgTable(
       .notNull()
       .references(() => triggersReceivedEvents.id, {onDelete: 'cascade'}),
     subscriptionKind: text('subscription_kind', {enum: triggerDecisionSubscriptionKinds}).notNull(),
-    // Null for `dev` decisions: the partial dev index enforces one decision
+    // Null for `dev` and `agent` decisions: a partial index on each enforces one decision
     // per received event.
     subscriptionId: uuid('subscription_id'),
     subscriptionName: text('subscription_name').notNull(),
@@ -52,14 +52,17 @@ export const triggersDecisions = pgTable(
     uniqueIndex('triggers_decisions_dev_event_unique')
       .on(table.receivedEventId)
       .where(sql`${table.subscriptionKind} = 'dev'`),
+    uniqueIndex('triggers_decisions_agent_event_unique')
+      .on(table.receivedEventId)
+      .where(sql`${table.subscriptionKind} = 'agent' AND ${table.subscriptionId} IS NULL`),
     index('triggers_decisions_run_idx').on(table.runId),
     check(
       'triggers_decisions_subscription_kind_ck',
-      sql`${table.subscriptionKind} IN ('trigger', 'listener', 'dev')`,
+      sql`${table.subscriptionKind} IN ('trigger', 'listener', 'dev', 'agent')`,
     ),
     check(
       'triggers_decisions_subscription_id_ck',
-      sql`(${table.subscriptionKind} = 'dev' AND ${table.subscriptionId} IS NULL) OR (${table.subscriptionKind} IN ('trigger', 'listener') AND ${table.subscriptionId} IS NOT NULL)`,
+      sql`(${table.subscriptionKind} IN ('dev', 'agent') AND ${table.subscriptionId} IS NULL) OR (${table.subscriptionKind} IN ('trigger', 'listener') AND ${table.subscriptionId} IS NOT NULL)`,
     ),
   ],
 );
@@ -96,7 +99,10 @@ function toTriggerDecisionOutcome(decision: string): TriggerDecision['decision']
     decision === 'filtered' ||
     decision === 'filter-error' ||
     decision === 'dispatch-error' ||
-    decision === 'rejected'
+    decision === 'rejected' ||
+    decision === 'owner' ||
+    decision === 'default' ||
+    decision === 'dropped'
   ) {
     return decision;
   }

@@ -12,6 +12,7 @@ Register the module with the API module runner:
 
 ```ts
 import {createTriggersModule} from '@shipfox/api-triggers';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
@@ -28,8 +29,9 @@ const workflows = transport.createClient(workflowsInterModuleContract);
 const definitions = transport.createClient(definitionsInterModuleContract);
 const integrations = transport.createClient(integrationsInterModuleContract);
 const projects = transport.createClient(projectsInterModuleContract);
+const agent = transport.createClient(agentInterModuleContract);
 const modules = [
-  createTriggersModule({workflows, definitions, projects, integrations}),
+  createTriggersModule({workflows, definitions, projects, integrations, agent}),
   /* and other modules */
 ];
 registerInterModulePresentations({transport, modules});
@@ -284,6 +286,26 @@ a generic `{source, event, deliveryId, data}` shape that forwards the raw
 event payload as `data`. The `triggerSource` value on a row always equals
 `triggerPayload.source`. The duplication is deliberate: the indexed column
 is for filtering, the payload is for inspection.
+
+### Agent routing
+
+An event from a connection whose provider has the `interaction` capability also
+goes to an agent. After the workflow fan-out, dispatch asks Integrations to
+read the event as an interaction. A provider that does not list the event, or
+returns nothing for it, leaves the event to workflows. Dispatch then calls the
+Agent module's `routeInteraction` with the interaction and the event ID. Agent
+picks the conversation: the one that owns the interaction's key, or a new one
+with the default agent for a request.
+
+Dispatch records the result as a decision with the subscription kind `agent`
+and no subscription ID. The decision is `owner`, `default`, or `dropped`, and a
+`dropped` decision carries its reason. A follow-up or stop with no owner is
+dropped. An `owner` or `default` decision counts as a match, so the event is
+`routed`. A dropped one matches nothing. Routing uses the event ID as its
+delivery key, so a replay of the same event creates one conversation and one
+message. Without both the `integrations` and `agent` clients, no event reaches
+an agent. A failure to route that a replay may fix fails the event after the
+workflows ran, and the outbox replays it.
 
 ## Events
 

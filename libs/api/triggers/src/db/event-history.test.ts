@@ -9,6 +9,7 @@ import {
   markReceivedEventErrored,
   markReceivedEventFailed,
   markReceivedEventRouted,
+  upsertAgentDecision,
   upsertDevDispatchErrorDecision,
   upsertDevFilterErrorDecision,
   upsertDevFilteredDecision,
@@ -470,6 +471,90 @@ describe('dev decision inserts', () => {
       reason: null,
       diagnostic: null,
     });
+  });
+});
+
+describe('agent decision upserts', () => {
+  it('records which agent took a request', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const projectId = crypto.randomUUID();
+
+    await upsertAgentDecision({
+      receivedEventId,
+      decision: 'default',
+      agentKey: 'shippy',
+      projectId,
+      reason: null,
+    });
+
+    expect(await decisionsFor(receivedEventId)).toEqual([
+      expect.objectContaining({
+        subscriptionKind: 'agent',
+        subscriptionId: null,
+        subscriptionName: 'shippy',
+        decision: 'default',
+        projectId,
+        reason: null,
+      }),
+    ]);
+  });
+
+  it('keeps one decision per event and lets a replay overwrite it', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+
+    await upsertAgentDecision({
+      receivedEventId,
+      decision: 'dropped',
+      agentKey: null,
+      projectId: null,
+      reason: 'no-project',
+    });
+    await upsertAgentDecision({
+      receivedEventId,
+      decision: 'owner',
+      agentKey: 'shippy',
+      projectId: crypto.randomUUID(),
+      reason: null,
+    });
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({decision: 'owner', subscriptionName: 'shippy', reason: null});
+  });
+
+  it('does not touch the workflow decisions of the same event', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const subscription = buildSubscription();
+    await upsertTriggeredDecision({
+      receivedEventId,
+      subscription,
+      run: {id: crypto.randomUUID(), name: 'Build'},
+    });
+
+    await upsertAgentDecision({
+      receivedEventId,
+      decision: 'owner',
+      agentKey: 'shippy',
+      projectId: crypto.randomUUID(),
+      reason: null,
+    });
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows.map(({subscriptionKind}) => subscriptionKind).sort()).toEqual(['agent', 'trigger']);
+  });
+
+  it('refuses an agent decision that names a subscription', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+
+    await expect(
+      db().insert(triggersDecisions).values({
+        receivedEventId,
+        subscriptionKind: 'agent',
+        subscriptionId: crypto.randomUUID(),
+        subscriptionName: 'shippy',
+        decision: 'owner',
+      }),
+    ).rejects.toThrow();
   });
 });
 

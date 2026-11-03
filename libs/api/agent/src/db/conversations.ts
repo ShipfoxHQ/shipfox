@@ -48,6 +48,15 @@ export interface InsertWebConversationParams {
   firstInput: NewConversationInput;
 }
 
+export interface InsertIntegrationConversationParams {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  agentKey: string;
+  origin: {connectionId: string; provider: string; key: string};
+  firstInput: NewConversationInput;
+}
+
 export interface ListWebConversationsParams {
   projectId: string;
   ownerUserId: string;
@@ -97,6 +106,25 @@ export async function loadWebConversation(params: {
     .select()
     .from(conversations)
     .where(and(eq(conversations.id, params.conversationId), ownedWebConversation(params.userId)))
+    .limit(1);
+  const row = rows[0];
+  return row ? toConversation(row) : undefined;
+}
+
+export async function findIntegrationConversation(params: {
+  connectionId: string;
+  key: string;
+}): Promise<Conversation | undefined> {
+  const rows = await db()
+    .select()
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.originKind, 'integration'),
+        eq(conversations.originConnectionId, params.connectionId),
+        eq(conversations.originKey, params.key),
+      ),
+    )
     .limit(1);
   const row = rows[0];
   return row ? toConversation(row) : undefined;
@@ -223,12 +251,72 @@ export async function insertWebConversation(
 }
 
 /**
+ * Inserts an integration conversation with its first input, or finds the one that already owns
+ * the key. Only the call that inserted the conversation writes the first input, and it is the
+ * only one that sees `created`. A replay finds its own conversation by `clientMessageId`.
+ */
+export async function insertIntegrationConversation(
+  params: InsertIntegrationConversationParams,
+): Promise<{conversation: Conversation; created: boolean}> {
+  return await db().transaction(async (tx) => {
+    const {firstInput, origin} = params;
+    const inserted = await tx
+      .insert(conversations)
+      .values({
+        id: params.id,
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        agentKey: params.agentKey,
+        originKind: 'integration',
+        originConnectionId: origin.connectionId,
+        originProvider: origin.provider,
+        originKey: origin.key,
+        clientMessageId: firstInput.clientMessageId,
+      })
+      .onConflictDoNothing({target: [conversations.originConnectionId, conversations.originKey]})
+      .returning();
+    const [created] = inserted;
+    if (!created) {
+      const [existing] = await tx
+        .select()
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.originConnectionId, origin.connectionId),
+            eq(conversations.originKey, origin.key),
+          ),
+        )
+        .limit(1);
+      if (!existing) throw new Error('Conversation insert returned no row');
+      return {conversation: toConversation(existing), created: false};
+    }
+
+    await tx.insert(conversationItems).values({
+      id: firstInput.id,
+      conversationId: created.id,
+      entryType: 'message',
+      sessionVersion: firstInput.sessionVersion,
+      authorUserId: null,
+      clientMessageId: firstInput.clientMessageId,
+      body: firstInput.sealedEntry,
+      meta: firstInput.meta,
+    });
+    return {conversation: toConversation(created), created: true};
+  });
+}
+
+/**
  * Queues a user message with a null `seq`. A repeated `clientMessageId` returns
  * the stored item instead, so a network retry can't queue a second input.
- * Returns undefined when the conversation no longer exists.
+ * Returns undefined when the conversation no longer exists. A message from a person starts the
+ * run budget over, and `authorUserId` is null when the person isn't a Shipfox user.
  */
 export async function insertQueuedUserMessage(
-  params: NewConversationInput & {conversationId: string; authorUserId: string},
+  params: NewConversationInput & {
+    conversationId: string;
+    authorUserId: string | null;
+    resetRunBudget?: boolean | undefined;
+  },
 ): Promise<ConversationItem | undefined> {
   return await db().transaction(async (tx) => {
     // The row lock serializes this with delete and with a concurrent repeat of the same post.
@@ -260,7 +348,10 @@ export async function insertQueuedUserMessage(
     if (created) {
       await tx
         .update(conversations)
-        .set({lastActivityAt: sql`NOW()`})
+        .set({
+          lastActivityAt: sql`NOW()`,
+          ...(params.resetRunBudget ? {runStartsSinceHuman: 0} : {}),
+        })
         .where(eq(conversations.id, params.conversationId));
       return toConversationItem(created);
     }

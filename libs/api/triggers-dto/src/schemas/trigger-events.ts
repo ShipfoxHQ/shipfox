@@ -29,10 +29,18 @@ export const triggerDecisionOutcomeSchema = z.enum([
   'filter-error',
   'dispatch-error',
   'rejected',
+  'owner',
+  'default',
+  'dropped',
 ]);
 export type TriggerDecisionOutcomeDto = z.infer<typeof triggerDecisionOutcomeSchema>;
 
-export const triggerDecisionSubscriptionKindSchema = z.enum(['trigger', 'listener', 'dev']);
+export const triggerDecisionSubscriptionKindSchema = z.enum([
+  'trigger',
+  'listener',
+  'dev',
+  'agent',
+]);
 export type TriggerDecisionSubscriptionKindDto = z.infer<
   typeof triggerDecisionSubscriptionKindSchema
 >;

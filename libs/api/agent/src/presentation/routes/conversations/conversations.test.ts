@@ -463,7 +463,15 @@ describe('conversation routes', () => {
       const caller = member({workspaceId});
       const rows = await db()
         .insert(conversations)
-        .values({workspaceId, projectId, agentKey: 'shippy', originKind: 'integration'})
+        .values({
+          workspaceId,
+          projectId,
+          agentKey: 'shippy',
+          originKind: 'integration',
+          originConnectionId: crypto.randomUUID(),
+          originProvider: 'slack',
+          originKey: 'C1:1.1',
+        })
         .returning({id: conversations.id});
 
       const res = await app.inject({

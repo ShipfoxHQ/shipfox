@@ -19,6 +19,7 @@ import {
   markReceivedEventErrored,
   markReceivedEventFailed,
   markReceivedEventRouted,
+  upsertAgentDecision,
   upsertDevDispatchErrorDecision,
   upsertDevFilterErrorDecision,
   upsertDevFilteredDecision,
@@ -59,6 +60,10 @@ function admissionReason(error: unknown): string | undefined {
   }
   return undefined;
 }
+
+export type AgentRoutingDecision =
+  | {outcome: 'owner' | 'default'; agentKey: string; projectId: string}
+  | {outcome: 'dropped'; reason: string};
 
 export interface TriggerRun {
   id: string;
@@ -109,6 +114,8 @@ export interface TriggerHistoryRecorder {
     reason: 'payload-too-large',
     diagnostic: TriggerDecisionDiagnostic,
   ): Promise<void>;
+  /** The agent module's answer for an interaction: the owner, the default agent, or no one. */
+  agentRouted(result: AgentRoutingDecision): Promise<void>;
   discarded(): Promise<void>;
   routed(matchedCount: number): Promise<void>;
   failed(matchedCount: number): Promise<void>;
@@ -313,6 +320,16 @@ export async function beginTriggerHistory(
             diagnostic: checkedDiagnostic,
           }),
         subscription.id,
+      ),
+    agentRouted: (result) =>
+      record('agent-routed-decision', (id) =>
+        upsertAgentDecision({
+          receivedEventId: id,
+          decision: result.outcome,
+          agentKey: result.outcome === 'dropped' ? null : result.agentKey,
+          projectId: result.outcome === 'dropped' ? null : result.projectId,
+          reason: result.outcome === 'dropped' ? result.reason : null,
+        }),
       ),
     discarded: () => record('discard-event', (id) => markReceivedEventDiscarded(id)),
     routed: (matchedCount) =>
