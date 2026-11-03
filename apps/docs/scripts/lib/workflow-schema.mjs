@@ -379,51 +379,94 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
       },
     }),
   },
+  {
+    id: 'agent-file-fields',
+    component: 'AgentFileFields',
+    document: 'agent',
+    path: '.shipfox/agents/<key>.yaml',
+    example: 'agent-file.yml',
+    exampleFile: '.shipfox/agents/reviewer.yaml',
+    fields: [
+      'name',
+      'description',
+      'instructions',
+      'model',
+      'provider',
+      'thinking',
+      'integrations',
+    ],
+    select: (schema) => properties(schema),
+    nested: {integrations: '#agent-integration-fields'},
+    types: {instructions: 'string | PromptPart[]', integrations: 'Integration[]'},
+  },
 ];
+
+const EMPTY_SCHEMA = {type: 'object', properties: {}};
 
 /**
  * Builds the document that the section components and the machine-readable
- * page read. `examples` maps example file names to their source; `validate`
+ * page read. `agentSchema` and `validateAgent` serve the sections that
+ * document an agent file instead of a workflow. `examples` maps example file names to their source; `validate`
  * receives the parsed YAML of each example and must throw when it is not a
  * valid workflow.
  */
-export function buildWorkflowSchemaDocument({schema, examples, parseYaml, validate}) {
-  assertFieldCoverage(schema);
-  const sections = WORKFLOW_SCHEMA_SECTIONS.map((definition) => {
-    const fields = schemaToFields(definition.select(schema), {
-      fields: definition.fields,
-      required:
-        typeof definition.required === 'function'
-          ? definition.required(schema)
-          : definition.required,
-      nested: definition.nested,
-      types: definition.types,
-      defaults: definition.defaults,
-    });
-    const source = examples[definition.example];
-    if (typeof source !== 'string') {
-      throw new Error(`Workflow schema section "${definition.id}" has no example file.`);
-    }
-    const example = parseExample({source});
-    try {
-      validate(parseYaml(example.code));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Workflow schema example "${definition.example}" is invalid: ${message}`);
-    }
-
-    return {
-      id: definition.id,
-      component: definition.component,
-      path: definition.path,
-      ...(definition.kind ? {kind: definition.kind} : {}),
-      fields,
-      example: {file: `.shipfox/workflows/${definition.example}`, ...example},
-      markdown: renderSectionMarkdown(fields),
-    };
-  });
+export function buildWorkflowSchemaDocument({
+  schema,
+  agentSchema = EMPTY_SCHEMA,
+  examples,
+  parseYaml,
+  validate,
+  validateAgent = validate,
+}) {
+  assertFieldCoverage(schema, agentSchema);
+  const sections = WORKFLOW_SCHEMA_SECTIONS.map((definition) =>
+    definition.document === 'agent'
+      ? buildSection(definition, {
+          schema: agentSchema,
+          examples,
+          parseYaml,
+          validate: validateAgent,
+        })
+      : buildSection(definition, {schema, examples, parseYaml, validate}),
+  );
 
   return {sections};
+}
+
+function buildSection(definition, {schema, examples, parseYaml, validate}) {
+  const fields = schemaToFields(definition.select(schema), {
+    fields: definition.fields,
+    required:
+      typeof definition.required === 'function' ? definition.required(schema) : definition.required,
+    nested: definition.nested,
+    types: definition.types,
+    defaults: definition.defaults,
+  });
+  const source = examples[definition.example];
+  if (typeof source !== 'string') {
+    throw new Error(`Workflow schema section "${definition.id}" has no example file.`);
+  }
+  const example = parseExample({source});
+  try {
+    validate(parseYaml(example.code));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const kind = definition.document === 'agent' ? 'Agent' : 'Workflow';
+    throw new Error(`${kind} schema example "${definition.example}" is invalid: ${message}`);
+  }
+
+  return {
+    id: definition.id,
+    component: definition.component,
+    path: definition.path,
+    ...(definition.kind ? {kind: definition.kind} : {}),
+    fields,
+    example: {
+      file: definition.exampleFile ?? `.shipfox/workflows/${definition.example}`,
+      ...example,
+    },
+    markdown: renderSectionMarkdown(fields),
+  };
 }
 
 /**
@@ -431,11 +474,11 @@ export function buildWorkflowSchemaDocument({schema, examples, parseYaml, valida
  * Their field lists must cover every property together, so a new schema
  * field cannot disappear from the page.
  */
-export function assertFieldCoverage(schema) {
+export function assertFieldCoverage(schema, agentSchema = EMPTY_SCHEMA) {
   const listed = new Map();
   for (const definition of WORKFLOW_SCHEMA_SECTIONS) {
     if (!definition.fields) continue;
-    const target = definition.select(schema);
+    const target = definition.select(definition.document === 'agent' ? agentSchema : schema);
     const names = listed.get(target) ?? new Set();
     for (const name of definition.fields) names.add(name);
     listed.set(target, names);

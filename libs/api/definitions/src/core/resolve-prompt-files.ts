@@ -23,40 +23,61 @@ export interface PromptFileSourceContext {
   ref: string;
 }
 
+/** One `file` prompt part: the file it names, where the part sits, and the file that holds it. */
+export interface PromptFileUse {
+  /** The `file` path as written in the YAML. */
+  file: string;
+  /** Where the part sits in its document, for example `jobs.review.steps.4.prompt.2`. */
+  path: string;
+  /** The repository file that holds the part. */
+  filePath: string;
+}
+
 export interface ResolvePromptFilesParams extends PromptFileSourceContext {
-  workflows: readonly {path: string; document: WorkflowDocument}[];
-  /** Resolved actions. The repository files their composite steps name are read too. */
-  actions?: ResolvedActions | undefined;
+  /** Every `file` part to read. A file named more than once is read once. */
+  references: readonly PromptFileUse[];
 }
 
 /**
- * Reads every repository prompt file the workflows and their composite actions
- * name, once per path. A file that is missing, empty, or not readable text
- * fails with the first part that names it.
+ * The `file` parts of the workflows and of the composite actions they use,
+ * in document order.
  */
-export async function resolvePromptFiles(
-  params: ResolvePromptFilesParams,
-): Promise<Map<string, string>> {
-  const firstUse = new Map<string, {path: string; filePath: string}>();
-  const use = (file: string, path: string, filePath: string) => {
-    if (!firstUse.has(file)) firstUse.set(file, {path, filePath});
-  };
+export function collectWorkflowPromptFileUses(params: {
+  workflows: readonly {path: string; document: WorkflowDocument}[];
+  actions?: ResolvedActions | undefined;
+}): PromptFileUse[] {
+  const uses: PromptFileUse[] = [];
   for (const workflow of params.workflows) {
     for (const reference of collectPromptFileReferences(workflow.document)) {
-      use(reference.file, reference.path, workflow.path);
+      uses.push({...reference, filePath: workflow.path});
     }
   }
   for (const action of params.actions?.values() ?? []) {
     if (action.composite === undefined) continue;
     for (const reference of collectCompositePromptFileReferences(action.manifest)) {
-      use(reference.file, reference.path, action.composite.manifestPath);
+      uses.push({...reference, filePath: action.composite.manifestPath});
     }
+  }
+  return uses;
+}
+
+/**
+ * Reads every repository prompt file the references name, once per path. A
+ * file that is missing, empty, or not readable text fails with the first part
+ * that names it.
+ */
+export async function resolvePromptFiles(
+  params: ResolvePromptFilesParams,
+): Promise<Map<string, string>> {
+  const firstUse = new Map<string, PromptFileUse>();
+  for (const use of params.references) {
+    if (!firstUse.has(use.file)) firstUse.set(use.file, use);
   }
 
   const entries = await boundedMap(
-    [...firstUse],
+    [...firstUse.values()],
     FILE_FETCH_CONCURRENCY,
-    async ([file, use]) => [file, await readPromptFile({...params, file, ...use})] as const,
+    async (use) => [use.file, await readPromptFile({...params, ...use})] as const,
     {stopOnError: true},
   );
   return new Map(entries);

@@ -25,6 +25,19 @@ export {
   type WorkflowActionRefResult,
 } from './action-ref.js';
 export {
+  AGENT_DOCUMENT_DEFAULT_KEY,
+  AGENT_DOCUMENT_DIRECTORY,
+  AGENT_DOCUMENT_KEY_PATTERN,
+  type AgentDocument,
+  agentDocumentKeyForPath,
+  agentDocumentSchema,
+  buildAgentDocumentJsonSchema,
+  InvalidAgentDocumentError,
+  invalidAgentDocumentErrorCode,
+  type ParseAgentDocumentOptions,
+  parseAgentDocument,
+} from './agent-document.js';
+export {
   type CheckoutTargetValidationIssue,
   checkoutTargetValidationIssues,
 } from './checkout-target-validation.js';
@@ -78,6 +91,7 @@ export {
   type WorkflowDocumentJobCheckout,
   type WorkflowDocumentJobStep,
   type WorkflowDocumentParallelBlock,
+  type WorkflowDocumentPrompt,
   type WorkflowDocumentRepositoryContext,
   type WorkflowDocumentRunStepGate,
   type WorkflowDocumentStep,
@@ -98,6 +112,7 @@ export {
   workflowDocumentEnvSchema,
   workflowDocumentJobSchema,
   workflowDocumentParallelBlockSchema,
+  workflowDocumentPromptSchema,
   workflowDocumentRepositoryContextSchema,
   workflowDocumentSchema,
   workflowDocumentSessionSchema,

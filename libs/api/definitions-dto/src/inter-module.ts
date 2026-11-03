@@ -1,5 +1,5 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
-import {actionBundleDigestSchema} from '@shipfox/workflow-document';
+import {actionBundleDigestSchema, agentDocumentSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {actionUploadsSchema} from '#schemas/action-uploads.js';
 import {
@@ -83,6 +83,23 @@ const workflowLineageSchema = z.object({
   id: idSchema,
   projectId: idSchema,
   configPath: z.string().nullable(),
+});
+const projectAgentSchema = z.object({
+  /** The file name without its extension. `shippy` is the built-in agent. */
+  key: z.string(),
+  configPath: configPathSchema,
+  name: z.string().nullable(),
+  description: z.string().nullable(),
+  /** The joined instructions, with each `file` part inlined at the definition commit. */
+  instructions: z.string().nullable(),
+  document: agentDocumentSchema,
+  contentHash: z.string(),
+  /** Set when the latest sync found the file invalid and this is the last valid version. */
+  lastError: z
+    .object({message: z.string(), diagnostics: z.array(definitionSyncDiagnosticSchema)})
+    .nullable(),
+  fetchedAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 const refResolutionErrors = {
   'project-not-found': z.object({projectId: idSchema}),
@@ -204,6 +221,15 @@ export const definitionsInterModuleContract = defineInterModuleContract({
         'project-workspace-mismatch': z.object({projectId: idSchema, workspaceId: idSchema}),
       },
     },
+    /** The agents synced from the project's agent files, in key order. */
+    listProjectAgents: {
+      input: z.object({workspaceId: idSchema, projectId: idSchema}),
+      output: z.object({agents: z.array(projectAgentSchema)}),
+      errors: {
+        'project-not-found': z.object({projectId: idSchema}),
+        'project-workspace-mismatch': z.object({projectId: idSchema, workspaceId: idSchema}),
+      },
+    },
     resolveDefinitionAtRef: {
       input: definitionAtRefInputSchema.superRefine(refineDefinitionAtRefInput),
       output: resolvedDefinitionAtRefSchema,
@@ -245,3 +271,4 @@ export type DefinitionsInterModuleClient = InterModuleClient<typeof definitionsI
 export type DefinitionWorkflowSnapshot = z.infer<typeof definitionSnapshotSchema>;
 export type DefinitionListItem = z.infer<typeof definitionListItemSchema>;
 export type DefinitionSyncSummary = z.infer<typeof definitionSyncSummarySchema>;
+export type ProjectAgentSnapshot = z.infer<typeof projectAgentSchema>;

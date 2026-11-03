@@ -32,7 +32,7 @@ import {
   onProjectSourceCommitObserved,
 } from '#presentation/subscribers/index.js';
 import {createDefinitionSyncActivities, DEFINITIONS_TASK_QUEUE} from '#temporal/index.js';
-import {definitionWorkflowPath} from './config.js';
+import {definitionAgentPath, definitionWorkflowPath} from './config.js';
 import {definitionsFlags} from './flags.js';
 
 export type {
@@ -120,6 +120,7 @@ export function createDefinitionsModule({
         activities: () =>
           createDefinitionSyncActivities(sourceControl, agent, projects, integrations, {
             workflowPath: definitionWorkflowPath,
+            agentPath: definitionAgentPath,
             registry,
             flags,
           }),

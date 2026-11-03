@@ -7,6 +7,7 @@ tableOfContent: true
 ---
 
 import {
+  AgentFileFields,
   AgentIntegrationFields,
   AgentRepositoryContextFields,
   AgentMcpServerFields,
@@ -187,6 +188,18 @@ Without `name`, the run page labels these steps by their keys:
 
 [Jobs and steps](/understand/jobs-and-steps#run-steps-of-one-job-at-the-same-time)
 explains how these steps run.
+
+## Agent file [#agent-file-fields]
+
+A file in `.shipfox/agents/` configures one project agent. The file name
+without its extension is the agent key, so a file declares no key, and a
+nested file is an error. `shippy.yaml` adds to the built-in agent, and every
+field in it is optional. Any other file is a custom agent, which needs
+`description` and `instructions`. Sync checks each agent file on its own. An
+invalid file keeps the agent's last valid version, reports the error, and
+never blocks the workflows.
+
+<AgentFileFields />
 
 ## Related pages
 

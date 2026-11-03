@@ -1,7 +1,9 @@
 export type {
+  DiscoverDefinitionFilesActivityResult,
   DiscoverWorkflowsActivityResult,
   FetchAndApplyActivityInput,
   FetchAndApplyActivityResult,
+  FetchAndApplyAgentsActivityResult,
   MarkSyncFailedActivityInput,
   PrepareSyncResult,
   SyncRefScopedInput,

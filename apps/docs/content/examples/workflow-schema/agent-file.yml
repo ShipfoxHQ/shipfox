@@ -1,0 +1,10 @@
+name: Code reviewer
+description: Reviews pull requests in this project and reports the main risks.
+instructions:
+  - Review the change like a senior engineer on this team.
+  - file: ./.shipfox/prompts/review-rules.md
+model: claude-sonnet-5
+provider: anthropic
+thinking: high
+integrations:
+  - include: [pull_request_read]

@@ -92,6 +92,7 @@ import {normalizeToolStep} from './normalize-tool-step.js';
 import {parseDurationMs} from './parse-duration-ms.js';
 import {parseInterpolationField} from './parse-interpolation-field.js';
 import {stableId} from './stable-id.js';
+import {validateAgentModelSelection} from './validate-agent-model-selection.js';
 import {unescapeLiteralName, validateLiteralName} from './validate-literal-name.js';
 import {issue} from './validation-issue.js';
 
@@ -2158,117 +2159,14 @@ function validateAgentStep(params: {
 }): void {
   validateHarnessThinking(params);
   validateHarnessTools(params);
-  const providerId = params.step.provider;
-  const harness = params.step.harness ?? params.agentValidationCatalog.default_harness_id;
-  const provider =
-    providerId === undefined
-      ? undefined
-      : params.agentValidationCatalog.providers.find((entry) => entry.id === providerId);
-
-  if (!validateAgentProvider(params, providerId, harness, provider)) return;
-  validateAgentModel(params, providerId, harness, provider);
-}
-
-type ValidateAgentStepParams = Parameters<typeof validateAgentStep>[0];
-type AgentCatalogProvider = AgentValidationCatalogV2['providers'][number];
-
-function validateAgentProvider(
-  params: ValidateAgentStepParams,
-  providerId: string | undefined,
-  harness: string | undefined,
-  provider: AgentCatalogProvider | undefined,
-): boolean {
-  if (!params.validateLiteralProvider || providerId === undefined) return true;
-  if (provider === undefined) {
-    if (harness === undefined || harness === 'pi') return false;
-    params.issues.push(
-      issue({
-        code: 'invalid-provider',
-        message: `Provider "${providerId}" is not supported.`,
-        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
-        details: {provider: providerId},
-      }),
-    );
-    return false;
-  }
-  if (provider.support_status !== 'supported') {
-    params.issues.push(
-      issue({
-        code: 'invalid-provider',
-        message: `Provider "${providerId}" is not supported.`,
-        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
-        details: {provider: providerId},
-      }),
-    );
-    return false;
-  }
-  const descriptor = params.agentValidationCatalog.harnesses.find((entry) => entry.id === harness);
-  if (descriptor?.supported_provider_ids.includes(providerId)) return true;
-  params.issues.push(
-    issue({
-      code: 'harness-provider-incompatible',
-      message: `Harness "${harness}" does not support provider: ${providerId}. Supported providers: ${descriptor?.supported_provider_ids.join(', ') ?? ''}.`,
-      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
-      details: {
-        harness,
-        provider: providerId,
-        supportedProviders: descriptor?.supported_provider_ids ?? [],
-      },
-    }),
-  );
-  return false;
-}
-
-function validateAgentModel(
-  params: ValidateAgentStepParams,
-  providerId: string | undefined,
-  harness: string | undefined,
-  provider: AgentCatalogProvider | undefined,
-): void {
-  if (!params.validateLiteralModel || providerId === undefined) return;
-  if (provider === undefined || provider.support_status !== 'supported') return;
-
-  const model = params.step.model;
-  if (model === undefined) return;
-
-  const descriptor = params.agentValidationCatalog.harnesses.find((entry) => entry.id === harness);
-  const modelIds = descriptor?.model_ids_by_provider?.[providerId];
-  if (modelIds === undefined) return;
-  if (modelIds.includes(model)) {
-    warnWhenModelLocked(params, providerId, model);
-    return;
-  }
-
-  params.issues.push(
-    issue({
-      code: 'invalid-model',
-      message: `Agent model "${model}" is not available for harness "${harness}" and provider "${providerId}".`,
-      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
-      details: {harness, provider: providerId, model},
-    }),
-  );
-}
-
-// A warning, never an error: workspace limits change, so a locked model can be available again
-// by the time the step runs.
-function warnWhenModelLocked(
-  params: ValidateAgentStepParams,
-  providerId: string,
-  model: string,
-): void {
-  if (!params.agentValidationCatalog.locked_model_ids_by_provider?.[providerId]?.includes(model)) {
-    return;
-  }
-
-  params.issues.push(
-    issue({
-      code: 'model-locked',
-      message: `Model "${model}" is not available in this workspace. A step that uses it fails when it starts.`,
-      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
-      severity: 'warning',
-      details: {provider: providerId, model},
-    }),
-  );
+  validateAgentModelSelection({
+    selection: params.step,
+    path: ['jobs', params.sourceName, 'steps', params.stepIndex],
+    issues: params.issues,
+    validateLiteralModel: params.validateLiteralModel,
+    validateLiteralProvider: params.validateLiteralProvider,
+    agentValidationCatalog: params.agentValidationCatalog,
+  });
 }
 
 function validateHarnessTools(params: {

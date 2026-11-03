@@ -8,7 +8,11 @@ import {
 } from '@shipfox/api-registry-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
-import {isCompositeActionManifest, type WorkflowDocument} from '@shipfox/workflow-document';
+import {
+  AGENT_DOCUMENT_DIRECTORY,
+  isCompositeActionManifest,
+  type WorkflowDocument,
+} from '@shipfox/workflow-document';
 import {actionSupportFor} from './action-support.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectReachableActions} from './collect-action-references.js';
@@ -45,11 +49,12 @@ import {
   resolveWorkflowActions,
   summarizeResolvedActions,
 } from './resolve-actions.js';
-import {resolvePromptFiles} from './resolve-prompt-files.js';
+import {collectWorkflowPromptFileUses, resolvePromptFiles} from './resolve-prompt-files.js';
 import type {ValidationError} from './validate-definition.js';
 import {parseWorkflowYaml} from './workflow-yaml/index.js';
 
 export const DEFAULT_WORKFLOW_PATH = '.shipfox/workflows/';
+export const DEFAULT_AGENT_PATH = AGENT_DOCUMENT_DIRECTORY;
 export const MAX_WORKFLOW_FILES = 100;
 export {MAX_WORKFLOW_FILE_BYTES};
 export const UNRESOLVED_SYNC_REF = '__unresolved__';
@@ -84,22 +89,7 @@ export async function discoverWorkflowFiles(
   params: DiscoverWorkflowFilesParams,
 ): Promise<{paths: string[]}> {
   const workflowPath = params.workflowPath ?? DEFAULT_WORKFLOW_PATH;
-  const page = await params.sourceControl.listFiles({
-    workspaceId: params.workspaceId,
-    connectionId: params.sourceConnectionId,
-    externalRepositoryId: params.sourceExternalRepositoryId,
-    ref: params.ref,
-    prefix: workflowPath,
-    limit: MAX_WORKFLOW_FILES,
-  });
-  if (page.nextCursor) {
-    throw new DefinitionSyncPermanentError(
-      'too-many-files',
-      `More than ${MAX_WORKFLOW_FILES} workflow files were found`,
-    );
-  }
-
-  const paths = page.files.filter(isWorkflowFile).map((file) => file.path);
+  const paths = await listYamlFiles(params, workflowPath, 'workflow');
   if (paths.length === 0) {
     throw new DefinitionSyncPermanentError(
       'no-workflow-files',
@@ -108,6 +98,70 @@ export async function discoverWorkflowFiles(
   }
 
   return {paths};
+}
+
+export interface DiscoverDefinitionFilesParams extends DiscoverWorkflowFilesParams {
+  agentPath?: string | undefined;
+}
+
+export interface DiscoveredDefinitionFiles {
+  workflowPaths: string[];
+  /** Every YAML file under the agent path, nested ones included, so sync can report them. */
+  agentPaths: string[];
+}
+
+/**
+ * Lists the workflow files and the agent files at `ref`. A repository needs
+ * at least one of either: a repository with only agent files syncs.
+ */
+export async function discoverDefinitionFiles(
+  params: DiscoverDefinitionFilesParams,
+): Promise<DiscoveredDefinitionFiles> {
+  const workflowPath = withTrailingSlash(params.workflowPath ?? DEFAULT_WORKFLOW_PATH);
+  const agentPath = withTrailingSlash(params.agentPath ?? DEFAULT_AGENT_PATH);
+  // Both listings run at once, so discovery holds its activity slot no longer
+  // than the workflow-only listing did.
+  const [workflowPaths, agentPaths] = await Promise.all([
+    listYamlFiles(params, workflowPath, 'workflow'),
+    listYamlFiles(params, agentPath, 'agent'),
+  ]);
+  if (workflowPaths.length === 0 && agentPaths.length === 0) {
+    throw new DefinitionSyncPermanentError(
+      'no-workflow-files',
+      `No workflow files were found under ${workflowPath}, and no agent files under ${agentPath}`,
+    );
+  }
+
+  return {workflowPaths, agentPaths};
+}
+
+// A listing prefix without a slash also matches sibling folders, and a key
+// is derived by slicing the prefix off the path.
+export function withTrailingSlash(path: string): string {
+  return path.endsWith('/') ? path : `${path}/`;
+}
+
+async function listYamlFiles(
+  params: SyncSourceContext & {ref: string},
+  prefix: string,
+  kind: 'workflow' | 'agent',
+): Promise<string[]> {
+  const page = await params.sourceControl.listFiles({
+    workspaceId: params.workspaceId,
+    connectionId: params.sourceConnectionId,
+    externalRepositoryId: params.sourceExternalRepositoryId,
+    ref: params.ref,
+    prefix,
+    limit: MAX_WORKFLOW_FILES,
+  });
+  if (page.nextCursor) {
+    throw new DefinitionSyncPermanentError(
+      'too-many-files',
+      `More than ${MAX_WORKFLOW_FILES} ${kind} files were found`,
+    );
+  }
+
+  return page.files.filter(isWorkflowFile).map((file) => file.path);
 }
 
 export function isWorkflowFile(file: {path: string; type: string}): boolean {
@@ -287,7 +341,10 @@ async function resolveSyncPromptFiles(
   actions: ResolvedActions,
 ): Promise<Map<string, string>> {
   try {
-    return await resolvePromptFiles({...params, workflows, actions});
+    return await resolvePromptFiles({
+      ...params,
+      references: collectWorkflowPromptFileUses({workflows, actions}),
+    });
   } catch (error) {
     if (!(error instanceof PromptFileResolutionError)) throw error;
     throw new DefinitionSyncPermanentError(
