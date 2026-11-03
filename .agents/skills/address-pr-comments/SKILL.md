@@ -26,8 +26,8 @@ asked for:
 
 `/address-pr-comments [pr]`
 
-`[pr]` is a pull request number or URL. Without it, use the pull request for
-the current branch.
+`[pr]` is a pull request number or URL. Without it, omit `<pr>` below to use
+the pull request for the current branch.
 
 ## Process
 
@@ -61,7 +61,8 @@ gh pr view <number> --json reviews,comments
 
 Use the returned `number` in every later command. If the current branch is not
 `headRefName`, run `gh pr checkout <number>`. Take the Linear issue key from the
-`Closes`, `Fixes`, `Resolves`, or `Refs` line of the body.
+`Closes`, `Fixes`, `Resolves`, `Refs`, `Part of`, or `Related to` line of the
+body.
 
 A comment is open when it is one of these:
 
@@ -70,8 +71,9 @@ A comment is open when it is one of these:
   by you, posted after your latest decision comment.
 
 Write the open comments to `.context/pr-<number>/open-comments.json`. Give
-each one an ID, author, file and line when present, body, and URL. If no
-comment is open, report that and stop.
+each one a `commentId`, author, body, and URL. For inline threads, use the
+database ID of the last comment as `commentId` and add the `threadId`, file,
+and line. If no comment is open, report that and stop.
 
 ### 2. Triage with an Opus sub-agent
 
@@ -106,7 +108,7 @@ Prefer the simplest change that resolves a fix. Verify each claim against
 the code before you accept it; reviewers are often wrong.
 
 Return a JSON array, one entry per comment:
-{ "id", "outcome", "reason", "change" }
+{ "commentId", "outcome", "reason", "change" }
 - reason: one or two sentences, safe to post publicly, that state the
   evidence or the scope reason.
 - change: for fix only, the concrete edit and the files it touches.

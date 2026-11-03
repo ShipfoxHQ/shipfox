@@ -11,11 +11,11 @@ Find why a pull request's checks fail, fix the cause, and push the fix.
 
 `/fix-ci [pr]`
 
-`[pr]` is a pull request number or URL. Without it, use the pull request for
-the current branch:
+`[pr]` is a pull request number or URL. Without it, omit `<pr>` below to use
+the pull request for the current branch:
 
 ```bash
-gh pr view [pr] --json number,url,headRefName
+gh pr view <pr> --json number,url,headRefName
 ```
 
 Use the returned `number` in every later command. If the current branch is not
@@ -28,7 +28,7 @@ Use the returned `number` in every later command. If the current branch is not
    exits:
 
    ```bash
-   gh pr checks <number> --watch --fail-fast --interval 30
+   gh pr checks <number> --watch --interval 30
    ```
 
 2. List the failed checks:
@@ -55,8 +55,9 @@ Use the returned `number` in every later command. If the current branch is not
    to pick the task.
 5. Fix the cause. Do not skip, weaken, or delete a test to make it pass.
 6. If the failure is unrelated to the diff, such as a known flaky test or an
-   infrastructure error, rerun only the failed jobs instead of changing code.
-   Rerun only when `gh run view <run-id> --json attempt` reports attempt 1:
+   infrastructure error, rerun the failed GitHub Actions jobs instead of
+   changing code. Rerun only when `gh run view <run-id> --json attempt` reports
+   attempt 1. For other checks, report the failure instead:
 
    ```bash
    gh run rerun <run-id> --failed

@@ -13,7 +13,7 @@ Require the user to provide a Linear issue ID, issue key, or Linear issue URL be
 
 Before starting implementation, gather the full Linear context for the requested issue:
 
-1. Fetch the issue itself.
+1. Fetch the issue itself and its comments.
 2. Fetch all associated issues, including parent, child, related, blocked-by, blocking, duplicate, and any other linked Linear relationships available through the Linear tools.
 3. Fetch the project the issue belongs to, if any.
 4. Fetch all other issues in that project.
