@@ -10,6 +10,13 @@ import type {TriggerEventOrigin} from './entities/received-event.js';
 import {SecretInputNotFoundError, TriggerReferenceResolutionError} from './errors.js';
 import {pinSecretInputs} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
+import {
+  type AgentRoutingClient,
+  type AgentRoutingIntegrations,
+  type AgentRoutingState,
+  NOT_ROUTED_TO_AGENT,
+  routeEventToAgent,
+} from './route-event-to-agent.js';
 import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
 import {
   isPermanentStartRunError,
@@ -20,6 +27,9 @@ import {
 export interface DispatchIntegrationEventParams {
   workflows: WorkflowsModuleClient;
   secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
+  /** Both are needed to route interactions to agents. Without them, no event reaches an agent. */
+  integrations?: AgentRoutingIntegrations | undefined;
+  agent?: AgentRoutingClient | undefined;
   eventRef: string;
   /** History origin; ordinary integration deliveries use the default. */
   origin?: Exclude<TriggerEventOrigin, 'cron'> | undefined;
@@ -35,9 +45,10 @@ export interface DispatchIntegrationEventParams {
 }
 
 // Source-agnostic dispatcher: any inbound integration event fans out to every
-// workspace subscription registered for its (source, event) and to every listening
-// job subscribed to it, passing the raw payload through untouched. The module knows
-// nothing about github, gitlab, etc.
+// workspace subscription registered for its (source, event), to every listening
+// job subscribed to it, and, for a connection with the interaction capability, to the agent that
+// answers it, passing the raw payload through untouched. The module knows nothing about
+// github, gitlab, etc.
 //
 // Continue-on-error: every matched subscription and listener is attempted so one broken
 // subscription cannot starve its siblings. A permanent admission failure (deleted definition,
@@ -45,8 +56,9 @@ export interface DispatchIntegrationEventParams {
 // and re-thrown so the outbox
 // replays the whole event and converges (succeeded siblings dedup on the idempotency key). The
 // event reaches a terminal outcome only when no transient error remains: `routed` if any run
-// was created or any listening job accepted a delivery, `discarded` if nothing matched, otherwise
-// `errored`.
+// was created, any listening job accepted a delivery, or an agent took the request, `discarded`
+// if nothing matched, otherwise `errored`. An agent request never counts as a match, so a
+// follow-up with no owner is dropped and recorded without making the event anything but `discarded`.
 // History is best-effort; the thrown transient error, not the recorded outcome, drives the retry.
 export async function dispatchIntegrationEvent(
   params: DispatchIntegrationEventParams,
@@ -111,11 +123,16 @@ export async function dispatchIntegrationEvent(
     throw error;
   }
 
-  if (listenerResult.transientErrored && !dispatch.sawTransientError) {
-    dispatch.sawTransientError = true;
-    dispatch.firstTransientError = listenerResult.transientError;
-  }
+  noteTransientError(
+    dispatch,
+    listenerResult.transientErrored ? {error: listenerResult.transientError} : undefined,
+  );
 
+  // After the workflows, so the agent path can't change what they do.
+  const agentRouting = await routeToAgent(params, history);
+  noteTransientError(dispatch, agentRouting.transientError);
+
+  // Agents stay out of the count, which the event view reads as workflows.
   const totalMatchedCount = dispatch.triggerEngagedCount + listenerResult.engagedCount;
 
   if (dispatch.sawTransientError) {
@@ -124,7 +141,7 @@ export async function dispatchIntegrationEvent(
     throw dispatch.firstTransientError;
   }
 
-  if (dispatch.triggeredCount > 0 || listenerResult.acceptedJobCount > 0) {
+  if (dispatch.triggeredCount + listenerResult.acceptedJobCount > 0 || agentRouting.routed) {
     eventOutcomeCount.add(1, {origin, provider: params.provider, outcome: 'routed'});
     await history.routed(totalMatchedCount);
     return;
@@ -138,6 +155,34 @@ export async function dispatchIntegrationEvent(
 
   eventOutcomeCount.add(1, {origin, provider: params.provider, outcome: 'errored'});
   await history.allErrored(totalMatchedCount);
+}
+
+// The first transient failure is the one the outbox replay reports.
+function noteTransientError(
+  state: SubscriptionDispatchState,
+  failure: {error: unknown} | undefined,
+): void {
+  if (!failure || state.sawTransientError) return;
+  state.sawTransientError = true;
+  state.firstTransientError = failure.error;
+}
+
+async function routeToAgent(
+  params: DispatchIntegrationEventParams,
+  history: Awaited<ReturnType<typeof beginTriggerHistory>>,
+): Promise<AgentRoutingState> {
+  if (!params.integrations || !params.agent) return NOT_ROUTED_TO_AGENT;
+  return await routeEventToAgent({
+    integrations: params.integrations,
+    agent: params.agent,
+    history,
+    eventRef: params.eventRef,
+    workspaceId: params.workspaceId,
+    connectionId: params.connectionId,
+    provider: params.provider,
+    event: params.event,
+    payload: params.payload,
+  });
 }
 
 interface SubscriptionDispatchState {

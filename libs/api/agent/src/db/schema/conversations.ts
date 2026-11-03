@@ -6,7 +6,8 @@ import {bytea, pgTable} from './common.js';
 
 /**
  * Conversations with an agent. `workspace_id` and `project_id` are opaque foreign
- * ids. `title` is sealed with the workspace data key.
+ * ids. `title` is sealed with the workspace data key. An integration conversation
+ * names its connection, provider, and the provider's key, and one agent owns each key.
  */
 export const conversations = pgTable(
   'conversations',
@@ -17,6 +18,9 @@ export const conversations = pgTable(
     agentKey: text('agent_key').notNull(),
     originKind: text('origin_kind', {enum: ['web', 'integration']}).notNull(),
     ownerUserId: uuid('owner_user_id'),
+    originConnectionId: uuid('origin_connection_id'),
+    originProvider: text('origin_provider'),
+    originKey: text('origin_key'),
     clientMessageId: uuid('client_message_id'),
     title: bytea('title'),
     lastSeq: integer('last_seq').notNull().default(0),
@@ -32,6 +36,14 @@ export const conversations = pgTable(
     check(
       'agent_conversations_web_owner_ck',
       sql`(${table.originKind} = 'web' and ${table.ownerUserId} is not null) or (${table.originKind} = 'integration' and ${table.ownerUserId} is null)`,
+    ),
+    check(
+      'agent_conversations_integration_origin_ck',
+      sql`(${table.originKind} = 'integration' and ${table.originConnectionId} is not null and ${table.originProvider} is not null and ${table.originKey} is not null) or (${table.originKind} = 'web' and ${table.originConnectionId} is null and ${table.originProvider} is null and ${table.originKey} is null)`,
+    ),
+    uniqueIndex('agent_conversations_origin_key_unique').on(
+      table.originConnectionId,
+      table.originKey,
     ),
     uniqueIndex('agent_conversations_client_message_unique')
       .on(table.projectId, table.ownerUserId, table.clientMessageId)
@@ -55,6 +67,9 @@ export function toConversation(row: ConversationDb): Conversation {
     agentKey: row.agentKey,
     originKind: row.originKind,
     ownerUserId: row.ownerUserId,
+    originConnectionId: row.originConnectionId,
+    originProvider: row.originProvider,
+    originKey: row.originKey,
     clientMessageId: row.clientMessageId,
     sealedTitle: row.title,
     lastSeq: row.lastSeq,

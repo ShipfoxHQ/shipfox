@@ -12,9 +12,11 @@ Register the module with the API module runner:
 
 ```ts
 import {createTriggersModule} from '@shipfox/api-triggers';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
+import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {createApp, listen} from '@shipfox/node-fastify';
 import {initializeModules, startModuleWorkers} from '@shipfox/node-module';
@@ -28,8 +30,10 @@ const workflows = transport.createClient(workflowsInterModuleContract);
 const definitions = transport.createClient(definitionsInterModuleContract);
 const integrations = transport.createClient(integrationsInterModuleContract);
 const projects = transport.createClient(projectsInterModuleContract);
+const secrets = transport.createClient(secretsInterModuleContract);
+const agent = transport.createClient(agentInterModuleContract);
 const modules = [
-  createTriggersModule({workflows, definitions, projects, integrations}),
+  createTriggersModule({workflows, definitions, projects, secrets, integrations, agent}),
   /* and other modules */
 ];
 registerInterModulePresentations({transport, modules});
@@ -45,9 +49,10 @@ await listen();
 
 ### Migration from `triggersModule`
 
-`triggersModule` is replaced by `createTriggersModule({workflows, definitions, projects})`. The API
-composition root creates the Workflows, Definitions, Projects, and (when E2E synthetic dispatch is
-needed) Integrations clients from their `@shipfox/api-*-dto/inter-module` contracts. It passes those
+`triggersModule` is replaced by `createTriggersModule({workflows, definitions, projects, secrets})`. The API
+composition root creates the Workflows, Definitions, Projects, Secrets, and (when E2E synthetic dispatch or
+agent routing is needed) Integrations clients from their `@shipfox/api-*-dto/inter-module` contracts.
+Agent routing also needs the Agent client, and without both Integrations and Agent no event reaches an agent. It passes those
 clients to Triggers, registers the presentations, and seals the transport before the server starts. Cron
 activities, integration subscribers, and the manual and dev-run routes use those
 injected clients. Callers must keep the deterministic cron or integration key when they
@@ -284,6 +289,28 @@ a generic `{source, event, deliveryId, data}` shape that forwards the raw
 event payload as `data`. The `triggerSource` value on a row always equals
 `triggerPayload.source`. The duplication is deliberate: the indexed column
 is for filtering, the payload is for inspection.
+
+### Agent routing
+
+An event from a connection whose provider has the `interaction` capability also
+goes to an agent. After the workflow fan-out, dispatch asks Integrations to
+read the event as an interaction. A provider that does not list the event, or
+returns nothing for it, leaves the event to workflows. Dispatch then calls the
+Agent module's `routeInteraction` with the interaction and the event ID. Agent
+picks the conversation: the one that owns the interaction's key, or a new one
+with the default agent for a request.
+
+Dispatch records the result as a decision with the subscription kind `agent`
+and no subscription ID. The decision is `owner`, `default`, or `dropped`, and a
+`dropped` decision carries its reason. A follow-up or stop with no owner is
+dropped. An `owner` or `default` decision makes the event `routed`, but agents stay out of
+`matched_count`, which counts workflows. Routing uses the event ID as its
+delivery key, so a replay of the same event creates one conversation and one
+message. Without both the `integrations` and `agent` clients, no event reaches
+an agent. A read failure that Integrations declares, such as a provider outage or an inactive
+connection, is skipped and logged, so agents never delay workflows, and a key over 256
+characters is skipped the same way. Any other failure, including the Agent module's, fails
+the event after the workflows ran, and the outbox replays it.
 
 ## Events
 

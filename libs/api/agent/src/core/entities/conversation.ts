@@ -17,6 +17,10 @@ export interface Conversation {
   agentKey: string;
   originKind: ConversationOriginKind;
   ownerUserId: string | null;
+  /** Where an integration conversation started. All three are set exactly when `originKind` is `integration`. */
+  originConnectionId: string | null;
+  originProvider: string | null;
+  originKey: string | null;
   /** The first message's client ID, so a repeated create finds this conversation. */
   clientMessageId: string | null;
   sealedTitle: Buffer | null;

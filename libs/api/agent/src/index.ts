@@ -151,6 +151,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
       createAgentInterModulePresentation({
         ...params,
         workspaceProviders: workspaceProvidersPolicy,
+        routing: runsTurns && projects ? {projects, wake: wakeConversation} : undefined,
       }),
     ],
     // Session claims are released on the same signals that close log streams:

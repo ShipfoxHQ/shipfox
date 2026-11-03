@@ -170,6 +170,41 @@ const resolvedAgentConfigSchema = z.object({
 
 export {type AgentSessionDescriptorDto, agentSessionDescriptorSchema} from '#schemas/index.js';
 
+export const MAX_CONVERSATION_KEY_LENGTH = 256;
+
+const interactionRoutingInputSchema = z.object({
+  /** The provider's opaque key. The cap keeps it inside a unique index entry. */
+  conversationKey: z.string().min(1).max(MAX_CONVERSATION_KEY_LENGTH),
+  role: z.enum(['request', 'follow_up', 'stop']),
+  /** Prose for the model. Treated as untrusted data. */
+  text: z.string(),
+  /** Absent when no person caused the interaction. */
+  author: z.object({externalId: z.string().min(1), displayName: z.string().optional()}).optional(),
+});
+
+export const interactionRoutingResultSchema = z.discriminatedUnion('outcome', [
+  /** The conversation that already owns the key took the interaction. */
+  z.object({
+    outcome: z.literal('owner'),
+    conversationId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    agentKey: z.string().min(1),
+  }),
+  /** A new request started a conversation with the workspace's default agent. */
+  z.object({
+    outcome: z.literal('default'),
+    conversationId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    agentKey: z.string().min(1),
+  }),
+  /** No agent took the interaction. */
+  z.object({
+    outcome: z.literal('dropped'),
+    reason: z.enum(['no-owner', 'no-project']),
+  }),
+]);
+export type InteractionRoutingResult = z.infer<typeof interactionRoutingResultSchema>;
+
 export const agentInterModuleContract = defineInterModuleContract({
   module: 'agent',
   methods: {
@@ -261,6 +296,21 @@ export const agentInterModuleContract = defineInterModuleContract({
         'session-harness-mismatch': z.object({}),
         'session-lock-unavailable': z.object({}),
       },
+    },
+    /**
+     * Gives an integration interaction to the agent that owns its conversation, or starts one with
+     * the default agent. A follow-up or stop with no owner is dropped. The delivery key makes a
+     * replayed event post its text once.
+     */
+    routeInteraction: {
+      input: z.object({
+        workspaceId: z.string().uuid(),
+        connectionId: z.string().uuid(),
+        provider: z.string().min(1),
+        deliveryKey: z.string().min(1),
+        interaction: interactionRoutingInputSchema,
+      }),
+      output: interactionRoutingResultSchema,
     },
     releaseSession: {
       input: z.object({

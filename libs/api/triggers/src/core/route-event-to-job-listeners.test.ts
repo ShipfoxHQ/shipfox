@@ -86,6 +86,7 @@ function buildHistory(): TriggerHistoryRecorder {
     listenerFilterErrored,
     listenerDispatchErrored,
     listenerDeliveryRejected,
+    agentRouted: vi.fn(),
     discarded: vi.fn(),
     routed: vi.fn(),
     failed: vi.fn(),

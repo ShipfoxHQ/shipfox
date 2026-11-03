@@ -250,13 +250,14 @@ const triggerDecisionSchema = z
     createdAt: isoDateTimeSchema,
   })
   .superRefine((value, ctx) => {
-    const isDevDecision = value.subscriptionKind === 'dev';
+    const hasNoSubscription =
+      value.subscriptionKind === 'dev' || value.subscriptionKind === 'agent';
     const hasNullSubscriptionId = value.subscriptionId === null;
-    if (isDevDecision !== hasNullSubscriptionId) {
+    if (hasNoSubscription !== hasNullSubscriptionId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: isDevDecision
-          ? 'dev decisions must have a null subscriptionId'
+        message: hasNoSubscription
+          ? 'dev and agent decisions must have a null subscriptionId'
           : 'trigger and listener decisions must have a subscriptionId',
         path: ['subscriptionId'],
       });

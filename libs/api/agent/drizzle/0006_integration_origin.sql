@@ -1,0 +1,5 @@
+ALTER TABLE "agent_conversations" ADD COLUMN "origin_connection_id" uuid;--> statement-breakpoint
+ALTER TABLE "agent_conversations" ADD COLUMN "origin_provider" text;--> statement-breakpoint
+ALTER TABLE "agent_conversations" ADD COLUMN "origin_key" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "agent_conversations_origin_key_unique" ON "agent_conversations" USING btree ("origin_connection_id","origin_key");--> statement-breakpoint
+ALTER TABLE "agent_conversations" ADD CONSTRAINT "agent_conversations_integration_origin_ck" CHECK (("agent_conversations"."origin_kind" = 'integration' and "agent_conversations"."origin_connection_id" is not null and "agent_conversations"."origin_provider" is not null and "agent_conversations"."origin_key" is not null) or ("agent_conversations"."origin_kind" = 'web' and "agent_conversations"."origin_connection_id" is null and "agent_conversations"."origin_provider" is null and "agent_conversations"."origin_key" is null));

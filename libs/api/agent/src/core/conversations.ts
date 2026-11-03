@@ -35,7 +35,7 @@ import {
   ConversationTurnRunningError,
 } from './errors.js';
 
-const SHIPPY_AGENT_KEY = 'shippy';
+export const SHIPPY_AGENT_KEY = 'shippy';
 const CONVERSATION_TITLE_MAX_CHARS = 80;
 const CONVERSATION_QUEUED_ITEMS_CAP = 100;
 

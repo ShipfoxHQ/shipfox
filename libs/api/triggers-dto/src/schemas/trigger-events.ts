@@ -29,10 +29,18 @@ export const triggerDecisionOutcomeSchema = z.enum([
   'filter-error',
   'dispatch-error',
   'rejected',
+  'owner',
+  'default',
+  'dropped',
 ]);
 export type TriggerDecisionOutcomeDto = z.infer<typeof triggerDecisionOutcomeSchema>;
 
-export const triggerDecisionSubscriptionKindSchema = z.enum(['trigger', 'listener', 'dev']);
+export const triggerDecisionSubscriptionKindSchema = z.enum([
+  'trigger',
+  'listener',
+  'dev',
+  'agent',
+]);
 export type TriggerDecisionSubscriptionKindDto = z.infer<
   typeof triggerDecisionSubscriptionKindSchema
 >;
@@ -240,7 +248,7 @@ const triggerDecisionDtoBaseSchema = z.object({
   id: z.string().uuid(),
   received_event_id: z.string().uuid(),
   subscription_kind: triggerDecisionSubscriptionKindSchema,
-  // Null for `dev` decisions: a dev journal entry has no subscription row.
+  // Null for `dev` and `agent` decisions: neither has a subscription row yet.
   subscription_id: z.string().uuid().nullable(),
   subscription_name: z.string(),
   workflow_definition_id: z.string().uuid().nullable(),
@@ -258,13 +266,14 @@ const triggerDecisionDtoBaseSchema = z.object({
 });
 
 export const triggerDecisionDtoSchema = triggerDecisionDtoBaseSchema.superRefine((value, ctx) => {
-  const isDevDecision = value.subscription_kind === 'dev';
+  const hasNoSubscription =
+    value.subscription_kind === 'dev' || value.subscription_kind === 'agent';
   const hasNullSubscriptionId = value.subscription_id === null;
-  if (isDevDecision !== hasNullSubscriptionId) {
+  if (hasNoSubscription !== hasNullSubscriptionId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: isDevDecision
-        ? 'dev decisions must have a null subscription_id'
+      message: hasNoSubscription
+        ? 'dev and agent decisions must have a null subscription_id'
         : 'trigger and listener decisions must have a subscription_id',
       path: ['subscription_id'],
     });

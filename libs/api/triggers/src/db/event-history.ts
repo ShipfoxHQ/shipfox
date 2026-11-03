@@ -490,3 +490,35 @@ async function upsertDevDecision(
       ...(options.preserveTriggered ? {setWhere: ne(triggersDecisions.decision, 'triggered')} : {}),
     });
 }
+
+export interface UpsertAgentDecisionParams {
+  receivedEventId: string;
+  decision: 'owner' | 'default' | 'dropped';
+  /** Null when no agent took the request. */
+  agentKey: string | null;
+  projectId: string | null;
+  reason: string | null;
+}
+
+// One routing result per received event, so a replay overwrites its own row.
+export async function upsertAgentDecision(params: UpsertAgentDecisionParams): Promise<void> {
+  const values = {
+    decision: params.decision,
+    subscriptionName: params.agentKey ?? 'none',
+    projectId: params.projectId,
+    reason: params.reason,
+  };
+  await db()
+    .insert(triggersDecisions)
+    .values({
+      receivedEventId: params.receivedEventId,
+      subscriptionKind: 'agent',
+      subscriptionId: null,
+      ...values,
+    })
+    .onConflictDoUpdate({
+      target: triggersDecisions.receivedEventId,
+      targetWhere: sql`"subscription_kind" = 'agent' AND "subscription_id" IS NULL`,
+      set: values,
+    });
+}

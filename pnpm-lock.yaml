@@ -6699,6 +6699,9 @@ importers:
 
   libs/api/triggers:
     dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../agent-dto
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context

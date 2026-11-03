@@ -34,11 +34,14 @@ const triggerDecisionOutcomeSchema = z.enum([
   'filter-error',
   'dispatch-error',
   'rejected',
+  'owner',
+  'default',
+  'dropped',
 ]);
 const triggerDecisionSchema = z
   .object({
     id: idSchema,
-    subscription_kind: z.enum(['trigger', 'listener', 'dev']),
+    subscription_kind: z.enum(['trigger', 'listener', 'dev', 'agent']),
     outcome: triggerDecisionOutcomeSchema,
     reason: textSchema.nullable(),
     workflow_definition_id: idSchema.nullable(),
@@ -140,10 +143,19 @@ const triggerDecisionJsonSchema = {
   type: 'object',
   properties: {
     id: uuid,
-    subscription_kind: {type: 'string', enum: ['trigger', 'listener', 'dev']},
+    subscription_kind: {type: 'string', enum: ['trigger', 'listener', 'dev', 'agent']},
     outcome: {
       type: 'string',
-      enum: ['triggered', 'filtered', 'filter-error', 'dispatch-error', 'rejected'],
+      enum: [
+        'triggered',
+        'filtered',
+        'filter-error',
+        'dispatch-error',
+        'rejected',
+        'owner',
+        'default',
+        'dropped',
+      ],
     },
     reason: nullable(text),
     workflow_definition_id: nullable(uuid),

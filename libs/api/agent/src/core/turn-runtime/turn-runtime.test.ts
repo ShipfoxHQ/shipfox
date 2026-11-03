@@ -40,6 +40,7 @@ import {
   ConversationRetryUnavailableError,
   ConversationTurnRunningError,
 } from '../errors.js';
+import {routeInteraction} from '../interaction-routing.js';
 import {recoverConversations} from '../recover-conversations.js';
 import {buildSessionEntries, loadConversationContext} from './conversation-session.js';
 import {TurnFailure} from './failures.js';
@@ -76,10 +77,25 @@ function createFakeIntegrations() {
     content: [{type: 'text', text: 'run 7 failed in step build'}],
   });
   const listConversationTools = vi.fn().mockResolvedValue({tools: [runsTool]});
+  const listInteractionProviders = vi.fn().mockResolvedValue({
+    providers: [
+      {
+        provider: 'slack',
+        interactionEvents: {app_mention: 'request'},
+        requestContextSchema: {},
+        replyGuidance: 'Reply in at most three short paragraphs, with no headings.',
+      },
+    ],
+  });
   return {
-    client: {callTool, listConversationTools} as unknown as IntegrationsModuleClient,
+    client: {
+      callTool,
+      listConversationTools,
+      listInteractionProviders,
+    } as unknown as IntegrationsModuleClient,
     callTool,
     listConversationTools,
+    listInteractionProviders,
   };
 }
 
@@ -166,6 +182,64 @@ describe('turn runtime', () => {
         'list_workflow_runs',
         'read_skill',
       ]);
+    });
+
+    it('pins the provider reply guidance in the first entry of an integration conversation', async () => {
+      const workspaceId = crypto.randomUUID();
+      const projectId = crypto.randomUUID();
+      const routed = await routeInteraction(
+        {
+          workspaceId,
+          connectionId: crypto.randomUUID(),
+          provider: 'slack',
+          deliveryKey: crypto.randomUUID(),
+          interaction: {conversationKey: 'C1:1.1', role: 'request', text: 'Why did run 7 fail?'},
+        },
+        {
+          projects: {
+            listProjectsByWorkspace: vi.fn().mockResolvedValue({
+              projects: [{id: projectId}],
+              nextCursor: null,
+            }),
+          },
+          wake: async () => undefined,
+        },
+      );
+      if (routed.outcome === 'dropped') throw new Error('Expected a conversation');
+      const {deps} = await setup();
+
+      const turn = await beginConversationTurn({
+        conversationId: routed.conversationId,
+        deps: {
+          ...deps,
+          projects: createTestProjectsClient({projects: new Map([[projectId, {workspaceId}]])}),
+        },
+      });
+
+      expect(turn).toBeDefined();
+      const [system, user] = await listContextItems({
+        conversationId: routed.conversationId,
+        fromSeq: 1,
+      });
+      expect(system).toMatchObject({seq: 1, meta: {role: 'system'}});
+      expect(user).toMatchObject({seq: 2, meta: {role: 'user'}});
+      const entry = await readEntry(system as ConversationItem, workspaceId);
+      expect(entry.message.content).toContain('Started from: "slack"');
+      expect(entry.message.content).toContain(
+        'Reply in at most three short paragraphs, with no headings.',
+      );
+      expect(entry.message.content).toContain('<untrusted_data>');
+    });
+
+    it('adds no reply guidance to a web conversation', async () => {
+      const {begin, items, workspaceId, integrations} = await setup();
+
+      await begin();
+
+      const [system] = await items();
+      const entry = await readEntry(system as ConversationItem, workspaceId);
+      expect(entry.message.content).not.toContain('Replying here');
+      expect(integrations.listInteractionProviders).not.toHaveBeenCalled();
     });
 
     it('returns the running turn on a repeat and writes nothing more', async () => {
