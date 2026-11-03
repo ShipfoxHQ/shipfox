@@ -1,9 +1,13 @@
 import {ApiError} from '@shipfox/client-api';
 import {
+  configMoveErrorCopy,
   type Definition,
   type DefinitionSyncDiagnostic,
   type DefinitionSyncSummary,
+  type ProjectConfig,
   useDefinitionsInfiniteQuery,
+  useMoveProjectConfigMutation,
+  useOpenProjectConfigPullRequestMutation,
   useProjectConfigQuery,
   useProjectQuery,
 } from '@shipfox/client-projects';
@@ -27,15 +31,21 @@ import {Link} from '@tanstack/react-router';
 import {type ReactNode, useEffect, useState} from 'react';
 import {ConfigFileLink, type ConfigFileView} from '#components/automations/config-file-link.js';
 import {ConfigFilesTab} from '#components/automations/config-files-tab.js';
-import {ConfigSourceHeader} from '#components/automations/config-source-header.js';
+import {
+  ConfigSourceHeader,
+  type ConfigSourceHeaderActionError,
+} from '#components/automations/config-source-header.js';
+import {MoveToRepositoryDialog} from '#components/automations/move-to-repository-dialog.js';
 import {DefinitionPackagesPanel} from '#components/definition-packages-panel/definition-packages-panel.js';
 import {
   WorkflowDefinitionsTable,
   type WorkflowRunError,
 } from '#components/workflow-definitions-table.js';
+import {configSourceState, isMovingConfig} from '#core/automations.js';
 import {normalizeConfigPath} from '#core/config-files.js';
 import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {useLatestWorkflowRunsQuery} from '#hooks/api/latest-runs.js';
+import {useMemberName} from '#hooks/api/member-name.js';
 import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
@@ -106,14 +116,20 @@ function ProjectAutomationsPageInner({
 
         {projectQuery.data ? (
           <>
-            <ConfigSourceHeader
+            <ConfigSourceSection
+              projectId={projectId}
+              workspaceId={projectQuery.data.workspaceId}
+              workspaceSlug={workspaceSlug}
               config={configQuery.data}
               isConfigPending={configQuery.isPending}
               sync={sync}
               isSyncPending={definitionsQuery.isPending}
             />
 
-            <WorkflowSyncAlert sync={sync} hasDefinitions={definitions.length > 0} />
+            {/* Sync fails on purpose while a move waits for its merge, so the move banner explains it. */}
+            {configQuery.data && isConfigMoving(configQuery.data) ? null : (
+              <WorkflowSyncAlert sync={sync} hasDefinitions={definitions.length > 0} />
+            )}
 
             <div className="flex flex-col gap-group">
               <AutomationsTabs workspaceSlug={workspaceSlug} projectSlug={projectSlug} />
@@ -148,6 +164,86 @@ function ProjectAutomationsPageInner({
       </div>
     </div>
   );
+}
+
+/** The source header, wired to the move dialog and to the actions its banners offer. */
+function ConfigSourceSection({
+  projectId,
+  workspaceId,
+  workspaceSlug,
+  config,
+  isConfigPending,
+  sync,
+  isSyncPending,
+}: {
+  projectId: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  config: ProjectConfig | undefined;
+  isConfigPending: boolean;
+  sync: DefinitionSyncSummary | null | undefined;
+  isSyncPending: boolean;
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const retryMove = useMoveProjectConfigMutation();
+  const openPullRequest = useOpenProjectConfigPullRequestMutation();
+  const [actionError, setActionError] = useState<ConfigSourceHeaderActionError | null>(null);
+  const moverName = useMemberName(
+    workspaceId,
+    config?.move?.status === 'linking' ? config.move.startedBy : null,
+  );
+
+  let pendingAction: 'retry' | 'open-pull-request' | null = null;
+  if (retryMove.isPending) pendingAction = 'retry';
+  else if (openPullRequest.isPending) pendingAction = 'open-pull-request';
+
+  return (
+    <>
+      <ConfigSourceHeader
+        config={config}
+        isConfigPending={isConfigPending}
+        sync={sync}
+        isSyncPending={isSyncPending}
+        moverName={moverName}
+        onMove={() => setDialogOpen(true)}
+        onRetryMove={(target) => {
+          setActionError(null);
+          retryMove.mutate(
+            {projectId, ...target},
+            {
+              onError: (error) =>
+                setActionError(
+                  configMoveErrorCopy(error, {repositoryName: config?.move?.target.fullName}),
+                ),
+            },
+          );
+        }}
+        onOpenNewPullRequest={() => {
+          setActionError(null);
+          openPullRequest.mutate(
+            {projectId},
+            {onError: (error) => setActionError(configMoveErrorCopy(error))},
+          );
+        }}
+        pendingAction={pendingAction}
+        actionError={actionError}
+      />
+      {/* Stays mounted through the move, after which the source is no longer managed. */}
+      {config?.source.kind === 'managed' || dialogOpen ? (
+        <MoveToRepositoryDialog
+          projectId={projectId}
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function isConfigMoving(config: ProjectConfig): boolean {
+  return isMovingConfig(configSourceState(config, Date.now()));
 }
 
 function WorkflowsTab({

@@ -4,7 +4,7 @@ import {Label} from '@shipfox/react-ui/label';
 import {PanelGrid} from '@shipfox/react-ui/panel';
 import {RadioGroup, RadioGroupItem, RadioGroupItemSkeleton} from '@shipfox/react-ui/radio-group';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
-import {Text} from '@shipfox/react-ui/typography';
+import {Code, Text} from '@shipfox/react-ui/typography';
 import {useId} from 'react';
 import type {Repository} from '#core/models.js';
 
@@ -19,6 +19,7 @@ export function RepositoryPicker({
   hasNextPage,
   onLoadMore,
   emptyMessage = 'No repositories found.',
+  showDetails = false,
 }: {
   repositories: Repository[];
   selectedRepositoryId: string | undefined;
@@ -28,6 +29,8 @@ export function RepositoryPicker({
   hasNextPage?: boolean;
   onLoadMore?: () => void;
   emptyMessage?: string;
+  /** Names each repository by its full name, with its default branch and visibility. */
+  showDetails?: boolean;
 }) {
   const labelId = useId();
 
@@ -53,7 +56,11 @@ export function RepositoryPicker({
           onValueChange={onSelect}
         >
           {repositories.map((repository) => (
-            <RepositoryCard key={repository.externalRepositoryId} repository={repository} />
+            <RepositoryCard
+              key={repository.externalRepositoryId}
+              repository={repository}
+              showDetails={showDetails}
+            />
           ))}
         </RadioGroup>
       ) : null}
@@ -75,8 +82,17 @@ export function RepositoryPicker({
   );
 }
 
-function RepositoryCard({repository}: {repository: Repository}) {
-  const {ref: nameRef, isTruncated} = useIsTextTruncated<HTMLSpanElement>(repository.name);
+const VISIBILITY_LABEL: Record<Repository['visibility'], string | null> = {
+  public: 'Public',
+  private: 'Private',
+  internal: 'Internal',
+  unknown: null,
+};
+
+function RepositoryCard({repository, showDetails}: {repository: Repository; showDetails: boolean}) {
+  const label = showDetails ? repository.fullName : repository.name;
+  const {ref: nameRef, isTruncated} = useIsTextTruncated<HTMLSpanElement>(label);
+  const visibility = VISIBILITY_LABEL[repository.visibility];
 
   return (
     <Tooltip>
@@ -84,12 +100,20 @@ function RepositoryCard({repository}: {repository: Repository}) {
         <RadioGroupItem value={repository.externalRepositoryId}>
           <span ref={nameRef} className="block min-w-0 truncate">
             <Text as="span" size="sm" bold>
-              {repository.name}
+              {label}
             </Text>
           </span>
+          {showDetails ? (
+            <Text as="span" size="xs" className="truncate text-foreground-neutral-muted">
+              <Code as="span" variant="label">
+                {repository.defaultBranch}
+              </Code>
+              {visibility ? ` · ${visibility}` : null}
+            </Text>
+          ) : null}
         </RadioGroupItem>
       </TooltipTrigger>
-      {isTruncated ? <TooltipContent>{repository.name}</TooltipContent> : null}
+      {isTruncated ? <TooltipContent>{label}</TooltipContent> : null}
     </Tooltip>
   );
 }

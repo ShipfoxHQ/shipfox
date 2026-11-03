@@ -35,7 +35,7 @@ export function matchesWorkflowSearch(workflow: SearchableWorkflow, query: strin
   );
 }
 
-export type SyncBadgeVariant = 'neutral' | 'info' | 'success' | 'error';
+export type SyncBadgeVariant = 'neutral' | 'info' | 'success' | 'warning' | 'error';
 
 export interface SyncBadge {
   label: string;
@@ -63,6 +63,110 @@ export function syncBadge(sync: SyncState | null | undefined): SyncBadge {
       return sync.lastErrorCode === 'no-workflow-files'
         ? {label: 'No workflows yet', variant: 'neutral'}
         : {label: 'Failed', variant: 'error'};
+  }
+}
+
+/** A move with no answer for this long reads as stopped, and the page offers Retry. */
+export const MOVE_STOPPED_AFTER_MS = 2 * 60 * 1000;
+
+interface PullRequestSummary {
+  url: string;
+  number: number;
+  state: 'open' | 'merged' | 'closed' | 'unknown';
+}
+
+export interface ConfigSourceStateInput {
+  source: {kind: 'managed' | 'linked'};
+  move: {
+    status: 'linking' | 'linked';
+    target: {connectionId: string; externalRepositoryId: string; fullName: string | null};
+    startedBy: string | null;
+    startedAt: string | null;
+  } | null;
+  pullRequest: PullRequestSummary | null;
+}
+
+/**
+ * One row of the source header. It comes from the managed repository's status and the pull
+ * request, never from a sync error: a sync fails on purpose while the pull request waits.
+ */
+export type ConfigSourceState =
+  | {kind: 'managed'}
+  | {kind: 'linked'}
+  | {kind: 'move-running'; repositoryName: string | null; startedBy: string | null}
+  | {
+      kind: 'move-stopped';
+      repositoryName: string | null;
+      target: {connectionId: string; externalRepositoryId: string};
+    }
+  | {
+      kind: 'pull-request-open' | 'pull-request-closed' | 'pull-request-unknown';
+      pullRequest: PullRequestSummary;
+    };
+
+/** When a running move turns into a stopped one, or null when no move is running. */
+export function moveStopsAt(config: ConfigSourceStateInput): number | null {
+  if (config.move?.status !== 'linking') return null;
+  const startedAt = config.move.startedAt ? Date.parse(config.move.startedAt) : Number.NaN;
+  return Number.isNaN(startedAt) ? 0 : startedAt + MOVE_STOPPED_AFTER_MS;
+}
+
+export function configSourceState(config: ConfigSourceStateInput, now: number): ConfigSourceState {
+  const {move, pullRequest} = config;
+  if (move?.status === 'linking') {
+    const stopsAt = moveStopsAt(config) ?? 0;
+    if (now < stopsAt) {
+      return {
+        kind: 'move-running',
+        repositoryName: move.target.fullName,
+        startedBy: move.startedBy,
+      };
+    }
+    return {
+      kind: 'move-stopped',
+      repositoryName: move.target.fullName,
+      target: {
+        connectionId: move.target.connectionId,
+        externalRepositoryId: move.target.externalRepositoryId,
+      },
+    };
+  }
+  switch (pullRequest?.state) {
+    case 'open':
+      return {kind: 'pull-request-open', pullRequest};
+    case 'closed':
+      return {kind: 'pull-request-closed', pullRequest};
+    case 'unknown':
+      return {kind: 'pull-request-unknown', pullRequest};
+    default:
+      return {kind: config.source.kind};
+  }
+}
+
+/** Whether the project is between a managed repository and a merged pull request. */
+export function isMovingConfig(state: ConfigSourceState): boolean {
+  return state.kind !== 'managed' && state.kind !== 'linked';
+}
+
+/** The header badge: the move's state while one is underway, otherwise the sync state. */
+export function configSourceBadge(
+  state: ConfigSourceState,
+  sync: SyncState | null | undefined,
+): SyncBadge {
+  switch (state.kind) {
+    case 'move-running':
+      return {label: 'Moving', variant: 'info'};
+    case 'move-stopped':
+      return {label: 'Move stopped', variant: 'warning'};
+    case 'pull-request-open':
+      return {label: 'Waiting for merge', variant: 'info'};
+    case 'pull-request-closed':
+      return {label: 'Pull request closed', variant: 'warning'};
+    case 'pull-request-unknown':
+      return {label: 'Status unknown', variant: 'neutral'};
+    case 'managed':
+    case 'linked':
+      return syncBadge(sync);
   }
 }
 

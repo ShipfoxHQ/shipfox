@@ -1,6 +1,9 @@
 import {
+  type LinkProjectConfigBodyDto,
+  linkProjectConfigResponseSchema,
   listProjectConfigCommitsResponseSchema,
   listProjectConfigFilesResponseSchema,
+  openProjectConfigPullRequestResponseSchema,
   projectConfigResponseSchema,
   readProjectConfigFileResponseSchema,
 } from '@shipfox/api-integration-core-dto';
@@ -8,20 +11,35 @@ import {ApiError, checkedApiRequest} from '@shipfox/client-api';
 import {
   type InfiniteData,
   infiniteQueryOptions,
+  type QueryClient,
   queryOptions,
   type UseInfiniteQueryOptions,
   type UseQueryOptions,
   useInfiniteQuery,
+  useMutation,
   useQuery,
+  useQueryClient,
 } from '@tanstack/react-query';
 import type {
   ConfigCommitPage,
   ConfigFile,
   ConfigFileEntry,
   ConfigFileList,
+  ConfigMoveCheck,
+  ConfigMoveResult,
+  MoveProjectConfigCommand,
   ProjectConfig,
+  ProjectConfigPullRequest,
 } from '#core/project-config.js';
-import {toConfigCommitPage, toConfigFile, toConfigFileEntry, toProjectConfig} from './mappers.js';
+import {definitionsQueryKeys} from './definitions.js';
+import {
+  toConfigCommitPage,
+  toConfigFile,
+  toConfigFileEntry,
+  toConfigMoveResult,
+  toProjectConfig,
+} from './mappers.js';
+import {projectsQueryKeys} from './projects.js';
 
 const CONFIG_FILES_PAGE_SIZE = 500;
 const CONFIG_COMMITS_PAGE_SIZE = 30;
@@ -246,4 +264,85 @@ export function projectConfigCommitsInfiniteQueryOptions({
 
 export function useProjectConfigCommitsInfiniteQuery(input: ProjectConfigCommitsQueryInput) {
   return useInfiniteQuery(projectConfigCommitsInfiniteQueryOptions(input));
+}
+
+async function postProjectConfigLink(
+  {projectId, connectionId, externalRepositoryId}: MoveProjectConfigCommand,
+  dryRun: boolean,
+): Promise<ConfigMoveResult> {
+  const body: LinkProjectConfigBodyDto = {
+    connection_id: connectionId,
+    external_repository_id: externalRepositoryId,
+    dry_run: dryRun,
+  };
+  return toConfigMoveResult(
+    await checkedApiRequest(linkProjectConfigResponseSchema, `/projects/${projectId}/config/link`, {
+      method: 'POST',
+      body,
+    }),
+  );
+}
+
+/** Runs the move checks on a repository without changing anything. */
+export async function checkProjectConfigMove(
+  command: MoveProjectConfigCommand,
+): Promise<ConfigMoveCheck> {
+  const {repository, fileCount} = await postProjectConfigLink(command, true);
+  return {repository, fileCount};
+}
+
+/** Starts a move, or resumes a stopped one with the same target. */
+export async function moveProjectConfig(
+  command: MoveProjectConfigCommand,
+): Promise<ConfigMoveResult> {
+  return await postProjectConfigLink(command, false);
+}
+
+export async function openProjectConfigPullRequest({
+  projectId,
+}: {
+  projectId: string;
+}): Promise<ProjectConfigPullRequest> {
+  const response = await checkedApiRequest(
+    openProjectConfigPullRequestResponseSchema,
+    `/projects/${projectId}/config/link/pull-request`,
+    {method: 'POST'},
+  );
+  return response.pull_request;
+}
+
+/**
+ * A move changes the project's source, its files, and its sync. A failed move may have changed
+ * them too, because an unknown outcome keeps the move running.
+ */
+async function refreshMovedProject(queryClient: QueryClient, projectId: string): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({queryKey: projectConfigQueryKeys.source(projectId)}),
+    queryClient.invalidateQueries({queryKey: projectsQueryKeys.detail(projectId)}),
+    queryClient.invalidateQueries({queryKey: definitionsQueryKeys.list(projectId)}),
+  ]);
+}
+
+export function useCheckProjectConfigMoveMutation() {
+  return useMutation({mutationFn: checkProjectConfigMove});
+}
+
+export function useMoveProjectConfigMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: moveProjectConfig,
+    onSettled: async (_result, _error, command) => {
+      await refreshMovedProject(queryClient, command.projectId);
+    },
+  });
+}
+
+export function useOpenProjectConfigPullRequestMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: openProjectConfigPullRequest,
+    onSettled: async (_result, _error, {projectId}) => {
+      await refreshMovedProject(queryClient, projectId);
+    },
+  });
 }

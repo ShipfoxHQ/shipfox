@@ -9091,6 +9091,9 @@ importers:
       '@shipfox/client-usage':
         specifier: workspace:*
         version: link:../usage
+      '@shipfox/client-workspace-settings':
+        specifier: workspace:*
+        version: link:../workspace-settings
       '@shipfox/policy-notice':
         specifier: workspace:*
         version: link:../../shared/common/policy-notice
