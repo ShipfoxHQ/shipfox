@@ -305,7 +305,9 @@ review. It also states how the family invariant will return.
 
 A shared vendor scope does not create a family. OpenTelemetry packages use
 several upstream release trains. Do not force that whole scope to one numeric
-version.
+version. Renovate still opens OpenTelemetry updates in their own pull request,
+apart from the patch and minor group. OpenTelemetry SDK 3 raises peer floors that
+`@langfuse/otel` and `@sentry/opentelemetry` must accept first.
 
 ## Transitive duplicate reporting
 

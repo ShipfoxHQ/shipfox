@@ -102,6 +102,57 @@
       "rangeStrategy": "bump"
     },
     {
+      "description": "OpenTelemetry SDK 3 (stable 3.x, experimental 0.300+) raises the peer floors that @langfuse/otel and @sentry/opentelemetry still reject. Keep OpenTelemetry updates in their own PR so that peer gate does not block the grouped patch and minor update.",
+      "groupName": "opentelemetry",
+      "groupSlug": "opentelemetry",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@opentelemetry/**"]
+    },
+    {
+      "description": "storybook-addon-pseudo-states requires a Storybook peer at its own version, so an update installs only after the Storybook family reaches that version. Keep it in its own PR so it does not block the grouped patch and minor update.",
+      "groupName": "storybook-addon-pseudo-states",
+      "groupSlug": "storybook-addon-pseudo-states",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["storybook-addon-pseudo-states"]
+    },
+    {
+      "description": "Skip mjml 5.4.1: mjml-core 5.4.1 pins htmlnano 3.3.1, whose cssnano ^8 peer conflicts with mjml-core's own cssnano ^7 dependency and fails strict peer installs.",
+      "allowedVersions": "!/^5\\.4\\.1$/",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["mjml"]
+    },
+    {
+      "description": "Hold zod below 4.6 and fumadocs-mdx below 15.4.2, which requires zod ^4.6.5. zod 4.6 emits a two-parameter ZodPreprocess in declaration files, and packed client packages that declare zod ^4.4.3 then fail to type-check for consumers on older 4.x releases. Drop this rule when those packages raise their zod floor to 4.6.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["zod"],
+      "allowedVersions": "<4.6.0"
+    },
+    {
+      "description": "fumadocs-core 16.17 removed the LLMs stringify hook that the docs machine-readable Markdown pipeline uses. Keep Fumadocs updates in their own PR so that migration does not block the grouped patch and minor update.",
+      "groupName": "fumadocs",
+      "groupSlug": "fumadocs",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["fumadocs-core", "fumadocs-mdx", "fumadocs-ui"]
+    },
+    {
+      "description": "Fastify 5.12.1 makes a numeric trustProxy hop count trust no proxy, and API_TRUST_PROXY accepts hop counts. Keep Fastify updates in their own PR so the API trust-proxy configuration moves with them.",
+      "groupName": "fastify",
+      "groupSlug": "fastify",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["fastify"]
+    },
+    {
+      "description": "Hold fumadocs-mdx below 15.4.2 with zod; see the zod rule.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["fumadocs-mdx"],
+      "allowedVersions": "<15.4.2"
+    },
+    {
+      "description": "mise generates the manifests under .mise/locks from the tool versions in mise.toml. Change the version in mise.toml instead.",
+      "matchFileNames": [".mise/**"],
+      "enabled": false
+    },
+    {
       "description": "The runner agent drives pi through its SDK and extensions, and pi releases change that API. Review pi and its extensions on their own, with the runner agent tests, instead of inside the grouped patch and minor update.",
       "groupName": "pi",
       "groupSlug": "pi",
