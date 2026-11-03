@@ -39,12 +39,19 @@ const modalContentVariants = cva(
   'fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-32px)] flex-col overflow-clip bg-background-neutral-base rounded-16 w-full max-w-[576px] -translate-x-1/2 -translate-y-1/2 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:pointer-events-none! shadow-tooltip',
 );
 
-function Modal({
-  breakpoint = '(min-width: 768px)',
-  children,
-  onOpenChange,
-  ...props
-}: ComponentProps<typeof DialogPrimitive.Root> & {breakpoint?: string}) {
+// The vaul root declares these without `| undefined`, so the props shared by both
+// roots must not accept an explicit undefined under exactOptionalPropertyTypes.
+type ModalProps = Omit<
+  ComponentProps<typeof DialogPrimitive.Root>,
+  'open' | 'defaultOpen' | 'modal'
+> & {
+  open?: boolean;
+  defaultOpen?: boolean;
+  modal?: boolean;
+  breakpoint?: string;
+};
+
+function Modal({breakpoint = '(min-width: 768px)', children, onOpenChange, ...props}: ModalProps) {
   const isDesktop = useMediaQuery(breakpoint);
   const trackOpenChange = useBodyPointerEventsRelease(props.open ?? props.defaultOpen);
 
