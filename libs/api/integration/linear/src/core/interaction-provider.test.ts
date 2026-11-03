@@ -376,6 +376,21 @@ describe('LinearInteractionProvider', () => {
       expect(createAgentActivity).not.toHaveBeenCalled();
     });
 
+    it('fails when the token refresh response is malformed so the delivery is retried', async () => {
+      const {provider, getAccessToken, createAgentActivity} = setup();
+      getAccessToken.mockRejectedValue(
+        new LinearIntegrationProviderError(
+          'malformed-provider-response',
+          'Linear authorization response did not include an access token',
+        ),
+      );
+
+      const result = provider.sendReply(reply('response', 'Done.'));
+
+      await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+      expect(createAgentActivity).not.toHaveBeenCalled();
+    });
+
     it('fails when the token refresh hits an outage so the delivery is retried', async () => {
       const {provider, getAccessToken} = setup();
       getAccessToken.mockRejectedValue(

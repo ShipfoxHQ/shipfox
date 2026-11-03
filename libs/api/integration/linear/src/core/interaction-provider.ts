@@ -163,11 +163,18 @@ export class LinearInteractionProvider
     kind,
     text,
   }: SendInteractionReplyInput<IntegrationConnection<'linear'>>): Promise<InteractionReplyOutcome> {
+    let accessToken: string;
     try {
-      // A refused token refresh is a lost authorization too, so it settles the reply.
-      const accessToken = await this.options.tokenStore.getAccessToken({
-        connectionId: connection.id,
-      });
+      accessToken = await this.options.tokenStore.getAccessToken({connectionId: connection.id});
+    } catch (error) {
+      // A refused refresh is a lost authorization, but a malformed refresh response is Linear
+      // misbehaving, so only the first settles the reply.
+      if (error instanceof LinearIntegrationProviderError && error.reason === 'access-denied') {
+        return {outcome: 'undeliverable', reason: error.message};
+      }
+      throw error;
+    }
+    try {
       await this.options.linear.createAgentActivity({
         accessToken,
         agentSessionId: conversationKey,
