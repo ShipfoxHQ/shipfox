@@ -489,7 +489,18 @@ describe('workspace setup route hook', () => {
   test('lets a workspace with a project of its own through next to the default one', async () => {
     renderSetupRoute(
       `/w/${WORKSPACE_SLUG}`,
-      setupFetch({projects: [{...projectStub(), is_default: true}, projectStub()]}),
+      setupFetch({
+        projects: [
+          {
+            ...projectStub(),
+            id: '44444444-4444-4444-8444-444444444444',
+            name: 'Default',
+            slug: 'default',
+            is_default: true,
+          },
+          projectStub(),
+        ],
+      }),
     );
 
     expect(await screen.findByText('Workspace home')).toBeInTheDocument();

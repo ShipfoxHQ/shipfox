@@ -315,8 +315,8 @@ export async function readWorkspaceHasNoProject({
   workspaceId: string;
 }): Promise<boolean> {
   const options = projectExistenceQueryOptions(workspaceId);
-  // A cached non-empty list already rules out the first-project landing, so
-  // skip the fresh read entirely: the snapshot only steers navigation for the
+  // A cached list with a user project already rules out the first-project landing, since a
+  // default project alone does not, so skip the fresh read entirely: the snapshot only steers navigation for the
   // empty-workspace case, and a failed fresh read here would otherwise report
   // a global error on every create in an established workspace without
   // changing the landing.
