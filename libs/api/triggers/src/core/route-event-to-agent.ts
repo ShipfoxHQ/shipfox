@@ -12,7 +12,7 @@ import type {TriggerHistoryRecorder} from './record-trigger-history.js';
 
 export type AgentRoutingIntegrations = Pick<
   IntegrationsModuleClient,
-  'listInteractionProviders' | 'readInteraction'
+  'listInteractionProviders' | 'readInteraction' | 'reportInteractionProgress'
 >;
 export type AgentRoutingClient = Pick<AgentInterModuleClient, 'routeInteraction'>;
 
@@ -84,9 +84,36 @@ export async function routeEventToAgent(
       },
     });
     await params.history.agentRouted(result);
-    return {routed: result.outcome !== 'dropped'};
+    if (result.outcome === 'dropped') {
+      if (interaction.role === 'request') await clearProgress(params, interaction.conversationKey);
+      return NOT_ROUTED_TO_AGENT;
+    }
+    return {routed: true};
   } catch (error) {
     return {routed: false, transientError: {error}};
+  }
+}
+
+/**
+ * A provider may show the request as in progress before routing. No turn starts for a dropped
+ * request, so nothing else would clear it. Best-effort, because the drop is already recorded.
+ */
+async function clearProgress(
+  params: RouteEventToAgentParams,
+  conversationKey: string,
+): Promise<void> {
+  try {
+    await params.integrations.reportInteractionProgress({
+      workspaceId: params.workspaceId,
+      connectionId: params.connectionId,
+      conversationKey,
+      state: 'idle',
+    });
+  } catch (error) {
+    logger().warn(
+      {err: error, eventRef: params.eventRef, connectionId: params.connectionId},
+      'Failed to clear the progress of a dropped agent request',
+    );
   }
 }
 
