@@ -13,7 +13,7 @@ Take one Linear issue from implementation to a green, reviewed pull request.
 
 - `<issue>` is a Linear issue key, ID, or URL. If it is missing, ask for it and
   stop.
-- `--max-iterations` caps the review loop. The default is 5.
+- `--max-iterations` caps the review loop. The default is 10.
 - `--watch-minutes` sets how often the watch phase checks for conflicts. The
   default is 10.
 

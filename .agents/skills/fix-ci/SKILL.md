@@ -42,7 +42,7 @@ gh pr view --json number,url,headRefName
 
    ```bash
    gh run view <run-id> --job <job-id> --log-failed
-   gh run download <run-id> -n e2e-diagnostics -D .context/ci/<run-id>
+   gh run download <run-id> -p 'e2e-diagnostics*' -D .context/ci/<run-id>
    ```
 
 4. Reproduce the failure locally with the matching `turbo` task and package
