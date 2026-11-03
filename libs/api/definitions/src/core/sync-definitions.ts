@@ -119,8 +119,12 @@ export async function discoverDefinitionFiles(
 ): Promise<DiscoveredDefinitionFiles> {
   const workflowPath = withTrailingSlash(params.workflowPath ?? DEFAULT_WORKFLOW_PATH);
   const agentPath = withTrailingSlash(params.agentPath ?? DEFAULT_AGENT_PATH);
-  const workflowPaths = await listYamlFiles(params, workflowPath, 'workflow');
-  const agentPaths = await listYamlFiles(params, agentPath, 'agent');
+  // Both listings run at once, so discovery holds its activity slot no longer
+  // than the workflow-only listing did.
+  const [workflowPaths, agentPaths] = await Promise.all([
+    listYamlFiles(params, workflowPath, 'workflow'),
+    listYamlFiles(params, agentPath, 'agent'),
+  ]);
   if (workflowPaths.length === 0 && agentPaths.length === 0) {
     throw new DefinitionSyncPermanentError(
       'no-workflow-files',
