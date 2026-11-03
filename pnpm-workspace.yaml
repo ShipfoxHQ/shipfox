@@ -149,7 +149,7 @@ catalog:
   "fumadocs-ui": "16.16.2"
   "github-slugger": "^2.0.0"
   "handlebars": "^4.7.10"
-  "happy-dom": "^20.14.6"
+  "happy-dom": "^20.8.3"
   "ipaddr.js": "2.5.0"
   isomorphic-git: ^1.44.8
   "jiti": "^2.7.0"
@@ -180,7 +180,7 @@ catalog:
   "resolve.exports": "^2.0.4"
   "shiki": "^4.5.0"
   "simple-icons": "^14.0.0"
-  "sonner": "^2.0.8"
+  "sonner": "^2.0.7"
   "spdx-expression-parse": "^5.0.0"
   "storybook": "^10.0.0"
   "storybook-addon-pseudo-states": "^10.0.0"

@@ -142,6 +142,20 @@
       "matchPackageNames": ["fastify"]
     },
     {
+      "description": "sonner 2.0.8 changed toast lifecycle: Strict Mode renders duplicate toasts and dismissed toasts stay mounted in the client tests. Keep sonner updates in their own PR so the notification behavior gets its own review.",
+      "groupName": "sonner",
+      "groupSlug": "sonner",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["sonner"]
+    },
+    {
+      "description": "happy-dom 20.14 implements Web Animations, so motion runs native animations in DOM tests and their canceled finish promises surface as unhandled rejections. Keep happy-dom updates in their own PR so that test-environment change gets its own fix.",
+      "groupName": "happy-dom",
+      "groupSlug": "happy-dom",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["happy-dom"]
+    },
+    {
       "description": "Hold fumadocs-mdx below 15.4.2 with zod; see the zod rule.",
       "matchManagers": ["npm"],
       "matchPackageNames": ["fumadocs-mdx"],
