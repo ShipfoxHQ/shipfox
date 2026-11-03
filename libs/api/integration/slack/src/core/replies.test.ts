@@ -4,6 +4,10 @@ import {reportSlackProgress, type SlackMessaging, sendSlackReply} from './replie
 const CONNECTION_ID = '0196b0a2-0000-7000-8000-000000000001';
 const AGENT = {name: 'Shippy'};
 
+interface PostedCall {
+  arguments: {blocks: {text: string}[]};
+}
+
 function setup(responses: Record<string, unknown> = {}) {
   const callMethod = vi.fn(({method}: {method: string}) =>
     Promise.resolve((responses[method] ?? {ok: true}) as {ok: boolean; error?: string}),
@@ -47,7 +51,11 @@ describe('sendSlackReply', () => {
       agent: AGENT,
     });
 
-    expect(callMethod).toHaveBeenCalledTimes(2);
+    expect(
+      callMethod.mock.calls.map(
+        ([call]) => (call as unknown as PostedCall).arguments.blocks[0]?.text,
+      ),
+    ).toEqual([line, line]);
   });
 
   it.each([

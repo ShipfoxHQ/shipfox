@@ -166,16 +166,18 @@ describe('Slack webhook handlers', () => {
 
   it('publishes the event when the acknowledgement fails', async () => {
     const deps = handlers();
+    const acknowledgeEvent = vi.fn(() => Promise.reject(new Error('slack down')));
     await seedInstallation(deps.connection);
 
     const result = await handleSlackEvent({
       tx: db(),
       deliveryId: 'Ev1',
       envelope: eventEnvelope(),
-      acknowledgeEvent: () => Promise.reject(new Error('slack down')),
+      acknowledgeEvent,
       ...deps,
     });
 
+    expect(acknowledgeEvent).toHaveBeenCalledTimes(1);
     expect(result.outcome).toBe('published');
   });
 

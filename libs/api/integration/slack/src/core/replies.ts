@@ -20,7 +20,7 @@ export interface SlackMessaging {
   tokenStore: Pick<SlackTokenStore, 'getAccessToken'>;
 }
 
-/** Anything else Slack refuses, such as an archived channel or a removed app, a repeat can't fix. */
+/** Errors a repeat can fix. Any other refusal, such as an archived channel or a removed app, is undeliverable. */
 const TRANSIENT_ERRORS: ReadonlySet<string> = new Set([
   'ratelimited',
   'internal_error',
