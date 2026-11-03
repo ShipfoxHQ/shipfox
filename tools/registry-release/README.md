@@ -95,10 +95,13 @@ packages:
 turbo check --filter=@shipfox/registry-release
 turbo type --filter=@shipfox/registry-release
 turbo test --filter=@shipfox/registry-release
+turbo test:integration --filter=@shipfox/registry-release
 turbo build --filter=@shipfox/registry-release
 ```
 
-Tests build fixture templates and a fixture pnpm monorepo in throwaway Git repositories, and run the checks against an in-memory fake registry. The fixture monorepo installs from the local pnpm store; its lockfile is `test/fixtures/action-repository.lock.yaml`.
+Tests build fixture templates and fixture actions in throwaway Git repositories, and run the checks against an in-memory fake registry. `test` never starts `turbo` or `pnpm`.
+
+`test:integration` runs the `*.integration.test.ts` files, which prepare real build trees. They build the fixture pnpm monorepo, rebuild it at a provenance commit, and build every configured catalog package twice. The fixture monorepo installs from the local pnpm store; its lockfile is `test/fixtures/action-repository.lock.yaml`.
 
 ## License
 
