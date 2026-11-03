@@ -74,9 +74,17 @@ well under Linear's 5 seconds, and a failed acknowledgement is logged without
 failing the webhook. A prompt isn't acknowledged, because its session already has
 activity.
 
-Replying and progress belong to the reply path. `sendReply` reports every reply
-as undeliverable until Linear activities are posted from it, and the provider has
-no `reportProgress`.
+A turn's reply is an activity on the session, because Linear sets the session's
+state from its last activity. `sendReply` posts a `response` activity, or an `error`
+activity for a failed turn. A stopped turn's reply is its final activity, which is
+how a stop is confirmed. Linear refusing the activity, with a rejected request or a
+lost authorization, is `undeliverable`. A rate limit, a timeout, or an outage fails
+the call, so the delivery is retried.
+
+`reportProgress` posts each tool call as an ephemeral `action` activity, which the
+next activity replaces, and sets the links it receives, such as the run link, as
+the session's external URLs. The `idle` state posts nothing, because the reply
+clears the action.
 
 Signed but unsupported webhook shapes are recorded and dropped with a 200
 response so Linear does not retry or disable the webhook endpoint.

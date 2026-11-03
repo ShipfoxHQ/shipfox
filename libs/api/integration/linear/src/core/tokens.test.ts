@@ -40,6 +40,7 @@ function createConnectionContext() {
       refreshAccessToken,
       revokeToken: vi.fn(),
       createAgentActivity: vi.fn(),
+      setAgentSessionExternalUrls: vi.fn(),
       getIssueContext: vi.fn(),
     },
   });

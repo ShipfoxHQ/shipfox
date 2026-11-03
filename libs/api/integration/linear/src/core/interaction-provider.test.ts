@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {LinearIssueContext} from '#api/client.js';
+import {LinearIntegrationProviderError} from '#core/errors.js';
 import {LinearInteractionProvider} from './interaction-provider.js';
 
 function connection(): IntegrationConnection<'linear'> {
@@ -30,11 +31,19 @@ const fetchedIssue: LinearIssueContext = {
 function setup() {
   const getIssueContext = vi.fn(() => Promise.resolve(fetchedIssue));
   const getAccessToken = vi.fn(() => Promise.resolve('linear-token'));
+  const createAgentActivity = vi.fn((_input: unknown) => Promise.resolve());
+  const setAgentSessionExternalUrls = vi.fn((_input: unknown) => Promise.resolve());
   const provider = new LinearInteractionProvider({
-    linear: {getIssueContext},
+    linear: {getIssueContext, createAgentActivity, setAgentSessionExternalUrls},
     tokenStore: {getAccessToken},
   });
-  return {provider, getIssueContext, getAccessToken};
+  return {
+    provider,
+    getIssueContext,
+    getAccessToken,
+    createAgentActivity,
+    setAgentSessionExternalUrls,
+  };
 }
 
 const completeIssue = {
@@ -293,5 +302,130 @@ describe('LinearInteractionProvider', () => {
 
     expect(provider.replyGuidance).toContain('Linear');
     expect(provider.replyGuidance).not.toContain('—');
+  });
+
+  describe('sendReply', () => {
+    function reply(kind: 'response' | 'error', text: string) {
+      return {
+        connection: connection(),
+        conversationKey: 'session-1',
+        replyId: 'reply-1',
+        kind,
+        text,
+        agent: {name: 'Shippy'},
+      };
+    }
+
+    it('posts the answer as a response activity on the session', async () => {
+      const {provider, createAgentActivity} = setup();
+
+      const outcome = await provider.sendReply(reply('response', 'Refunds are fixed in ENG-12.'));
+
+      expect(outcome).toEqual({outcome: 'delivered'});
+      expect(createAgentActivity).toHaveBeenCalledWith({
+        accessToken: 'linear-token',
+        agentSessionId: 'session-1',
+        content: {type: 'response', body: 'Refunds are fixed in ENG-12.'},
+      });
+    });
+
+    it('posts a failure as an error activity', async () => {
+      const {provider, createAgentActivity} = setup();
+
+      const outcome = await provider.sendReply(reply('error', 'The answer took too long.'));
+
+      expect(outcome).toEqual({outcome: 'delivered'});
+      expect(createAgentActivity).toHaveBeenCalledWith({
+        accessToken: 'linear-token',
+        agentSessionId: 'session-1',
+        content: {type: 'error', body: 'The answer took too long.'},
+      });
+    });
+
+    it('is undeliverable when Linear rejects the activity', async () => {
+      const {provider, createAgentActivity} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+
+      const outcome = await provider.sendReply(reply('response', 'Done.'));
+
+      expect(outcome).toEqual({outcome: 'undeliverable', reason: 'Linear rejected it'});
+    });
+
+    it('is undeliverable when the app lost access to the session', async () => {
+      const {provider, createAgentActivity} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('access-denied', 'Linear request was rejected'),
+      );
+
+      const outcome = await provider.sendReply(reply('response', 'Done.'));
+
+      expect(outcome.outcome).toBe('undeliverable');
+    });
+
+    it.each([
+      'rate-limited',
+      'timeout',
+      'provider-unavailable',
+    ] as const)('fails on %s so the delivery is retried', async (reason) => {
+      const {provider, createAgentActivity} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError(reason, 'Try again'),
+      );
+
+      const result = provider.sendReply(reply('response', 'Done.'));
+
+      await expect(result).rejects.toMatchObject({reason});
+    });
+  });
+
+  describe('reportProgress', () => {
+    function progress(overrides: Record<string, unknown> = {}) {
+      return {
+        connection: connection(),
+        conversationKey: 'session-1',
+        state: 'working' as const,
+        ...overrides,
+      };
+    }
+
+    it('posts a tool call as an ephemeral action activity', async () => {
+      const {provider, createAgentActivity, setAgentSessionExternalUrls} = setup();
+
+      await provider.reportProgress(progress({detail: 'get_issue'}));
+
+      expect(createAgentActivity).toHaveBeenCalledWith({
+        accessToken: 'linear-token',
+        agentSessionId: 'session-1',
+        content: {type: 'action', action: 'get_issue', parameter: ''},
+        ephemeral: true,
+      });
+      expect(setAgentSessionExternalUrls).not.toHaveBeenCalled();
+    });
+
+    it('puts links on the session as external URLs', async () => {
+      const {provider, createAgentActivity, setAgentSessionExternalUrls} = setup();
+      const links = [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}];
+
+      await provider.reportProgress(progress({links}));
+
+      expect(setAgentSessionExternalUrls).toHaveBeenCalledWith({
+        accessToken: 'linear-token',
+        agentSessionId: 'session-1',
+        urls: links,
+      });
+      expect(createAgentActivity).not.toHaveBeenCalled();
+    });
+
+    it('posts nothing when the turn goes idle, because the reply clears the action', async () => {
+      const {provider, createAgentActivity, setAgentSessionExternalUrls, getAccessToken} = setup();
+
+      await provider.reportProgress(progress({state: 'idle'}));
+
+      expect(createAgentActivity).not.toHaveBeenCalled();
+      expect(setAgentSessionExternalUrls).not.toHaveBeenCalled();
+      expect(getAccessToken).not.toHaveBeenCalled();
+    });
   });
 });

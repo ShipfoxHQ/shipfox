@@ -5,9 +5,12 @@ import type {
   InteractionReplyOutcome,
   InteractionRole,
   ReadInteractionInput,
+  ReportInteractionProgressInput,
+  SendInteractionReplyInput,
 } from '@shipfox/api-integration-spi';
 import {z} from 'zod';
 import type {LinearApiClient} from '#api/client.js';
+import {LinearIntegrationProviderError} from '#core/errors.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 
 export const LINEAR_AGENT_SESSION_CREATED = 'agentSession.created';
@@ -100,7 +103,10 @@ export const linearRequestContextSchema = {
 } as const;
 
 export interface LinearInteractionProviderOptions {
-  linear: Pick<LinearApiClient, 'getIssueContext'>;
+  linear: Pick<
+    LinearApiClient,
+    'getIssueContext' | 'createAgentActivity' | 'setAgentSessionExternalUrls'
+  >;
   tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
 }
 
@@ -147,9 +153,63 @@ export class LinearInteractionProvider
     return {conversationKey, role: 'follow_up', context: {}, author, text};
   }
 
-  async sendReply(): Promise<InteractionReplyOutcome> {
-    await Promise.resolve();
-    return {outcome: 'undeliverable', reason: 'Linear agent session replies are not sent yet'};
+  /**
+   * Linear sets a session's state from its last activity, so a reply is a `response` or an
+   * `error` activity. The agent's name is not used: the activity belongs to the app.
+   */
+  async sendReply({
+    connection,
+    conversationKey,
+    kind,
+    text,
+  }: SendInteractionReplyInput<IntegrationConnection<'linear'>>): Promise<InteractionReplyOutcome> {
+    const accessToken = await this.options.tokenStore.getAccessToken({
+      connectionId: connection.id,
+    });
+    try {
+      await this.options.linear.createAgentActivity({
+        accessToken,
+        agentSessionId: conversationKey,
+        content: {type: kind, body: text},
+      });
+    } catch (error) {
+      if (isRejectedByLinear(error)) return {outcome: 'undeliverable', reason: error.message};
+      throw error;
+    }
+    return {outcome: 'delivered'};
+  }
+
+  /**
+   * Shows a tool call as an ephemeral `action` activity, which the next activity replaces, and
+   * puts links on the session. `idle` posts nothing: the reply that ends a turn clears the
+   * action, and a turn that sends no reply leaves the session's last activity as it was.
+   */
+  async reportProgress({
+    connection,
+    conversationKey,
+    state,
+    detail,
+    links,
+  }: ReportInteractionProgressInput<IntegrationConnection<'linear'>>): Promise<void> {
+    if (state === 'idle') return;
+    const accessToken = await this.options.tokenStore.getAccessToken({
+      connectionId: connection.id,
+    });
+    if (links && links.length > 0) {
+      await this.options.linear.setAgentSessionExternalUrls({
+        accessToken,
+        agentSessionId: conversationKey,
+        urls: links,
+      });
+    }
+    if (detail !== undefined) {
+      await this.options.linear.createAgentActivity({
+        accessToken,
+        agentSessionId: conversationKey,
+        content: {type: 'action', action: detail, parameter: ''},
+        ephemeral: true,
+      });
+    }
   }
 
   private async readRequestContext(
@@ -194,6 +254,14 @@ export class LinearInteractionProvider
       issue_identifier: fetched.identifier,
     };
   }
+}
+
+/** Linear refused the activity, so sending it again can't help. Other failures are retried. */
+function isRejectedByLinear(error: unknown): error is LinearIntegrationProviderError {
+  return (
+    error instanceof LinearIntegrationProviderError &&
+    (error.reason === 'access-denied' || error.reason === 'malformed-provider-response')
+  );
 }
 
 function readAuthor(
