@@ -267,7 +267,7 @@ describe('ModelProviderUsageModal', () => {
     await user.click(await screen.findByRole('button', {name: KIMI_MODEL_ROW_NAME}));
 
     expect(writeText).toHaveBeenCalledWith('@cf/moonshotai/kimi-k2.7-code');
-    expect(await screen.findAllByText('Copied')).toHaveLength(2);
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
     expect(await screen.findByRole('status')).toHaveTextContent('Copied Kimi K2.7 Code id');
   });
 

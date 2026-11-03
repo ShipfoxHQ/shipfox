@@ -418,7 +418,7 @@ The public auth endpoints include an application-layer abuse baseline for open s
 
 Counters are stored in PostgreSQL as fixed windows in `auth_rate_limits`. IP addresses, actor IDs, and email addresses are HMAC-SHA256 values before storage; raw identifiers are not persisted. The identifier key is derived from `AUTH_ROOT_KEY` separately from every token key.
 
-The limiter uses `request.ip`, so production deployments behind a reverse proxy must configure the API app's `API_TRUST_PROXY` setting. Keep the default `false` when clients connect directly. Use a positive hop count such as `1`, or a trusted proxy IP/CIDR such as `10.0.0.0/8`, when proxy headers are controlled by infrastructure you operate.
+The limiter uses `request.ip`, so production deployments behind a reverse proxy must configure the API app's `API_TRUST_PROXY` setting. Keep the default `false` when clients connect directly. Set the trusted proxy IP/CIDR, such as `10.0.0.0/8`, when proxy headers are controlled by infrastructure you operate. Hop counts are rejected because they cannot verify the peer that sent the headers.
 
 This app-layer limiter protects semantic auth work such as Argon2 verification and email sending. It is not a volumetric DDoS control. Public production deployments should still use load balancer, CDN, WAF, or firewall rate limits at the network edge.
 
