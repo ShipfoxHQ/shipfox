@@ -296,4 +296,6 @@ describe.skipIf(!dockerAvailable()).each(USERS)(
       expect(sleeping).toBe('0');
     });
   },
+  // Each test starts a process in a real container, which can outlast the default 5 s on a busy CI runner.
+  30_000,
 );
