@@ -141,6 +141,7 @@ async function loadSlackModuleParts(
 
   const integrationProvider = createSlackIntegrationProvider({
     agentTools: {tokenStore},
+    interaction: {tokenStore},
     cleanup: {
       deleteConnectionRecords: async (connection, {tx}) => {
         await deleteSlackInstallationByConnectionId(connection.id, {tx});

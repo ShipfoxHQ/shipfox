@@ -2,8 +2,10 @@ import {SLACK_PROVIDER, slackEventCatalog} from '@shipfox/api-integration-slack-
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createSlackApiClient, type SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';
+import {createSlackEventAcknowledger} from '#core/acknowledgement.js';
 import {SlackAgentToolsProvider} from '#core/agent-tools-provider.js';
 import {createSlackInteractionProvider} from '#core/interaction-provider.js';
+import type {SlackMessaging} from '#core/replies.js';
 import {missingSlackBotScopes} from '#core/scopes.js';
 import type {SlackTokenStore} from '#core/tokens.js';
 import {createSlackWebhookProcessor} from '#core/webhook-processor.js';
@@ -125,6 +127,8 @@ export {closeDb, config, db, migrationsPath};
 export interface CreateSlackIntegrationProviderOptions {
   slack?: SlackApiClient | undefined;
   agentTools?: {tokenStore: Pick<SlackTokenStore, 'getAccessToken'>} | undefined;
+  /** Lets agents reply and show progress. Without it, replies are undeliverable. */
+  interaction?: {tokenStore: Pick<SlackTokenStore, 'getAccessToken'>} | undefined;
   getSlackInstallationByConnectionId?: typeof getSlackInstallationByConnectionId | undefined;
   cleanup?:
     | {
@@ -144,10 +148,14 @@ export function createSlackIntegrationProvider(
   const slack = options.slack ?? createSlackApiClient();
   const getInstallationByConnectionId =
     options.getSlackInstallationByConnectionId ?? getSlackInstallationByConnectionId;
+  const messaging = options.interaction
+    ? {slack, tokenStore: options.interaction.tokenStore}
+    : undefined;
   const adapters = {
     interaction: createSlackInteractionProvider({
       getBotUserId: async (connectionId) =>
         (await getInstallationByConnectionId(connectionId))?.botUserId,
+      messaging,
     }),
     ...(options.agentTools
       ? {
@@ -160,10 +168,7 @@ export function createSlackIntegrationProvider(
   };
   assertValidSlackRouteOptions(options.routes);
   const routes: RouteGroup[] = [];
-  const webhookProcessor =
-    options.routes && hasSlackWebhookRoutesOptions(options.routes)
-      ? createSlackWebhookProcessor(options.routes)
-      : undefined;
+  const webhookProcessor = createWebhookProcessor(options.routes, messaging);
   if (options.routes && hasSlackInstallationRoutesOptions(options.routes)) {
     const {
       tokenStore,
@@ -211,6 +216,17 @@ export function createSlackIntegrationProvider(
       ? [{routeIds: ['slack.event', 'slack.command'] as const, processor: webhookProcessor}]
       : undefined,
   };
+}
+
+function createWebhookProcessor(
+  routes: SlackRouteOptions | undefined,
+  messaging: SlackMessaging | undefined,
+) {
+  if (!routes || !hasSlackWebhookRoutesOptions(routes)) return undefined;
+  return createSlackWebhookProcessor({
+    ...routes,
+    acknowledgeEvent: messaging ? createSlackEventAcknowledger(messaging) : undefined,
+  });
 }
 
 function assertValidSlackRouteOptions(routes: SlackRouteOptions | undefined): void {

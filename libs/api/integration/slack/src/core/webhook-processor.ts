@@ -15,6 +15,7 @@ import {decodeWebhookBody} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {config} from '#config.js';
+import type {AcknowledgeSlackEvent} from '#core/acknowledgement.js';
 import {isSlackTimestampWithinReplayWindow, verifySlackSignature} from '#core/signature.js';
 import {handleSlackCommand, handleSlackEvent, type SlackWebhookOutcome} from '#core/webhook.js';
 
@@ -27,6 +28,7 @@ export interface CreateSlackWebhookProcessorOptions {
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  acknowledgeEvent?: AcknowledgeSlackEvent | undefined;
 }
 
 export type SlackWebhookProcessingResult = WebhookProcessingResult;
@@ -108,6 +110,7 @@ async function processSlackEvent(
       publishIntegrationEventReceived: options.publishIntegrationEventReceived,
       recordDeliveryOnly: options.recordDeliveryOnly,
       getIntegrationConnectionById: options.getIntegrationConnectionById,
+      acknowledgeEvent: options.acknowledgeEvent,
     }),
   );
   return toProcessingResult(result.outcome, envelope.event_id);
