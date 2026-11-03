@@ -15,6 +15,8 @@ export interface Conversation {
   workspaceId: string;
   projectId: string;
   agentKey: string;
+  /** The content hash of the agent file that the pinned prompt came from. Null for the built-in agent without a file. */
+  agentContentHash: string | null;
   originKind: ConversationOriginKind;
   ownerUserId: string | null;
   /** Where an integration conversation started. All three are set exactly when `originKind` is `integration`. */

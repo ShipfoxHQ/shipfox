@@ -4,6 +4,8 @@ import type {ConversationTurnStatus, StreamedItem} from './conversation-stream.j
 
 export interface ConversationSummary {
   id: string;
+  /** The agent the conversation talks to, fixed at creation. */
+  agentKey: string;
   /** Null when the stored title can't be opened. */
   title: string | null;
   unread: boolean;

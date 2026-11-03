@@ -197,6 +197,11 @@ export interface SendMessageInput {
   pageContext: AgentPageContext | undefined;
 }
 
+export interface CreateConversationInput extends SendMessageInput {
+  /** Without it, the conversation is with the built-in agent. */
+  agentKey?: string | undefined;
+}
+
 function messageBody(input: SendMessageInput) {
   const pageContext = input.pageContext ? toPageContextDto(input.pageContext) : undefined;
   return {
@@ -207,12 +212,15 @@ function messageBody(input: SendMessageInput) {
 }
 
 export async function createConversation(
-  params: SendMessageInput & {projectId: string},
+  params: CreateConversationInput & {projectId: string},
 ): Promise<{conversation: ConversationSummary; item: ConversationItem}> {
   const response = await checkedApiRequest(
     createConversationResponseSchema,
     `/projects/${encodeURIComponent(params.projectId)}/conversations`,
-    {method: 'POST', body: messageBody(params)},
+    {
+      method: 'POST',
+      body: {...messageBody(params), ...(params.agentKey ? {agent_key: params.agentKey} : {})},
+    },
   );
   return {
     conversation: toConversationSummary(response.conversation),
@@ -223,7 +231,7 @@ export async function createConversation(
 export function useCreateConversationMutation(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: SendMessageInput) => createConversation({...input, projectId}),
+    mutationFn: (input: CreateConversationInput) => createConversation({...input, projectId}),
     onSuccess: async ({conversation, item}) => {
       queryClient.setQueryData<ItemsData>(conversationQueryKeys.items(conversation.id), (data) =>
         withQueuedItem(data, item),

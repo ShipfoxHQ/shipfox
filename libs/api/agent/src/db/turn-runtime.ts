@@ -68,6 +68,8 @@ async function lockConversation(
 export async function pinSystemEntry(params: {
   conversationId: string;
   entry: NewTimelineEntry;
+  /** The content hash of the agent file behind the prompt, or null for the built-in agent alone. */
+  agentContentHash: string | null;
 }): Promise<'pinned' | 'exists'> {
   return await db().transaction(async (tx) => {
     const conversation = await lockConversation(tx, params.conversationId);
@@ -84,7 +86,7 @@ export async function pinSystemEntry(params: {
     });
     await tx
       .update(conversations)
-      .set({lastSeq: 1})
+      .set({lastSeq: 1, agentContentHash: params.agentContentHash})
       .where(eq(conversations.id, params.conversationId));
     return 'pinned';
   });

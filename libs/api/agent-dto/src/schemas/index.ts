@@ -231,6 +231,12 @@ export {
   modelReferencesSchema,
 } from './model-reference.js';
 export {
+  type ListProjectAgentsResponseDto,
+  listProjectAgentsResponseSchema,
+  type ProjectAgentDto,
+  projectAgentDtoSchema,
+} from './project-agent.js';
+export {
   AGENT_HOME_INSTRUCTION_FILE_PATHS,
   AGENT_HOME_SKILL_DIRECTORIES,
   AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES,

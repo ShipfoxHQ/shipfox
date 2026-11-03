@@ -182,6 +182,14 @@ export function useChatConversation({
 
   const createMutation = useCreateConversationMutation(projectId);
   const sendMutation = useSendConversationMessageMutation({projectId, conversationId});
+  // A send error belongs to the conversation it came from, so it doesn't follow the user to another.
+  const {reset: resetCreate} = createMutation;
+  const {reset: resetSend} = sendMutation;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the reset runs when the conversation changes.
+  useEffect(() => {
+    resetCreate();
+    resetSend();
+  }, [conversationId, resetCreate, resetSend]);
   const stopMutation = useStopConversationMutation(conversationId);
   const retryMutation = useRetryConversationMutation(conversationId);
   useMarkRead({
@@ -193,13 +201,25 @@ export function useChatConversation({
   });
 
   const send = useCallback(
-    async (body: string, pageContext: AgentPageContext | undefined) => {
-      const input = {clientMessageId: crypto.randomUUID(), body, pageContext};
+    async (params: {
+      body: string;
+      pageContext: AgentPageContext | undefined;
+      /** Used only when the message creates the conversation, which fixes its agent. */
+      agentKey?: string | undefined;
+    }) => {
+      const input = {
+        clientMessageId: crypto.randomUUID(),
+        body: params.body,
+        pageContext: params.pageContext,
+      };
       if (conversationId) {
         await sendMutation.mutateAsync(input);
         return;
       }
-      const {conversation} = await createMutation.mutateAsync(input);
+      const {conversation} = await createMutation.mutateAsync({
+        ...input,
+        agentKey: params.agentKey,
+      });
       onCreated(conversation.id);
     },
     [conversationId, sendMutation, createMutation, onCreated],

@@ -2,9 +2,18 @@ import {Shippy} from '@shipfox/client-shell/runtime';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout, CalloutActions, CalloutContent, CalloutTitle} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {Label} from '@shipfox/react-ui/label';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@shipfox/react-ui/select';
 import {Suggestion, Suggestions} from '@shipfox/react-ui/suggestion';
-import type {KeyboardEvent, ReactNode, Ref} from 'react';
+import {type KeyboardEvent, type ReactNode, type Ref, useId} from 'react';
+import {agentLabel, type ProjectAgent, SHIPPY_AGENT_KEY} from '#core/project-agents.js';
 import {ChatComposer, type ChatComposerProps} from './chat-composer.js';
 
 export interface ChatPanelHeaderProps {
@@ -55,20 +64,58 @@ export function ChatPanelHeader({
   );
 }
 
+export interface AgentPickerProps {
+  agents: readonly ProjectAgent[];
+  value: string;
+  onChange: (key: string) => void;
+}
+
+/** Picks the agent a new conversation talks to. The agent is fixed once the first message is sent. */
+export function AgentPicker({agents, value, onChange}: AgentPickerProps) {
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-inline">
+      <Label htmlFor={id}>Agent</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} size="small" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {agents.map((agent) => (
+            <SelectItem key={agent.key} value={agent.key}>
+              {agentLabel(agent)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export interface FirstUseProps {
   prompts: readonly string[];
   onPrompt: (prompt: string) => void;
+  /** The agent the conversation will talk to. A custom agent is introduced by its own name and description. */
+  agent?: ProjectAgent | undefined;
+  /** Set when the project has custom agents. */
+  picker?: ReactNode;
 }
 
 /** Says what Shippy can and can't do. Prompts for the current page don't send until clicked. */
-export function FirstUse({prompts, onPrompt}: FirstUseProps) {
+export function FirstUse({prompts, onPrompt, agent, picker}: FirstUseProps) {
+  const custom = agent !== undefined && agent.key !== SHIPPY_AGENT_KEY;
   return (
     <div className="flex flex-1 flex-col justify-end gap-group overflow-y-auto p-tight">
       <EmptyState
         illustration={<Shippy pose="bench" className="h-96" />}
-        title="Shippy, your project agent"
-        description="Shippy reads this project's runs, logs, and workflows, and explains what failed. It can't start work yet."
+        title={custom ? agentLabel(agent) : 'Shippy, your project agent'}
+        description={
+          custom
+            ? (agent.description ?? 'A custom agent of this project.')
+            : "Shippy reads this project's runs, logs, and workflows, and explains what failed. It can't start work yet."
+        }
       />
+      {picker}
       {prompts.length > 0 ? (
         <Suggestions role="group" aria-label="Suggested questions">
           {prompts.map((prompt) => (
@@ -95,6 +142,55 @@ export function ConversationDeleted({onNewConversation}: {onNewConversation: () 
       </Callout>
     </div>
   );
+}
+
+/** The latest sync rejected the agent's file. The agent keeps running its last valid version. */
+export function AgentFileError({agent}: {agent: ProjectAgent}) {
+  return (
+    <div className="shrink-0 p-tight pb-0">
+      <Callout type="warning">
+        <CalloutContent className="flex flex-col gap-inline">
+          <CalloutTitle className="mb-0">
+            {`${agentLabel(agent)} uses its last valid configuration.`}
+          </CalloutTitle>
+          <p className="break-words">{`Its agent file is invalid: ${agent.error}`}</p>
+        </CalloutContent>
+      </Callout>
+    </div>
+  );
+}
+
+/** The agent's file was deleted. The conversation stays readable, and takes no new message. */
+export function AgentUnavailable({onNewConversation}: {onNewConversation: () => void}) {
+  return (
+    <div className="shrink-0 p-tight pb-0">
+      <Callout type="warning">
+        <CalloutContent className="flex flex-col gap-inline">
+          <CalloutTitle className="mb-0">This conversation's agent was deleted.</CalloutTitle>
+          <CalloutActions>
+            <Button size="2xs" variant="secondary" onClick={onNewConversation}>
+              New conversation
+            </Button>
+          </CalloutActions>
+        </CalloutContent>
+      </Callout>
+    </div>
+  );
+}
+
+/** What the panel says about the conversation's agent, if anything. */
+export function AgentNotice({
+  agent,
+  gone,
+  onNewConversation,
+}: {
+  agent: ProjectAgent | undefined;
+  gone: boolean;
+  onNewConversation: () => void;
+}) {
+  if (gone) return <AgentUnavailable onNewConversation={onNewConversation} />;
+  if (agent?.error) return <AgentFileError agent={agent} />;
+  return null;
 }
 
 export function PanelLoading() {

@@ -6,7 +6,7 @@ Runs a Shipfox API server.
 
 - **`defaultModules()`**: Returns the standard module list.
 - **`DefaultModulesExtension`**: Receives the composed Auth, Workspaces, and Usage clients for extension modules.
-- **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets, Workflows, Projects, Integrations, and Workspaces clients.
+- **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets, Workflows, Projects, Definitions, Integrations, and Workspaces clients.
 - **`DefaultAuthModuleOptions`**: Configures the standard Auth module while `defaultModules()` supplies its Workspaces client.
 - **`DefaultRunnersModuleOptions`**: Configures the standard Runners module while `defaultModules()` supplies its Auth client.
 - **`DefaultCacheModuleOptions`**: Configures the standard Cache module while `defaultModules()` supplies its Workflows client.
@@ -101,7 +101,7 @@ methods to authenticate their respective credentials.
 
 The standard Agent module validates its configuration during composition. Its
 additive options cannot provide or replace the composition-owned Secrets,
-Workflows, Projects, and Integrations clients. The returned standard module therefore keeps
+Workflows, Projects, Definitions, and Integrations clients. The returned standard module therefore keeps
 the Workflows-backed session transcript routes and the conversation routes
 mounted. An options object whose
 fields are all undefined is treated as unconfigured and does not conflict with

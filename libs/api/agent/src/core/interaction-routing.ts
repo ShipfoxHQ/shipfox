@@ -14,8 +14,8 @@ import {
   conversationDataKey,
   sealConversationEntry,
 } from './conversation-sealing.js';
-import {SHIPPY_AGENT_KEY} from './conversations.js';
 import type {Conversation} from './entities/conversation.js';
+import {SHIPPY_AGENT_KEY} from './shippy.js';
 import {wrapUntrustedText} from './turn-runtime/tool-result.js';
 
 /** The most a request stores. A model can't use more, and a thread can be read again with a tool. */

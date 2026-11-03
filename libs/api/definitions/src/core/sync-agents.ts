@@ -3,6 +3,7 @@ import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module
 import {MAX_WORKFLOW_FILE_BYTES} from '@shipfox/api-definitions-dto';
 import {boundedMap} from '@shipfox/node-module';
 import {
+  AGENT_DOCUMENT_DEFAULT_KEY,
   AGENT_DOCUMENT_KEY_PATTERN,
   type AgentDocument,
   agentDocumentKeyForPath,
@@ -171,6 +172,17 @@ async function parseAgentFile(
     return fail([diagnostic({message: error.message, path: error.path, filePath: path})]);
   }
 
+  const instructions = joinInstructions(document, promptFiles);
+  if (key !== AGENT_DOCUMENT_DEFAULT_KEY && !instructions?.trim()) {
+    return fail([
+      diagnostic({
+        message: 'A custom agent requires "instructions" that are not blank.',
+        path: 'instructions',
+        filePath: path,
+      }),
+    ]);
+  }
+
   const issues: WorkflowModelValidationIssue[] = [];
   validateAgentModelSelection({
     selection: {...document, harness: AGENT_HARNESS},
@@ -201,7 +213,7 @@ async function parseAgentFile(
       path,
       name: document.name ?? null,
       description: document.description ?? null,
-      instructions: joinInstructions(document, promptFiles),
+      instructions,
       document,
       contentHash: agentContentHash({content, references, promptFiles}),
     },

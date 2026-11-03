@@ -1,4 +1,5 @@
 import type {ManagedModelProvider, WorkspaceProvidersPolicy} from '@shipfox/api-agent-dto';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {Context} from '@temporalio/activity';
@@ -29,6 +30,7 @@ export interface ConversationActivityDeps {
   secrets: AgentSecretsClient;
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
+  definitions?: DefinitionsInterModuleClient | undefined;
   managedProvider?: ManagedModelProvider | undefined;
   workspaceProviders?: WorkspaceProvidersPolicy | undefined;
   workspaces: TurnAdmissionWorkspaces;
