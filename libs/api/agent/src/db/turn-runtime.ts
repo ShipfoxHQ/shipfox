@@ -320,13 +320,20 @@ export async function listConversationsToRecover(limit: number): Promise<string[
   return rows.map((row) => row.id);
 }
 
-/** Moves a running turn to its final state. A turn that already finished stays as it is. */
+/**
+ * Moves a running turn to its final state. A turn that already finished stays as it is. A notice
+ * lands in the same transaction, so a crash can't leave a finished turn without it.
+ */
 export async function finishTurnRow(params: {
+  conversationId: string;
   turnId: string;
   status: Exclude<AgentTurn['status'], 'running'>;
   failureCode?: string | undefined;
+  notice?: NewTimelineEntry | undefined;
 }): Promise<AgentTurn | undefined> {
   return await db().transaction(async (tx) => {
+    // Every writer takes the conversation lock before it touches a turn.
+    const conversation = await lockConversation(tx, params.conversationId);
     const [row] = await tx
       .update(turns)
       .set({
@@ -339,6 +346,20 @@ export async function finishTurnRow(params: {
     if (!row) return undefined;
     // A failed call leaves its partial text behind. Nothing reads it once the turn is over.
     await tx.delete(turnStreamChunks).where(eq(turnStreamChunks.turnId, params.turnId));
+    if (params.notice && conversation) {
+      const seq = conversation.lastSeq + 1;
+      await tx.insert(conversationItems).values({
+        id: params.notice.id,
+        conversationId: params.conversationId,
+        seq,
+        entryType: params.notice.entryType,
+        sessionVersion: params.notice.sessionVersion,
+        turnId: params.turnId,
+        body: params.notice.sealedEntry,
+        meta: params.notice.meta,
+      });
+      await advanceConversation(tx, {conversationId: params.conversationId, seq});
+    }
     return toAgentTurn(row);
   });
 }
@@ -362,10 +383,11 @@ export async function listContextItems(params: {
   return rows.map(toConversationItem);
 }
 
-export async function getTurnEntry(
+async function findTurnEntry(
+  executor: Pick<Transaction, 'select'>,
   position: TurnEntryPosition,
 ): Promise<ConversationItem | undefined> {
-  const rows = await db()
+  const rows = await executor
     .select()
     .from(conversationItems)
     .where(
@@ -382,6 +404,79 @@ export async function getTurnEntry(
   return row ? toConversationItem(row) : undefined;
 }
 
+export async function getTurnEntry(
+  position: TurnEntryPosition,
+): Promise<ConversationItem | undefined> {
+  return await findTurnEntry(db(), position);
+}
+
+/** A call that outlives its turn, such as one that timed out, must not add to the timeline. */
+async function isTurnRunning(tx: Transaction, turnId: string): Promise<boolean> {
+  const running = await tx
+    .select({id: turns.id})
+    .from(turns)
+    .where(and(eq(turns.id, turnId), eq(turns.status, 'running')))
+    .limit(1);
+  return running.length > 0;
+}
+
+async function advanceConversation(
+  tx: Transaction,
+  params: {
+    conversationId: string;
+    seq: number;
+    lastAgentSeq?: number | undefined;
+    contextStartSeq?: number | undefined;
+  },
+): Promise<void> {
+  await tx
+    .update(conversations)
+    .set({
+      lastSeq: params.seq,
+      lastActivityAt: sql`NOW()`,
+      ...(params.lastAgentSeq === undefined ? {} : {lastAgentSeq: params.lastAgentSeq}),
+      ...(params.contextStartSeq === undefined ? {} : {contextStartSeq: params.contextStartSeq}),
+    })
+    .where(eq(conversations.id, params.conversationId));
+}
+
+/** A stored reply ends its model call: the call's chunks go and the turn counts the call. */
+async function completeModelCall(tx: Transaction, position: TurnEntryPosition): Promise<void> {
+  await tx
+    .delete(turnStreamChunks)
+    .where(
+      and(
+        eq(turnStreamChunks.turnId, position.turnId),
+        eq(turnStreamChunks.modelCallIndex, position.modelCallIndex),
+      ),
+    );
+  await tx
+    .update(turns)
+    .set({modelCallCount: sql`${turns.modelCallCount} + 1`})
+    .where(eq(turns.id, position.turnId));
+}
+
+/** The `seq` of the first entry a compaction keeps, which becomes the start of the prompt. */
+async function keptEntrySeq(
+  tx: Transaction,
+  params: {conversationId: string; itemId: string},
+): Promise<number> {
+  const [kept] = await tx
+    .select({seq: conversationItems.seq})
+    .from(conversationItems)
+    .where(
+      and(
+        eq(conversationItems.id, params.itemId),
+        eq(conversationItems.conversationId, params.conversationId),
+      ),
+    )
+    .limit(1);
+  if (kept?.seq == null) {
+    throw new Error('The first kept entry of a compaction is not on the timeline');
+  }
+  return kept.seq;
+}
+
 /**
  * Appends an entry the turn produced. It gets its `seq` here, under the conversation row lock,
  * so it lands after everything already claimed. A repeat at the same position returns the stored
@@ -393,6 +488,8 @@ export async function appendTurnEntry(params: {
   entry: NewTimelineEntry;
   /** An assistant reply ends a model call: it clears the call's chunks and counts the call. */
   completesModelCall: boolean;
+  /** A compaction moves the start of the prompt to the first entry it keeps. */
+  startContextAtItemId?: string | undefined;
 }): Promise<{item: ConversationItem; stored: boolean} | undefined> {
   return await db().transaction(async (tx) => {
     const conversation = await lockConversation(tx, params.conversationId);
@@ -400,27 +497,10 @@ export async function appendTurnEntry(params: {
 
     const {position} = params;
     // A call that outlives its turn, such as one that timed out, must not add to the timeline.
-    const running = await tx
-      .select({id: turns.id})
-      .from(turns)
-      .where(and(eq(turns.id, position.turnId), eq(turns.status, 'running')))
-      .limit(1);
-    if (running.length === 0) return undefined;
+    if (!(await isTurnRunning(tx, position.turnId))) return undefined;
 
-    const existing = await tx
-      .select()
-      .from(conversationItems)
-      .where(
-        and(
-          eq(conversationItems.turnId, position.turnId),
-          eq(conversationItems.modelCallIndex, position.modelCallIndex),
-          position.callIndex === undefined
-            ? isNull(conversationItems.callIndex)
-            : eq(conversationItems.callIndex, position.callIndex),
-        ),
-      )
-      .limit(1);
-    if (existing[0]) return {item: toConversationItem(existing[0]), stored: false};
+    const existing = await findTurnEntry(tx, position);
+    if (existing) return {item: existing, stored: false};
 
     const seq = conversation.lastSeq + 1;
     const [inserted] = await tx
@@ -440,28 +520,20 @@ export async function appendTurnEntry(params: {
       .returning();
     if (!inserted) throw new Error('Turn entry insert returned no row');
 
-    await tx
-      .update(conversations)
-      .set({
-        lastSeq: seq,
-        lastActivityAt: sql`NOW()`,
-        ...(params.completesModelCall ? {lastAgentSeq: seq} : {}),
-      })
-      .where(eq(conversations.id, params.conversationId));
-    if (params.completesModelCall) {
-      await tx
-        .delete(turnStreamChunks)
-        .where(
-          and(
-            eq(turnStreamChunks.turnId, position.turnId),
-            eq(turnStreamChunks.modelCallIndex, position.modelCallIndex),
-          ),
-        );
-      await tx
-        .update(turns)
-        .set({modelCallCount: sql`${turns.modelCallCount} + 1`})
-        .where(eq(turns.id, position.turnId));
-    }
+    const contextStartSeq =
+      params.startContextAtItemId === undefined
+        ? undefined
+        : await keptEntrySeq(tx, {
+            conversationId: params.conversationId,
+            itemId: params.startContextAtItemId,
+          });
+    await advanceConversation(tx, {
+      conversationId: params.conversationId,
+      seq,
+      lastAgentSeq: params.completesModelCall ? seq : undefined,
+      contextStartSeq,
+    });
+    if (params.completesModelCall) await completeModelCall(tx, position);
     return {item: toConversationItem(inserted), stored: true};
   });
 }

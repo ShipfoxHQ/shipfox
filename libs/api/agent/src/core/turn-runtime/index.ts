@@ -1,3 +1,8 @@
+export {
+  COMPACTION_CALL_INDEX,
+  type CompactionCause,
+  compactConversation,
+} from './compaction.js';
 export {buildSessionEntries, loadConversationContext} from './conversation-session.js';
 export {type ConversationToolSet, listConversationToolSet} from './conversation-tools.js';
 export {
@@ -18,6 +23,7 @@ export {runToolCall, type ToolCallResult} from './tool-call.js';
 export {TOOL_RESULT_MAX_BYTES, wrapToolResultText} from './tool-result.js';
 export {
   beginConversationTurn,
+  CONTEXT_OVERFLOW_NOTICE,
   claimConversationInputs,
   finishConversationTurn,
   type TurnLifecycleDeps,
