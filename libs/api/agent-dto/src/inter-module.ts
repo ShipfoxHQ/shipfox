@@ -171,8 +171,8 @@ const resolvedAgentConfigSchema = z.object({
 export {type AgentSessionDescriptorDto, agentSessionDescriptorSchema} from '#schemas/index.js';
 
 const interactionRoutingInputSchema = z.object({
-  /** The provider's opaque key, at most 256 characters. */
-  conversationKey: z.string().min(1).max(256),
+  /** The provider's opaque key. */
+  conversationKey: z.string().min(1),
   role: z.enum(['request', 'follow_up', 'stop']),
   /** Prose for the model. Treated as untrusted data. */
   text: z.string(),

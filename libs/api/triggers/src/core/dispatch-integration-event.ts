@@ -57,8 +57,8 @@ export interface DispatchIntegrationEventParams {
 // replays the whole event and converges (succeeded siblings dedup on the idempotency key). The
 // event reaches a terminal outcome only when no transient error remains: `routed` if any run
 // was created, any listening job accepted a delivery, or an agent took the request, `discarded`
-// if nothing matched (a follow-up with no owner is dropped and recorded, but matches nothing),
-// otherwise `errored`.
+// if nothing matched, otherwise `errored`. An agent request never counts as a match, so a
+// follow-up with no owner is dropped and recorded without making the event anything but `discarded`.
 // History is best-effort; the thrown transient error, not the recorded outcome, drives the retry.
 export async function dispatchIntegrationEvent(
   params: DispatchIntegrationEventParams,
@@ -128,12 +128,12 @@ export async function dispatchIntegrationEvent(
     listenerResult.transientErrored ? {error: listenerResult.transientError} : undefined,
   );
 
-  // After the workflows, so an interaction that fails can never starve them.
+  // After the workflows, so the agent path can't change what they do.
   const agentRouting = await routeToAgent(params, history);
   noteTransientError(dispatch, agentRouting.transientError);
 
-  const totalMatchedCount =
-    dispatch.triggerEngagedCount + listenerResult.engagedCount + agentRouting.engagedCount;
+  // Agents stay out of the count, which the event view reads as workflows.
+  const totalMatchedCount = dispatch.triggerEngagedCount + listenerResult.engagedCount;
 
   if (dispatch.sawTransientError) {
     eventOutcomeCount.add(1, {origin, provider: params.provider, outcome: 'failed'});
@@ -141,7 +141,7 @@ export async function dispatchIntegrationEvent(
     throw dispatch.firstTransientError;
   }
 
-  if (dispatch.triggeredCount + listenerResult.acceptedJobCount + agentRouting.routedCount > 0) {
+  if (dispatch.triggeredCount + listenerResult.acceptedJobCount > 0 || agentRouting.routed) {
     eventOutcomeCount.add(1, {origin, provider: params.provider, outcome: 'routed'});
     await history.routed(totalMatchedCount);
     return;

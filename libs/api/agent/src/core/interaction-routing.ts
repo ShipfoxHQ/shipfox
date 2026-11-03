@@ -115,7 +115,7 @@ async function deliverToOwner(args: {
 
   const key = await conversationDataKey(owner.workspaceId);
   const itemId = await newConversationRecordId();
-  await insertQueuedUserMessage({
+  const item = await insertQueuedUserMessage({
     id: itemId,
     conversationId: owner.id,
     authorUserId: null,
@@ -133,6 +133,8 @@ async function deliverToOwner(args: {
     meta: {role: 'user'},
     resetRunBudget: params.interaction.author !== undefined,
   });
+  // The owner was deleted after it was found, so nothing took the message.
+  if (!item) return {outcome: 'dropped', reason: 'no-owner'};
   await args.wake(owner.id);
   return routed(outcome, owner);
 }

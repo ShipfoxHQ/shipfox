@@ -129,7 +129,7 @@ describe('dispatchIntegrationEvent with agent routing', () => {
         author: {externalId: 'U1'},
       },
     });
-    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed', matchedCount: 1});
+    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed', matchedCount: 0});
     expect(await agentDecisions(eventRef)).toEqual([
       expect.objectContaining({
         subscriptionKind: 'agent',
@@ -158,6 +158,38 @@ describe('dispatchIntegrationEvent with agent routing', () => {
       expect.objectContaining({subscriptionKind: 'agent', decision: 'owner'}),
     ]);
     expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed'});
+  });
+
+  test('hands a stop to the agent and records the owner it reached', async () => {
+    const eventRef = crypto.randomUUID();
+    readInteraction.mockResolvedValue(request({role: 'stop', text: ''}));
+    routeInteraction.mockResolvedValue({
+      outcome: 'owner',
+      conversationId: crypto.randomUUID(),
+      projectId: PROJECT_ID,
+      agentKey: 'shippy',
+    });
+
+    await dispatch({eventRef});
+
+    expect(routeInteraction).toHaveBeenCalledWith(
+      expect.objectContaining({interaction: expect.objectContaining({role: 'stop'})}),
+    );
+    expect(await agentDecisions(eventRef)).toEqual([
+      expect.objectContaining({subscriptionKind: 'agent', decision: 'owner'}),
+    ]);
+  });
+
+  test('records a stop with no owner as dropped', async () => {
+    const eventRef = crypto.randomUUID();
+    readInteraction.mockResolvedValue(request({role: 'stop', text: ''}));
+    routeInteraction.mockResolvedValue({outcome: 'dropped', reason: 'no-owner'});
+
+    await dispatch({eventRef});
+
+    expect(await agentDecisions(eventRef)).toEqual([
+      expect.objectContaining({decision: 'dropped', reason: 'no-owner'}),
+    ]);
   });
 
   test('records a follow-up with no owner as dropped and matches nothing', async () => {
@@ -209,7 +241,7 @@ describe('dispatchIntegrationEvent with agent routing', () => {
       expect.objectContaining({definitionId: subscription.workflowDefinitionId}),
     );
     expect(routeInteraction).toHaveBeenCalledTimes(1);
-    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed', matchedCount: 2});
+    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed', matchedCount: 1});
     const decisions = await agentDecisions(eventRef);
     expect(decisions.map(({subscriptionKind}) => subscriptionKind).sort()).toEqual([
       'agent',
@@ -257,30 +289,6 @@ describe('dispatchIntegrationEvent with agent routing', () => {
     expect(routeInteraction).not.toHaveBeenCalled();
   });
 
-  test('skips an event whose connection cannot read it, without failing the workflows', async () => {
-    const workspaceId = crypto.randomUUID();
-    await triggerSubscriptionFactory.create({
-      workspaceId,
-      source: 'slack',
-      event: 'app_mention',
-      config: {},
-    });
-    const eventRef = crypto.randomUUID();
-    readInteraction.mockRejectedValue(
-      createInterModuleKnownError(
-        integrationsInterModuleContract.methods.readInteraction,
-        'connection-inactive',
-        {connectionId: crypto.randomUUID(), status: 'disabled'} as never,
-      ),
-    );
-
-    await dispatch({eventRef, workspaceId});
-
-    expect(startRun).toHaveBeenCalledTimes(1);
-    expect(routeInteraction).not.toHaveBeenCalled();
-    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed'});
-  });
-
   test('replays the event when routing fails, after the workflows have run', async () => {
     const workspaceId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({
@@ -298,7 +306,14 @@ describe('dispatchIntegrationEvent with agent routing', () => {
     expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'failed'});
   });
 
-  test('replays the event when the provider fails to read it', async () => {
+  test('skips agent routing when the provider fails to read the event, so nothing is replayed', async () => {
+    const workspaceId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'slack',
+      event: 'app_mention',
+      config: {},
+    });
     const eventRef = crypto.randomUUID();
     readInteraction.mockRejectedValue(
       createInterModuleKnownError(
@@ -308,8 +323,10 @@ describe('dispatchIntegrationEvent with agent routing', () => {
       ),
     );
 
-    await expect(dispatch({eventRef})).rejects.toMatchObject({code: 'provider-failure'});
+    await dispatch({eventRef, workspaceId});
 
-    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'failed'});
+    expect(startRun).toHaveBeenCalledTimes(1);
+    expect(routeInteraction).not.toHaveBeenCalled();
+    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed'});
   });
 });

@@ -120,11 +120,15 @@ describe('routeInteraction', () => {
       crypto.randomUUID(),
       crypto.randomUUID(),
     ] as const;
-    const {deps, interaction} = setup([newest, middle, oldest], 2);
+    const {deps, base, interaction} = setup([newest, middle, oldest], 2);
 
     const result = await routeInteraction(interaction(), deps);
 
     expect(result).toMatchObject({outcome: 'default', projectId: oldest});
+    expect(deps.projects.listProjectsByWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId: base.workspaceId}),
+    );
+    expect(deps.projects.listProjectsByWorkspace).toHaveBeenCalledTimes(2);
   });
 
   it('stores the request as an untrusted user message from no Shipfox user', async () => {
@@ -232,6 +236,28 @@ describe('routeInteraction', () => {
 
     expect(stop).toMatchObject({outcome: 'owner', conversationId: started.conversationId});
     expect(await storedItems(started.conversationId, base.workspaceId)).toHaveLength(1);
+  });
+
+  it('drops a follow-up whose owner is deleted before the message is queued', async () => {
+    const {deps, wake, interaction} = setup();
+    const started = await routeInteraction(interaction(), deps);
+    if (started.outcome === 'dropped') throw new Error('Expected a conversation');
+    await db().delete(conversations).where(eq(conversations.id, started.conversationId));
+    wake.mockClear();
+    const findOwner = vi.spyOn(await import('#db/conversations.js'), 'findIntegrationConversation');
+    findOwner.mockResolvedValueOnce({
+      ...(started as object),
+      id: started.conversationId,
+      workspaceId: interaction().workspaceId,
+      projectId: started.projectId,
+      agentKey: 'shippy',
+      clientMessageId: null,
+    } as never);
+
+    const result = await routeInteraction(interaction({role: 'follow_up'}), deps);
+
+    expect(result).toEqual({outcome: 'dropped', reason: 'no-owner'});
+    expect(wake).not.toHaveBeenCalled();
   });
 
   it('creates one conversation and one message when an event is delivered twice', async () => {

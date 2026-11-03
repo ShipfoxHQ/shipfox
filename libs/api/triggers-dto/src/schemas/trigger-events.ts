@@ -266,13 +266,14 @@ const triggerDecisionDtoBaseSchema = z.object({
 });
 
 export const triggerDecisionDtoSchema = triggerDecisionDtoBaseSchema.superRefine((value, ctx) => {
-  const isDevDecision = value.subscription_kind === 'dev';
+  const hasNoSubscription =
+    value.subscription_kind === 'dev' || value.subscription_kind === 'agent';
   const hasNullSubscriptionId = value.subscription_id === null;
-  if (isDevDecision !== hasNullSubscriptionId) {
+  if (hasNoSubscription !== hasNullSubscriptionId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: isDevDecision
-        ? 'dev decisions must have a null subscription_id'
+      message: hasNoSubscription
+        ? 'dev and agent decisions must have a null subscription_id'
         : 'trigger and listener decisions must have a subscription_id',
       path: ['subscription_id'],
     });
