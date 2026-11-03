@@ -24,7 +24,8 @@ export function ChatPanelHeader({
 }: ChatPanelHeaderProps) {
   return (
     <header className="flex h-40 shrink-0 items-center gap-inline border-b border-border-neutral-base px-tight">
-      <Shippy pose="face" className="h-24" />
+      {/* Mirrored, so Shippy faces the title. */}
+      <Shippy pose="face" className="h-24 -scale-x-100" />
       <h2 className="min-w-0 flex-1 truncate font-display text-sm font-medium text-foreground-neutral-base">
         {view === 'history' ? 'Conversations' : title}
       </h2>
