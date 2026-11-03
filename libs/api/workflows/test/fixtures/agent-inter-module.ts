@@ -92,6 +92,7 @@ export const agentTestClient: AgentInterModuleClient = {
   releaseSession: vi.fn(),
   carryOverSessions: vi.fn(),
   routeInteraction: vi.fn(),
+  claimConversationRunStart: vi.fn(),
 };
 
 export const resolveTestAgentDefaults: AgentDefaultsResolver = (config) => {

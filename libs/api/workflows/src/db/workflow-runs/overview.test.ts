@@ -20,6 +20,62 @@ import {
 } from '../workflow-runs.js';
 
 describe('bounded workflow run overview reads', () => {
+  test('names the conversation that started a run, and never its id', async () => {
+    const projectId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const conversation = {id: crypto.randomUUID(), agentKey: 'shippy'};
+    const run = await createWorkflowRun({
+      workspaceId: crypto.randomUUID(),
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: buildModel({jobs: {build: {steps: [{run: 'echo build'}]}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId,
+        conversation,
+      },
+    });
+
+    const overview = await getWorkflowRunOverview({
+      workflowRunId: run.id,
+      projectId,
+      attempt: 1,
+    });
+
+    expect(overview?.run.conversation).toEqual({
+      agentKey: 'shippy',
+      provider: null,
+      authorUserId: userId,
+    });
+    expect(JSON.stringify(overview?.run.conversation)).not.toContain(conversation.id);
+  });
+
+  test('reports no conversation for a run another trigger started', async () => {
+    const projectId = crypto.randomUUID();
+    const run = await createWorkflowRun({
+      workspaceId: crypto.randomUUID(),
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: buildModel({jobs: {build: {steps: [{run: 'echo build'}]}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const overview = await getWorkflowRunOverview({
+      workflowRunId: run.id,
+      projectId,
+      attempt: 1,
+    });
+
+    expect(overview?.run.conversation).toBeNull();
+  });
+
   test('returns a compact complete graph without heavy fields', async () => {
     const projectId = crypto.randomUUID();
     const run = await createWorkflowRun({

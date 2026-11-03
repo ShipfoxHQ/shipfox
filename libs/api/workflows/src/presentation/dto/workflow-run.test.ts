@@ -2,6 +2,38 @@ import {workflowRunDtoSchema, workflowRunSelectionResponseSchema} from '@shipfox
 import type {WorkflowRun} from '#core/entities/workflow-run.js';
 import {toRunDto, toRunSelectionDto} from './workflow-run.js';
 
+function baseRun(): WorkflowRun {
+  return {
+    id: crypto.randomUUID(),
+    workspaceId: crypto.randomUUID(),
+    projectId: crypto.randomUUID(),
+    definitionId: crypto.randomUUID(),
+    number: 1,
+    name: 'Deploy',
+    workflowName: 'Deploy',
+    nameOverride: null,
+    status: 'succeeded',
+    origin: 'synced',
+    devSource: null,
+    currentAttempt: 1,
+    triggerProvider: 'manual',
+    triggerSource: 'manual',
+    triggerEvent: 'fire',
+    triggerPayload: {source: 'manual', event: 'fire'},
+    triggerReference: null,
+    inputs: null,
+    secretInputs: null,
+    sourceSnapshot: null,
+    triggerIdempotencyKey: null,
+    timeoutMs: 60_000,
+    version: 1,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    startedAt: null,
+    finishedAt: null,
+  };
+}
+
 describe('workflow run DTOs', () => {
   it('exposes secret input references on run details with DTO field names', () => {
     const run: WorkflowRun = {
@@ -52,6 +84,24 @@ describe('workflow run DTOs', () => {
         project_id: expect.any(String),
       }),
     });
+  });
+
+  it('keeps the id of the conversation that started a run out of the payload', () => {
+    const conversationId = crypto.randomUUID();
+    const run: WorkflowRun = {
+      ...baseRun(),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        userId: crypto.randomUUID(),
+        conversation: {id: conversationId, agentKey: 'shippy'},
+      },
+    };
+
+    const detail = toRunDto(run);
+
+    expect(JSON.stringify(detail)).not.toContain(conversationId);
+    expect(detail.trigger_payload).toMatchObject({conversation: {agentKey: 'shippy'}});
   });
 
   it('names the composite action file that holds a selected inner step', () => {

@@ -133,6 +133,7 @@ async function executeTool(params: {
         kind: 'conversation',
         projectId: conversation.projectId,
         conversationId: conversation.id,
+        agentKey: conversation.agentKey,
         turnId: params.turnId,
         callItemId: `${call.assistantItemId}:${params.callIndex}`,
         ...(conversation.ownerUserId === null ? {} : {actorUserId: conversation.ownerUserId}),

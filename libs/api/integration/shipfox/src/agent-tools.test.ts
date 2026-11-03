@@ -50,8 +50,10 @@ function conversationCaller(overrides: Record<string, unknown> = {}) {
     workspaceId,
     projectId,
     conversationId: '00000000-0000-4000-8000-000000000020',
+    agentKey: 'shippy',
     turnId: '00000000-0000-4000-8000-000000000021',
     callItemId: '00000000-0000-4000-8000-000000000022',
+    actorUserId: '00000000-0000-4000-8000-000000000023',
     ...overrides,
   };
 }
@@ -114,7 +116,9 @@ function createProvider() {
       deduplicated: false,
     }),
   };
+  const agent = {claimConversationRunStart: vi.fn().mockResolvedValue({claimed: true})};
   const workflows = {
+    hasRunForIdempotencyKey: vi.fn().mockResolvedValue({exists: false}),
     listWorkflowRuns: vi.fn(),
     listWorkflowRunJobs: vi.fn(),
     getWorkflowJobDetail: vi.fn(),
@@ -144,6 +148,7 @@ function createProvider() {
     listAnnotationsForRunAttempt: vi.fn().mockResolvedValue({annotations: [], nextCursor: null}),
   };
   const provider = createShipfoxAgentToolsProvider({
+    agent,
     annotations,
     clientBaseUrl: 'https://app.example.test',
     definitions,
@@ -153,7 +158,7 @@ function createProvider() {
     triggers,
     workflows,
   });
-  return {annotations, definitions, docs, logs, projects, triggers, workflows, provider};
+  return {agent, annotations, definitions, docs, logs, projects, triggers, workflows, provider};
 }
 
 describe('Shipfox agent tools', () => {
@@ -1269,6 +1274,7 @@ describe('Shipfox tools for a conversation', () => {
 
   it('offers only project-scoped tools with no project_id parameter', () => {
     expect(shipfoxConversationToolCatalog.map((tool) => tool.id)).toEqual([
+      'start_workflow_run',
       'list_workflow_definitions',
       'list_workflow_runs',
       'get_workflow_run',
@@ -1423,18 +1429,132 @@ describe('Shipfox tools for a conversation', () => {
     expect(projects.listProjectsByWorkspace).not.toHaveBeenCalled();
   });
 
-  it('refuses to start a run', async () => {
-    const {definitions, triggers, provider} = createProvider();
-    const session = await openConversationSession(provider, provider.catalog());
+  describe('start_workflow_run for a conversation', () => {
+    const conversationKey =
+      'conversation:00000000-0000-4000-8000-000000000020:00000000-0000-4000-8000-000000000022';
 
-    const result = await session.call({
-      toolId: 'start_workflow_run',
-      arguments: {workflow: 'child.yml'},
+    it('starts a root run for the conversation owner', async () => {
+      const {agent, definitions, triggers, provider} = createProvider();
+      const session = await openConversationSession(provider);
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'child.yml', inputs: {env: 'prod'}},
+      });
+
+      expect(result).toMatchObject({
+        structuredContent: {run_id: childRunId, run_number: 42, project_id: projectId},
+      });
+      expect(definitions.getDefinitionByConfigPath).toHaveBeenCalledWith({
+        workspaceId,
+        projectId,
+        configPath: 'child.yml',
+      });
+      expect(agent.claimConversationRunStart).toHaveBeenCalledWith({
+        workspaceId,
+        conversationId: '00000000-0000-4000-8000-000000000020',
+      });
+      expect(triggers.fireManualTrigger).toHaveBeenCalledWith({
+        workspaceId,
+        definitionId: expect.any(String),
+        userId: '00000000-0000-4000-8000-000000000023',
+        conversation: {id: '00000000-0000-4000-8000-000000000020', agentKey: 'shippy'},
+        inputs: {env: 'prod'},
+        idempotencyKey: conversationKey,
+      });
+      expect(triggers.fireManualTrigger.mock.calls[0]?.[0]).not.toHaveProperty('parentRun');
     });
 
-    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
-    expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
-    expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+    it('returns the same run for a repeated call without spending the budget again', async () => {
+      const {agent, triggers, workflows, provider} = createProvider();
+      workflows.hasRunForIdempotencyKey.mockResolvedValue({exists: true});
+      triggers.fireManualTrigger.mockResolvedValue({
+        id: childRunId,
+        name: 'Deploy',
+        deduplicated: true,
+      });
+      const session = await openConversationSession(provider);
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'child.yml'},
+      });
+
+      expect(workflows.hasRunForIdempotencyKey).toHaveBeenCalledWith({
+        workspaceId,
+        idempotencyKey: conversationKey,
+      });
+      expect(agent.claimConversationRunStart).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        structuredContent: {run_id: childRunId, deduplicated: true},
+      });
+    });
+
+    it('refuses to start a run once the budget is used', async () => {
+      const {agent, triggers, provider} = createProvider();
+      agent.claimConversationRunStart.mockResolvedValue({claimed: false});
+      const session = await openConversationSession(provider);
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'child.yml'},
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        structuredContent: {code: 'run-budget-exhausted'},
+      });
+      expect(result.content[0]?.text).toContain('ask the user');
+      expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+    });
+
+    it('keeps the budget when the workflow does not exist', async () => {
+      const {agent, definitions, provider} = createProvider();
+      definitions.getDefinitionByConfigPath.mockRejectedValue(
+        createKnownError('definition-not-found'),
+      );
+      const session = await openConversationSession(provider);
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'missing.yml'},
+      });
+
+      expect(result).toMatchObject({isError: true});
+      expect(agent.claimConversationRunStart).not.toHaveBeenCalled();
+    });
+
+    it('rejects a key from the model, because the call item is the key', async () => {
+      const {triggers, provider} = createProvider();
+      const session = await openConversationSession(provider, provider.catalog());
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'child.yml', idempotency_key: 'mine'},
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+      expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+    });
+
+    it('refuses a conversation with no Shipfox user', async () => {
+      const {agent, triggers, provider} = createProvider();
+      const session = await provider.openSession({
+        connection: {} as never,
+        tools: provider.conversationCatalog(),
+        scope: {},
+        caller: conversationCaller({actorUserId: undefined}),
+      });
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'child.yml'},
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'actor-unavailable'}});
+      expect(agent.claimConversationRunStart).not.toHaveBeenCalled();
+      expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+    });
   });
 
   it('reads a run in the caller project', async () => {

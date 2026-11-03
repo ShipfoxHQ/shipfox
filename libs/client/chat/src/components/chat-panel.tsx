@@ -112,7 +112,7 @@ export function FirstUse({prompts, onPrompt, agent, picker}: FirstUseProps) {
         description={
           custom
             ? (agent.description ?? 'A custom agent of this project.')
-            : "Shippy reads this project's runs, logs, and workflows, and explains what failed. It can't start work yet."
+            : "Shippy reads this project's runs, logs, and workflows, and explains what failed, and can start a workflow when you ask."
         }
       />
       {picker}

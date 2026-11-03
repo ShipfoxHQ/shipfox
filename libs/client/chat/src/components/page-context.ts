@@ -8,11 +8,11 @@ export function suggestedPrompts(context: AgentPageContext | undefined): string[
     case 'job':
       return ['What happened in this job?'];
     case 'workflows':
-      return ['What does each workflow do?'];
+      return ['What does each workflow do?', 'Which workflow can you start for me?'];
     case 'workflow':
-      return ['Explain this workflow'];
+      return ['Explain this workflow', 'Start this workflow'];
     case 'runs':
-      return ['What failed recently?'];
+      return ['What failed recently?', 'Which workflow can you start for me?'];
     default:
       return [];
   }

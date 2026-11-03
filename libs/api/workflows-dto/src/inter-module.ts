@@ -82,6 +82,13 @@ const workflowRunTriggerReferenceSchema = z.object({
   commit: z.string().nullable(),
   actor: z.string().nullable(),
 });
+export const conversationTriggerSourceSchema = z.object({
+  id: idSchema,
+  agentKey: z.string().min(1),
+  provider: z.string().min(1).optional(),
+});
+export type ConversationTriggerSourceDto = z.infer<typeof conversationTriggerSourceSchema>;
+
 const triggerPayloadSchema = z.union([
   z.object({
     provider: z.literal('manual').optional(),
@@ -92,6 +99,8 @@ const triggerPayloadSchema = z.union([
     subscriptionId: idSchema.optional(),
     userId: idSchema.optional(),
     parentRun: z.object({runId: idSchema}).optional(),
+    // Without this field, parsing the payload strips the conversation that started the run.
+    conversation: conversationTriggerSourceSchema.optional(),
   }),
   z.object({
     provider: z.literal('cron').optional(),
@@ -650,6 +659,11 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         attempt: attemptSchema.optional(),
       }),
       output: workflowRunOverviewResponseSchema.nullable(),
+    },
+    /** Whether a start with this trigger idempotency key would return an existing run. */
+    hasRunForIdempotencyKey: {
+      input: z.object({workspaceId: idSchema, idempotencyKey: z.string().min(1)}),
+      output: z.object({exists: z.boolean()}),
     },
     listWorkflowRunAttempts: {
       input: z.object({

@@ -79,6 +79,20 @@ export interface WorkflowSourceSnapshot {
   format: 'yaml';
 }
 
+/** The conversation that started a manual run. The conversation stays private to its author. */
+export interface ConversationTriggerSource {
+  id: string;
+  agentKey: string;
+  provider?: string | undefined;
+}
+
+/** What a run page may say about the conversation that started it. */
+export interface WorkflowRunConversation {
+  agentKey: string;
+  provider: string | null;
+  authorUserId: string | null;
+}
+
 export type TriggerPayload =
   | {
       source: 'manual';
@@ -88,6 +102,7 @@ export type TriggerPayload =
       subscriptionId?: string | undefined;
       userId?: string | undefined;
       parentRun?: {runId: string} | undefined;
+      conversation?: ConversationTriggerSource | undefined;
     }
   | {
       source: 'cron';
@@ -155,6 +170,7 @@ export type WorkflowRunListOmittedField = (typeof WORKFLOW_RUN_LIST_OMITTED_FIEL
 /** The run fields needed by list responses. */
 export type WorkflowRunList = Omit<WorkflowRun, WorkflowRunListOmittedField> & {
   parentRun: WorkflowRunParent | null;
+  conversation: WorkflowRunConversation | null;
 };
 
 /** A workflow run with the optional result marker used by idempotent trigger starts. */

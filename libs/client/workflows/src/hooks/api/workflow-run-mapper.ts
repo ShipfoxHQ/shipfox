@@ -2,6 +2,7 @@ import type {
   StepAttemptDetailResponseDto,
   WorkflowRunActionFileResponseDto,
   WorkflowRunAttemptDto,
+  WorkflowRunConversationDto,
   WorkflowRunJobListSummaryDto,
   WorkflowRunJobOverviewDto,
   WorkflowRunLineageHeadResponseDto,
@@ -21,6 +22,7 @@ import {
   WorkflowRunAttempt,
   WorkflowRunAttemptSummary,
   type WorkflowRunConcurrency,
+  type WorkflowRunConversation,
   type WorkflowRunDevSource,
   type WorkflowRunLineageHead,
   type WorkflowRunListItem,
@@ -74,6 +76,7 @@ type WorkflowRunBaseDto = Pick<
   | 'updated_at'
 > & {
   parent_run?: WorkflowRunParentDto | null | undefined;
+  conversation?: WorkflowRunConversationDto | null | undefined;
   secret_inputs?: WorkflowRunResponseDto['secret_inputs'];
 };
 
@@ -106,6 +109,7 @@ export function toWorkflowRun(dto: WorkflowRunBaseDto): WorkflowRun {
       ? {}
       : {secretInputs: toWorkflowRunSecretInputs(dto.secret_inputs)}),
     parentRun: toWorkflowRunParent(dto.parent_run),
+    conversation: toWorkflowRunConversation(dto.conversation),
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     isTemporary: dto.id.startsWith('temp-'),
@@ -121,6 +125,17 @@ export function toWorkflowRunSecretInputs(
     key: reference.key,
     projectId: reference.project_id,
   }));
+}
+
+function toWorkflowRunConversation(
+  conversation: WorkflowRunConversationDto | null | undefined,
+): WorkflowRunConversation | null {
+  if (!conversation) return null;
+  return {
+    agentKey: conversation.agent_key,
+    provider: conversation.provider,
+    authorUserId: conversation.author_user_id,
+  };
 }
 
 function toWorkflowRunParent(
@@ -227,6 +242,7 @@ export function toWorkflowRunOverview(dto: WorkflowRunOverviewResponseDto): Work
     triggerReference: dto.run.trigger_reference,
     secretInputs: toWorkflowRunSecretInputs(dto.run.secret_inputs),
     parentRun: toWorkflowRunParent(dto.run.parent_run),
+    conversation: toWorkflowRunConversation(dto.run.conversation),
     createdAt: dto.run.created_at,
     currentAttempt: attempt.attempt,
     latestAttempt: attempt.attempt,

@@ -285,6 +285,7 @@ function ProjectChat({project}: {project: Project}) {
                 failure={failure}
                 resolving={resolving}
                 workspaceSlug={workspace.slug}
+                projectSlug={project.slug}
                 pageContext={pageContext}
                 onNewConversation={startNewConversation}
                 newConversation={conversationId === undefined}
@@ -349,6 +350,7 @@ function ConversationBody({
   failure,
   resolving,
   workspaceSlug,
+  projectSlug,
   pageContext,
   onNewConversation,
   newConversation,
@@ -360,6 +362,7 @@ function ConversationBody({
   failure: TurnFailure | undefined;
   resolving: boolean;
   workspaceSlug: string;
+  projectSlug: string;
   pageContext: AgentPageContext | undefined;
   onNewConversation: () => void;
   /** True while the next message creates a conversation, so the user can pick its agent. */
@@ -387,6 +390,8 @@ function ConversationBody({
   return (
     <ChatTranscript
       entries={chat.transcript}
+      workspaceSlug={workspaceSlug}
+      projectSlug={projectSlug}
       activity={chat.activity}
       olderHistory={chat.olderHistory}
       renderNotice={(entry) => (

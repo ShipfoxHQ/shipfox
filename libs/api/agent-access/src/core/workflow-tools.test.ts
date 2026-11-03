@@ -691,6 +691,7 @@ function overview(attempt = 2): WorkflowRunOverviewResponseDto {
       trigger_event: 'push',
       trigger_reference: {repository: 'shipfox/platform', ref: 'main', commit: 'abc', actor: 'noe'},
       parent_run: null,
+      conversation: null,
       secret_inputs: null,
       created_at: isoDate,
     },

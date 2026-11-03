@@ -68,6 +68,7 @@ function run(params: Partial<WorkflowRunListItemDto> = {}): WorkflowRunListItemD
       actor: 'e2e',
     }),
     parent_run: valueOr(params.parent_run, null),
+    conversation: valueOr(params.conversation, null),
     created_at: valueOr(params.created_at, timestamp),
     updated_at: valueOr(params.updated_at, timestamp),
     started_at: valueOr(params.started_at, null),
@@ -107,6 +108,7 @@ function runHeader(): WorkflowRunOverviewHeaderDto {
     trigger_event: 'push',
     trigger_reference: null,
     parent_run: null,
+    conversation: null,
     secret_inputs: null,
     created_at: timestamp,
   };

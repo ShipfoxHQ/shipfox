@@ -32,6 +32,24 @@ describe('WorkflowRunList', () => {
     expect(screen.getAllByText('Started by release-production #42')).toHaveLength(1);
   });
 
+  test('says via the agent on a run an agent started, even next to an actor', async () => {
+    const run = workflowRunListItem({
+      conversation: {
+        agent_key: 'shippy',
+        provider: null,
+        author_user_id: '99999999-9999-4999-8999-999999999999',
+      },
+      trigger_reference: {repository: null, ref: null, commit: null, actor: 'noe'},
+    });
+
+    renderWithRouter(<WorkflowRunRow run={run} workspaceSlug="acme" projectSlug="checkout-api" />);
+
+    expect(await screen.findByText('via Shippy')).toBeInTheDocument();
+    expect(screen.getByRole('link')).toHaveAccessibleName(
+      expect.stringContaining('started via Shippy'),
+    );
+  });
+
   test('resolves a parent link in another project', async () => {
     const parentRunId = '77777777-7777-4777-8777-777777777777';
     const parentProjectId = '99999999-9999-4999-8999-999999999999';

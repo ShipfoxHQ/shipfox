@@ -17,6 +17,7 @@ import {WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT} from '@shipfox/api-workflows-
 import {encodeStringIdCursor} from '@shipfox/node-drizzle';
 import type {
   WorkflowRun,
+  WorkflowRunConversation,
   WorkflowRunDevSource,
   WorkflowRunList,
   WorkflowRunParent,
@@ -34,6 +35,13 @@ import type {
   WorkflowRunSelection,
 } from '#db/index.js';
 import {toStepSourceLocationDto} from './step.js';
+
+/** The conversation is private to its author, so its id never leaves the payload at rest. */
+function toTriggerPayloadDto(payload: WorkflowRun['triggerPayload']): Record<string, unknown> {
+  if (!('conversation' in payload) || payload.conversation === undefined) return payload;
+  const {id: _conversationId, ...conversation} = payload.conversation;
+  return {...payload, conversation};
+}
 
 export function toRunDto(
   run: WorkflowRun,
@@ -55,7 +63,7 @@ export function toRunDto(
     trigger_provider: run.triggerProvider,
     trigger_source: run.triggerSource,
     trigger_event: run.triggerEvent,
-    trigger_payload: run.triggerPayload,
+    trigger_payload: toTriggerPayloadDto(run.triggerPayload),
     trigger_reference: toTriggerReferenceDto(run.triggerReference),
     inputs: run.inputs,
     secret_inputs: toSecretInputsDto(run.secretInputs),
@@ -116,6 +124,7 @@ function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyR
     trigger_event: run.triggerEvent,
     trigger_reference: toTriggerReferenceDto(run.triggerReference),
     parent_run: toParentRunDto(run.parentRun),
+    conversation: toConversationDto(run.conversation),
     created_at: run.createdAt.toISOString(),
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
@@ -138,6 +147,15 @@ function toSecretInputsDto(
       },
     ]),
   );
+}
+
+function toConversationDto(conversation: WorkflowRunConversation | null | undefined) {
+  if (!conversation) return null;
+  return {
+    agent_key: conversation.agentKey,
+    provider: conversation.provider,
+    author_user_id: conversation.authorUserId,
+  };
 }
 
 function toParentRunDto(parentRun: WorkflowRunParent | null | undefined) {
@@ -260,6 +278,7 @@ export function toRunOverviewDto(
       trigger_reference: toTriggerReferenceDto(overview.run.triggerReference),
       secret_inputs: toSecretInputsDto(overview.run.secretInputs),
       parent_run: toParentRunDto(overview.run.parentRun),
+      conversation: toConversationDto(overview.run.conversation),
       created_at: overview.run.createdAt.toISOString(),
     },
     attempt: toRunOverviewAttemptDto(overview.attempt),

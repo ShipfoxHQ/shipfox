@@ -14,7 +14,9 @@ Chat with Shippy, the project agent, in a panel beside project pages.
 - **The transcript**: user and agent bubbles, and tool rows that read as they
   do on run pages. Tool rows come from `pairSessionRows` and the action
   presentation in `@shipfox/client-logs`. Reads of one kind group, and a call
-  with no result reads as unknown, never failed.
+  with no result reads as unknown, never failed. A started run gets its own
+  `Run started` row with the run number and a link, and it never joins a group
+  of reads.
 - **Turn states**: thinking, a slow start, stopping, reconnecting, queued
   messages, stopped replies, failures with Retry or Continue, denied messages
   with Send again, a conversation that is too long, a locked model, no model,

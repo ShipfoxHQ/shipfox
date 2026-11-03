@@ -22,7 +22,91 @@ function toolStates(entry: TranscriptEntry | undefined) {
   );
 }
 
+const STARTED_RUN_ID = '44444444-4444-4444-8444-444444444444';
+
+function startResult(toolCallId: string, result: Record<string, unknown>, isError = false) {
+  return {
+    kind: 'tool-result' as const,
+    timestamp: 4,
+    toolCallId,
+    toolName: 'start_workflow_run',
+    output: `<untrusted_data source="start_workflow_run">\n${JSON.stringify(result)}\n</untrusted_data>`,
+    isError,
+  };
+}
+
 describe('buildTranscript', () => {
+  test('shows a started run on its own row, apart from the reads around it', () => {
+    const entries = buildTranscript({
+      items: [
+        userItem(1, 'Deploy it'),
+        rowsItem({
+          seq: 2,
+          turnId: TURN_ID,
+          rows: [
+            toolCall('read-1', 'list_workflow_runs'),
+            toolResult('read-1', 'list_workflow_runs'),
+            toolCall('start-1', 'start_workflow_run', '{"workflow":"deploy.yml"}'),
+            startResult('start-1', {run_id: STARTED_RUN_ID, run_number: 12, name: 'Deploy'}),
+            toolCall('read-2', 'list_workflow_runs'),
+            toolResult('read-2', 'list_workflow_runs'),
+          ],
+        }),
+      ],
+      queued: [],
+      partialText: '',
+      runningTurnId: undefined,
+    });
+
+    expect(kinds(entries)).toEqual(['user', 'tools', 'run-started', 'tools']);
+    expect(entries[2]).toMatchObject({
+      kind: 'run-started',
+      run: {runId: STARTED_RUN_ID, number: 12, name: 'Deploy'},
+    });
+  });
+
+  test('keeps a refused start as an ordinary failed tool row', () => {
+    const entries = buildTranscript({
+      items: [
+        rowsItem({
+          seq: 1,
+          turnId: TURN_ID,
+          rows: [
+            toolCall('start-1', 'start_workflow_run'),
+            startResult('start-1', {code: 'run-budget-exhausted'}, true),
+          ],
+        }),
+      ],
+      queued: [],
+      partialText: '',
+      runningTurnId: undefined,
+    });
+
+    expect(kinds(entries)).toEqual(['tools']);
+    expect(toolStates(entries[0])).toEqual(['failed']);
+  });
+
+  test('does not trust a result that is not a run', () => {
+    const entries = buildTranscript({
+      items: [
+        rowsItem({
+          seq: 1,
+          turnId: TURN_ID,
+          rows: [
+            toolCall('start-1', 'start_workflow_run'),
+            startResult('start-1', {run_id: 'not-a-uuid', run_number: 1, name: 'x'}),
+          ],
+        }),
+      ],
+      queued: [],
+      partialText: '',
+      runningTurnId: undefined,
+    });
+
+    expect(kinds(entries)).toEqual(['tools']);
+    expect(toolStates(entries[0])).toEqual(['succeeded']);
+  });
+
   test('pairs a tool call with its result across items, between the bubbles', () => {
     const entries = buildTranscript({
       items: [

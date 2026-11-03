@@ -11,8 +11,17 @@ describe('suggestedPrompts', () => {
   });
 
   test('chooses by page, and suggests nothing on settings', () => {
-    expect(suggestedPrompts({page: 'runs'})).toEqual(['What failed recently?']);
-    expect(suggestedPrompts({page: 'workflows'})).toEqual(['What does each workflow do?']);
+    expect(suggestedPrompts({page: 'runs'})).toEqual([
+      'What failed recently?',
+      'Which workflow can you start for me?',
+    ]);
+    expect(suggestedPrompts({page: 'workflows'})).toEqual([
+      'What does each workflow do?',
+      'Which workflow can you start for me?',
+    ]);
+    expect(suggestedPrompts({page: 'workflow', definitionId: 'definition'})).toContain(
+      'Start this workflow',
+    );
     expect(suggestedPrompts({page: 'project_settings', section: 'general'})).toEqual([]);
     expect(suggestedPrompts(undefined)).toEqual([]);
   });

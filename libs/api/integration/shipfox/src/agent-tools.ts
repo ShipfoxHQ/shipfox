@@ -1,6 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import {ANNOTATION_READ_BODY_MAX_BYTES, truncateAnnotationBody} from '@shipfox/annotations-dto';
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
+import {CONVERSATION_RUN_START_LIMIT} from '@shipfox/api-agent-dto';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {
@@ -13,8 +15,8 @@ import type {
   AgentToolJsonSchema,
   AgentToolSelectionCatalog,
   AgentToolSession,
+  AgentToolsConversationCallerContext,
   AgentToolsProvider,
-  AgentToolsRunCallerContext,
   IntegrationConnection,
   OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-spi';
@@ -85,6 +87,7 @@ export type ShipfoxToolCallResult = {
 };
 
 export interface ShipfoxAgentToolsProviderOptions {
+  agent: Pick<AgentInterModuleClient, 'claimConversationRunStart'>;
   clientBaseUrl: string;
   annotations: Pick<AnnotationsInterModuleClient, 'listAnnotationsForRunAttempt'>;
   definitions: Pick<
@@ -102,6 +105,7 @@ export interface ShipfoxAgentToolsProviderOptions {
     | 'getWorkflowJobExecutionContext'
     | 'getWorkflowRunOverview'
     | 'getWorkflowStepAttemptDetail'
+    | 'hasRunForIdempotencyKey'
     | 'listFailedStepAttempts'
     | 'listWorkflowRunJobExplanations'
     | 'listWorkflowRunJobs'
@@ -139,6 +143,19 @@ const startWorkflowRunInputSchema = objectSchema(
       maxLength: SHIPFOX_IDEMPOTENCY_KEY_MAX_LENGTH,
       description: 'Idempotency key for agent calls.',
     },
+  },
+  ['workflow'],
+);
+
+// A conversation names no project and no key: it stays in its project, and the call item is the key.
+const startWorkflowRunProperties = startWorkflowRunInputSchema.properties as Record<
+  string,
+  unknown
+>;
+const conversationStartWorkflowRunInputSchema = objectSchema(
+  {
+    workflow: startWorkflowRunProperties.workflow as AgentToolJsonSchema,
+    inputs: startWorkflowRunProperties.inputs as AgentToolJsonSchema,
   },
   ['workflow'],
 );
@@ -789,6 +806,7 @@ const CONVERSATION_TOOL_IDS: readonly string[] = [
   'list_workflow_run_job_explanations',
   'get_workflow_definition_source',
   'search_docs',
+  'start_workflow_run',
 ];
 
 export const shipfoxConversationToolCatalog: readonly AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope>[] =
@@ -860,6 +878,11 @@ export class ShipfoxAgentToolsProvider
     if (caller.callerKind === 'conversation' && Object.hasOwn(call.arguments, 'project_id')) {
       return Promise.resolve(
         toolError('Parameter project_id is not allowed: a conversation stays in its project'),
+      );
+    }
+    if (caller.callerKind === 'conversation' && Object.hasOwn(call.arguments, 'idempotency_key')) {
+      return Promise.resolve(
+        toolError('Parameter idempotency_key is not allowed: a conversation call is its own key'),
       );
     }
     const validationError = validateShipfoxToolArguments(tool.id, call.arguments);
@@ -1055,18 +1078,8 @@ export class ShipfoxAgentToolsProvider
   }
 
   private async startWorkflowRun(caller: ShipfoxCaller, args: Record<string, unknown>) {
-    if (caller.callerKind === undefined)
-      return toolError('Shipfox tools require callerKind in workflow caller context');
-    if (caller.callerKind === 'conversation')
-      return unavailableToConversation('start_workflow_run');
-    if (args.secrets !== undefined && caller.callerKind !== 'tool_step') {
-      return toolError(
-        'The secrets parameter is only allowed for tool-step callers',
-        'secrets-not-allowed',
-      );
-    }
-    const validationError = validateStartWorkflowRunArguments(args);
-    if (validationError !== undefined) return toolError(validationError);
+    const refusal = startWorkflowRunRefusal(caller, args);
+    if (refusal !== undefined) return refusal;
     const projectId = stringArgument(args, 'project_id') ?? caller.projectId;
     const workflow = stringArgument(args, 'workflow');
     if (workflow === undefined) throw new Error('Validated workflow argument is missing');
@@ -1079,10 +1092,16 @@ export class ShipfoxAgentToolsProvider
         projectId,
         configPath: workflow,
       });
+      if (
+        caller.callerKind === 'conversation' &&
+        !(await this.claimConversationRunStart(caller, idempotencyKey))
+      ) {
+        return runBudgetExhausted();
+      }
       const started = await this.options.triggers.fireManualTrigger({
         workspaceId: caller.workspaceId,
         definitionId: definition.definitionId,
-        parentRun: {runId: caller.runId},
+        ...startedBy(caller),
         ...(recordInput(args.inputs) === undefined ? {} : {inputs: recordInput(args.inputs)}),
         ...(secretInputs === undefined ? {} : {secretInputs}),
         idempotencyKey,
@@ -1105,6 +1124,26 @@ export class ShipfoxAgentToolsProvider
       if (mapped !== undefined) return mapped;
       throw error;
     }
+  }
+
+  /**
+   * A repeated call returns its run without spending the budget again, so a retry after a lost
+   * result can't run the budget out.
+   */
+  private async claimConversationRunStart(
+    caller: AgentToolsConversationCallerContext,
+    idempotencyKey: string,
+  ): Promise<boolean> {
+    const {exists} = await this.options.workflows.hasRunForIdempotencyKey({
+      workspaceId: caller.workspaceId,
+      idempotencyKey,
+    });
+    if (exists) return true;
+    const {claimed} = await this.options.agent.claimConversationRunStart({
+      workspaceId: caller.workspaceId,
+      conversationId: caller.conversationId,
+    });
+    return claimed;
   }
 
   private async requireProject(workspaceId: string, projectId: string) {
@@ -2195,10 +2234,49 @@ function describeSizeFailure(
   return `${subject}: ${details.measuredBytes} bytes, limit ${details.limitBytes} bytes.`;
 }
 
-function idempotencyKeyForCall(
+function startWorkflowRunRefusal(
+  caller: ShipfoxCaller,
   args: Record<string, unknown>,
-  caller: AgentToolsRunCallerContext,
-): string {
+): ShipfoxToolCallResult | undefined {
+  if (caller.callerKind === undefined)
+    return toolError('Shipfox tools require callerKind in workflow caller context');
+  if (caller.callerKind === 'conversation' && caller.actorUserId === undefined) {
+    return toolError(
+      'This conversation has no Shipfox user to start a run for',
+      'actor-unavailable',
+    );
+  }
+  if (args.secrets !== undefined && caller.callerKind !== 'tool_step') {
+    return toolError(
+      'The secrets parameter is only allowed for tool-step callers',
+      'secrets-not-allowed',
+    );
+  }
+  const validationError = validateStartWorkflowRunArguments(args);
+  return validationError === undefined ? undefined : toolError(validationError);
+}
+
+function runBudgetExhausted(): ShipfoxToolCallResult {
+  return toolError(
+    `${CONVERSATION_RUN_START_LIMIT} runs started since the user last wrote. Stop starting runs and ask the user whether to start more.`,
+    'run-budget-exhausted',
+  );
+}
+
+function startedBy(caller: ShipfoxCaller) {
+  if (caller.callerKind === 'conversation') {
+    return {
+      userId: caller.actorUserId as string,
+      conversation: {id: caller.conversationId, agentKey: caller.agentKey},
+    };
+  }
+  return {parentRun: {runId: caller.runId}};
+}
+
+function idempotencyKeyForCall(args: Record<string, unknown>, caller: ShipfoxCaller): string {
+  if (caller.callerKind === 'conversation') {
+    return `conversation:${caller.conversationId}:${caller.callItemId}`;
+  }
   if (caller.callerKind === 'agent') {
     const suppliedKey = stringArgument(args, 'idempotency_key');
     return suppliedKey === undefined ? randomUUID() : `${caller.runId}:${suppliedKey}`;
@@ -2225,9 +2303,17 @@ function isOutsideConversationProject(caller: ShipfoxCaller, projectId: string):
 function toConversationTool(
   tool: AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope>,
 ): AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope> {
-  return tool.id === 'get_step_logs'
-    ? {...tool, inputSchema: conversationGetStepLogsInputSchema}
-    : withoutProjectId(tool);
+  if (tool.id === 'get_step_logs')
+    return {...tool, inputSchema: conversationGetStepLogsInputSchema};
+  if (tool.id === 'start_workflow_run') {
+    return {
+      ...tool,
+      description:
+        'Start a synced workflow that has a manual trigger, in this project, and return its run identity. The call does not wait for the run to finish. Starting a run does work for the user, so confirm what to start before calling it.',
+      inputSchema: conversationStartWorkflowRunInputSchema,
+    };
+  }
+  return withoutProjectId(tool);
 }
 function withoutProjectId(
   tool: AgentToolCatalogEntry<ShipfoxAgentToolRequiredScope>,

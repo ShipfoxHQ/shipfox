@@ -629,6 +629,7 @@ describe('turn runtime', () => {
             kind: 'conversation',
             projectId,
             conversationId: conversation.id,
+            agentKey: conversation.agentKey,
             turnId,
             callItemId: `${assistant.id}:0`,
             actorUserId: ownerUserId,

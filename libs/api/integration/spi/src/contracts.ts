@@ -499,6 +499,7 @@ export interface AgentToolsConversationCallerContext {
   /** The only project the call may reach. */
   projectId: string;
   conversationId: string;
+  agentKey: string;
   turnId: string;
   callItemId: string;
   /** Absent when the conversation has no Shipfox user, as on an integration origin. */

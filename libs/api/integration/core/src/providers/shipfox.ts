@@ -20,6 +20,7 @@ async function loadShipfoxModuleParts(
         : {
             adapters: {
               agent_tools: createShipfoxAgentToolsProvider({
+                agent: interModule.agent,
                 annotations: interModule.annotations,
                 clientBaseUrl: config.CLIENT_BASE_URL,
                 definitions: interModule.definitions,

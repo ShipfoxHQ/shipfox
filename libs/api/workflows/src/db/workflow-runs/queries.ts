@@ -27,7 +27,12 @@ import {jobs} from '../schema/jobs.js';
 import {stepAttempts} from '../schema/step-attempts.js';
 import {steps} from '../schema/steps.js';
 import {toWorkflowRunAttempt, workflowRunAttempts} from '../schema/workflow-run-attempts.js';
-import {toWorkflowRun, toWorkflowRunList, workflowRuns} from '../schema/workflow-runs.js';
+import {
+  toWorkflowRun,
+  toWorkflowRunList,
+  workflowRunConversationColumn,
+  workflowRuns,
+} from '../schema/workflow-runs.js';
 import {
   listWorkflowRunConcurrencyByAttemptIds,
   type WorkflowRunAttemptRead,
@@ -642,6 +647,7 @@ export async function listWorkflowRuns(
       triggerSource: workflowRuns.triggerSource,
       triggerEvent: workflowRuns.triggerEvent,
       triggerReference: workflowRuns.triggerReference,
+      conversation: workflowRunConversationColumn,
       createdAt: workflowRuns.createdAt,
       cursorCreatedAt: timestampIdCursorColumn(workflowRuns.createdAt),
       updatedAt: workflowRuns.updatedAt,

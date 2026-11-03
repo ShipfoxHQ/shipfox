@@ -15,6 +15,7 @@ import {
 } from './job-execution.js';
 import type {StepSourceLocation} from './step.js';
 import type {
+  WorkflowRunConversation,
   WorkflowRunDevSource,
   WorkflowRunOrigin,
   WorkflowRunParent,
@@ -74,6 +75,7 @@ export interface WorkflowRunOverviewHeader {
   } | null;
   secretInputs: WorkflowRunSecretInput[];
   parentRun: WorkflowRunParent | null;
+  conversation: WorkflowRunConversation | null;
   createdAt: string;
 }
 

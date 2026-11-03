@@ -6,11 +6,11 @@ The `@shipfox/api-integration-shipfox` package provides the built-in Shipfox wor
 
 - **`ShipfoxAgentToolsProvider`** starts workflows and reads projects, workflow definitions and their source, runs, jobs and job outputs, step attempts, job explanations, step logs, run annotations, and the documentation.
 - **`shipfoxAgentToolCatalog`** describes the thirteen current Shipfox tools for workflows, runs, jobs, logs, and documentation.
-- **`shipfoxConversationToolCatalog`** lists the tools a conversation can call. It omits `list_projects` and `start_workflow_run`, has no `project_id` parameter, and uses a flat `get_step_logs` schema because Claude rejects a top-level `oneOf`.
+- **`shipfoxConversationToolCatalog`** lists the tools a conversation can call. It omits `list_projects`, has no `project_id` parameter, takes no `idempotency_key` on `start_workflow_run`, and uses a flat `get_step_logs` schema because Claude rejects a top-level `oneOf`.
 - **`shipfoxAgentToolSelectionCatalog`** exposes the standalone tool selector.
-- **`createShipfoxAgentToolsProvider`** creates a provider with annotations, definitions, docs, logs, projects, triggers, and workflow clients.
+- **`createShipfoxAgentToolsProvider`** creates a provider with agent, annotations, definitions, docs, logs, projects, triggers, and workflow clients.
 
-The provider uses the caller workspace and starts the child with the caller run as its parent. It has no connection row, database, or secrets.
+The provider uses the caller workspace. A run caller starts the child with the caller run as its parent, and a conversation caller starts a root run. It has no connection row, database, or secrets.
 
 ## Installation and setup
 
@@ -25,7 +25,7 @@ Add the package to an integration composition package:
 }
 ```
 
-Pass the annotations, definitions, logs, projects, triggers, and workflows inter-module clients when creating the provider, plus a `docs` cache from `@shipfox/node-docs-client` for `search_docs`.
+Pass the agent, annotations, definitions, logs, projects, triggers, and workflows inter-module clients when creating the provider, plus a `docs` cache from `@shipfox/node-docs-client` for `search_docs`.
 
 ## Usage
 
@@ -35,6 +35,7 @@ import {
 } from '@shipfox/api-integration-shipfox';
 
 const provider = createShipfoxAgentToolsProvider({
+  agent,
   annotations,
   definitions,
   docs,
@@ -68,12 +69,13 @@ await session.close?.();
 
 `callerKind` is required. Use `tool_step` for workflow tool execution, `agent` for agent leases, and `conversation` for a server-side agent turn.
 
-A conversation caller has no run. It carries `projectId`, `conversationId`, `turnId`, `callItemId`, and an optional `actorUserId`, and it can't leave its project:
+A conversation caller has no run. It carries `projectId`, `conversationId`, `agentKey`, `turnId`, `callItemId`, and an optional `actorUserId`, and it can't leave its project:
 
 - `project_id` is rejected on every tool.
 - A run, job, or step in another project answers `not-found`, exactly like one that doesn't exist. A definition in another project does too.
 - A parent run in another project reads as a null `parent_run`.
-- `list_projects` and `start_workflow_run` return `invalid-request`.
+- `list_projects` returns `invalid-request`.
+- `start_workflow_run` starts a root run in the conversation's project, for `actorUserId`, and stores the conversation in the manual trigger payload so the run page can name the agent. The idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. A conversation with no `actorUserId` can't start runs. Each new start spends one of the conversation's run starts, and a message from a person gives them back. When they are used, the tool returns `run-budget-exhausted` and starts nothing. A repeated call doesn't spend the budget again.
 
 Lease callers keep their workspace-wide reads.
 

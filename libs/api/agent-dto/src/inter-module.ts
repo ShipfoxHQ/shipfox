@@ -312,6 +312,14 @@ export const agentInterModuleContract = defineInterModuleContract({
       }),
       output: interactionRoutingResultSchema,
     },
+    /**
+     * Spends one run start from a conversation's budget. A message from a person gives the budget
+     * back. `claimed` is false once the budget is used.
+     */
+    claimConversationRunStart: {
+      input: z.object({workspaceId: z.string().uuid(), conversationId: z.string().uuid()}),
+      output: z.object({claimed: z.boolean()}),
+    },
     releaseSession: {
       input: z.object({
         sessionId: z.string().uuid(),

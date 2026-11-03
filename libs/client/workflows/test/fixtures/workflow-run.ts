@@ -107,6 +107,7 @@ type WorkflowRunFixtureDto = Omit<
   'trigger_payload' | 'inputs' | 'source_snapshot'
 > & {
   parent_run?: WorkflowRunListItemDto['parent_run'];
+  conversation?: WorkflowRunListItemDto['conversation'];
   // The overview's attempt adds its terminal result, which defaults to none.
   run_attempt: WorkflowRunAttemptDto &
     Partial<
@@ -151,6 +152,7 @@ export function workflowRunDto(
     trigger_event: 'fire',
     trigger_reference: null,
     parent_run: null,
+    conversation: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
     started_at: null,
@@ -173,9 +175,11 @@ export function workflowRunResponseDto(
     source_snapshot: sourceSnapshot = null,
     ...runOverrides
   } = overrides;
-  const {parent_run: _parentRun, ...responseRun} = workflowRunDto(
-    runOverrides as Partial<WorkflowRunListItemDto>,
-  );
+  const {
+    parent_run: _parentRun,
+    conversation: _conversation,
+    ...responseRun
+  } = workflowRunDto(runOverrides as Partial<WorkflowRunListItemDto>);
   return {
     ...responseRun,
     trigger_payload: triggerPayload,
@@ -351,6 +355,7 @@ export function workflowRunOverviewResponseDto(
       trigger_reference: detail.trigger_reference,
       secret_inputs: detail.secret_inputs ?? null,
       parent_run: detail.parent_run ?? null,
+      conversation: detail.conversation ?? null,
       created_at: detail.created_at,
     },
     attempt: {

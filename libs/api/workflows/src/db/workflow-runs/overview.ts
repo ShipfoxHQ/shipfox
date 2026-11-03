@@ -19,6 +19,7 @@ import {
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {
   SecretInputReference,
+  WorkflowRunConversation,
   WorkflowRunOriginState,
   WorkflowRunParent,
   WorkflowRunStatus,
@@ -31,7 +32,12 @@ import {jobExecutions} from '../schema/job-executions.js';
 import {jobs} from '../schema/jobs.js';
 import {steps} from '../schema/steps.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
-import {toWorkflowRunOriginState, workflowRuns} from '../schema/workflow-runs.js';
+import {
+  toWorkflowRunConversation,
+  toWorkflowRunOriginState,
+  workflowRunConversationColumn,
+  workflowRuns,
+} from '../schema/workflow-runs.js';
 import type {WorkflowRunConcurrencyRead} from './concurrency.js';
 
 export type BoundedExecutionCount = number | '100+';
@@ -49,6 +55,7 @@ export type WorkflowRunOverviewRun = WorkflowRunOriginState & {
   triggerReference: WorkflowRunTriggerReference | null;
   secretInputs: Record<string, SecretInputReference> | null;
   parentRun: WorkflowRunParent | null;
+  conversation: WorkflowRunConversation | null;
   createdAt: Date;
 };
 
@@ -447,6 +454,7 @@ async function loadOverviewTarget(
       triggerEvent: workflowRuns.triggerEvent,
       triggerReference: workflowRuns.triggerReference,
       secretInputs: workflowRuns.secretInputs,
+      conversation: workflowRunConversationColumn,
       parentRunId: parentRun.id,
       parentRunNumber: parentRun.number,
       parentRunName: parentRun.name,
@@ -513,6 +521,7 @@ async function loadOverviewTarget(
               projectId: row.parentRunProjectId,
             }
           : null,
+      conversation: toWorkflowRunConversation(row.conversation),
       createdAt: row.createdAt,
     },
     attempt: {

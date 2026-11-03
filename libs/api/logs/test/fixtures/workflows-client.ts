@@ -41,6 +41,7 @@ export function createTestWorkflowsClient(): WorkflowsModuleClient {
       getLatestRunAttempt: vi.fn(),
       getLatestStepAttempt: vi.fn(),
       getWorkflowRunOrigin: vi.fn(),
+      hasRunForIdempotencyKey: vi.fn(),
     }),
   }).workflows;
 }

@@ -130,6 +130,7 @@ import {
   listWorkflowRuns,
   listWorkflowStepAttemptSummaries,
   workflowRunAnnotationOriginKey,
+  workflowRunExistsForIdempotencyKey,
 } from '#db/index.js';
 import {deliverEventToListener, isListenerDeliveryRedundant} from '#db/job-listener-events.js';
 import {recordWorkflowChildRunStart} from '#metrics/instance.js';
@@ -597,6 +598,9 @@ export function createWorkflowsInterModulePresentation(params: {
         filteredTotalCount: result.filteredTotalCount,
       };
     },
+    hasRunForIdempotencyKey: async (input) => ({
+      exists: await workflowRunExistsForIdempotencyKey(input.idempotencyKey, input.workspaceId),
+    }),
     getWorkflowRunOverview: async (input) => {
       const scope = await getAccessibleRunScope(input.workspaceId, input.workflowRunId);
       if (!scope) return null;

@@ -340,6 +340,7 @@ describe('defaultModules', () => {
             releaseSession: vi.fn(),
             carryOverSessions: vi.fn(),
             routeInteraction: vi.fn(),
+            claimConversationRunStart: vi.fn(),
           },
         },
       ],
@@ -410,6 +411,7 @@ describe('defaultModules', () => {
             getLatestRunAttempt: vi.fn(),
             getLatestStepAttempt: vi.fn(),
             getWorkflowRunOrigin: vi.fn(),
+            hasRunForIdempotencyKey: vi.fn(),
             getLeasedAgentSessionContext: vi.fn(),
             getLeasedAgentToolContext: vi.fn(),
             getStepLogContext: vi.fn(),
@@ -1307,6 +1309,7 @@ describe('defaultModules', () => {
         },
       },
       interModule: {
+        agent: expect.objectContaining({claimConversationRunStart: expect.any(Function)}),
         annotations: expect.objectContaining({listAnnotationsForRunAttempt: expect.any(Function)}),
         definitions: expect.objectContaining({listDefinitionsByProject: expect.any(Function)}),
         docs: mocks.docs,

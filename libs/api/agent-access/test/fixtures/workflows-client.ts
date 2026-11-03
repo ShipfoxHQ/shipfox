@@ -30,6 +30,7 @@ interface TestWorkflowsClient {
     getLatestRunAttempt: WorkflowHandlerMock;
     getLatestStepAttempt: WorkflowHandlerMock;
     getWorkflowRunOrigin: WorkflowHandlerMock;
+    hasRunForIdempotencyKey: WorkflowHandlerMock;
   };
 }
 
@@ -55,6 +56,7 @@ export function createTestWorkflowsClient(): TestWorkflowsClient {
     getLatestRunAttempt: vi.fn(),
     getLatestStepAttempt: vi.fn(),
     getWorkflowRunOrigin: vi.fn(),
+    hasRunForIdempotencyKey: vi.fn(),
   };
   const workflows = createFakeInterModuleClients({
     workflows: defineInterModulePresentation(workflowsInterModuleContract, {
@@ -91,6 +93,7 @@ export function createTestWorkflowsClient(): TestWorkflowsClient {
       getLatestRunAttempt: (input) => handlers.getLatestRunAttempt(input),
       getLatestStepAttempt: (input) => handlers.getLatestStepAttempt(input),
       getWorkflowRunOrigin: (input) => handlers.getWorkflowRunOrigin(input),
+      hasRunForIdempotencyKey: (input) => handlers.hasRunForIdempotencyKey(input),
     }),
   }).workflows;
 

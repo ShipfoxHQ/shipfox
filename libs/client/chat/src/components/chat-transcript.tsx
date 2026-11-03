@@ -15,7 +15,7 @@ import {useRouter} from '@tanstack/react-router';
 import type {MouseEvent, ReactNode} from 'react';
 import type {TranscriptEntry} from '#core/transcript.js';
 import type {ReplyActivity} from '#core/turn-state.js';
-import {ChatToolRows} from './chat-tool-rows.js';
+import {ChatRunStarted, ChatToolRows} from './chat-tool-rows.js';
 
 const activityCopy: Partial<Record<ReplyActivity['kind'], string>> = {
   thinking: 'Thinking',
@@ -50,7 +50,15 @@ function useInAppLinks() {
   };
 }
 
-function EntryView({entry}: {entry: TranscriptEntry}) {
+function EntryView({
+  entry,
+  workspaceSlug,
+  projectSlug,
+}: {
+  entry: TranscriptEntry;
+  workspaceSlug: string;
+  projectSlug: string;
+}) {
   switch (entry.kind) {
     case 'user':
       return (
@@ -78,6 +86,10 @@ function EntryView({entry}: {entry: TranscriptEntry}) {
       );
     case 'tools':
       return <ChatToolRows nodes={entry.nodes} />;
+    case 'run-started':
+      return (
+        <ChatRunStarted run={entry.run} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />
+      );
     case 'notice':
       return null;
   }
@@ -85,6 +97,8 @@ function EntryView({entry}: {entry: TranscriptEntry}) {
 
 export interface ChatTranscriptProps {
   entries: readonly TranscriptEntry[];
+  workspaceSlug: string;
+  projectSlug: string;
   activity: ReplyActivity;
   /** Renders a notice entry, which needs the panel's actions. */
   renderNotice: (entry: Extract<TranscriptEntry, {kind: 'notice'}>) => ReactNode;
@@ -95,6 +109,8 @@ export interface ChatTranscriptProps {
 
 export function ChatTranscript({
   entries,
+  workspaceSlug,
+  projectSlug,
   activity,
   renderNotice,
   footer,
@@ -130,7 +146,15 @@ export function ChatTranscript({
                 messageId={entry.key}
                 scrollAnchor={entry.kind === 'user'}
               >
-                {entry.kind === 'notice' ? renderNotice(entry) : <EntryView entry={entry} />}
+                {entry.kind === 'notice' ? (
+                  renderNotice(entry)
+                ) : (
+                  <EntryView
+                    entry={entry}
+                    workspaceSlug={workspaceSlug}
+                    projectSlug={projectSlug}
+                  />
+                )}
               </MessageScrollerItem>
             ))}
             {status ? (

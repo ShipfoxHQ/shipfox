@@ -580,6 +580,14 @@ export const triggersInterModuleContract = defineInterModuleContract({
           definitionId: idSchema,
           userId: idSchema.optional(),
           parentRun: z.object({runId: idSchema}).optional(),
+          /** The conversation starting the run. `userId` still names its owner. */
+          conversation: z
+            .object({
+              id: idSchema,
+              agentKey: z.string().min(1),
+              provider: z.string().min(1).optional(),
+            })
+            .optional(),
           inputs: z.record(z.string(), z.unknown()).optional(),
           secretInputs: z.record(secretKeySchema, secretInputSourceSchema).optional(),
           idempotencyKey: z.string().min(1).optional(),
@@ -590,6 +598,13 @@ export const triggersInterModuleContract = defineInterModuleContract({
               code: z.ZodIssueCode.custom,
               message: 'Exactly one of userId or parentRun must be provided',
               path: ['userId'],
+            });
+          }
+          if (value.conversation !== undefined && value.userId === undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'A conversation run needs the userId of its owner',
+              path: ['conversation'],
             });
           }
         }),

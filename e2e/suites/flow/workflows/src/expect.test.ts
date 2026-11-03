@@ -138,6 +138,7 @@ function makeDetail(overrides: Partial<WorkflowRunObservation> = {}): WorkflowRu
     trigger_event: 'push',
     trigger_reference: null,
     parent_run: null,
+    conversation: null,
     secret_inputs: null,
     created_at: timestamp,
   };

@@ -17,6 +17,7 @@ import type {
   SecretInputReference,
   TriggerPayload,
   WorkflowRun,
+  WorkflowRunConversation,
   WorkflowRunList,
   WorkflowRunListOmittedField,
   WorkflowRunOriginState,
@@ -138,7 +139,33 @@ export type WorkflowRunListDb = Omit<
   WorkflowRunListOmittedField | 'parentRunId' | 'rootRunId' | 'depth'
 > & {
   parentRun: WorkflowRunParent | null;
+  /** `trigger_payload -> 'conversation'`, read in SQL so the list never loads the whole payload. */
+  conversation: unknown;
 };
+
+/**
+ * The conversation facts a list or overview row needs, cut out of `trigger_payload` in SQL so
+ * those reads never load the whole payload. The conversation id stays in the payload.
+ */
+export const workflowRunConversationColumn = sql<unknown>`case
+  when ${workflowRuns.triggerPayload} -> 'conversation' is null then null
+  else jsonb_build_object(
+    'agentKey', ${workflowRuns.triggerPayload} -> 'conversation' -> 'agentKey',
+    'provider', ${workflowRuns.triggerPayload} -> 'conversation' -> 'provider',
+    'authorUserId', ${workflowRuns.triggerPayload} -> 'userId'
+  )
+end`.as('conversation');
+
+export function toWorkflowRunConversation(value: unknown): WorkflowRunConversation | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const {agentKey, provider, authorUserId} = value as Record<string, unknown>;
+  if (typeof agentKey !== 'string') return null;
+  return {
+    agentKey,
+    provider: typeof provider === 'string' ? provider : null,
+    authorUserId: typeof authorUserId === 'string' ? authorUserId : null,
+  };
+}
 
 export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
   const originState = toWorkflowRunOriginState(row);
@@ -195,6 +222,7 @@ export function toWorkflowRunList(row: WorkflowRunListDb): WorkflowRunList {
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     parentRun: row.parentRun,
+    conversation: toWorkflowRunConversation(row.conversation),
   };
 }
 

@@ -58,6 +58,18 @@ export const workflowRunParentSchema = z.object({
 
 export type WorkflowRunParentDto = z.infer<typeof workflowRunParentSchema>;
 
+/**
+ * The agent conversation that started a run. It names the agent and the author and never the
+ * conversation, which is private to its author.
+ */
+export const workflowRunConversationSchema = z.object({
+  agent_key: z.string().min(1),
+  provider: z.string().nullable(),
+  author_user_id: z.string().uuid().nullable(),
+});
+
+export type WorkflowRunConversationDto = z.infer<typeof workflowRunConversationSchema>;
+
 export const workflowRunAttemptIdentitySchema = z.object({
   workflow_run_id: z.string().uuid(),
   workflow_run_attempt_id: z.string().uuid(),
@@ -387,6 +399,7 @@ export const workflowRunListItemSchema = z
      */
     has_started_job_execution: z.boolean().optional().default(true),
     parent_run: workflowRunParentSchema.nullable().optional().default(null),
+    conversation: workflowRunConversationSchema.nullable().optional().default(null),
   })
   .superRefine(validateWorkflowRunOrigin);
 
