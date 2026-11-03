@@ -1,7 +1,7 @@
 ---
 title: "Limits and Defaults Reference"
 sidebarTitle: "Limits"
-description: "Look up Shipfox gate attempt caps, job timeouts, concurrent step caps, log budgets and retention, output grouping caps, environment-map limits, workspace secret and variable caps, and agent session caps."
+description: "Look up Shipfox gate attempt caps, job timeouts, concurrent step caps, log budgets and retention, output grouping caps, environment-map limits, workspace secret and variable caps, managed config caps, and agent session caps."
 ---
 
 This page is the canonical home for shared operational limits. Other pages
@@ -68,6 +68,15 @@ Workflow outputs use the same JSON-safe encoding as job outputs.
 | Limit | Default | Configurable | Details |
 | --- | --- | --- | --- |
 | Secrets and variables per workspace | 10,000 | Self-host: `SECRETS_MAX_PER_WORKSPACE` | One cap counts secrets and variables together. See [Manage secrets and variables](/how-to/set-up-work/secrets-and-variables). |
+
+## Managed config
+
+| Limit | Default | Configurable | Details |
+| --- | --- | --- | --- |
+| File size | 1 MB | No | One file under `.shipfox/` in a repository Shipfox hosts. A larger file fails the commit with `file-too-large`. The same cap applies when Shipfox reads a workflow file from a linked repository. |
+| Changes per commit | 100 files | No | One `commit_config_changes` call is one commit. More changes fail with `too-many-changes`. |
+| Commit size | 1 MiB | No | The content of one commit. A larger commit fails with `commit-too-large`. |
+| Content | UTF-8 text under `.shipfox/` | No | Binary content, symbolic links, and submodules are refused with `content-not-text` or `path-not-allowed`. See [Configuration](/understand/configuration#in-your-repository-or-managed-by-shipfox). |
 
 ## Workflow chaining
 

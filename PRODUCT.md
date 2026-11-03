@@ -10,8 +10,9 @@ web
 
 The primary user is any engineer who wants to automate engineering work with AI
 agents that react to events. They write workflows as YAML in their own
-repository, wire them to the tools they already use (GitHub, Sentry, Slack,
-Linear, generic webhooks), and monitor runs live in the dashboard. They are
+repository, or in config Shipfox hosts until they move it there, wire them to
+the tools they already use (GitHub, Sentry, Slack, Linear, generic webhooks),
+and monitor runs live in the dashboard. They are
 comfortable reading a GitHub Actions file, live in terminals and logs, and expect
 data density, unambiguous status, and no marketing fluff.
 
@@ -54,8 +55,11 @@ and on how far a team can scale and control their factory from there.
 ## Operating Context
 
 - **Authoring.** Workflows are YAML files under `.shipfox/workflows/`, versioned
-  and reviewed like the rest of the repo. If you can read a GitHub Actions file,
-  you can read a Shipfox workflow.
+  and reviewed like the rest of the repo. A project can also start with managed
+  config: Shipfox hosts the same `.shipfox/` tree in a git repository of its
+  own, agents commit to branches, and the project can move to the user's
+  repository later through a pull request. If you can read a GitHub Actions
+  file, you can read a Shipfox workflow.
 - **Triggering.** Runs start from events on connected integrations (GitHub,
   Sentry, Slack, Linear, and a generic webhook for anything else) or on demand.
 - **Execution.** Workflows run on isolated runners. On cloud, Shipfox provides
@@ -95,8 +99,10 @@ repository already defines, such as its skills.
 
 Constraints:
 
-- Workflows are authored only as YAML in the user's repository, one file per
-  workflow.
+- Workflows are authored only as YAML under `.shipfox/workflows/`, one file per
+  workflow, in the user's repository or in managed config. Managed config holds
+  text files under `.shipfox/` only, has no `git clone` or `git push`, and moves
+  to a repository one way.
 - Shipfox is not a model provider yet; every agent step runs through a model
   provider the user connects with their own key.
 
@@ -129,10 +135,11 @@ Constraints:
 1. **Minutes to first run.** The distance from a connected repository to a real
    run is the one number the product optimizes above all else, especially on
    cloud. Every surface earns its place by not adding to it.
-2. **Build on what engineers already trust.** Workflows live as versioned YAML in
-   the user's repository, authored and reviewed like the rest of their code. We
-   extend the conventions engineers already know instead of inventing new ones,
-   because familiarity is the shortest path to adoption.
+2. **Build on what engineers already trust.** Workflows live as versioned YAML,
+   authored and reviewed like the rest of their code, in the user's repository
+   or in a git repository Shipfox hosts with the same layout. We extend the
+   conventions engineers already know instead of inventing new ones, because
+   familiarity is the shortest path to adoption.
 3. **Low floor, high ceiling.** The fast path never caps what is possible.
    Defaults get a user running immediately, and depth is there the moment they
    reach for it, never required to start. Speed and control do not trade off.

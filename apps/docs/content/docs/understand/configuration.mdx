@@ -1,0 +1,67 @@
+---
+title: "Configuration"
+sidebarTitle: "Configuration"
+description: "Understand how a project's workflows and actions are written as YAML, how Shipfox syncs them, and where they can live."
+---
+
+A project's **configuration** is a folder named `.shipfox/` that holds its
+workflows and actions. Shipfox reads that folder, and the project's
+**Automations** page shows what it found.
+
+## Configuration is YAML in a git repository
+
+One file is one workflow. The file says what starts the work, which jobs and
+steps run, and how the result is checked. An **action** is a reusable step
+that several workflows can share. It is a folder with an `action.yml` file.
+
+```text
+.shipfox/
+|-- workflows/
+|   |-- review-pull-requests.yml
+|   `-- triage-sentry-issues.yml
+`-- actions/
+    `-- notify-team/
+        `-- action.yml
+```
+
+A workflow uses an action by its path:
+
+```yaml
+steps:
+  - uses: ./.shipfox/actions/notify-team
+```
+
+The folder lives in a git repository, so configuration has history, branches,
+and review like code. The [workflow schema](/reference/workflow-schema) lists
+every field.
+
+## Shipfox reads your changes when you merge
+
+When you merge a change to the default branch, Shipfox reads the `.shipfox/`
+folder again. New and changed workflows are ready for the next run. Runs that
+already started do not change.
+
+If a file has an error, Shipfox keeps the last working version and shows the
+error on the **Automations** page.
+
+Changes on other branches are not active. You can test them with a dev run
+before you merge.
+
+[Find why a workflow did not sync](/how-to/run-and-troubleshoot/workflow-sync)
+lists the possible errors.
+
+## In your repository, or managed by Shipfox
+
+A project keeps its configuration in one of two places. A new project is
+managed by Shipfox by default. You can move it to your repository later.
+
+| | In your repository | Managed by Shipfox |
+| --- | --- | --- |
+| Where `.shipfox/` lives | A repository you connected through GitHub | A git repository Shipfox hosts for the project |
+| How you change it | A pull request in your repository | Your coding agent or the project agent commits to a branch |
+| Who approves a change | Your repository's merge rules | A review in Shipfox |
+| What a job checks out by default | The project's repository | Nothing. A job names the repositories it needs. |
+
+A managed project lets you start without a pull request. When you want the
+configuration next to your code,
+[move it to your repository](/how-to/set-up-work/move-config-to-repository).

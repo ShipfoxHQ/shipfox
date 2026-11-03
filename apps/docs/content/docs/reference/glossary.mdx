@@ -89,7 +89,7 @@ An informal synonym for [workflow](/reference/workflow-schema) sometimes used in
 
 ## Project
 
-Connects one Git repository to a Shipfox workspace. A project holds all workflow definitions and run history for that repository. Workflow YAML files live at `.shipfox/workflows/*.yml` inside the connected repository.
+The unit in a workspace that owns workflow definitions and run history. A project has one config source: a Git repository linked through a source integration connection, or a repository Shipfox hosts, called [managed config](/understand/configuration#in-your-repository-or-managed-by-shipfox). Workflow YAML files live at `.shipfox/workflows/*.yml` in that source. A managed project can [move to a repository](/how-to/set-up-work/move-config-to-repository) later.
 
 ## Model provider
 
@@ -155,7 +155,7 @@ variables](/how-to/set-up-work/secrets-and-variables).
 
 ## Workflow
 
-A YAML file under `.shipfox/workflows/` that defines automation for a project: jobs, steps, triggers, and runner requirements. Versioned in your repository alongside your code. The schema is strict: unknown keys are rejected at parse time. See the [Workflow Schema reference](/reference/workflow-schema).
+A YAML file under `.shipfox/workflows/` that defines automation for a project: jobs, steps, triggers, and runner requirements. Versioned in the project's config source: your repository alongside your code, or managed config. The schema is strict: unknown keys are rejected at parse time. See the [Workflow Schema reference](/reference/workflow-schema).
 
 ## Workspace
 

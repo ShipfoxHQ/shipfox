@@ -32,8 +32,13 @@ Shipfox uses one of two modes when a workflow names a repository:
 | **Only your projects' repositories** | Repositories used by Shipfox projects. |
 | **Every repository this integration can access** | Repositories selected for the GitHub App installation. |
 
+A new integration connection uses **Every repository this integration can
+access**. An existing integration connection keeps its mode.
+
 By default, a job checks out its project's repository. These modes apply when a
-workflow explicitly checks out a repository or a tool names one.
+workflow explicitly checks out a repository or a tool names one. A project with
+[managed config](/understand/configuration#in-your-repository-or-managed-by-shipfox) has no repository of its own, so
+its jobs check out only the repositories they name.
 
 Use [Manage GitHub repository
 access](/integrations/github/guides/manage-repository-access) to change these

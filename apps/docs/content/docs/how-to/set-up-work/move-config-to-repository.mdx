@@ -1,0 +1,119 @@
+---
+title: "Move a Project's Config to Your Repository"
+sidebarTitle: "Move Config to a Repository"
+description: "Keep your workflows next to your code, review changes as pull requests, and let your repository rules decide who approves them."
+---
+
+By default, Shipfox stores your workflows for you. You can move them into
+one of your GitHub repositories. After the move:
+
+- Your workflows live in the same repository as your code.
+- You change them with pull requests, like your code.
+- Your repository rules decide who can approve a change.
+
+Shipfox opens a pull request that adds the `.shipfox/` folder to your
+repository. When you merge it, the move is complete.
+
+<Callout type="warn">
+You cannot undo a move. Once Shipfox opens the pull request, the project
+belongs to that repository.
+</Callout>
+
+## Before you begin
+
+You need:
+
+- A project that shows **Managed by Shipfox** at the top of its
+  **Automations** page.
+- A GitHub repository that Shipfox can access. If your repository is not
+  listed, [connect GitHub](/integrations/github/setup) or
+  [give Shipfox access to it](/integrations/github/guides/manage-repository-access).
+- Someone who can merge pull requests in that repository.
+
+The repository must also:
+
+- Have at least one commit.
+- Have no `.shipfox/` folder yet.
+- Not be used by another Shipfox project.
+
+If one of these is not true, Shipfox tells you when you select the repository.
+
+## Move the project
+
+<Steps>
+  <Step>
+
+    **Start the move**
+
+    Open the project and select **Automations**. At the top of the page, select
+    **Move to your repository**.
+  </Step>
+  <Step>
+
+    **Select the repository**
+
+    If you connected GitHub more than once, first choose the account. Then
+    search for the repository and select it.
+
+    Shipfox checks the repository right away. If there is a problem, Shipfox
+    shows the reason and you cannot continue. Fix the problem or select
+    another repository.
+  </Step>
+  <Step>
+
+    **Confirm**
+
+    Shipfox shows you the repository and the number of files it will add. If
+    the repository is public, Shipfox tells you, because anyone can then read
+    your workflows. Select **Move to** followed by the repository name.
+
+    Shipfox opens the pull request. From this moment, the project belongs to
+    the repository.
+  </Step>
+</Steps>
+
+If the project has no workflows yet, there is nothing to add. The move
+completes at once, with no pull request.
+
+## Merge the pull request
+
+Until you merge, the **Automations** page shows **Waiting for merge** with a
+link to the pull request. Your workflows keep running as before. You cannot
+change them until the merge.
+
+Review the pull request and merge it in GitHub. You can edit the files in the
+pull request before you merge. Shipfox uses what you merge.
+
+After the merge, nothing changes for your workflows. They keep their
+schedules, their triggers, and their run numbers. From now on, you change them
+with pull requests in your repository.
+
+## Verify the move
+
+1. Open the project's **Automations** page. The top of the page shows the
+   repository name and **Synced**.
+2. Open the **Files** tab. You see the `.shipfox/` folder from your repository.
+3. Open the **Workflows** tab. Your workflows are still there, with their run
+   history.
+
+If you see **Failed** instead of **Synced**, use
+[Find why a workflow did not sync](/how-to/run-and-troubleshoot/workflow-sync).
+
+## If the move stops
+
+Sometimes Shipfox cannot finish the move, for example when GitHub does not
+answer. The **Automations** page then shows **Move stopped**.
+
+Select **Retry**. Shipfox continues the same move. It never opens a second
+pull request.
+
+If Shipfox shows an error instead, for example a missing permission, the
+project stays as it was. Fix the problem and start the move again.
+
+## If the pull request is closed without a merge
+
+The project still belongs to the repository, and your workflows keep running
+as before. The **Automations** page shows **Pull request closed**.
+
+Select **Open a new pull request**. Shipfox opens a new one with the same
+files. You can also reopen the closed pull request in GitHub.
