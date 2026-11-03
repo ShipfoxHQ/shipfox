@@ -43,8 +43,13 @@ describe('stuckJobDetector', () => {
     await stuckJobDetector();
 
     expect(mocks.runMaintenanceSweepActivity).toHaveBeenCalledOnce();
+    expect(mocks.deleteExpiredEphemeralRegistrationTokensActivity).not.toHaveBeenCalled();
+    expect(mocks.deleteExpiredJobExecutionTombstonesActivity).not.toHaveBeenCalled();
+    expect(mocks.deleteExpiredReservationsActivity).not.toHaveBeenCalled();
+    expect(mocks.deleteExpiredRunnerSessionsActivity).not.toHaveBeenCalled();
     expect(mocks.detectAndExpireStuckJobsActivity).not.toHaveBeenCalled();
     expect(mocks.reapStaleRunnerInstancesActivity).not.toHaveBeenCalled();
+    expect(mocks.recoverStaleIdleRunnerSessionsActivity).not.toHaveBeenCalled();
   });
 });
 

@@ -1,6 +1,13 @@
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 
 vi.mock('@temporalio/activity', () => ({Context: {current: () => ({heartbeat: vi.fn()})}}));
+vi.mock('#config.js', () => ({
+  config: {
+    TRIGGER_CRON_FANOUT: 2,
+    TRIGGER_CRON_CLAIM_BATCH: 100,
+    TRIGGER_CRON_JITTER_WINDOW_SECONDS: 0,
+  },
+}));
 vi.mock('#core/drain-cron-schedules.js', () => ({drainDueCronSchedules: vi.fn()}));
 
 const {drainDueCronSchedules} = await import('#core/drain-cron-schedules.js');

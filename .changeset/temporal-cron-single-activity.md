@@ -3,7 +3,4 @@
 "@shipfox/api-triggers": patch
 ---
 
-The once-a-minute Temporal crons use one activity per run, which cuts their Temporal actions by about 80%.
-
-- **Runners:** the stuck-job detector runs its eight maintenance steps in `runMaintenanceSweepActivity` instead of eight activities. The four cleanup steps stay best effort.
-- **Triggers:** the cron tick runs its `TRIGGER_CRON_FANOUT` drains in parallel inside `runCronTickActivity` instead of one activity per drain plus one to read the fanout. All the drains run on one worker, so adding pods no longer raises how many schedules fire per minute.
+Runner maintenance and the cron trigger tick use far fewer Temporal actions. Cron trigger throughput per minute is now set by `TRIGGER_CRON_FANOUT` and `TRIGGER_CRON_CLAIM_BATCH`; adding workers no longer raises it.
