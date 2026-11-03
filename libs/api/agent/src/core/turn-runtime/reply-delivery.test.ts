@@ -10,6 +10,7 @@ import {
 } from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {getTurnById, listContextItems, requestTurnStop} from '#db/turn-runtime.js';
+import {conversationReplyCount} from '#metrics/index.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {createTestProjectsClient} from '#test/fixtures/projects-client.js';
 import {createScriptedModel, textReply} from '#test/fixtures/scripted-model.js';
@@ -385,10 +386,17 @@ describe('reply delivery', () => {
       });
       const turnId = await answer();
       await finishConversationTurn({conversationId, turnId, status: 'succeeded'});
+      const count = vi.spyOn(conversationReplyCount, 'add');
 
       await deliver(turnId);
       await deliver(turnId);
 
+      expect(count).toHaveBeenCalledTimes(1);
+      expect(count).toHaveBeenCalledWith(1, {
+        provider: 'slack',
+        kind: 'response',
+        outcome: 'undeliverable',
+      });
       expect(integrations.sendInteractionReply).toHaveBeenCalledTimes(1);
       const items = await listContextItems({conversationId, fromSeq: 1});
       const notices = items.filter((item) => item.meta.custom_type === 'turn_notice');
@@ -430,6 +438,28 @@ describe('reply delivery', () => {
       expect(items.some((item) => item.meta.custom_type === 'turn_notice')).toBe(true);
     });
 
+    it('clears the progress even when the send fails', async () => {
+      const {answer, deliver, integrations, conversationId} = await setup();
+      const turnId = await answer();
+      await finishConversationTurn({conversationId, turnId, status: 'succeeded'});
+      integrations.sendInteractionReply.mockRejectedValueOnce(new Error('Slack is down'));
+
+      await expect(deliver(turnId)).rejects.toThrow('Slack is down');
+
+      expect(integrations.progress.at(-1)).toMatchObject({state: 'idle'});
+    });
+
+    it('does not fail a delivered reply when the progress can not be cleared', async () => {
+      const {answer, deliver, integrations, conversationId} = await setup();
+      const turnId = await answer();
+      await finishConversationTurn({conversationId, turnId, status: 'succeeded'});
+      integrations.reportInteractionProgress.mockRejectedValueOnce(new Error('No status'));
+
+      await deliver(turnId);
+
+      expect(integrations.replies).toHaveLength(1);
+    });
+
     it('retries a failure that may pass', async () => {
       const {answer, deliver, integrations, conversationId} = await setup();
       const turnId = await answer();
@@ -453,23 +483,30 @@ describe('reply delivery', () => {
         turnId: turn.turnId,
         modelCallIndex: 0,
         createModelRuntime: createScriptedModel([
-          fauxAssistantMessage([fauxToolCall('list_workflow_runs', {limit: 1}, {id: 'c1'})], {
-            stopReason: 'toolUse',
-          }),
+          fauxAssistantMessage(
+            [
+              fauxToolCall('list_workflow_runs', {limit: 1}, {id: 'c1'}),
+              fauxToolCall('read_skill', {name: 'x'}, {id: 'c2'}),
+            ],
+            {stopReason: 'toolUse'},
+          ),
         ]).createModelRuntime,
       });
 
-      await runToolCall({
-        conversationId,
-        turnId: turn.turnId,
-        modelCallIndex: 0,
-        callIndex: 0,
-        integrations: integrations.client,
-        lastAttempt: false,
-      });
+      for (const callIndex of [0, 1]) {
+        await runToolCall({
+          conversationId,
+          turnId: turn.turnId,
+          modelCallIndex: 0,
+          callIndex,
+          integrations: integrations.client,
+          lastAttempt: false,
+        });
+      }
 
       expect(integrations.progress).toEqual([
         expect.objectContaining({state: 'working', detail: 'list_workflow_runs', conversationKey}),
+        expect.objectContaining({state: 'working', detail: 'read_skill', conversationKey}),
       ]);
     });
 

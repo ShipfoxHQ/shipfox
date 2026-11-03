@@ -185,6 +185,10 @@ async function sendReply(params: {
   }
 }
 
+/**
+ * Clears the provider's loading status. It is best effort: the reply is what matters, and a
+ * provider clears its own status when a reply lands.
+ */
 async function clearProgress(params: {
   conversation: Conversation;
   integrations: InteractionIntegrations;
@@ -198,17 +202,10 @@ async function clearProgress(params: {
       state: 'idle',
     });
   } catch (error) {
-    // A connection that is gone has no status left to clear.
-    if (
-      isInterModuleKnownError(
-        integrationsInterModuleContract.methods.reportInteractionProgress,
-        error,
-      ) &&
-      PERMANENT_DELIVERY_ERRORS.has(error.code)
-    ) {
-      return;
-    }
-    throw error;
+    logger().warn(
+      {err: error, conversationId: params.conversation.id},
+      'Failed to clear the progress of an agent conversation',
+    );
   }
 }
 
@@ -245,23 +242,26 @@ export async function deliverConversationReply(params: {
       : await turnReply(conversation, params.turnId);
   if (!reply) return;
 
-  if (!(await hasReplyDelivery(reply.replyId))) {
-    if (reply.message) {
-      await sendReply({
-        conversation,
-        integrations: params.integrations,
-        replyId: reply.replyId,
-        message: reply.message,
-        origin,
-      });
-    } else {
-      await recordReplyDelivery({
-        replyId: reply.replyId,
-        conversationId: conversation.id,
-        outcome: 'skipped',
-      });
+  try {
+    if (!(await hasReplyDelivery(reply.replyId))) {
+      if (reply.message) {
+        await sendReply({
+          conversation,
+          integrations: params.integrations,
+          replyId: reply.replyId,
+          message: reply.message,
+          origin,
+        });
+      } else {
+        await recordReplyDelivery({
+          replyId: reply.replyId,
+          conversationId: conversation.id,
+          outcome: 'skipped',
+        });
+      }
     }
+  } finally {
+    // Also after a failed send and a repeat, so the status never outlives the turn.
+    await clearProgress({conversation, integrations: params.integrations, origin});
   }
-  // Also after a repeat, because the first attempt may have ended before it cleared the status.
-  await clearProgress({conversation, integrations: params.integrations, origin});
 }

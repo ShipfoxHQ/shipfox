@@ -328,6 +328,11 @@ describe('agentConversationWorkflow', () => {
       {conversationId, turnId: 'turn-1', status: 'succeeded'},
       {conversationId, turnId: 'turn-2', status: 'succeeded'},
     ]);
+    expect(named('deliverReply')).toEqual([
+      {conversationId, turnId: 'turn-1'},
+      {conversationId, turnId: 'turn-2'},
+      {conversationId},
+    ]);
   });
 
   it('looks again when a wake arrives while it finds nothing to do', async () => {
