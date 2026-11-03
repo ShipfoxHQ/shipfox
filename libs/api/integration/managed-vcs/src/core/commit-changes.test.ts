@@ -12,6 +12,7 @@ import {
 import {ManagedSourceControlProvider} from '#core/source-control.js';
 import {db} from '#db/db.js';
 import {managedObjects} from '#db/schema/objects.js';
+import {managedRepositories} from '#db/schema/repositories.js';
 import {createRepositoryRow, managedConnection, seedCommits} from '#test/fixtures/repository.js';
 
 const provider = new ManagedSourceControlProvider();
@@ -300,6 +301,23 @@ describe('commitManagedChanges', () => {
       }),
     );
 
+    expect(await objectCount(repository)).toBe(before);
+  });
+
+  it.each([
+    'linking',
+    'linked',
+  ] as const)('refuses a commit while the repository is %s', async (status) => {
+    const repository = await seedRepository();
+    await db()
+      .update(managedRepositories)
+      .set({status})
+      .where(eq(managedRepositories.id, repository.id));
+    const before = await objectCount(repository);
+
+    const result = await refusal(commit(repository));
+
+    expect(result.refusal).toBe('repository-read-only');
     expect(await objectCount(repository)).toBe(before);
   });
 

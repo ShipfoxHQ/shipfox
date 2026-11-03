@@ -152,6 +152,7 @@ export class ConfigLinkUnconfirmedError extends Error {
 
 /** Why a managed repository refused a commit, which the caller can act on. */
 export type ConfigCommitRefusal =
+  | 'repository-read-only'
   | 'protected-branch'
   | 'branch-invalid'
   | 'stale-head'

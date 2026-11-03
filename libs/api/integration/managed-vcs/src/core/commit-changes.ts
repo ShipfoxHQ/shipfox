@@ -61,6 +61,7 @@ export interface CommittedManagedChanges {
 }
 
 export type ManagedCommitRefusal =
+  | 'repository-read-only'
   | 'protected-branch'
   | 'branch-invalid'
   | 'stale-head'
@@ -149,7 +150,7 @@ export async function commitManagedChanges(
     await db().transaction(async (tx) => {
       // Shared, so writes run side by side and only a statement that needs the row exclusively waits.
       const [locked] = await tx
-        .select({id: managedRepositories.id})
+        .select({id: managedRepositories.id, status: managedRepositories.status})
         .from(managedRepositories)
         .where(eq(managedRepositories.id, repository.id))
         .for('share');
@@ -159,6 +160,8 @@ export async function commitManagedChanges(
           `Managed repository ${repository.id} was deleted during the commit`,
         );
       }
+      // A move to a repository holds the same row exclusively while it starts, so no write slips past.
+      if (locked.status !== 'active') throw new ManagedCommitRefusedError('repository-read-only');
 
       await insertObjects({repositoryId: repository.id, objects: objects.bufferedObjects()}, {tx});
       const moved = await moveRef({
