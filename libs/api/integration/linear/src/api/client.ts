@@ -42,6 +42,14 @@ const AGENT_ACTIVITY_CREATE_MUTATION = `
   }
 `;
 
+const AGENT_SESSION_UPDATE_MUTATION = `
+  mutation ShipfoxAgentSessionUpdate($id: String!, $input: AgentSessionUpdateInput!) {
+    agentSessionUpdate(id: $id, input: $input) {
+      success
+    }
+  }
+`;
+
 const ISSUE_CONTEXT_QUERY = `
   query ShipfoxAgentSessionIssue($id: String!) {
     issue(id: $id) {
@@ -77,11 +85,12 @@ export interface LinearIdentity {
   organizationUrlKey: string;
 }
 
-/** What Linear shows in an agent session. Only `thought` is posted before routing. */
-export interface LinearAgentActivityContent {
-  type: 'thought';
-  body: string;
-}
+/** What Linear shows in an agent session. */
+export type LinearAgentActivityContent =
+  | {type: 'thought'; body: string}
+  | {type: 'action'; action: string; parameter: string}
+  | {type: 'response'; body: string}
+  | {type: 'error'; body: string};
 
 export interface LinearIssueContext {
   identifier: string;
@@ -107,7 +116,14 @@ export interface LinearApiClient {
     accessToken: string;
     agentSessionId: string;
     content: LinearAgentActivityContent;
+    /** Linear replaces an ephemeral activity with the next one. */
+    ephemeral?: boolean | undefined;
     timeoutMs?: number | undefined;
+  }): Promise<void>;
+  setAgentSessionExternalUrls(input: {
+    accessToken: string;
+    agentSessionId: string;
+    urls: {label: string; url: string}[];
   }): Promise<void>;
   getIssueContext(input: {accessToken: string; issueId: string}): Promise<LinearIssueContext>;
 }
@@ -141,6 +157,10 @@ interface LinearIdentityData {
 
 interface LinearAgentActivityCreateData {
   agentActivityCreate?: {success?: unknown} | null;
+}
+
+interface LinearAgentSessionUpdateData {
+  agentSessionUpdate?: {success?: unknown} | null;
 }
 
 interface LinearIssueContextData {
@@ -257,7 +277,11 @@ export function createLinearApiClient(): LinearApiClient {
               json: {
                 query: AGENT_ACTIVITY_CREATE_MUTATION,
                 variables: {
-                  input: {agentSessionId: input.agentSessionId, content: input.content},
+                  input: {
+                    agentSessionId: input.agentSessionId,
+                    content: input.content,
+                    ...(input.ephemeral === undefined ? {} : {ephemeral: input.ephemeral}),
+                  },
                 },
               },
               timeout: input.timeoutMs ?? LINEAR_API_TIMEOUT_MS,
@@ -270,6 +294,31 @@ export function createLinearApiClient(): LinearApiClient {
         throw new LinearIntegrationProviderError(
           'malformed-provider-response',
           'Linear did not create the agent activity',
+        );
+      }
+    },
+
+    async setAgentSessionExternalUrls(input) {
+      const body = await mapLinearError(
+        'update-agent-session',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {
+                query: AGENT_SESSION_UPDATE_MUTATION,
+                variables: {id: input.agentSessionId, input: {externalUrls: input.urls}},
+              },
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearAgentSessionUpdateData>>(),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      const data = graphqlData('update-agent-session', body);
+      if (data.agentSessionUpdate?.success !== true) {
+        throw new LinearIntegrationProviderError(
+          'malformed-provider-response',
+          'Linear did not update the agent session',
         );
       }
     },

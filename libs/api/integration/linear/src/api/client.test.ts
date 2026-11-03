@@ -503,6 +503,88 @@ describe('createLinearApiClient.createAgentActivity', () => {
   });
 });
 
+describe('createLinearApiClient.createAgentActivity content', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('posts an ephemeral action activity', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentActivityCreate: {success: true}}}));
+    const client = createLinearApiClient();
+
+    await client.createAgentActivity({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+      content: {type: 'action', action: 'get_issue', parameter: ''},
+      ephemeral: true,
+    });
+
+    const [, options] = mocks.post.mock.calls[0] as [string, {json: {variables: unknown}}];
+    expect(options.json.variables).toEqual({
+      input: {
+        agentSessionId: 'session-1',
+        content: {type: 'action', action: 'get_issue', parameter: ''},
+        ephemeral: true,
+      },
+    });
+  });
+
+  it('rejects a request Linear refuses as malformed', async () => {
+    mocks.post.mockReturnValue(rejects(httpError(400)));
+    const client = createLinearApiClient();
+
+    const result = client.createAgentActivity({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+      content: {type: 'response', body: 'Done.'},
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});
+
+describe('createLinearApiClient.setAgentSessionExternalUrls', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('updates the external URLs of the agent session', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentSessionUpdate: {success: true}}}));
+    const client = createLinearApiClient();
+
+    await client.setAgentSessionExternalUrls({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+      urls: [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}],
+    });
+
+    const [, options] = mocks.post.mock.calls[0] as [
+      string,
+      {headers: Record<string, string>; json: {variables: unknown}},
+    ];
+    expect(options.headers).toEqual({authorization: 'Bearer linear-token'});
+    expect(options.json.variables).toEqual({
+      id: 'session-1',
+      input: {externalUrls: [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}]},
+    });
+  });
+
+  it('rejects when Linear does not report success', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentSessionUpdate: {success: false}}}));
+    const client = createLinearApiClient();
+
+    const result = client.setAgentSessionExternalUrls({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+      urls: [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}],
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});
+
 describe('createLinearApiClient.getIssueContext', () => {
   beforeEach(() => {
     mocks.post.mockReset();
