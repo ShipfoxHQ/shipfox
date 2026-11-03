@@ -27,6 +27,55 @@ export function normalizeAgentIntegrations(params: {
   });
 }
 
+/**
+ * Checks the `integrations:` of an agent file against the workspace's connections and provider
+ * catalogs, with the selector and `allow_write` rules of an agent step. The default connection is
+ * the project's, so an entry without a `connection` needs one.
+ */
+export function validateAgentFileIntegrations(params: {
+  integrations: readonly WorkflowDocumentStepIntegration[] | undefined;
+  integrationValidationContext: IntegrationValidationContext;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const context = params.integrationValidationContext;
+  params.integrations?.forEach((integration, integrationIndex) => {
+    const path = ['integrations', integrationIndex] as const;
+    const connectionSlug = integration.connection ?? context.defaultConnectionSlug;
+    if (connectionSlug === undefined) {
+      params.issues.push(
+        issue({
+          code: 'missing-connection-for-integration',
+          message:
+            'An agent integration requires a connection, because the project has no default source connection.',
+          path,
+          details: {integrationIndex},
+        }),
+      );
+      return;
+    }
+
+    const selectorsByToken = resolveAgentToolConnection({
+      connectionSlug,
+      path: integration.connection === undefined ? path : [...path, 'connection'],
+      details: {integrationIndex},
+      issues: params.issues,
+      context,
+    });
+    if (selectorsByToken === undefined) return;
+
+    validateAgentToolSelection({
+      include: integration.include,
+      ...(integration.exclude === undefined ? {} : {exclude: integration.exclude}),
+      allowWrite: integration.allow_write ?? false,
+      selectorsByToken,
+      selectorPath: (field, tokenIndex) =>
+        tokenIndex === undefined ? [...path, field] : [...path, field, tokenIndex],
+      details: {integrationIndex},
+      issues: params.issues,
+    });
+  });
+}
+
 function normalizeIntegration(
   integration: WorkflowDocumentStepIntegration,
 ): WorkflowModelStepIntegration {

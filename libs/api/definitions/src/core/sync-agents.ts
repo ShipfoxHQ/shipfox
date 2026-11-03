@@ -11,6 +11,7 @@ import {
   parseAgentDocument,
 } from '@shipfox/workflow-document';
 import yaml from 'js-yaml';
+import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {ProjectAgentError} from './entities/project-agent.js';
 import type {DefinitionSyncDiagnostic} from './entities/sync-state.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
@@ -19,6 +20,7 @@ import {FILE_FETCH_CONCURRENCY, isBinaryFileError} from './integrations.js';
 import {type PromptFileUse, resolvePromptFiles} from './resolve-prompt-files.js';
 import {DEFAULT_AGENT_PATH, type SyncSourceContext, withTrailingSlash} from './sync-definitions.js';
 import type {WorkflowModelValidationIssue} from './workflow-model/invalid-workflow-model-error.js';
+import {validateAgentFileIntegrations} from './workflow-model/normalize-agent-integrations.js';
 import {validateAgentModelSelection} from './workflow-model/validate-agent-model-selection.js';
 
 export const AGENT_FILE_INVALID_CODE = 'agent-file-invalid';
@@ -56,6 +58,8 @@ export interface FetchAndParseAgentsParams extends SyncSourceContext {
   paths: string[];
   agentPath?: string | undefined;
   agentValidationCatalog: AgentValidationCatalogV2;
+  /** Without it, the `integrations` of an agent file are not checked against the workspace. */
+  loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
   onProgress?: ((path: string) => void) | undefined;
 }
 
@@ -70,13 +74,14 @@ export async function fetchAndParseAgents(
   const agentPath = withTrailingSlash(params.agentPath ?? DEFAULT_AGENT_PATH);
   const result: ParsedAgents = {valid: [], invalid: [], diagnostics: []};
   const seenKeys = new Map<string, string>();
+  const integrationValidationContext = once(params.loadIntegrationValidationContext);
 
   const outcomes = await boundedMap(
     params.paths,
     FILE_FETCH_CONCURRENCY,
     async (path) => {
       params.onProgress?.(path);
-      return await parseAgentFile({...params, path, agentPath});
+      return await parseAgentFile({...params, path, agentPath, integrationValidationContext});
     },
     {stopOnError: true},
   );
@@ -124,8 +129,22 @@ interface AgentFileOutcome {
   diagnostics: DefinitionSyncDiagnostic[];
 }
 
+/** Runs `load` on first use only, and only if something needs its result. */
+function once<T>(load: (() => Promise<T>) | undefined): () => Promise<T | undefined> {
+  let pending: Promise<T> | undefined;
+  return async () => {
+    if (load === undefined) return undefined;
+    pending ??= load();
+    return await pending;
+  };
+}
+
 async function parseAgentFile(
-  params: FetchAndParseAgentsParams & {path: string; agentPath: string},
+  params: FetchAndParseAgentsParams & {
+    path: string;
+    agentPath: string;
+    integrationValidationContext: () => Promise<IntegrationValidationContext | undefined>;
+  },
 ): Promise<AgentFileOutcome> {
   const {path} = params;
   const key = agentDocumentKeyForPath(path, params.agentPath);
@@ -183,25 +202,12 @@ async function parseAgentFile(
     ]);
   }
 
-  const issues: WorkflowModelValidationIssue[] = [];
-  validateAgentModelSelection({
-    selection: {...document, harness: AGENT_HARNESS},
-    path: [],
-    issues,
-    validateLiteralModel: true,
-    validateLiteralProvider: true,
+  const diagnostics = await validateAgentDocument({
+    document,
+    path,
     agentValidationCatalog: params.agentValidationCatalog,
+    integrationValidationContext: params.integrationValidationContext,
   });
-  validateThinking(document, params.agentValidationCatalog, issues);
-  const diagnostics = issues.map((issue) =>
-    diagnostic({
-      code: issue.code,
-      message: issue.message,
-      path: issue.path.join('.') || undefined,
-      severity: issue.severity,
-      filePath: path,
-    }),
-  );
   if (diagnostics.some((entry) => entry.severity === 'error')) return fail(diagnostics);
 
   return {
@@ -218,6 +224,44 @@ async function parseAgentFile(
       contentHash: agentContentHash({content, references, promptFiles}),
     },
   };
+}
+
+/** Checks what the schema cannot: the model, the thinking level, and the integrations. */
+async function validateAgentDocument(params: {
+  document: AgentDocument;
+  path: string;
+  agentValidationCatalog: AgentValidationCatalogV2;
+  integrationValidationContext: () => Promise<IntegrationValidationContext | undefined>;
+}): Promise<DefinitionSyncDiagnostic[]> {
+  const {document} = params;
+  const issues: WorkflowModelValidationIssue[] = [];
+  validateAgentModelSelection({
+    selection: {...document, harness: AGENT_HARNESS},
+    path: [],
+    issues,
+    validateLiteralModel: true,
+    validateLiteralProvider: true,
+    agentValidationCatalog: params.agentValidationCatalog,
+  });
+  validateThinking(document, params.agentValidationCatalog, issues);
+  const integrationValidationContext =
+    document.integrations === undefined ? undefined : await params.integrationValidationContext();
+  if (integrationValidationContext !== undefined) {
+    validateAgentFileIntegrations({
+      integrations: document.integrations,
+      integrationValidationContext,
+      issues,
+    });
+  }
+  return issues.map((issue) =>
+    diagnostic({
+      code: issue.code,
+      message: issue.message,
+      path: issue.path.join('.') || undefined,
+      severity: issue.severity,
+      filePath: params.path,
+    }),
+  );
 }
 
 async function readAgentFile(

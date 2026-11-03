@@ -1,6 +1,7 @@
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
+import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {DefinitionsSourceControl} from './integrations.js';
 import {fetchAndParseAgents} from './sync-agents.js';
 
@@ -43,12 +44,41 @@ function repositorySourceControl(repository: Record<string, string>): Definition
   };
 }
 
-function parse(repository: Record<string, string>, paths = Object.keys(repository)) {
+function parse(
+  repository: Record<string, string>,
+  paths = Object.keys(repository),
+  loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>,
+) {
   return fetchAndParseAgents({
     ...context,
     paths: paths.filter((path) => path.startsWith('.shipfox/agents/')),
     sourceControl: repositorySourceControl(repository),
+    ...(loadIntegrationValidationContext === undefined ? {} : {loadIntegrationValidationContext}),
   });
+}
+
+const selectors = [
+  {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
+  {token: 'issue_read.get', kind: 'method', sensitivity: 'read', sensitive: false},
+  {token: 'issue_write', kind: 'family', sensitivity: 'write', sensitive: true},
+  {token: 'issue_write.create', kind: 'method', sensitivity: 'write', sensitive: true},
+] as const;
+
+function integrationContext(
+  overrides: Partial<IntegrationValidationContext> = {},
+): IntegrationValidationContext {
+  return {
+    agentToolSelectionCatalogs: new Map([['github', {selectors}]]),
+    agentToolCatalogs: new Map(),
+    workspaceConnectionSnapshot: new Map([
+      ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+      ['hooks', {id: 'connection-2', provider: 'webhook', capabilities: []}],
+    ]),
+    eventCatalogs: new Map(),
+    fixedEventProviders: new Set(),
+    defaultConnectionSlug: 'github-main',
+    ...overrides,
+  };
 }
 
 describe('fetchAndParseAgents', () => {
@@ -212,6 +242,109 @@ describe('fetchAndParseAgents', () => {
     });
 
     expect(first.valid[0]?.contentHash).not.toBe(second.valid[0]?.contentHash);
+  });
+
+  describe('integrations', () => {
+    const agent = (integrations: string) =>
+      `description: Triage.\ninstructions: Triage issues.\nintegrations:\n${integrations}`;
+
+    it('accepts selectors the connection serves and keeps the document as authored', async () => {
+      const result = await parse(
+        {'.shipfox/agents/triage.yaml': agent('  - include: [issue_read.get]')},
+        undefined,
+        async () => integrationContext(),
+      );
+
+      expect(result.invalid).toEqual([]);
+      expect(result.valid[0]?.document.integrations).toEqual([{include: ['issue_read.get']}]);
+    });
+
+    it('rejects an unknown tool, with the path of the selector', async () => {
+      const result = await parse(
+        {'.shipfox/agents/triage.yaml': agent('  - include: [issue_read, missing]')},
+        undefined,
+        async () => integrationContext(),
+      );
+
+      expect(result.valid).toEqual([]);
+      expect(result.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'unknown-integration-tool',
+          path: 'integrations.0.include.1',
+          severity: 'error',
+        }),
+      ]);
+    });
+
+    it('rejects a write tool unless allow_write is true', async () => {
+      const files = (allowWrite: string) => ({
+        '.shipfox/agents/triage.yaml': agent(`  - include: [issue_write.create]${allowWrite}`),
+      });
+      const load = async () => integrationContext();
+
+      const refused = await parse(files(''), undefined, load);
+      const allowed = await parse(files('\n    allow_write: true'), undefined, load);
+
+      expect(refused.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'integration-write-not-allowed',
+          path: 'integrations.0.include',
+        }),
+      ]);
+      expect(allowed.invalid).toEqual([]);
+      expect(allowed.valid).toHaveLength(1);
+    });
+
+    it('rejects a connection that does not exist or cannot serve tools', async () => {
+      const result = await parse(
+        {
+          '.shipfox/agents/gone.yaml': agent('  - connection: removed\n    include: [issue_read]'),
+          '.shipfox/agents/hooks.yaml': agent('  - connection: hooks\n    include: [issue_read]'),
+        },
+        undefined,
+        async () => integrationContext(),
+      );
+
+      expect(
+        result.invalid.map((entry) => [entry.key, entry.error.diagnostics[0]?.code]).sort(),
+      ).toEqual([
+        ['gone', 'integration-connection-not-found'],
+        ['hooks', 'integration-connection-not-capable'],
+      ]);
+    });
+
+    it('needs a named connection when the project has no default', async () => {
+      const result = await parse(
+        {'.shipfox/agents/triage.yaml': agent('  - include: [issue_read]')},
+        undefined,
+        async () => integrationContext({defaultConnectionSlug: undefined}),
+      );
+
+      expect(result.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({code: 'missing-connection-for-integration'}),
+      ]);
+    });
+
+    it('loads the workspace context once, and only for a file that uses integrations', async () => {
+      const load = vi.fn(async () => integrationContext());
+
+      await parse(
+        {
+          '.shipfox/agents/plain.yaml': 'description: Plain.\ninstructions: Be plain.',
+          '.shipfox/agents/a.yaml': agent('  - include: [issue_read]'),
+          '.shipfox/agents/b.yaml': agent('  - include: [issue_read]'),
+        },
+        undefined,
+        load,
+      );
+      await parse(
+        {'.shipfox/agents/plain.yaml': 'description: Plain.\ninstructions: Be plain.'},
+        undefined,
+        load,
+      );
+
+      expect(load).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('lets a provider outage propagate', async () => {

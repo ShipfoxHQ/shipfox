@@ -7,6 +7,7 @@ import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#c
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {assembleWorkflowRunContext} from '#core/step-config/assemble-run-context.js';
 import {literalField} from '#core/step-config/fields.js';
+import {fakeResolveAgentTools} from '#test/fixtures/integrations-inter-module.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
 import {
@@ -1029,7 +1030,7 @@ describe('workflow run queries', () => {
         model: 'gpt-5.5-pro',
         thinking: 'medium',
       });
-      const getAgentToolsContext = vi.fn().mockResolvedValue({
+      const agentToolsContext = {
         catalogs: [
           {
             provider: 'github',
@@ -1067,8 +1068,12 @@ describe('workflow run queries', () => {
           slug: 'github-main',
           provider: 'github',
         },
-      });
-      const integrations = {getAgentToolsContext} as unknown as IntegrationsModuleClient;
+      };
+      const getAgentToolsContext = vi.fn().mockResolvedValue(agentToolsContext);
+      const integrations = {
+        getAgentToolsContext,
+        resolveAgentTools: fakeResolveAgentTools(agentToolsContext as never),
+      } as unknown as IntegrationsModuleClient;
       const projects = {
         getProjectById: vi.fn().mockResolvedValue({
           project: {sourceConnectionId: 'connection-1', sourceExternalRepositoryId: 'acme/api'},
@@ -1178,7 +1183,10 @@ describe('workflow run queries', () => {
             readThread,
           ]),
         );
-      const integrations = {getAgentToolsContext} as unknown as IntegrationsModuleClient;
+      const integrations = {
+        getAgentToolsContext,
+        resolveAgentTools: fakeResolveAgentTools(context([readThread]) as never),
+      } as unknown as IntegrationsModuleClient;
       const projects = {
         getProjectById: vi.fn().mockResolvedValue({
           project: {

@@ -1,3 +1,4 @@
+import {withIntegrationOutcomes} from '#test/fixtures/integrations-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import type {AgentToolCatalogEntry, AgentToolMaterializationContext} from './agent-tools.js';
 import {
@@ -304,10 +305,11 @@ describe('action integrations', () => {
     });
   }
 
-  test('freezes each alias to its connection and concrete tools with their result kind', () => {
+  test('freezes each alias to its connection and concrete tools with their result kind', async () => {
+    const model = actionModel();
     const snapshot = createAgentToolMaterializationSnapshot({
-      model: actionModel(),
-      context: slackContext(),
+      model,
+      context: await withIntegrationOutcomes(model, slackContext()),
     });
 
     expect(snapshot).toEqual({
@@ -366,13 +368,10 @@ describe('action integrations', () => {
     ).rejects.toThrow(AgentIntegrationMaterializationError);
   });
 
-  test('fails when the bound connection is unavailable', () => {
-    expect(() =>
-      createAgentToolMaterializationSnapshot({
-        model: actionModel('removed-slack'),
-        context: slackContext(),
-      }),
-    ).toThrow(
+  test('fails when the bound connection is unavailable', async () => {
+    const model = actionModel('removed-slack');
+    const context = await withIntegrationOutcomes(model, slackContext());
+    expect(() => createAgentToolMaterializationSnapshot({model, context})).toThrow(
       new AgentIntegrationMaterializationError(
         'Integration connection removed-slack was not found while materializing action integration slack',
         {
@@ -385,13 +384,10 @@ describe('action integrations', () => {
     );
   });
 
-  test('fails when the bound connection belongs to another provider', () => {
-    expect(() =>
-      createAgentToolMaterializationSnapshot({
-        model: actionModel('github-main'),
-        context: slackContext(),
-      }),
-    ).toThrow(
+  test('fails when the bound connection belongs to another provider', async () => {
+    const model = actionModel('github-main');
+    const context = await withIntegrationOutcomes(model, slackContext());
+    expect(() => createAgentToolMaterializationSnapshot({model, context})).toThrow(
       new AgentIntegrationMaterializationError(
         'Action integration slack expects a slack connection, but github-main is github',
         {
@@ -404,10 +400,11 @@ describe('action integrations', () => {
     );
   });
 
-  test('reuses the frozen grant when the catalog later gains a method', () => {
+  test('reuses the frozen grant when the catalog later gains a method', async () => {
+    const model = actionModel();
     const snapshot = createAgentToolMaterializationSnapshot({
-      model: actionModel(),
-      context: slackContext(),
+      model,
+      context: await withIntegrationOutcomes(model, slackContext()),
     });
     const widened = slackCatalog().map((entry) =>
       entry.id === 'thread'
@@ -446,7 +443,7 @@ describe('action integrations', () => {
     expect(reused.slack?.tools[0]?.methods?.map((method) => method.id)).toEqual(['read']);
   });
 
-  test('finds the frozen grants of the step row at a model position', () => {
+  test('finds the frozen grants of the step row at a model position', async () => {
     const model = workflowModel({
       name: 'Actions',
       runner: 'ubuntu-latest',
@@ -472,7 +469,10 @@ describe('action integrations', () => {
         },
       },
     });
-    const snapshot = createAgentToolMaterializationSnapshot({model, context: slackContext()});
+    const snapshot = createAgentToolMaterializationSnapshot({
+      model,
+      context: await withIntegrationOutcomes(model, slackContext()),
+    });
 
     const grants = findFrozenActionIntegrations({
       model,
@@ -491,7 +491,7 @@ describe('action integrations', () => {
     expect(runStep).toBeUndefined();
   });
 
-  test('merges aliases bound to the same connection into one entry', () => {
+  test('merges aliases bound to the same connection into one entry', async () => {
     const catalog = slackCatalog().map((entry) =>
       entry.id === 'thread'
         ? {
@@ -515,14 +515,24 @@ describe('action integrations', () => {
       include,
       allowWrite: true,
     });
+    const integrations = {
+      reader: alias(['thread.read']),
+      writer: alias(['thread.reply', 'download_file']),
+    };
+    const model = workflowModel({
+      name: 'Actions',
+      runner: 'ubuntu-latest',
+      jobs: {
+        build: {
+          steps: [{key: 'thread', uses: './.shipfox/actions/slack-thread', action: {integrations}}],
+        },
+      },
+    });
     const grants = materializeActionIntegrations({
       jobKey: 'build',
       stepId: 'build-thread',
-      integrations: {
-        reader: alias(['thread.read']),
-        writer: alias(['thread.reply', 'download_file']),
-      },
-      context: slackContext(catalog),
+      integrations,
+      context: await withIntegrationOutcomes(model, slackContext(catalog)),
     });
 
     const flattened = flattenActionIntegrations(grants);
@@ -608,12 +618,11 @@ describe('integration materialization reasons', () => {
     };
   }
 
-  test('names a missing connection and where the step is', () => {
+  test('names a missing connection and where the step is', async () => {
+    const model = actionStepModel({connection: 'removed-slack'});
+    const outcomes = await withIntegrationOutcomes(model, context());
     const error = materializationFailure(() =>
-      createAgentToolMaterializationSnapshot({
-        model: actionStepModel({connection: 'removed-slack'}),
-        context: context(),
-      }),
+      createAgentToolMaterializationSnapshot({model, context: outcomes}),
     );
 
     expect(error).toMatchObject({
@@ -624,12 +633,11 @@ describe('integration materialization reasons', () => {
     });
   });
 
-  test('names a connection that belongs to another provider', () => {
+  test('names a connection that belongs to another provider', async () => {
+    const model = actionStepModel({connection: 'github-main'});
+    const outcomes = await withIntegrationOutcomes(model, context());
     const error = materializationFailure(() =>
-      createAgentToolMaterializationSnapshot({
-        model: actionStepModel({connection: 'github-main'}),
-        context: context(),
-      }),
+      createAgentToolMaterializationSnapshot({model, context: outcomes}),
     );
 
     expect(error).toMatchObject({
@@ -640,12 +648,11 @@ describe('integration materialization reasons', () => {
     });
   });
 
-  test('names an unknown tool and the connection it was looked up on', () => {
+  test('names an unknown tool and the connection it was looked up on', async () => {
+    const model = actionStepModel({connection: 'team-slack', include: ['missing_tool']});
+    const outcomes = await withIntegrationOutcomes(model, context());
     const error = materializationFailure(() =>
-      createAgentToolMaterializationSnapshot({
-        model: actionStepModel({connection: 'team-slack', include: ['missing_tool']}),
-        context: context(),
-      }),
+      createAgentToolMaterializationSnapshot({model, context: outcomes}),
     );
 
     expect(error).toMatchObject({
@@ -716,12 +723,11 @@ describe('integration materialization reasons', () => {
     });
   });
 
-  test('reports a selection that resolves to no tools', () => {
+  test('reports a selection that resolves to no tools', async () => {
+    const model = actionStepModel({connection: 'team-slack', include: []});
+    const outcomes = await withIntegrationOutcomes(model, context());
     const error = materializationFailure(() =>
-      createAgentToolMaterializationSnapshot({
-        model: actionStepModel({connection: 'team-slack', include: []}),
-        context: context(),
-      }),
+      createAgentToolMaterializationSnapshot({model, context: outcomes}),
     );
 
     expect(error).toMatchObject({

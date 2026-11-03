@@ -140,6 +140,51 @@ const toolCallTool = z.object({
     .min(1)
     .optional(),
 });
+const resolveAgentToolsFailureReason = z.enum([
+  'connection-missing',
+  'connection-provider-mismatch',
+  'source-connection-missing',
+  'tool-unknown',
+  'no-tools-selected',
+  'write-not-allowed',
+]);
+const resolveAgentToolsSelection = z.object({
+  /** A connection slug. Without it, the project's default connection applies. */
+  connection: z.string().min(1).optional(),
+  /** Rejects a connection of another provider. */
+  provider: z.string().min(1).optional(),
+  include: z.array(z.string().min(1)),
+  exclude: z.array(z.string().min(1)).optional(),
+  /** A selection that grants a write tool is refused unless this is true. */
+  allowWrite: z.boolean(),
+});
+const resolvedAgentToolMethod = z.object({
+  id: z.string().min(1),
+  token: z.string().min(1),
+  description: z.string().min(1).optional(),
+  sensitivity: z.enum(['read', 'write']),
+  sensitive: z.boolean(),
+  requiredScope: z.array(z.unknown()),
+});
+const resolvedAgentToolsGrant = z.object({
+  connectionId: id,
+  connectionSlug: z.string().min(1),
+  provider,
+  requiredScope: z.array(z.unknown()),
+  tools: z.array(
+    z.object({
+      id: z.string().min(1),
+      description: z.string(),
+      sensitivity: z.enum(['read', 'write']),
+      sensitive: z.boolean(),
+      requiredScope: z.array(z.unknown()),
+      inputSchema: z.record(z.string(), z.unknown()),
+      outputSchema: z.record(z.string(), z.unknown()).optional(),
+      result: toolResultKind,
+      methods: z.array(resolvedAgentToolMethod).optional(),
+    }),
+  ),
+});
 const toolCallCaller = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('agent')}),
   z.object({
@@ -159,6 +204,11 @@ const toolCallCaller = z.discriminatedUnion('kind', [
     turnId: z.string().min(1),
     callItemId: z.string().min(1),
     actorUserId: z.string().min(1).optional(),
+    /**
+     * The agent's file granted this tool with `integrations:`, so the provider's full catalog
+     * applies. Without it a provider serves a conversation only what it offers conversations.
+     */
+    grantedByAgent: z.boolean().optional(),
   }),
 ]);
 const toolCallOutcome = z.discriminatedUnion('outcome', [
@@ -571,7 +621,8 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       output: z.object({tools: z.array(toolCallTool.extend({description: z.string()}))}),
     },
     getAgentToolsContext: {
-      input: z.object({workspaceId: id, defaultConnectionId: id}),
+      /** Without a default connection, the output has none and a selection must name its connection. */
+      input: z.object({workspaceId: id, defaultConnectionId: id.optional()}),
       output: z.object({
         selectionCatalogs: z.array(
           z.object({
@@ -624,6 +675,29 @@ export const integrationsInterModuleContract = defineInterModuleContract({
         defaultConnection: z.object({id, slug: z.string(), provider}).nullable(),
       }),
       errors: sourceErrors,
+    },
+    /**
+     * Expands tool selectors into the tools a connection grants, in the order of `integrations`.
+     * It is the one place selectors are interpreted, for agent steps, action integrations, and
+     * project agents. A selection that cannot be granted is a known error that names its entry.
+     */
+    resolveAgentTools: {
+      input: z.object({
+        workspaceId: id,
+        projectId: id,
+        integrations: z.array(resolveAgentToolsSelection),
+      }),
+      output: z.object({integrations: z.array(resolvedAgentToolsGrant)}),
+      errors: {
+        'project-not-found': z.object({projectId: id}),
+        'selection-invalid': z.object({
+          integrationIndex: z.number().int().nonnegative(),
+          reason: resolveAgentToolsFailureReason.optional(),
+          message: z.string(),
+          connection: z.string().optional(),
+          tool: z.string().optional(),
+        }),
+      },
     },
     /** Lists the tool and event references of a composed template this instance cannot serve. */
     checkTemplateConformance: {

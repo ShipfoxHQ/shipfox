@@ -64,6 +64,7 @@ import {
   type RepositoryAuthorizer,
   repositoryAuthorizationClientErrorCodes,
 } from '#core/repository-authorizer.js';
+import {AgentToolsSelectionError, resolveAgentToolsGrant} from '#core/resolve-agent-tools.js';
 import type {
   AuthorizedCheckoutSpec,
   IntegrationSourceControlService,
@@ -500,7 +501,10 @@ export function createIntegrationsInterModulePresentation(params: {
             params.builtinConnections,
           )(input.workspaceId),
           resolveDefaultConnection({
-            sourceConnection: await getConnectionById(input.defaultConnectionId),
+            sourceConnection:
+              input.defaultConnectionId === undefined
+                ? undefined
+                : await getConnectionById(input.defaultConnectionId),
             registry: params.registry,
           }),
         ]);
@@ -541,6 +545,52 @@ export function createIntegrationsInterModulePresentation(params: {
             : null,
         };
       }),
+    resolveAgentTools: async (input) => {
+      const method = contract.methods.resolveAgentTools;
+      if (!params.projects) throw new Error('Resolving agent tools requires the Projects client');
+      // A project in another workspace is indistinguishable from a missing one.
+      const {project} = await params.projects.getProjectById({projectId: input.projectId});
+      if (project?.workspaceId !== input.workspaceId) {
+        throw createInterModuleKnownError(method, 'project-not-found', {
+          projectId: input.projectId,
+        });
+      }
+      const [catalogs, workspaceConnections, defaultConnection] = await Promise.all([
+        buildAgentToolCatalogs(params.registry),
+        createWorkspaceConnectionSnapshotLoader(
+          params.registry,
+          params.builtinConnections,
+        )(input.workspaceId),
+        resolveDefaultConnection({
+          sourceConnection: await getConnectionById(project.sourceConnectionId),
+          registry: params.registry,
+        }),
+      ]);
+      const context = {
+        catalogs,
+        workspaceConnections,
+        defaultConnection: defaultConnection
+          ? {
+              id: defaultConnection.id,
+              slug: defaultConnection.slug,
+              provider: defaultConnection.provider,
+            }
+          : null,
+      };
+      const integrations = input.integrations.map((selection, integrationIndex) => {
+        try {
+          return resolveAgentToolsGrant({selection, context});
+        } catch (error) {
+          if (!(error instanceof AgentToolsSelectionError)) throw error;
+          throw createInterModuleKnownError(method, 'selection-invalid', {
+            integrationIndex,
+            message: error.message,
+            ...error.details,
+          });
+        }
+      });
+      return {integrations};
+    },
     checkTemplateConformance: async ({workflow, bindings}) => {
       const catalog = await buildIntegrationCatalog({
         registry: params.registry,
@@ -668,6 +718,7 @@ function toToolCallCaller(caller: CallToolCaller, workspaceId: string): Integrat
       turnId: caller.turnId,
       callItemId: caller.callItemId,
       actorUserId: caller.actorUserId,
+      grantedByAgent: caller.grantedByAgent,
     };
   }
   return {

@@ -2,6 +2,7 @@ import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import type {Step} from '#core/entities/step.js';
 import {AgentIntegrationMaterializationError} from '#core/errors.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
+import {withIntegrationOutcomes} from '#test/fixtures/integrations-inter-module.js';
 import {type TestAgentMcpServer, workflowModel} from '#test/index.js';
 import {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
 import {
@@ -65,7 +66,9 @@ async function agentStep(params: {
     job,
     context: creationContext(),
     resolveAgentDefaults: resolveTestAgentDefaults,
-    ...(params.agentToolContext === undefined ? {} : {agentToolContext: params.agentToolContext}),
+    ...(params.agentToolContext === undefined
+      ? {}
+      : {agentToolContext: await withIntegrationOutcomes(model, params.agentToolContext)}),
   });
   const step = steps.find((candidate) => candidate.type === 'agent');
   if (!step) throw new Error('Expected an agent step');

@@ -139,6 +139,7 @@ export function createConversationActivities(deps: ConversationActivityDeps) {
         return await runToolCall({
           ...input,
           integrations: deps.integrations,
+          definitions: deps.definitions,
           lastAttempt: Context.current().info.attempt >= TOOL_CALL_MAX_ATTEMPTS,
         });
       } catch (error) {

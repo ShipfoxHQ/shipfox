@@ -547,7 +547,7 @@ export async function callerToolCatalog(
   caller: IntegrationToolCallCaller,
 ): Promise<readonly AgentToolCatalogEntry[] | undefined> {
   const adapter = registry.getAdapter(provider, 'agent_tools');
-  return caller.caller === 'conversation'
+  return caller.caller === 'conversation' && caller.grantedByAgent !== true
     ? await adapter.conversationCatalog?.()
     : await adapter.catalog();
 }
