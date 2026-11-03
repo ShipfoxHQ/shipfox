@@ -74,18 +74,23 @@ describe('Slack webhook processor', () => {
       status: 'installed',
     });
     const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
+    const acknowledgeEvent = vi.fn(() => Promise.resolve());
     const processor = createSlackWebhookProcessor({
       coreDb: db,
       claimWebhookDelivery: vi.fn(() => Promise.resolve({claimed: true})),
       publishIntegrationEventReceived,
       recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
       getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
+      acknowledgeEvent,
     });
 
     const result = await processor.process(signedEventRequest({receivedAt}));
 
     expect(result).toMatchObject({outcome: 'processed', deliveryId: 'Ev-delayed'});
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    expect(acknowledgeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({connectionId: connection.id, teamId: 'T1'}),
+    );
   });
 
   it('discards an event stale at receipt', async () => {

@@ -127,6 +127,60 @@ describe('Slack webhook handlers', () => {
     );
   });
 
+  it('acknowledges a published event with the connection and its raw event', async () => {
+    const deps = handlers();
+    const acknowledgeEvent = vi.fn(() => Promise.resolve());
+    await seedInstallation(deps.connection);
+
+    await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev1',
+      envelope: eventEnvelope(),
+      acknowledgeEvent,
+      ...deps,
+    });
+
+    expect(acknowledgeEvent).toHaveBeenCalledWith({
+      connectionId: deps.connection.id,
+      teamId: 'T1',
+      event: expect.objectContaining({type: 'app_mention', channel: 'C1', ts: '1.0'}),
+    });
+  });
+
+  it('does not acknowledge a duplicate delivery', async () => {
+    const deps = handlers();
+    deps.publishIntegrationEventReceived.mockResolvedValue({published: false});
+    const acknowledgeEvent = vi.fn(() => Promise.resolve());
+    await seedInstallation(deps.connection);
+
+    await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev1',
+      envelope: eventEnvelope(),
+      acknowledgeEvent,
+      ...deps,
+    });
+
+    expect(acknowledgeEvent).not.toHaveBeenCalled();
+  });
+
+  it('publishes the event when the acknowledgement fails', async () => {
+    const deps = handlers();
+    const acknowledgeEvent = vi.fn(() => Promise.reject(new Error('slack down')));
+    await seedInstallation(deps.connection);
+
+    const result = await handleSlackEvent({
+      tx: db(),
+      deliveryId: 'Ev1',
+      envelope: eventEnvelope(),
+      acknowledgeEvent,
+      ...deps,
+    });
+
+    expect(acknowledgeEvent).toHaveBeenCalledTimes(1);
+    expect(result.outcome).toBe('published');
+  });
+
   it('reports a duplicate for a repeated Slack event delivery id', async () => {
     const deps = handlers();
     deps.publishIntegrationEventReceived.mockResolvedValue({published: false});

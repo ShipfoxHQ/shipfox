@@ -18,6 +18,7 @@ import type {
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
+import {type AcknowledgeSlackEvent, startSlackAcknowledgement} from '#core/acknowledgement.js';
 import {getSlackInstallationByTeamId, markSlackInstallationRevoked} from '#db/installations.js';
 
 export type SlackWebhookOutcome =
@@ -43,6 +44,8 @@ interface SlackWebhookParams {
 export interface HandleSlackEventParams extends SlackWebhookParams {
   envelope: SlackEventBaseEnvelopeDto;
   claimWebhookDelivery: ClaimWebhookDeliveryFn;
+  /** Shows that a request arrived. Not awaited, so it never delays the webhook. */
+  acknowledgeEvent?: AcknowledgeSlackEvent | undefined;
 }
 
 export interface HandleSlackCommandParams extends SlackWebhookParams {
@@ -108,6 +111,16 @@ export async function handleSlackEvent(
       },
     },
   });
+
+  if (result.published) {
+    startSlackAcknowledgement({
+      acknowledge: params.acknowledgeEvent,
+      connectionId: resolution.connection.id,
+      teamId: resolution.connection.externalAccountId,
+      event: supported.data.event,
+      deliveryId: params.deliveryId,
+    });
+  }
 
   return {outcome: result.published ? 'published' : 'duplicate'};
 }

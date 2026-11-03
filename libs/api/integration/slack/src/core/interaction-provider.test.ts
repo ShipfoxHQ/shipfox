@@ -289,3 +289,30 @@ describe('Slack interaction provider', () => {
     });
   });
 });
+
+describe('Slack interaction provider replies', () => {
+  it('declares progress reporting', () => {
+    const provider = createSlackInteractionProvider({
+      getBotUserId: () => Promise.resolve(undefined),
+    });
+
+    expect(provider.reportProgress).toBeTypeOf('function');
+  });
+
+  it('returns undeliverable when no messaging is configured', async () => {
+    const provider = createSlackInteractionProvider({
+      getBotUserId: () => Promise.resolve(undefined),
+    });
+
+    const outcome = await provider.sendReply({
+      connection,
+      conversationKey: `${connection.id}:C1:100.1`,
+      replyId: 'r1',
+      kind: 'response',
+      text: 'hi',
+      agent: {name: 'Shippy'},
+    });
+
+    expect(outcome.outcome).toBe('undeliverable');
+  });
+});

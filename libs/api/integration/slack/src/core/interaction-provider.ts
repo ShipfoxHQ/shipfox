@@ -5,6 +5,8 @@ import type {
   ReadInteractionInput,
 } from '@shipfox/api-integration-spi';
 import {z} from 'zod';
+import {slackConversationKey} from '#core/conversation-key.js';
+import {reportSlackProgress, type SlackMessaging, sendSlackReply} from '#core/replies.js';
 
 type SlackIntegrationConnection = ReadInteractionInput['connection'];
 
@@ -61,7 +63,7 @@ const slackAppContextSchema = z
   })
   .passthrough();
 
-const slackInteractionPayloadSchema = z
+export const slackInteractionPayloadSchema = z
   .object({
     type: z.string(),
     team_id: z.string().optional(),
@@ -78,10 +80,10 @@ const slackInteractionPayloadSchema = z
     app_context: slackAppContextSchema.optional(),
   })
   .passthrough();
-type SlackInteractionPayload = z.infer<typeof slackInteractionPayloadSchema>;
+export type SlackInteractionPayload = z.infer<typeof slackInteractionPayloadSchema>;
 
 /** Subtypes of a real message from a person. Edits, deletions, joins, and bot posts are left out. */
-const PERSON_MESSAGE_SUBTYPES: ReadonlySet<string | undefined> = new Set([
+export const PERSON_MESSAGE_SUBTYPES: ReadonlySet<string | undefined> = new Set([
   undefined,
   'thread_broadcast',
   'file_share',
@@ -93,6 +95,8 @@ const CHANNEL_ENTITY_TYPE = 'slack#/types/channel_id';
 export interface SlackInteractionProviderOptions {
   /** The bot user whose mention is removed from the text. */
   getBotUserId(connectionId: string): Promise<string | undefined>;
+  /** Posts replies and shows progress. Without it, a reply is undeliverable. */
+  messaging?: SlackMessaging | undefined;
 }
 
 export function createSlackInteractionProvider(
@@ -122,12 +126,16 @@ export function createSlackInteractionProvider(
           return undefined;
       }
     },
-    // Replies arrive with the Slack reply path.
-    sendReply: () =>
-      Promise.resolve({
-        outcome: 'undeliverable',
-        reason: 'Slack replies are not available yet.',
-      }),
+    sendReply: (input) =>
+      options.messaging
+        ? sendSlackReply(options.messaging, input)
+        : Promise.resolve({
+            outcome: 'undeliverable',
+            reason: 'Slack replies are not configured.',
+          }),
+    reportProgress: async (input) => {
+      if (options.messaging) await reportSlackProgress(options.messaging, input);
+    },
   };
 }
 
@@ -202,7 +210,7 @@ function readStop(params: {
 }
 
 function conversationKey(connectionId: string, channel: string, threadTs: string): string {
-  return `${connectionId}:${channel}:${threadTs}`;
+  return slackConversationKey({connectionId, channel, threadTs});
 }
 
 function channelContext(params: {
@@ -230,12 +238,15 @@ function viewingChannel(message: SlackInteractionPayload): string | undefined {
 }
 
 /** The app's own replies, and every other app's, so two agents never answer each other. */
-function isFromBot(message: SlackInteractionPayload): boolean {
+export function isFromBot(message: SlackInteractionPayload): boolean {
   return message.bot_id !== undefined || message.subtype === 'bot_message';
 }
 
 /** A Slack Connect person belongs to a different workspace than the connection. */
-function isFromAnotherTeam(message: SlackInteractionPayload, connectionTeamId: string): boolean {
+export function isFromAnotherTeam(
+  message: SlackInteractionPayload,
+  connectionTeamId: string,
+): boolean {
   return [message.user_team, message.source_team].some(
     (team) => team !== undefined && team !== connectionTeamId,
   );
