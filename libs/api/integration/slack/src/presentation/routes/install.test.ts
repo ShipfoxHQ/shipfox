@@ -148,12 +148,12 @@ describe('Slack integration routes', () => {
     {
       capability: 'without agent tools',
       agentTools: undefined,
-      expectedCapabilities: [],
+      expectedCapabilities: ['interaction'],
     },
     {
       capability: 'with agent tools',
       agentTools: {tokenStore: {getAccessToken: vi.fn(() => Promise.resolve('xoxb-token'))}},
-      expectedCapabilities: ['agent_tools'],
+      expectedCapabilities: ['agent_tools', 'interaction'],
     },
   ])('returns the connected Slack connection $capability', async ({
     agentTools,

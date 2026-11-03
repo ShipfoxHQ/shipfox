@@ -3,6 +3,7 @@ import type {RouteGroup} from '@shipfox/node-fastify';
 import {createSlackApiClient, type SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';
 import {SlackAgentToolsProvider} from '#core/agent-tools-provider.js';
+import {createSlackInteractionProvider} from '#core/interaction-provider.js';
 import {missingSlackBotScopes} from '#core/scopes.js';
 import type {SlackTokenStore} from '#core/tokens.js';
 import {createSlackWebhookProcessor} from '#core/webhook-processor.js';
@@ -59,6 +60,13 @@ export {
 } from '#core/errors.js';
 export type {ConnectSlackInstallationInput, HandleSlackCallbackParams} from '#core/install.js';
 export {handleSlackCallback, handleSlackOAuthCallbackError} from '#core/install.js';
+export {
+  createSlackInteractionProvider,
+  SLACK_REPLY_GUIDANCE,
+  type SlackInteractionProviderOptions,
+  slackInteractionEvents,
+  slackRequestContextSchema,
+} from '#core/interaction-provider.js';
 export {
   assertSlackAuthorizationScopes,
   formatSlackBotScopes,
@@ -136,14 +144,20 @@ export function createSlackIntegrationProvider(
   const slack = options.slack ?? createSlackApiClient();
   const getInstallationByConnectionId =
     options.getSlackInstallationByConnectionId ?? getSlackInstallationByConnectionId;
-  const adapters = options.agentTools
-    ? {
-        agent_tools: new SlackAgentToolsProvider({
-          slack,
-          tokenStore: options.agentTools.tokenStore,
-        }),
-      }
-    : {};
+  const adapters = {
+    interaction: createSlackInteractionProvider({
+      getBotUserId: async (connectionId) =>
+        (await getInstallationByConnectionId(connectionId))?.botUserId,
+    }),
+    ...(options.agentTools
+      ? {
+          agent_tools: new SlackAgentToolsProvider({
+            slack,
+            tokenStore: options.agentTools.tokenStore,
+          }),
+        }
+      : {}),
+  };
   assertValidSlackRouteOptions(options.routes);
   const routes: RouteGroup[] = [];
   const webhookProcessor =
@@ -161,7 +175,9 @@ export function createSlackIntegrationProvider(
     routes.push(
       createSlackIntegrationRoutes({
         slack,
-        connectionCapabilities: adapters.agent_tools ? ['agent_tools'] : [],
+        connectionCapabilities: adapters.agent_tools
+          ? ['agent_tools', 'interaction']
+          : ['interaction'],
         tokenStore,
         getExistingSlackConnection,
         connectSlackInstallation,
