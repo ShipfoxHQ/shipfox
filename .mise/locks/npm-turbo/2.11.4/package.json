@@ -2,6 +2,6 @@
   "name": "mise-npm-install",
   "private": true,
   "dependencies": {
-    "turbo": "2.11.7"
+    "turbo": "2.11.10"
   }
 }
