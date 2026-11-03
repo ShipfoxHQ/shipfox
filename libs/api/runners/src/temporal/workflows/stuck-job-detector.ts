@@ -12,11 +12,18 @@ const {
   reapStaleRunnerInstancesActivity,
   recoverStaleIdleRunnerSessionsActivity,
   reconcileCapacityHoldsActivity,
+  runMaintenanceSweepActivity,
 } = proxyActivities<ReturnType<typeof createRunnersMaintenanceActivities>>({
   startToCloseTimeout: '60s',
 });
 
 export async function stuckJobDetector(): Promise<void> {
+  if (patched('single-maintenance-sweep-activity')) await runMaintenanceSweepActivity();
+  else await runLegacyMaintenance();
+}
+
+// Runs that started before the single-activity sweep shipped replay this path.
+async function runLegacyMaintenance(): Promise<void> {
   try {
     const {deleted} = await deleteExpiredReservationsActivity();
     if (deleted > 0) {

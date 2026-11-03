@@ -1,6 +1,10 @@
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
-import {drainCronBatchActivity, readCronFanoutActivity} from './drain-cron-batch.js';
+import {
+  drainCronBatchActivity,
+  readCronFanoutActivity,
+  runCronTickActivity,
+} from './drain-cron-batch.js';
 import {pruneTriggerEventsActivity} from './prune-trigger-events.js';
 
 export function createTriggersMaintenanceActivities() {
@@ -16,5 +20,6 @@ export function createTriggersCronActivities(
   return {
     drainCronBatchActivity: () => drainCronBatchActivity(workflows, secrets),
     readCronFanoutActivity,
+    runCronTickActivity: () => runCronTickActivity(workflows, secrets),
   };
 }

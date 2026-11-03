@@ -14,11 +14,11 @@ export const config = createConfig({
     default: 0,
   }),
   TRIGGER_CRON_FANOUT: num({
-    desc: 'How many drain activities the once-per-minute cron tick runs in parallel. Each activity claims and fires one bounded batch, so the per-minute ceiling is TRIGGER_CRON_FANOUT times TRIGGER_CRON_CLAIM_BATCH runs. Raise it (and pod count) to fire more schedules per minute. Must be at least 1. Defaults to 2.',
+    desc: 'How many drains the once-per-minute cron tick runs in parallel, inside one activity on one worker. Each drain claims and fires one bounded batch in its own transaction, so the per-minute ceiling is TRIGGER_CRON_FANOUT times TRIGGER_CRON_CLAIM_BATCH runs. Raise it to fire more schedules per minute. Must be at least 1. Defaults to 2.',
     default: 2,
   }),
   TRIGGER_CRON_CLAIM_BATCH: num({
-    desc: 'How many due cron schedules a single drain activity claims and fires per tick. Bounds the load a cron burst can put on the database and the run-creation path. Must be at least 1. Defaults to 100.',
+    desc: 'How many due cron schedules a single drain claims and fires per tick. Bounds the load a cron burst can put on the database and the run-creation path. Must be at least 1. Defaults to 100.',
     default: 100,
   }),
 });
