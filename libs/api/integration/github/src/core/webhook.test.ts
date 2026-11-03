@@ -121,6 +121,7 @@ describe('handleGithubEvent', () => {
       ref: 'refs/heads/main',
       defaultBranch: 'main',
       sha: 'abc123',
+      repositoryFullName: 'Acme/App',
     });
 
     const result = await handleGithubEvent({
@@ -132,6 +133,11 @@ describe('handleGithubEvent', () => {
     });
 
     expect(result.outcome).toBe('published');
+    expect(firstPublishSourcePushCall(handlers.publishSourcePush).resource).toEqual({
+      kind: 'repository',
+      externalId: 'github:42',
+      lookupName: 'acme/app',
+    });
     expect(handlers.recordDeliveryOnly).not.toHaveBeenCalled();
     expect(handlers.publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(handlers.getIntegrationConnectionById).toHaveBeenCalledWith(

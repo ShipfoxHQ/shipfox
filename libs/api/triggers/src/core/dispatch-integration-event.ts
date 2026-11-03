@@ -1,3 +1,4 @@
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {findMatchingSubscriptions} from '#db/subscriptions.js';
 import {
@@ -6,8 +7,9 @@ import {
   subscriptionTriggeredCount,
 } from '#metrics/instance.js';
 import {evaluateTriggerFilter, readConfigInputs, readConfigSecretInputs} from './config.js';
-import type {TriggerEventOrigin} from './entities/received-event.js';
+import type {TriggerEventOrigin, TriggerEventResource} from './entities/received-event.js';
 import {SecretInputNotFoundError, TriggerReferenceResolutionError} from './errors.js';
+import {createEventProjectAccess, type EventProjectAccess} from './event-project-access.js';
 import {pinSecretInputs} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {
@@ -27,6 +29,11 @@ import {
 export interface DispatchIntegrationEventParams {
   workflows: WorkflowsModuleClient;
   secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
+  /**
+   * Limits the event to the projects whose access takes it. Without it every matching project
+   * gets the event, which is right for events that no connection produced.
+   */
+  projects?: Pick<ProjectsModuleClient, 'getProjectAccessPolicies'> | undefined;
   /** Both are needed to route interactions to agents. Without them, no event reaches an agent. */
   integrations?: AgentRoutingIntegrations | undefined;
   agent?: AgentRoutingClient | undefined;
@@ -40,6 +47,8 @@ export interface DispatchIntegrationEventParams {
   deliveryId: string;
   connectionId: string;
   connectionName: string | null;
+  /** What the event is about, such as its repository. Projects limited to other resources skip it. */
+  resource?: TriggerEventResource | null | undefined;
   payload: unknown;
   receivedAt: Date;
 }
@@ -78,9 +87,9 @@ export async function dispatchIntegrationEvent(
     connectionId: params.connectionId,
     connectionName: params.connectionName,
     payload: (params.payload ?? null) as Record<string, unknown> | null,
+    resource: params.resource ?? null,
     receivedAt: params.receivedAt,
   });
-
   let subscriptions: Awaited<ReturnType<typeof findMatchingSubscriptions>>;
   try {
     subscriptions = await findMatchingSubscriptions({
@@ -93,12 +102,15 @@ export async function dispatchIntegrationEvent(
     throw error;
   }
 
-  const dispatch = await dispatchMatchingSubscriptions(params, subscriptions, history);
+  const access = await loadSubscriptionAccess(params, subscriptions, history);
+
+  const dispatch = await dispatchMatchingSubscriptions(params, subscriptions, history, access);
 
   let listenerResult: Awaited<ReturnType<typeof routeEventToJobListeners>>;
   try {
     listenerResult = await routeEventToJobListeners({
       workflows: params.workflows,
+      access,
       history,
       eventRef: params.eventRef,
       workspaceId: params.workspaceId,
@@ -157,6 +169,28 @@ export async function dispatchIntegrationEvent(
   await history.allErrored(totalMatchedCount);
 }
 
+// A failed policy read is transient: the event replays rather than reaching a project unchecked.
+async function loadSubscriptionAccess(
+  params: DispatchIntegrationEventParams,
+  subscriptions: readonly {projectId: string}[],
+  history: Awaited<ReturnType<typeof beginTriggerHistory>>,
+): Promise<EventProjectAccess | undefined> {
+  if (params.projects === undefined) return undefined;
+  const access = createEventProjectAccess({
+    projects: params.projects,
+    workspaceId: params.workspaceId,
+    connectionId: params.connectionId,
+    resource: params.resource,
+  });
+  try {
+    await access.load(subscriptions.map((subscription) => subscription.projectId));
+  } catch (error) {
+    await history.processingFailed(0, {version: 1, code: 'subscription-load-failed'});
+    throw error;
+  }
+  return access;
+}
+
 // The first transient failure is the one the outbox replay reports.
 function noteTransientError(
   state: SubscriptionDispatchState,
@@ -196,6 +230,7 @@ async function dispatchMatchingSubscriptions(
   params: DispatchIntegrationEventParams,
   subscriptions: Awaited<ReturnType<typeof findMatchingSubscriptions>>,
   history: Awaited<ReturnType<typeof beginTriggerHistory>>,
+  access: EventProjectAccess | undefined,
 ): Promise<SubscriptionDispatchState> {
   const state: SubscriptionDispatchState = {
     triggeredCount: 0,
@@ -204,6 +239,11 @@ async function dispatchMatchingSubscriptions(
     firstTransientError: undefined,
   };
   for (const subscription of subscriptions) {
+    const denial = access?.denial(subscription.projectId);
+    if (denial !== undefined) {
+      await history.accessFiltered(subscription, denial);
+      continue;
+    }
     const filterResult = evaluateTriggerFilter({
       subscription,
       source: params.source,

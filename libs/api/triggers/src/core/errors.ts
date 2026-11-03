@@ -201,6 +201,17 @@ export class DevRunTriggerFilteredError extends Error {
   }
 }
 
+/** The replayed event is outside the project's access, or the project no longer exists. */
+export class DevRunProjectAccessError extends Error {
+  readonly denial: 'project-access' | 'project-deleted';
+
+  constructor(denial: 'project-access' | 'project-deleted') {
+    super(`Dev run refused: ${denial}`);
+    this.name = 'DevRunProjectAccessError';
+    this.denial = denial;
+  }
+}
+
 export class TriggerReferenceResolutionError extends Error {
   readonly engagedCount: number;
 

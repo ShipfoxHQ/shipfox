@@ -15,6 +15,7 @@ import {z} from 'zod';
 import {createDevRun} from '#core/create-dev-run.js';
 import {
   DevRunInputsNotAllowedError,
+  DevRunProjectAccessError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,
   DevRunReplayEventNotFoundError,
@@ -84,6 +85,7 @@ export function createDevRunRoute(
       const run = await createDevRun({
         definitions,
         workflows,
+        projects,
         workspaceId,
         projectId: project_id,
         ref,
@@ -136,6 +138,15 @@ function handleDevRunDomainError(error: unknown): void {
   }
   if (error instanceof DevRunReplayEventUnavailableError) {
     throw new ClientError(error.message, 'replay-event-unavailable', {status: 410, cause: error});
+  }
+  if (error instanceof DevRunProjectAccessError) {
+    throw new ClientError(
+      error.denial === 'project-deleted'
+        ? 'The project no longer exists'
+        : "The replayed event is outside the project's access",
+      error.denial,
+      {status: 409, cause: error},
+    );
   }
   if (error instanceof DevRunTriggerFilteredError) {
     throw new ClientError('The trigger filter refused the replayed event', 'trigger-filtered', {

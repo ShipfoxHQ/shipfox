@@ -6,6 +6,7 @@ export async function onJobActivated(payload: WorkflowsJobActivatedEventDto): Pr
 
   await projectJobListenerSubscriptions({
     workspaceId: payload.workspaceId,
+    projectId: payload.projectId,
     workflowRunId: payload.workflowRunId,
     jobId: payload.jobId,
     on: payload.on,

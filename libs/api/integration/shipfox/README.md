@@ -10,7 +10,7 @@ The `@shipfox/api-integration-shipfox` package provides the built-in Shipfox wor
 - **`shipfoxAgentToolSelectionCatalog`** exposes the standalone tool selector.
 - **`createShipfoxAgentToolsProvider`** creates a provider with agent, annotations, definitions, docs, logs, projects, triggers, and workflow clients.
 
-The provider uses the caller workspace. A run caller starts the child with the caller run as its parent, and a conversation caller starts a root run. It has no connection row, database, or secrets.
+The provider uses the caller workspace. A run caller starts the child with the caller run as its parent, and a conversation caller starts a root run. `start_workflow_run` has no `project_id` parameter: the child always starts in the caller's project. It has no connection row, database, or secrets.
 
 ## Installation and setup
 

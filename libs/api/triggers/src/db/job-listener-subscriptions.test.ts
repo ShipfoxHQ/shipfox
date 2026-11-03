@@ -56,6 +56,34 @@ describe('job listener subscriptions', () => {
     });
   });
 
+  it('stores the project of the run, and NULL when the event predates it', async () => {
+    const projectId = crypto.randomUUID();
+    const withProject = crypto.randomUUID();
+    const withoutProject = crypto.randomUUID();
+    const base = {workspaceId: crypto.randomUUID(), workflowRunId: crypto.randomUUID()};
+
+    await projectJobListenerSubscriptions({
+      ...base,
+      projectId,
+      jobId: withProject,
+      on: [{source: 'github'}],
+      until: null,
+    });
+    await projectJobListenerSubscriptions({
+      ...base,
+      jobId: withoutProject,
+      on: [{source: 'github'}],
+      until: null,
+    });
+
+    expect((await listJobSubscriptions(withProject)).map((row) => row.projectId)).toEqual([
+      projectId,
+    ]);
+    expect((await listJobSubscriptions(withoutProject)).map((row) => row.projectId)).toEqual([
+      null,
+    ]);
+  });
+
   it('stores NULL for activated matchers with no event', async () => {
     const jobId = crypto.randomUUID();
     const workflowRunId = crypto.randomUUID();

@@ -1,4 +1,6 @@
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {and, eq} from 'drizzle-orm';
@@ -10,6 +12,7 @@ import {triggerSubscriptions} from '#db/schema/subscriptions.js';
 import {receivedEventFactory} from '#test/index.js';
 import {
   DevRunInputsNotAllowedError,
+  DevRunProjectAccessError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,
   DevRunReplayEventNotFoundError,
@@ -946,6 +949,153 @@ describe('createDevRun', () => {
       diagnostic: null,
     });
     expect(await subscriptionsForWorkspace(params.workspaceId)).toHaveLength(0);
+  });
+
+  describe('project access', () => {
+    const connectionId = crypto.randomUUID();
+
+    function policyFor(
+      projectId: string,
+      connections: ProjectAccessPolicy['connections'],
+    ): ProjectAccessPolicy {
+      return {
+        projectId,
+        configSource: {
+          managed: true,
+          connectionId: crypto.randomUUID(),
+          externalRepositoryId: 'managed:repository',
+          lookupName: null,
+        },
+        connections,
+      };
+    }
+
+    async function replayParams(projects: unknown, resource: object | null) {
+      const params = {
+        ...buildParams({
+          triggerKey: 'on_push',
+          triggers: {on_push: {source: 'github', event: 'push'}},
+        }),
+        projects: projects as never,
+      };
+      const sourceEvent = await receivedEventFactory.create({
+        workspaceId: params.workspaceId,
+        origin: 'integration',
+        provider: 'github',
+        source: 'github',
+        event: 'push',
+        deliveryId: 'delivery-abc',
+        connectionId,
+        connectionName: 'Acme Production',
+        payload: {ref: 'refs/heads/main'},
+        resource: resource as never,
+      });
+      resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+      return {params, sourceEvent};
+    }
+
+    const appRepository = {kind: 'repository', externalId: 'github:1', lookupName: 'acme/app'};
+    const otherRepository = {kind: 'repository', externalId: 'github:2', lookupName: 'acme/other'};
+
+    test('refuses a replayed event outside the project access and journals why', async () => {
+      const projects = {
+        getProjectAccessPolicy: vi.fn(({projectId}: {projectId: string}) =>
+          Promise.resolve({
+            policy: policyFor(projectId, [{connectionId, resources: [appRepository]}]),
+          }),
+        ),
+      };
+      const {params, sourceEvent} = await replayParams(projects, otherRepository);
+
+      await expect(createDevRun({...params, replayEventId: sourceEvent.id})).rejects.toThrow(
+        new DevRunProjectAccessError('project-access'),
+      );
+
+      expect(startDevRun).not.toHaveBeenCalled();
+      expect(devRunsCount.add).toHaveBeenCalledWith(1, {
+        trigger_kind: 'replay',
+        outcome: 'filtered',
+        definition_source: 'ref',
+      });
+      const [event] = await devEventsForWorkspace(params.workspaceId);
+      if (!event) throw new Error('received event not found');
+      expect(event).toMatchObject({replayOfEventId: sourceEvent.id, outcome: 'discarded'});
+      const decisions = await decisionsForEvent(event.id);
+      expect(decisions).toHaveLength(1);
+      expect(decisions[0]).toMatchObject({
+        subscriptionKind: 'dev',
+        decision: 'filtered',
+        runId: null,
+        reason: 'project-access',
+        diagnostic: {version: 1, code: 'project-access'},
+      });
+    });
+
+    test('refuses a dry-run check of a replayed event outside the project access', async () => {
+      const projects = {
+        getProjectAccessPolicy: vi.fn(({projectId}: {projectId: string}) =>
+          Promise.resolve({
+            policy: policyFor(projectId, [{connectionId, resources: [appRepository]}]),
+          }),
+        ),
+      };
+      const {params, sourceEvent} = await replayParams(projects, otherRepository);
+      validateDefinitionAtRef.mockResolvedValue(validatedDefinition(params.triggers));
+
+      await expect(checkDevRun({...params, replayEventId: sourceEvent.id})).rejects.toThrow(
+        DevRunProjectAccessError,
+      );
+    });
+
+    test('starts the replay when the event repository is in the project access', async () => {
+      const projects = {
+        getProjectAccessPolicy: vi.fn(({projectId}: {projectId: string}) =>
+          Promise.resolve({
+            policy: policyFor(projectId, [{connectionId, resources: [appRepository]}]),
+          }),
+        ),
+      };
+      const {params, sourceEvent} = await replayParams(projects, appRepository);
+      startDevRun.mockResolvedValue({id: crypto.randomUUID(), name: 'Dev replay run'});
+
+      await createDevRun({...params, replayEventId: sourceEvent.id});
+
+      expect(startDevRun).toHaveBeenCalledTimes(1);
+    });
+
+    test('refuses a replay for a project that no longer exists', async () => {
+      const projects = {
+        getProjectAccessPolicy: vi.fn(({projectId}: {projectId: string}) =>
+          Promise.reject(
+            createInterModuleKnownError(
+              projectsInterModuleContract.methods.getProjectAccessPolicy,
+              'project-not-found',
+              {projectId},
+            ),
+          ),
+        ),
+      };
+      const {params, sourceEvent} = await replayParams(projects, appRepository);
+
+      await expect(createDevRun({...params, replayEventId: sourceEvent.id})).rejects.toThrow(
+        new DevRunProjectAccessError('project-deleted'),
+      );
+      expect(startDevRun).not.toHaveBeenCalled();
+    });
+
+    test('lets a stored event with no resource through when its connection is in the access', async () => {
+      const projects = {
+        getProjectAccessPolicy: vi.fn(({projectId}: {projectId: string}) =>
+          Promise.resolve({policy: policyFor(projectId, [{connectionId, resources: 'all'}])}),
+        ),
+      };
+      const {params, sourceEvent} = await replayParams(projects, null);
+      startDevRun.mockResolvedValue({id: crypto.randomUUID(), name: 'Dev replay run'});
+
+      await createDevRun({...params, replayEventId: sourceEvent.id});
+
+      expect(startDevRun).toHaveBeenCalledTimes(1);
+    });
   });
 
   test('refuses a filter-error replay with the evaluation reason and journals it', async () => {

@@ -244,6 +244,8 @@ const workflowsJobActivatedBaseSchema = z.object({
   jobId: nonEmptyStringSchema,
   workflowRunId: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
+  // Optional so consumers can read events written before the project was part of the contract.
+  projectId: nonEmptyStringSchema.optional(),
 });
 
 // Keep this passive DTO schema local so the transport package does not depend on expression runtime code.

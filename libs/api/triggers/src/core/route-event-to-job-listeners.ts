@@ -9,6 +9,7 @@ import {listenerDeliveryRejectionsCount} from '#metrics/instance.js';
 import {evaluateStoredFilter, type StoredFilterEvaluation} from './config.js';
 import type {JobListenerSubscription} from './entities/job-listener-subscription.js';
 import {TriggerReferenceResolutionError} from './errors.js';
+import type {EventProjectAccess} from './event-project-access.js';
 import {type TriggerHistoryRecorder, toReason} from './record-trigger-history.js';
 import {
   isPermanentDeliverEventToJobListenerError,
@@ -20,6 +21,8 @@ const LISTENER_INTEGER_PATTERN = /^-?\d+$/;
 
 export interface RouteEventToJobListenersParams {
   workflows: WorkflowsModuleClient;
+  /** Skips the listeners whose project can't take the event. Without it none is skipped. */
+  access?: EventProjectAccess | undefined;
   history: TriggerHistoryRecorder;
   eventRef: string;
   workspaceId: string;
@@ -59,6 +62,11 @@ export async function routeEventToJobListeners(
     source: params.source,
     event: params.event,
   });
+  await params.access?.load(
+    subscriptions.flatMap((subscription) =>
+      subscription.projectId === null ? [] : [subscription.projectId],
+    ),
+  );
   const {filterErrorCount, effectiveMatchByJobId} = await collectEffectiveListenerMatches(
     params,
     subscriptions,
@@ -113,7 +121,7 @@ async function resolveTriggerReference(
 }
 
 async function collectEffectiveListenerMatches(
-  params: Pick<RouteEventToJobListenersParams, 'history' | 'payload'>,
+  params: Pick<RouteEventToJobListenersParams, 'access' | 'history' | 'payload'>,
   subscriptions: readonly JobListenerSubscription[],
 ): Promise<{
   filterErrorCount: number;
@@ -122,6 +130,13 @@ async function collectEffectiveListenerMatches(
   let filterErrorCount = 0;
   const effectiveMatchByJobId = new Map<string, JobListenerSubscription>();
   for (const subscription of subscriptions) {
+    // A subscription projected before the project was recorded can't be checked.
+    const denial =
+      subscription.projectId === null ? undefined : params.access?.denial(subscription.projectId);
+    if (denial !== undefined) {
+      await params.history.listenerAccessFiltered(subscription, denial);
+      continue;
+    }
     const filterResult = evaluateListenerFilter({subscription, payload: params.payload});
     if (filterResult.kind === 'filtered') continue;
     if (filterResult.kind === 'filter-error') {

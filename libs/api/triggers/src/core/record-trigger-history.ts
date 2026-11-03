@@ -11,7 +11,7 @@ import type {
   TriggerEventProcessingDiagnostic,
 } from '#core/entities/diagnostic.js';
 import type {JobListenerSubscription} from '#core/entities/job-listener-subscription.js';
-import type {TriggerEventOrigin} from '#core/entities/received-event.js';
+import type {TriggerEventOrigin, TriggerEventResource} from '#core/entities/received-event.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {
   insertReceivedEvent,
@@ -26,13 +26,16 @@ import {
   upsertDevTriggeredDecision,
   upsertDispatchErrorDecision,
   upsertFilterErrorDecision,
+  upsertFilteredDecision,
   upsertListenerDeliveryRejectedDecision,
   upsertListenerDispatchErrorDecision,
   upsertListenerFilterErrorDecision,
+  upsertListenerFilteredDecision,
   upsertListenerTriggeredDecision,
   upsertTriggeredDecision,
 } from '#db/event-history.js';
 import {diagnosticCount} from '#metrics/instance.js';
+import type {EventProjectAccessDenial} from './event-project-access.js';
 
 const MAX_REASON_LENGTH = 2000;
 
@@ -76,6 +79,12 @@ export interface TriggerHistoryRecorder {
   // trigger key and workflow_definition_id the workflow lineage id.
   devTriggered(triggerKey: string, workflowDefinitionId: string, run: TriggerRun): Promise<void>;
   devFiltered(triggerKey: string, workflowDefinitionId: string): Promise<void>;
+  /** The dev run's replayed event is outside the project's access. */
+  devAccessFiltered(
+    triggerKey: string,
+    workflowDefinitionId: string,
+    denial: EventProjectAccessDenial,
+  ): Promise<void>;
   devFilterErrored(
     triggerKey: string,
     workflowDefinitionId: string,
@@ -87,6 +96,15 @@ export interface TriggerHistoryRecorder {
     workflowDefinitionId: string,
     reason: string,
     diagnostic: TriggerDecisionDiagnostic,
+  ): Promise<void>;
+  /** The subscription's project can't take the event, so its filter never ran. */
+  accessFiltered(
+    subscription: TriggerSubscription,
+    denial: EventProjectAccessDenial,
+  ): Promise<void>;
+  listenerAccessFiltered(
+    subscription: JobListenerSubscription,
+    denial: EventProjectAccessDenial,
   ): Promise<void>;
   filterErrored(
     subscription: TriggerSubscription,
@@ -139,6 +157,7 @@ export interface BeginTriggerHistoryParams {
   connectionId: string | null;
   connectionName: string | null;
   payload: Record<string, unknown> | null;
+  resource?: TriggerEventResource | null | undefined;
   receivedAt: Date;
 }
 
@@ -249,6 +268,45 @@ export async function beginTriggerHistory(
           reason,
           diagnostic: checkedDiagnostic,
         }),
+      ),
+    devAccessFiltered: (triggerKey, workflowDefinitionId, denial) =>
+      recordDecisionDiagnostic(
+        'dev-access-filtered-decision',
+        {version: 1, code: denial},
+        (id, checkedDiagnostic) =>
+          upsertDevFilteredDecision({
+            receivedEventId: id,
+            triggerKey,
+            workflowDefinitionId,
+            reason: denial,
+            diagnostic: checkedDiagnostic,
+          }),
+      ),
+    accessFiltered: (subscription, denial) =>
+      recordDecisionDiagnostic(
+        'access-filtered-decision',
+        {version: 1, code: denial},
+        (id, checkedDiagnostic) =>
+          upsertFilteredDecision({
+            receivedEventId: id,
+            subscription,
+            reason: denial,
+            diagnostic: checkedDiagnostic,
+          }),
+        subscription.id,
+      ),
+    listenerAccessFiltered: (subscription, denial) =>
+      recordDecisionDiagnostic(
+        'listener-access-filtered-decision',
+        {version: 1, code: denial},
+        (id, checkedDiagnostic) =>
+          upsertListenerFilteredDecision({
+            receivedEventId: id,
+            subscription,
+            reason: denial,
+            diagnostic: checkedDiagnostic,
+          }),
+        subscription.id,
       ),
     filterErrored: (subscription, reason, diagnostic) =>
       recordDecisionDiagnostic(

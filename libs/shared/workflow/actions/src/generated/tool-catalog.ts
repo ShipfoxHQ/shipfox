@@ -8637,10 +8637,6 @@ export interface ShipfoxStartWorkflowRunArguments {
    */
   workflow: string;
   /**
-   * Project UUID that owns the workflow. Defaults to the calling run project.
-   */
-  project_id?: string;
-  /**
    * Trigger inputs as a JSON object, limited to 16384 UTF-8 bytes when serialized.
    */
   inputs?: {

@@ -87,6 +87,8 @@ export const triggerDecisionDiagnosticSchema = z.discriminatedUnion('code', [
     'definition-not-found',
     'project-mismatch',
     'source-connection-unavailable',
+    'project-access',
+    'project-deleted',
     'unexpected-workflow-start-failure',
     'unexpected-listener-delivery-failure',
   ].map((code) => z.strictObject({version: diagnosticVersionSchema, code: z.literal(code)})),

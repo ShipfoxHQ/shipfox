@@ -81,6 +81,7 @@ function buildListenerSubscription(
   return {
     id: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
+    projectId: null,
     workflowRunId: crypto.randomUUID(),
     jobId: crypto.randomUUID(),
     kind: 'on',

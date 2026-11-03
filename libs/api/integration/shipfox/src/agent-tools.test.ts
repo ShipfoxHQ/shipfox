@@ -179,12 +179,7 @@ describe('Shipfox agent tools', () => {
       'search_docs',
     ]);
     expect('methods' in (shipfoxAgentToolCatalog[0] ?? {})).toBe(false);
-    expect(shipfoxAgentToolCatalog[0]?.inputSchema).toMatchObject({
-      properties: {project_id: {type: 'string', pattern: expect.any(String)}},
-    });
-    expect(shipfoxAgentToolCatalog[0]?.inputSchema).not.toHaveProperty(
-      'properties.project_id.format',
-    );
+    expect(shipfoxAgentToolCatalog[0]?.inputSchema).not.toHaveProperty('properties.project_id');
     expect(shipfoxAgentToolCatalog[0]?.inputSchema).not.toHaveProperty('properties.secrets');
     expect(shipfoxAgentToolCatalog[0]?.outputSchema).toMatchObject({
       additionalProperties: false,
@@ -307,7 +302,7 @@ describe('Shipfox agent tools', () => {
     });
   });
 
-  it('uses an explicit project and passes inputs', async () => {
+  it('passes inputs and rejects a project_id argument', async () => {
     const {definitions, triggers, provider} = createProvider();
     const session = await provider.openSession({
       connection: {} as never,
@@ -315,24 +310,31 @@ describe('Shipfox agent tools', () => {
       scope: {},
       caller: caller(),
     });
-    const explicitProject = '00000000-0000-4000-8000-000000000009';
+    const otherProject = '00000000-0000-4000-8000-000000000009';
 
-    const result = await session.call({
+    await session.call({
       toolId: 'start_workflow_run',
-      arguments: {workflow: 'child.yml', project_id: explicitProject, inputs: {version: '1.2.3'}},
+      arguments: {workflow: 'child.yml', inputs: {version: '1.2.3'}},
+    });
+    const rejected = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml', project_id: otherProject},
     });
 
-    expect(result).toMatchObject({structuredContent: {project_id: explicitProject}});
+    expect(definitions.getDefinitionByConfigPath).toHaveBeenCalledTimes(1);
     expect(definitions.getDefinitionByConfigPath).toHaveBeenCalledWith(
-      expect.objectContaining({projectId: explicitProject}),
+      expect.objectContaining({projectId}),
     );
     expect(triggers.fireManualTrigger).toHaveBeenCalledWith(
       expect.objectContaining({inputs: {version: '1.2.3'}}),
     );
-    expect(projectId).not.toBe(explicitProject);
+    expect(rejected).toMatchObject({
+      isError: true,
+      content: [{text: 'Unknown parameter: project_id'}],
+    });
   });
 
-  it('passes tool-step secret references using the parent project scope', async () => {
+  it('passes tool-step secret references using the caller project scope', async () => {
     const {triggers, provider} = createProvider();
     const session = await provider.openSession({
       connection: {} as never,
@@ -340,13 +342,11 @@ describe('Shipfox agent tools', () => {
       scope: {},
       caller: caller(),
     });
-    const childProjectId = '00000000-0000-4000-8000-000000000009';
 
     await session.call({
       toolId: 'start_workflow_run',
       arguments: {
         workflow: 'child.yml',
-        project_id: childProjectId,
         secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
       },
     });
@@ -358,9 +358,6 @@ describe('Shipfox agent tools', () => {
         },
       }),
     );
-    expect(triggers.fireManualTrigger.mock.calls[0]?.[0].secretInputs).not.toEqual({
-      DEPLOY_TOKEN: {key: 'PROD_DEPLOY_TOKEN', projectId: childProjectId},
-    });
   });
 
   it('passes an empty secret map instead of omitting it', async () => {
@@ -1344,14 +1341,20 @@ describe('Shipfox tools for a conversation', () => {
     }
   });
 
-  it('leaves project_id in the lease catalog', () => {
+  it('leaves project_id on the read tools of the lease catalog', () => {
     const leaseTools = shipfoxAgentToolCatalog.filter((tool) =>
-      ['start_workflow_run', 'list_workflow_definitions', 'list_workflow_runs'].includes(tool.id),
+      ['list_workflow_definitions', 'list_workflow_runs'].includes(tool.id),
     );
 
     for (const tool of leaseTools) {
       expect(tool.inputSchema, tool.id).toHaveProperty('properties.project_id');
     }
+  });
+
+  it('has no project_id on start_workflow_run', () => {
+    const tool = shipfoxAgentToolCatalog.find(({id}) => id === 'start_workflow_run');
+
+    expect(tool?.inputSchema).not.toHaveProperty('properties.project_id');
   });
 
   it.each([

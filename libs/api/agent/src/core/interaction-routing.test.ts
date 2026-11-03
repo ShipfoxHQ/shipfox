@@ -1,3 +1,6 @@
+import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
@@ -34,7 +37,23 @@ function defaultProjectIs(id: string | null): RouteInteractionDeps['projects'] {
               },
       }),
     ),
+    getProjectAccessPolicy: vi.fn(({projectId}) =>
+      Promise.resolve({policy: accessPolicy({projectId})}),
+    ),
   };
+}
+
+function accessPolicy(overrides: Partial<ProjectAccessPolicy> & {projectId: string}) {
+  return {
+    configSource: {
+      managed: true,
+      connectionId: crypto.randomUUID(),
+      externalRepositoryId: 'managed:repository',
+      lookupName: null,
+    },
+    connections: 'all',
+    ...overrides,
+  } satisfies ProjectAccessPolicy;
 }
 
 function setup(defaultProjectId: string | null = crypto.randomUUID()) {
@@ -209,6 +228,92 @@ describe('routeInteraction', () => {
     const result = await routeInteraction(interaction(), deps);
 
     expect(result).toEqual({outcome: 'dropped', reason: 'no-project'});
+  });
+
+  describe('project access', () => {
+    function excludeConnection(deps: RouteInteractionDeps, projectId: string) {
+      vi.mocked(deps.projects.getProjectAccessPolicy).mockResolvedValue({
+        policy: accessPolicy({
+          projectId,
+          connections: [{connectionId: crypto.randomUUID(), resources: 'all'}],
+        }),
+      });
+    }
+
+    function projectGone(deps: RouteInteractionDeps, projectId: string) {
+      vi.mocked(deps.projects.getProjectAccessPolicy).mockRejectedValue(
+        createInterModuleKnownError(
+          projectsInterModuleContract.methods.getProjectAccessPolicy,
+          'project-not-found',
+          {projectId},
+        ),
+      );
+    }
+
+    it('drops a request when the answering project excludes the connection', async () => {
+      const projectId = crypto.randomUUID();
+      const {deps, wake, base, interaction} = setup(projectId);
+      excludeConnection(deps, projectId);
+
+      const result = await routeInteraction(interaction(), deps);
+
+      expect(result).toEqual({outcome: 'dropped', reason: 'project-access'});
+      const stored = await db()
+        .select({id: conversations.id})
+        .from(conversations)
+        .where(eq(conversations.workspaceId, base.workspaceId));
+      expect(stored).toEqual([]);
+      expect(wake).not.toHaveBeenCalled();
+    });
+
+    it('asks only the default project, and starts nothing when it excludes the connection', async () => {
+      const projectId = crypto.randomUUID();
+      const {deps, interaction} = setup(projectId);
+      excludeConnection(deps, projectId);
+
+      await routeInteraction(interaction(), deps);
+
+      expect(deps.projects.getProjectAccessPolicy).toHaveBeenCalledTimes(1);
+      expect(deps.projects.getProjectAccessPolicy).toHaveBeenCalledWith(
+        expect.objectContaining({projectId}),
+      );
+    });
+
+    it('drops a message for an owner whose project excludes the connection', async () => {
+      const projectId = crypto.randomUUID();
+      const {deps, wake, interaction} = setup(projectId);
+      const started = await routeInteraction(interaction(), deps);
+      if (started.outcome === 'dropped') throw new Error('Expected a conversation');
+      wake.mockClear();
+      excludeConnection(deps, projectId);
+
+      const followUp = await routeInteraction(interaction({role: 'follow_up'}), deps);
+      const stop = await routeInteraction(interaction({role: 'stop', text: ''}), deps);
+
+      expect(followUp).toEqual({outcome: 'dropped', reason: 'project-access'});
+      expect(stop).toEqual({outcome: 'dropped', reason: 'project-access'});
+      expect(wake).not.toHaveBeenCalled();
+    });
+
+    it('drops a message for an owner whose project is deleted', async () => {
+      const projectId = crypto.randomUUID();
+      const {deps, interaction} = setup(projectId);
+      const started = await routeInteraction(interaction(), deps);
+      if (started.outcome === 'dropped') throw new Error('Expected a conversation');
+      projectGone(deps, projectId);
+
+      const result = await routeInteraction(interaction({role: 'follow_up'}), deps);
+
+      expect(result).toEqual({outcome: 'dropped', reason: 'project-deleted'});
+    });
+
+    it('lets a policy read failure through for the event to replay', async () => {
+      const projectId = crypto.randomUUID();
+      const {deps, interaction} = setup(projectId);
+      vi.mocked(deps.projects.getProjectAccessPolicy).mockRejectedValue(new Error('unavailable'));
+
+      await expect(routeInteraction(interaction(), deps)).rejects.toThrow('unavailable');
+    });
   });
 
   it('reaches the owner on a stop without queueing text', async () => {

@@ -31,6 +31,7 @@ import {jobs} from '#db/schema/jobs.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
 import {steps} from '#db/schema/steps.js';
 import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
+import {workflowRuns} from '#db/schema/workflow-runs.js';
 import {jobExecutionTerminatedEvents} from '#test/helpers/workflow-runs.js';
 import {jobFactory, workflowModel, workflowRunFactory} from '#test/index.js';
 import {
@@ -316,6 +317,12 @@ describe('activateJobListener', () => {
 
     const payload = await activatedPayload(job.id);
     expectListeningPayload(payload);
+    const [run] = await db()
+      .select({projectId: workflowRuns.projectId})
+      .from(workflowRunAttempts)
+      .innerJoin(workflowRuns, eq(workflowRuns.id, workflowRunAttempts.workflowRunId))
+      .where(eq(workflowRunAttempts.id, job.workflowRunAttemptId));
+    expect(payload.projectId).toBe(run?.projectId);
     expect(payload.on[0]).toEqual({source: 'github_acme'});
     expect(payload.until?.[0]).toEqual({
       source: 'github_acme',

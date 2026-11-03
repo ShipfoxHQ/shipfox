@@ -268,6 +268,11 @@ function diagnosticIssue(
       ]);
     case 'source-connection-unavailable':
       return sourceUnavailableIssue(decision, targetName);
+    case 'project-access':
+    case 'project-deleted':
+      return issue(decision, 'Event was filtered by the project', [
+        text(`The project did not take this event for ${targetName}.`),
+      ]);
     case 'agent-config-unresolvable':
       return issue(decision, 'Agent configuration could not be resolved', [
         text(`Shipfox could not resolve the agent configuration for ${targetName}.`),

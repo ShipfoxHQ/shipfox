@@ -40,6 +40,7 @@ function event(overrides: Partial<TriggerReceivedEvent> = {}): TriggerReceivedEv
     outcome: 'routed',
     matchedCount: 1,
     payload: {ref: 'refs/heads/main'},
+    resource: null,
     receivedAt: new Date('2026-08-05T12:00:00.000Z'),
     processedAt: new Date('2026-08-05T12:00:01.000Z'),
     createdAt: new Date('2026-08-05T12:00:02.000Z'),
@@ -48,7 +49,12 @@ function event(overrides: Partial<TriggerReceivedEvent> = {}): TriggerReceivedEv
 }
 
 function summary(value: TriggerReceivedEvent): TriggerReceivedEventSummary {
-  const {payload: _payload, processingDiagnostic: _processingDiagnostic, ...withoutPayload} = value;
+  const {
+    payload: _payload,
+    processingDiagnostic: _processingDiagnostic,
+    resource: _resource,
+    ...withoutPayload
+  } = value;
   return withoutPayload;
 }
 

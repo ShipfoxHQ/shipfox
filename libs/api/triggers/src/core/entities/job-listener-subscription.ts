@@ -3,6 +3,8 @@ export type JobListenerMatcherKind = 'on' | 'until';
 export interface JobListenerSubscription {
   id: string;
   workspaceId: string;
+  /** Null for subscriptions projected before the project was recorded; access is not checked. */
+  projectId: string | null;
   workflowRunId: string;
   jobId: string;
   kind: JobListenerMatcherKind;

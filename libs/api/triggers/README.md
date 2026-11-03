@@ -102,6 +102,16 @@ records a structured `filter-error` decision and fails closed without creating
 a run. The `trigger` object contains only `source` and `event` while this filter
 runs; definition validation rejects other trigger fields.
 
+Before the filter runs, dispatch checks the project of each matching subscription and of each
+listening job against the project's access. The envelope's optional `resource` (for GitHub and
+Gitea, the repository of the event) is compared with the connection's resource list, loaded in
+batches of 100 policies. A project whose access excludes the connection or the resource records a
+`filtered` decision with reason `project-access`, and a project the Projects module no longer
+returns records `project-deleted`. Neither starts a run or delivers to a listening job. An event with
+no resource passes when its connection does. A policy read failure is transient, so the event
+replays. A dev run that replays an event applies the same check and refuses with `project-access`.
+Shipfox lifecycle events, cron, and manual triggers are not checked.
+
 Webhook triggers use the webhook connection slug as `source` and the fixed
 event name `received`. A delivery to `POST /webhook/:connectionId` publishes
 an `INTEGRATION_EVENT_RECEIVED` envelope with `provider: webhook`,

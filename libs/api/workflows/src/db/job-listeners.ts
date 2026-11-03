@@ -281,6 +281,7 @@ async function writeListenerActivatedEvent(
       jobId,
       workflowRunId: target.run.id,
       workspaceId: target.run.workspaceId,
+      projectId: target.run.projectId,
       mode: 'listening',
       on,
       until,

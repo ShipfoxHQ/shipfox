@@ -10,6 +10,7 @@ import {
   type IntegrationTx,
   type PublishSourcePushFn,
   type RecordDeliveryOnlyFn,
+  repositoryEventResource,
   type SourcePushPayload,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -174,6 +175,10 @@ export async function handleGiteaPush(
     deliveryId: params.deliveryId,
     receivedAt: new Date().toISOString(),
     rawPayload: params.rawPayload,
+    resource: repositoryEventResource({
+      externalRepositoryId: push.externalRepositoryId,
+      fullName: `${owner}/${params.payload.repository.name}`,
+    }),
     push,
   });
 

@@ -13,6 +13,7 @@ export const jobListenerSubscriptionFactory = Factory.define<JobListenerSubscrip
         .insert(jobListenerSubscriptions)
         .values({
           workspaceId: subscription.workspaceId,
+          projectId: subscription.projectId,
           workflowRunId: subscription.workflowRunId,
           jobId: subscription.jobId,
           kind: subscription.kind,
@@ -29,6 +30,7 @@ export const jobListenerSubscriptionFactory = Factory.define<JobListenerSubscrip
     return {
       id: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
+      projectId: null,
       workflowRunId: crypto.randomUUID(),
       jobId: crypto.randomUUID(),
       kind: 'on',

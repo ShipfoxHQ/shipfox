@@ -49,8 +49,43 @@ describe('onIntegrationEventReceived', () => {
       deliveryId: envelope.deliveryId,
       connectionId: envelope.connectionId,
       connectionName: envelope.connectionName,
+      resource: null,
       payload: envelope.payload,
       receivedAt: new Date(receivedAt),
     });
+  });
+
+  test('passes the event resource and the projects client for the access check', async () => {
+    const projects = {getProjectAccessPolicies: vi.fn()};
+    const resource = {kind: 'repository', externalId: 'github:1', lookupName: 'acme/app'};
+    const envelope: IntegrationEventReceivedEvent = {
+      provider: 'github',
+      source: 'github',
+      event: 'push',
+      workspaceId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      connectionName: null,
+      deliveryId: crypto.randomUUID(),
+      receivedAt: '2026-06-21T03:20:00.000Z',
+      resource,
+      payload: {},
+    };
+    const event: DomainEvent<IntegrationEventReceivedEvent> = {
+      id: crypto.randomUUID(),
+      type: 'integrations.event.received',
+      createdAt: new Date(),
+      payload: envelope,
+    };
+
+    await createOnIntegrationEventReceived(
+      workflows,
+      undefined,
+      undefined,
+      projects,
+    )(envelope, event);
+
+    expect(dispatchIntegrationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({resource, projects}),
+    );
   });
 });
