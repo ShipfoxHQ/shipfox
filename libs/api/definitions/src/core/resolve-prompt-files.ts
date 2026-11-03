@@ -5,6 +5,8 @@ import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {
   collectCompositePromptFileReferences,
   collectPromptFileReferences,
+  type DocumentPrompt,
+  promptFileReferences,
 } from './collect-prompt-file-references.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
 import {PromptFileResolutionError} from './errors.js';
@@ -23,15 +25,25 @@ export interface PromptFileSourceContext {
   ref: string;
 }
 
+/** A prompt outside a workflow, such as the instructions of an agent file. */
+export interface PromptListSource {
+  prompt: DocumentPrompt;
+  /** Where the prompt sits in the document, such as `instructions`. */
+  path: string;
+  /** The repository file that holds the prompt. */
+  filePath: string;
+}
+
 export interface ResolvePromptFilesParams extends PromptFileSourceContext {
-  workflows: readonly {path: string; document: WorkflowDocument}[];
+  workflows?: readonly {path: string; document: WorkflowDocument}[] | undefined;
+  prompts?: readonly PromptListSource[] | undefined;
   /** Resolved actions. The repository files their composite steps name are read too. */
   actions?: ResolvedActions | undefined;
 }
 
 /**
- * Reads every repository prompt file the workflows and their composite actions
- * name, once per path. A file that is missing, empty, or not readable text
+ * Reads every repository prompt file the workflows, their composite actions,
+ * and any other prompt list name, once per path. A file that is missing, empty, or not readable text
  * fails with the first part that names it.
  */
 export async function resolvePromptFiles(
@@ -41,9 +53,14 @@ export async function resolvePromptFiles(
   const use = (file: string, path: string, filePath: string) => {
     if (!firstUse.has(file)) firstUse.set(file, {path, filePath});
   };
-  for (const workflow of params.workflows) {
+  for (const workflow of params.workflows ?? []) {
     for (const reference of collectPromptFileReferences(workflow.document)) {
       use(reference.file, reference.path, workflow.path);
+    }
+  }
+  for (const source of params.prompts ?? []) {
+    for (const reference of promptFileReferences(source.prompt, source.path)) {
+      use(reference.file, reference.path, source.filePath);
     }
   }
   for (const action of params.actions?.values() ?? []) {

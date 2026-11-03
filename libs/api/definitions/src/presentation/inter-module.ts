@@ -24,6 +24,7 @@ import {
 } from '#core/index.js';
 import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
 import {getActionSnapshot} from '#db/action-snapshots.js';
+import {listProjectAgents} from '#db/agents.js';
 import {
   getDefinitionByConfigPath,
   getDefinitionById,
@@ -113,6 +114,7 @@ export function createDefinitionsInterModulePresentation(
       const project = await requireProjectForDefinitionList(
         {workspaceId, projectId},
         params.projects,
+        definitionsInterModuleContract.methods.listDefinitionsByProject,
       );
       const result = await listDefinitionsWithSync({
         projectId,
@@ -126,6 +128,23 @@ export function createDefinitionsInterModulePresentation(
         definitions: result.definitions.map(toDefinitionReadModel),
         sync: toDefinitionSyncSummary(result.syncState),
         nextCursor: result.nextCursor,
+      };
+    },
+    listProjectAgents: async ({workspaceId, projectId}) => {
+      await requireProjectForDefinitionList(
+        {workspaceId, projectId},
+        params.projects,
+        definitionsInterModuleContract.methods.listProjectAgents,
+      );
+      const agents = await listProjectAgents(projectId);
+      return {
+        agents: agents.map((agent) => ({
+          key: agent.key,
+          configPath: agent.configPath,
+          config: agent.config,
+          errors: agent.errors,
+          updatedAt: agent.updatedAt.toISOString(),
+        })),
       };
     },
     resolveDefinitionAtRef: async (input, context) => {
@@ -180,6 +199,9 @@ export function createDefinitionsInterModulePresentation(
 async function requireProjectForDefinitionList(
   input: {workspaceId: string; projectId: string},
   projects: ProjectsModuleClient,
+  method:
+    | typeof definitionsInterModuleContract.methods.listDefinitionsByProject
+    | typeof definitionsInterModuleContract.methods.listProjectAgents,
 ) {
   try {
     return (await projects.requireProjectForWorkspace(input)).project;
@@ -187,7 +209,6 @@ async function requireProjectForDefinitionList(
     const projectMethod = projectsInterModuleContract.methods.requireProjectForWorkspace;
     if (!isInterModuleKnownError(projectMethod, error)) throw error;
 
-    const method = definitionsInterModuleContract.methods.listDefinitionsByProject;
     const {code} = error;
     switch (code) {
       case 'project-not-found':

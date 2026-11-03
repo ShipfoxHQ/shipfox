@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getLatestDefinitionSyncState: vi.fn(),
   listDefinitions: vi.fn(),
   listDefinitionsAtRef: vi.fn(),
+  listProjectAgents: vi.fn(),
   requireProjectForWorkspace: vi.fn(),
   resolveDefinitionAtRef: vi.fn(),
   validateDefinitionAtRef: vi.fn(),
@@ -23,6 +24,10 @@ vi.mock('#db/definitions.js', () => ({
   getDefinitionById: mocks.getDefinitionById,
   getWorkflowLineageById: mocks.getWorkflowLineageById,
   listDefinitions: mocks.listDefinitions,
+}));
+
+vi.mock('#db/agents.js', () => ({
+  listProjectAgents: mocks.listProjectAgents,
 }));
 
 vi.mock('#db/sync-states.js', () => ({
@@ -67,6 +72,7 @@ describe('definitions inter-module presentation', () => {
     mocks.getWorkflowLineageById.mockReset();
     mocks.getLatestDefinitionSyncState.mockReset();
     mocks.listDefinitions.mockReset();
+    mocks.listProjectAgents.mockReset();
     mocks.requireProjectForWorkspace.mockReset();
   });
 
@@ -711,5 +717,61 @@ describe('definitions inter-module presentation', () => {
     expect(isInterModuleKnownError(method, error)).toBe(true);
     expect((error as {code: string}).code).toBe('too-many-files');
     expect((error as {details: unknown}).details).toEqual({fileCount: 100});
+  });
+
+  describe('listProjectAgents', () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000010';
+    const input = {workspaceId, projectId: PROJECT_ID};
+    const context = {signal: new AbortController().signal};
+
+    it('lists the stored agents of an authorised project', async () => {
+      mocks.requireProjectForWorkspace.mockResolvedValue({project: {id: PROJECT_ID}});
+      mocks.listProjectAgents.mockResolvedValue([
+        {
+          id: '00000000-0000-4000-8000-000000000020',
+          projectId: PROJECT_ID,
+          key: 'reviewer',
+          configPath: '.shipfox/agents/reviewer.yml',
+          contentHash: 'hash',
+          config: {description: 'Reviews.', instructions: 'Review the diff.'},
+          errors: [{message: 'A custom agent requires "instructions".', path: 'instructions'}],
+          createdAt: new Date('2026-11-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-11-02T00:00:00.000Z'),
+        },
+      ]);
+
+      const result = await presentation().handlers.listProjectAgents(input, context);
+
+      expect(result).toEqual({
+        agents: [
+          {
+            key: 'reviewer',
+            configPath: '.shipfox/agents/reviewer.yml',
+            config: {description: 'Reviews.', instructions: 'Review the diff.'},
+            errors: [{message: 'A custom agent requires "instructions".', path: 'instructions'}],
+            updatedAt: '2026-11-02T00:00:00.000Z',
+          },
+        ],
+      });
+      expect(mocks.listProjectAgents).toHaveBeenCalledWith(PROJECT_ID);
+    });
+
+    it('maps an unknown project to its own known error and reads nothing', async () => {
+      mocks.requireProjectForWorkspace.mockRejectedValue(
+        createInterModuleKnownError(
+          projectsInterModuleContract.methods.requireProjectForWorkspace,
+          'project-not-found',
+          {projectId: PROJECT_ID},
+        ),
+      );
+
+      const error = await rejection(presentation().handlers.listProjectAgents(input, context));
+
+      expect(
+        isInterModuleKnownError(definitionsInterModuleContract.methods.listProjectAgents, error),
+      ).toBe(true);
+      expect((error as {code: string}).code).toBe('project-not-found');
+      expect(mocks.listProjectAgents).not.toHaveBeenCalled();
+    });
   });
 });

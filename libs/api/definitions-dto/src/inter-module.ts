@@ -1,5 +1,9 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
-import {actionBundleDigestSchema} from '@shipfox/workflow-document';
+import {
+  actionBundleDigestSchema,
+  agentThinkingSchema,
+  workflowDocumentStepIntegrationSchema,
+} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {actionUploadsSchema} from '#schemas/action-uploads.js';
 import {
@@ -83,6 +87,25 @@ const workflowLineageSchema = z.object({
   id: idSchema,
   projectId: idSchema,
   configPath: z.string().nullable(),
+});
+const projectAgentSchema = z.object({
+  /** The file name without the extension. It identifies the agent. */
+  key: z.string().min(1),
+  configPath: z.string().min(1),
+  /** The last valid version of the file. */
+  config: z.object({
+    name: z.string().optional(),
+    description: z.string().optional(),
+    /** The text the file's parts joined to at the synced commit. */
+    instructions: z.string().optional(),
+    provider: z.string().optional(),
+    model: z.string().optional(),
+    thinking: agentThinkingSchema.optional(),
+    integrations: z.array(workflowDocumentStepIntegrationSchema).optional(),
+  }),
+  /** Why the file is invalid now. Empty when `config` comes from the current file. */
+  errors: z.array(z.object({message: z.string(), path: z.string().optional()})),
+  updatedAt: z.string().datetime(),
 });
 const refResolutionErrors = {
   'project-not-found': z.object({projectId: idSchema}),
@@ -204,6 +227,15 @@ export const definitionsInterModuleContract = defineInterModuleContract({
         'project-workspace-mismatch': z.object({projectId: idSchema, workspaceId: idSchema}),
       },
     },
+    /** The agents of a project, from the files in its agent folder at the last sync. */
+    listProjectAgents: {
+      input: z.object({workspaceId: idSchema, projectId: idSchema}),
+      output: z.object({agents: z.array(projectAgentSchema)}),
+      errors: {
+        'project-not-found': z.object({projectId: idSchema}),
+        'project-workspace-mismatch': z.object({projectId: idSchema, workspaceId: idSchema}),
+      },
+    },
     resolveDefinitionAtRef: {
       input: definitionAtRefInputSchema.superRefine(refineDefinitionAtRefInput),
       output: resolvedDefinitionAtRefSchema,
@@ -244,4 +276,5 @@ export const definitionsInterModuleContract = defineInterModuleContract({
 export type DefinitionsInterModuleClient = InterModuleClient<typeof definitionsInterModuleContract>;
 export type DefinitionWorkflowSnapshot = z.infer<typeof definitionSnapshotSchema>;
 export type DefinitionListItem = z.infer<typeof definitionListItemSchema>;
+export type ProjectAgentReadModel = z.infer<typeof projectAgentSchema>;
 export type DefinitionSyncSummary = z.infer<typeof definitionSyncSummarySchema>;

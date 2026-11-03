@@ -31,6 +31,13 @@ Input shape for Shipfox workflow authoring.
   `control-character`, `whole-anchor`, or `leaves-anchor`. It has no Node
   imports. `@shipfox/workflow-document/anchored-path` exports it without
   loading the schemas.
+- `agentDocumentSchema` defines an agent file of `.shipfox/agents/`: `name`,
+  `description`, `instructions`, `provider`, `model`, `thinking`, and
+  `integrations`. It has no `harness` and no `on`. `parseAgentDocument(input,
+  {key})` takes the file name without its extension as the key. `shippy` is the
+  built-in agent, so every field is optional there. Any other key requires
+  `description` and `instructions`. `buildAgentJsonSchema` projects the schema
+  for the docs.
 - `encodeActionBundle` and `decodeActionBundle` store an action directory as
   one content-addressed bundle, so the API and the runner agree on its digest.
 

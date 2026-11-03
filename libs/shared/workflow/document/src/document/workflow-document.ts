@@ -92,7 +92,7 @@ function promptFilePartSchema(mode: WorkflowDocumentStepMode) {
 
 // Lists do not nest: a part is a string or a file reference, so a YAML anchor
 // that holds a list (or a cyclic alias) is an invalid item, with no recursion.
-function promptSchema(mode: WorkflowDocumentStepMode) {
+export function workflowDocumentPromptSchema(mode: WorkflowDocumentStepMode) {
   return z.union([
     z.string().min(1),
     z
@@ -871,6 +871,15 @@ const workflowDocumentJobCheckoutSchema = z
       'Configures repository permissions and saved credentials for the project checkout at the job root. Set to `false` to skip that checkout.',
   });
 
+export const workflowDocumentAgentModelSchema = z.string().min(1).meta({
+  description: 'Selects the model that the agent uses.',
+});
+
+export const workflowDocumentAgentProviderSchema = z.string().min(1).meta({
+  description:
+    'Selects the model provider for this step. See [Model providers](/reference/model-providers).',
+});
+
 export const workflowDocumentStepIntegrationSelectionSchema = z.array(z.string().min(1)).min(1);
 
 export const workflowDocumentStepIntegrationSchema = z.strictObject({
@@ -1288,7 +1297,7 @@ const runAfterSchema = z.enum(['success', 'failure', 'always']);
  * `file:` accept a `${{ action.path }}/` prefix, and the step kind rules
  * differ (see `validateCompositeStep`).
  */
-type WorkflowDocumentStepMode = 'workflow' | 'composite';
+export type WorkflowDocumentStepMode = 'workflow' | 'composite';
 
 const workflowDocumentControlTargetsSchema = z.union([
   z.string().min(1),
@@ -1345,10 +1354,8 @@ const workflowDocumentStepBaseSchema = z.strictObject({
     description:
       'Checks out a repository for this step. Set a non-root `path` to keep the project checkout at the job root.',
   }),
-  model: z.string().min(1).optional().meta({
-    description: 'Selects the model that the agent uses.',
-  }),
-  prompt: promptSchema('workflow').optional().meta({
+  model: workflowDocumentAgentModelSchema.optional(),
+  prompt: workflowDocumentPromptSchema('workflow').optional().meta({
     description:
       'Gives the agent its instructions. Use a string, or a list of parts that Shipfox joins with a blank line. A part is a string or a `file` reference.',
   }),
@@ -1359,10 +1366,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   thinking: agentThinkingFieldSchema.optional(),
   session: workflowDocumentSessionSchema.optional(),
   repository_context: workflowDocumentRepositoryContextSchema.optional(),
-  provider: z.string().min(1).optional().meta({
-    description:
-      'Selects the model provider for this step. See [Model providers](/reference/model-providers).',
-  }),
+  provider: workflowDocumentAgentProviderSchema.optional(),
   tools: z.array(z.string().min(1)).min(1).optional().meta({
     description: 'Gives the agent the listed built-in tools.',
   }),
@@ -1537,7 +1541,7 @@ function compositeUsesIssue(uses: string): string | undefined {
  */
 export const workflowDocumentCompositeStepSchema = workflowDocumentStepBaseSchema
   .extend({
-    prompt: promptSchema('composite').optional().meta({
+    prompt: workflowDocumentPromptSchema('composite').optional().meta({
       description:
         'Gives the agent its instructions. Use a string, or a list of parts that Shipfox joins with a blank line. A part is a string or a `file` reference.',
     }),

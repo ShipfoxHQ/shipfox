@@ -22,6 +22,7 @@ const requiredAnchors = new Set([
   'agent-mcp-server-fields',
   'agent-session-fields',
   'agent-repository-context-fields',
+  'agent-file-fields',
   'tool-step-fields',
   'checkout-step-fields',
   'checkout-fields',

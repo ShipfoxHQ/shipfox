@@ -14,14 +14,20 @@ import {
 } from '#core/entities/sync-state.js';
 import {
   classifySyncFailure,
+  DEFAULT_AGENT_PATH,
+  discoverDefinitionFiles,
   discoverWorkflowFiles,
+  fetchAndParseAgents,
   fetchAndParseWorkflows,
+  INVALID_AGENT_DIAGNOSTIC_CODE,
+  MAX_AGENT_FILES,
   resolveSyncSource,
   UNRESOLVED_SYNC_REF,
 } from '#core/index.js';
 import type {DefinitionsSourceControl} from '#core/integrations.js';
 import {loadIntegrationValidationContext} from '#core/integrations.js';
 import {
+  applyProjectAgents,
   applyVcsDefinitionsBatch,
   markDefinitionSyncState,
   moveVcsDefinitionsToRef,
@@ -61,6 +67,26 @@ export interface DiscoverWorkflowsActivityResult {
   paths: string[];
 }
 
+export interface DiscoverDefinitionFilesActivityResult {
+  workflowPaths: string[];
+  agentPaths: string[];
+  nestedAgentPaths: string[];
+  /** The agent folder holds more files than sync reads. */
+  agentFilesTruncated: boolean;
+}
+
+export interface SyncAgentsActivityInput extends SyncRefScopedInput {
+  paths: string[];
+  nestedPaths: string[];
+  truncated: boolean;
+}
+
+export interface SyncAgentsActivityResult {
+  appliedCount: number;
+  deletedCount: number;
+  diagnostics: DefinitionSyncDiagnostic[];
+}
+
 export interface FetchAndApplyActivityResult {
   appliedCount: number;
   deletedCount: number;
@@ -73,6 +99,7 @@ export interface MarkSyncSucceededActivityInput extends SyncRefScopedInput {
 
 export interface DefinitionSyncActivityOptions {
   workflowPath: string;
+  agentPath?: string | undefined;
   /** Resolves registry actions during sync. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   /** Reads the `definitions-actions` flag per workspace. Without it, the flag's default applies. */
@@ -103,6 +130,12 @@ export function createDefinitionSyncActivities(
       sourceControl,
       options?.workflowPath,
     ),
+    discoverDefinitionFiles: createDiscoverDefinitionFilesActivity(
+      sourceControl,
+      options?.workflowPath,
+      options?.agentPath,
+    ),
+    syncDefinitionAgents: createSyncAgentsActivity(sourceControl, projects, options?.agentPath),
     fetchAndApplyDefinitionWorkflows,
     // Versioned names keep old workers from silently dropping diagnostics.
     fetchAndApplyDefinitionWorkflowsV2: fetchAndApplyDefinitionWorkflows,
@@ -182,6 +215,78 @@ function createDiscoverDefinitionWorkflowsActivity(
         sourceControl,
         workflowPath,
       });
+    });
+  };
+}
+
+function createDiscoverDefinitionFilesActivity(
+  sourceControl: DefinitionsSourceControl,
+  workflowPath?: string | undefined,
+  agentPath?: string | undefined,
+) {
+  return async function discoverDefinitionFilesActivity(
+    input: SyncRefScopedInput,
+  ): Promise<DiscoverDefinitionFilesActivityResult> {
+    return await runWithPermanentTranslation(async () => {
+      const discovered = await discoverDefinitionFiles({
+        ...input,
+        ref: input.sourceCommitSha ?? input.sourceRef,
+        sourceControl,
+        workflowPath,
+        agentPath,
+      });
+      return {
+        workflowPaths: discovered.workflowPaths,
+        agentPaths: discovered.paths,
+        nestedAgentPaths: discovered.nestedPaths,
+        agentFilesTruncated: discovered.truncated,
+      };
+    });
+  };
+}
+
+/**
+ * Stores the agent files one at a time: a file that is invalid becomes a
+ * diagnostic and never fails the activity. An incomplete listing changes no row,
+ * because a missing file would then delete its agent.
+ */
+function createSyncAgentsActivity(
+  sourceControl: DefinitionsSourceControl,
+  projects: Pick<ProjectsModuleClient, 'getProjectById'>,
+  agentPath?: string | undefined,
+) {
+  return async function syncDefinitionAgents(
+    input: SyncAgentsActivityInput,
+  ): Promise<SyncAgentsActivityResult> {
+    return await runWithPermanentTranslation(async () => {
+      if (input.truncated) {
+        return {
+          appliedCount: 0,
+          deletedCount: 0,
+          diagnostics: [
+            {
+              code: INVALID_AGENT_DIAGNOSTIC_CODE,
+              message: `More than ${MAX_AGENT_FILES} agent files were found under ${agentPath ?? DEFAULT_AGENT_PATH}, so no agent was synced`,
+              severity: 'error' as const,
+            },
+          ],
+        };
+      }
+
+      const {files, diagnostics} = await fetchAndParseAgents({
+        ...input,
+        ref: input.sourceCommitSha ?? input.sourceRef,
+        sourceControl,
+        agentPath,
+        onProgress: (path) => Context.current().heartbeat({path}),
+      });
+
+      if (await isSyncSuperseded(projects, input)) {
+        return {appliedCount: 0, deletedCount: 0, diagnostics: []};
+      }
+
+      const result = await applyProjectAgents({projectId: input.projectId, files});
+      return {...result, diagnostics};
     });
   };
 }

@@ -3,6 +3,7 @@ import {defineConfig} from 'drizzle-kit';
 export default defineConfig({
   schema: [
     './src/db/schema/action-snapshots.ts',
+    './src/db/schema/agents.ts',
     './src/db/schema/definitions.ts',
     './src/db/schema/outbox.ts',
     './src/db/schema/sync-states.ts',

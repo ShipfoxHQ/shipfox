@@ -25,6 +25,21 @@ export {
   type WorkflowActionRefResult,
 } from './action-ref.js';
 export {
+  AGENT_KEY_MAX_LENGTH,
+  AGENT_KEY_PATTERN,
+  AGENT_KEY_PATTERN_SOURCE,
+  type AgentDocument,
+  agentDocumentFields,
+  agentDocumentSchema,
+  agentKeyFromFileName,
+  agentKeyIssue,
+  buildAgentJsonSchema,
+  InvalidAgentDocumentError,
+  invalidAgentDocumentErrorCode,
+  parseAgentDocument,
+  SHIPPY_AGENT_KEY,
+} from './agent-document.js';
+export {
   type CheckoutTargetValidationIssue,
   checkoutTargetValidationIssues,
 } from './checkout-target-validation.js';
@@ -91,6 +106,8 @@ export {
   workflowDocumentActionPathIssue,
   workflowDocumentAgentMcpServerSchema,
   workflowDocumentAgentMcpServersSchema,
+  workflowDocumentAgentModelSchema,
+  workflowDocumentAgentProviderSchema,
   workflowDocumentCheckoutSchema,
   workflowDocumentCompositeStepSchema,
   workflowDocumentConcurrencySchema,
@@ -98,6 +115,7 @@ export {
   workflowDocumentEnvSchema,
   workflowDocumentJobSchema,
   workflowDocumentParallelBlockSchema,
+  workflowDocumentPromptSchema,
   workflowDocumentRepositoryContextSchema,
   workflowDocumentSchema,
   workflowDocumentSessionSchema,

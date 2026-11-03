@@ -10,7 +10,11 @@ import {
   type DefinitionSyncErrorCode,
   isDefinitionSyncErrorCode,
 } from '#core/entities/sync-state.js';
-import type {createDefinitionSyncActivities} from '../activities/index.js';
+import type {
+  createDefinitionSyncActivities,
+  DiscoverDefinitionFilesActivityResult,
+  SyncRefScopedInput,
+} from '../activities/index.js';
 
 export interface DefinitionSyncWorkflowInput {
   projectId: string;
@@ -44,6 +48,8 @@ const DB_RETRY = {
 const {
   prepareDefinitionSync,
   discoverDefinitionWorkflows,
+  discoverDefinitionFiles,
+  syncDefinitionAgents,
   fetchAndApplyDefinitionWorkflows,
   fetchAndApplyDefinitionWorkflowsV2,
 } = proxyActivities<ReturnType<typeof createDefinitionSyncActivities>>({
@@ -78,6 +84,9 @@ export async function definitionSyncWorkflow(
 ): Promise<DefinitionSyncWorkflowResult> {
   let sourceRef: string | null = null;
   const structuredDiagnosticsEnabled = patched('definition-sync-diagnostics-v2');
+  // Histories that began before agent files read the workflow folder alone.
+  const agentsEnabled = patched('definition-sync-agents');
+  const agentDiagnostics: DefinitionSyncDiagnostic[] = [];
   const {fetchAndApply, markSucceeded, markFailed} = structuredDiagnosticsEnabled
     ? structuredDefinitionSyncActivities
     : legacyDefinitionSyncActivities;
@@ -91,10 +100,12 @@ export async function definitionSyncWorkflow(
       sourceRef: prepared.sourceRef,
       sourceCommitSha: prepared.sourceCommitSha,
     };
-    const {paths} = await discoverDefinitionWorkflows(source);
+    const paths = agentsEnabled
+      ? await discoverAndSyncAgents(source, agentDiagnostics)
+      : (await discoverDefinitionWorkflows(source)).paths;
     const applied = await fetchAndApply({...source, paths});
 
-    await markSucceeded({...source, diagnostics: applied.diagnostics});
+    await markSucceeded({...source, diagnostics: [...applied.diagnostics, ...agentDiagnostics]});
 
     return {
       sourceRef,
@@ -117,7 +128,7 @@ export async function definitionSyncWorkflow(
         sourceRef,
         code,
         message,
-        ...(canPersistDiagnostics && diagnostics !== undefined ? {diagnostics} : {}),
+        ...(canPersistDiagnostics ? failureDiagnostics({diagnostics, agentDiagnostics}) : {}),
       });
     } catch (markFailedError) {
       const failureOptions = {
@@ -137,6 +148,52 @@ export async function definitionSyncWorkflow(
       );
     }
     throw error;
+  }
+}
+
+function failureDiagnostics(params: {
+  diagnostics: DefinitionSyncDiagnostic[] | undefined;
+  agentDiagnostics: DefinitionSyncDiagnostic[];
+}): {diagnostics?: DefinitionSyncDiagnostic[]} {
+  if (params.diagnostics === undefined && params.agentDiagnostics.length === 0) return {};
+  return {diagnostics: [...(params.diagnostics ?? []), ...params.agentDiagnostics]};
+}
+
+/**
+ * Lists both folders and syncs the agent files, then returns the workflow
+ * paths. The agent diagnostics land in `agentDiagnostics` as soon as they
+ * exist, so a later workflow failure still reports them.
+ */
+async function discoverAndSyncAgents(
+  source: SyncRefScopedInput,
+  agentDiagnostics: DefinitionSyncDiagnostic[],
+): Promise<string[]> {
+  const discovered = await discoverDefinitionFiles(source);
+  agentDiagnostics.push(...(await syncAgentFiles(source, discovered)));
+  return discovered.workflowPaths;
+}
+
+/**
+ * Agent files never block workflow sync. A failure to read them becomes an
+ * error diagnostic, and the agents keep their last stored version.
+ */
+async function syncAgentFiles(
+  source: SyncRefScopedInput,
+  discovered: DiscoverDefinitionFilesActivityResult,
+): Promise<DefinitionSyncDiagnostic[]> {
+  try {
+    const synced = await syncDefinitionAgents({
+      ...source,
+      paths: discovered.agentPaths,
+      nestedPaths: discovered.nestedAgentPaths,
+      truncated: discovered.agentFilesTruncated,
+    });
+    return synced.diagnostics;
+  } catch (error) {
+    if (!(error instanceof ActivityFailure)) throw error;
+    const {code, message} = classifyWorkflowError(error);
+    log.warn('Agent files were not synced', {code});
+    return [{code, message: `Agent files were not synced: ${message}`, severity: 'error'}];
   }
 }
 

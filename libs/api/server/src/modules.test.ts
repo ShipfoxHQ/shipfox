@@ -368,6 +368,7 @@ describe('defaultModules', () => {
             getDefinitionByConfigPath: vi.fn(),
             listDefinitionsByProject: vi.fn(),
             listDefinitionsAtRef: vi.fn(),
+            listProjectAgents: vi.fn(),
             resolveDefinitionAtRef: vi.fn(),
             validateDefinitionAtRef: vi.fn(),
             getActionSnapshot: vi.fn(),

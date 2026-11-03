@@ -14,6 +14,10 @@ export const config = createConfig({
     desc: 'Repository-relative path that contains workflow YAML files. Set a different path for each Shipfox instance when staging and production share a repository.',
     default: '.shipfox/workflows/',
   }),
+  DEFINITION_AGENT_PATH: str({
+    desc: 'Repository-relative path that contains agent YAML files. Set a different path for each Shipfox instance when staging and production share a repository.',
+    default: '.shipfox/agents/',
+  }),
 });
 
 export function parseDefinitionDefaultRunnerLabels(value: string): readonly string[] {
@@ -40,5 +44,7 @@ export const definitionDefaultRunnerLabels = parseDefinitionDefaultRunnerLabels(
 );
 
 export const definitionWorkflowPath = config.DEFINITION_WORKFLOW_PATH;
+
+export const definitionAgentPath = config.DEFINITION_AGENT_PATH;
 
 export const definitionRegistryConfigured = config.REGISTRY_URL.trim() !== '';

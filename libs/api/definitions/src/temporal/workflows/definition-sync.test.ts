@@ -1,6 +1,8 @@
 const workflowMocks = vi.hoisted(() => ({
   prepareDefinitionSync: vi.fn(),
   discoverDefinitionWorkflows: vi.fn(),
+  discoverDefinitionFiles: vi.fn(),
+  syncDefinitionAgents: vi.fn(),
   fetchAndApplyDefinitionWorkflows: vi.fn(),
   fetchAndApplyDefinitionWorkflowsV2: vi.fn(),
   markDefinitionSyncSucceeded: vi.fn(),
@@ -8,7 +10,7 @@ const workflowMocks = vi.hoisted(() => ({
   markDefinitionSyncFailed: vi.fn(),
   markDefinitionSyncFailedV2: vi.fn(),
   log: {warn: vi.fn()},
-  patched: vi.fn(() => true),
+  patched: vi.fn((_patchId: string) => true),
 }));
 
 vi.mock('@temporalio/workflow', async () => {
@@ -21,6 +23,8 @@ vi.mock('@temporalio/workflow', async () => {
     proxyActivities: vi.fn(() => ({
       prepareDefinitionSync: workflowMocks.prepareDefinitionSync,
       discoverDefinitionWorkflows: workflowMocks.discoverDefinitionWorkflows,
+      discoverDefinitionFiles: workflowMocks.discoverDefinitionFiles,
+      syncDefinitionAgents: workflowMocks.syncDefinitionAgents,
       fetchAndApplyDefinitionWorkflows: workflowMocks.fetchAndApplyDefinitionWorkflows,
       fetchAndApplyDefinitionWorkflowsV2: workflowMocks.fetchAndApplyDefinitionWorkflowsV2,
       markDefinitionSyncSucceeded: workflowMocks.markDefinitionSyncSucceeded,
@@ -123,6 +127,17 @@ describe('definitionSyncWorkflow failure handoff', () => {
     workflowMocks.discoverDefinitionWorkflows.mockResolvedValue({
       paths: ['.shipfox/workflows/invalid.yml'],
     });
+    workflowMocks.discoverDefinitionFiles.mockResolvedValue({
+      workflowPaths: ['.shipfox/workflows/invalid.yml'],
+      agentPaths: [],
+      nestedAgentPaths: [],
+      agentFilesTruncated: false,
+    });
+    workflowMocks.syncDefinitionAgents.mockResolvedValue({
+      appliedCount: 0,
+      deletedCount: 0,
+      diagnostics: [],
+    });
     workflowMocks.markDefinitionSyncFailed.mockResolvedValue(undefined);
   });
 
@@ -209,5 +224,145 @@ describe('definitionSyncWorkflow failure handoff', () => {
       'Definition sync diagnostics were not persisted for an existing workflow run',
       {code: 'invalid-definition'},
     );
+  });
+});
+
+describe('definitionSyncWorkflow agent files', () => {
+  const input = {
+    projectId: 'project-id',
+    workspaceId: 'workspace-id',
+    sourceConnectionId: 'connection-id',
+    sourceExternalRepositoryId: 'repository-id',
+  };
+  const agentError = {
+    code: 'invalid-agent',
+    message:
+      'Invalid agent file .shipfox/agents/reviewer.yml: A custom agent requires "description".',
+    filePath: '.shipfox/agents/reviewer.yml',
+    severity: 'error' as const,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    workflowMocks.patched.mockReturnValue(true);
+    workflowMocks.prepareDefinitionSync.mockResolvedValue({sourceRef: 'main'});
+    workflowMocks.discoverDefinitionFiles.mockResolvedValue({
+      workflowPaths: ['.shipfox/workflows/ci.yml'],
+      agentPaths: ['.shipfox/agents/reviewer.yml'],
+      nestedAgentPaths: ['.shipfox/agents/team/triage.yml'],
+      agentFilesTruncated: false,
+    });
+    workflowMocks.syncDefinitionAgents.mockResolvedValue({
+      appliedCount: 0,
+      deletedCount: 0,
+      diagnostics: [agentError],
+    });
+    workflowMocks.fetchAndApplyDefinitionWorkflowsV2.mockResolvedValue({
+      appliedCount: 1,
+      deletedCount: 0,
+      diagnostics: [],
+    });
+    workflowMocks.markDefinitionSyncSucceededV2.mockResolvedValue(undefined);
+    workflowMocks.markDefinitionSyncFailedV2.mockResolvedValue(undefined);
+  });
+
+  it('syncs the agent files and reports their diagnostics with the workflow ones', async () => {
+    const result = await definitionSyncWorkflow(input);
+
+    expect(result).toEqual({sourceRef: 'main', appliedCount: 1, deletedCount: 0});
+    expect(workflowMocks.syncDefinitionAgents).toHaveBeenCalledWith({
+      ...input,
+      sourceRef: 'main',
+      sourceCommitSha: undefined,
+      paths: ['.shipfox/agents/reviewer.yml'],
+      nestedPaths: ['.shipfox/agents/team/triage.yml'],
+      truncated: false,
+    });
+    expect(workflowMocks.fetchAndApplyDefinitionWorkflowsV2).toHaveBeenCalledWith(
+      expect.objectContaining({paths: ['.shipfox/workflows/ci.yml']}),
+    );
+    expect(workflowMocks.markDefinitionSyncSucceededV2).toHaveBeenCalledWith(
+      expect.objectContaining({diagnostics: [agentError]}),
+    );
+  });
+
+  it('syncs workflows when only agent files exist', async () => {
+    workflowMocks.discoverDefinitionFiles.mockResolvedValue({
+      workflowPaths: [],
+      agentPaths: ['.shipfox/agents/shippy.yml'],
+      nestedAgentPaths: [],
+      agentFilesTruncated: false,
+    });
+
+    await definitionSyncWorkflow(input);
+
+    expect(workflowMocks.fetchAndApplyDefinitionWorkflowsV2).toHaveBeenCalledWith(
+      expect.objectContaining({paths: []}),
+    );
+  });
+
+  it('does not let a failed agent sync block the workflows', async () => {
+    workflowMocks.syncDefinitionAgents.mockRejectedValueOnce(
+      new ActivityFailure(
+        'Activity failed',
+        'syncDefinitionAgents',
+        'activity-id',
+        RetryState.MAXIMUM_ATTEMPTS_REACHED,
+        'worker',
+        ApplicationFailure.retryable('GitHub request timed out', 'provider-timeout'),
+      ),
+    );
+
+    await expect(definitionSyncWorkflow(input)).resolves.toEqual({
+      sourceRef: 'main',
+      appliedCount: 1,
+      deletedCount: 0,
+    });
+    expect(workflowMocks.markDefinitionSyncSucceededV2).toHaveBeenCalledWith(
+      expect.objectContaining({
+        diagnostics: [
+          {
+            code: 'provider-timeout',
+            message: 'Agent files were not synced: GitHub request timed out',
+            severity: 'error',
+          },
+        ],
+      }),
+    );
+    expect(workflowMocks.markDefinitionSyncFailedV2).not.toHaveBeenCalled();
+  });
+
+  it('keeps the agent diagnostics when the workflows fail', async () => {
+    const activityError = new ActivityFailure(
+      'Activity failed',
+      'fetchAndApplyDefinitionWorkflowsV2',
+      'activity-id',
+      RetryState.NON_RETRYABLE_FAILURE,
+      'worker',
+      ApplicationFailure.nonRetryable('Invalid workflow definition', 'invalid-definition'),
+    );
+    workflowMocks.fetchAndApplyDefinitionWorkflowsV2.mockRejectedValueOnce(activityError);
+
+    await expect(definitionSyncWorkflow(input)).rejects.toBe(activityError);
+    expect(workflowMocks.markDefinitionSyncFailedV2).toHaveBeenCalledWith({
+      ...input,
+      sourceRef: 'main',
+      code: 'invalid-definition',
+      message: 'Invalid workflow definition',
+      diagnostics: [agentError],
+    });
+  });
+
+  it('reads only the workflow folder for histories that began before agent files', async () => {
+    workflowMocks.patched.mockImplementation((id: string) => id !== 'definition-sync-agents');
+    workflowMocks.discoverDefinitionWorkflows.mockResolvedValue({
+      paths: ['.shipfox/workflows/ci.yml'],
+    });
+
+    await definitionSyncWorkflow(input);
+
+    expect(workflowMocks.discoverDefinitionFiles).not.toHaveBeenCalled();
+    expect(workflowMocks.syncDefinitionAgents).not.toHaveBeenCalled();
+    expect(workflowMocks.discoverDefinitionWorkflows).toHaveBeenCalledOnce();
   });
 });

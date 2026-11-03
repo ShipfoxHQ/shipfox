@@ -1,5 +1,6 @@
 import {inlineCode, tableValue} from '@/lib/markdown';
 
+const AGENT_FILE_EXTENSION_PATTERN = /\.ya?ml$/;
 const CRLF_PATTERN = /\r\n/g;
 const TRAILING_NEWLINES_PATTERN = /\n+$/;
 const LITERAL_PATTERN = '^(?:[^$]|\\$\\$\\{\\{|\\$(?!\\{\\{))*$';
@@ -270,6 +271,26 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     types: {instructions: 'boolean | string', skills: 'boolean | string | string[]'},
   },
   {
+    id: 'agent-file-fields',
+    component: 'AgentFileFields',
+    path: '.shipfox/agents/<key>.yml',
+    schema: 'agent',
+    example: 'agent-file.yml',
+    exampleFile: '.shipfox/agents/reviewer.yml',
+    fields: [
+      'name',
+      'description',
+      'instructions',
+      'provider',
+      'model',
+      'thinking',
+      'integrations',
+    ],
+    select: (schema) => properties(schema),
+    nested: {integrations: '#agent-integration-fields'},
+    types: {instructions: 'string | PromptPart[]', integrations: 'Integration[]'},
+  },
+  {
     id: 'tool-step-fields',
     component: 'ToolStepFields',
     path: 'jobs.<job_id>.steps[*]',
@@ -385,12 +406,21 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
  * Builds the document that the section components and the machine-readable
  * page read. `examples` maps example file names to their source; `validate`
  * receives the parsed YAML of each example and must throw when it is not a
- * valid workflow.
+ * valid workflow. Sections with `schema: 'agent'` read `agentSchema` and
+ * their examples go to `validateAgent` with the key their file name gives.
  */
-export function buildWorkflowSchemaDocument({schema, examples, parseYaml, validate}) {
-  assertFieldCoverage(schema);
+export function buildWorkflowSchemaDocument({
+  schema,
+  agentSchema = {},
+  examples,
+  parseYaml,
+  validate,
+  validateAgent = () => undefined,
+}) {
+  assertFieldCoverage(schema, agentSchema);
   const sections = WORKFLOW_SCHEMA_SECTIONS.map((definition) => {
-    const fields = schemaToFields(definition.select(schema), {
+    const isAgent = definition.schema === 'agent';
+    const fields = schemaToFields(definition.select(isAgent ? agentSchema : schema), {
       fields: definition.fields,
       required:
         typeof definition.required === 'function'
@@ -406,7 +436,9 @@ export function buildWorkflowSchemaDocument({schema, examples, parseYaml, valida
     }
     const example = parseExample({source});
     try {
-      validate(parseYaml(example.code));
+      const parsed = parseYaml(example.code);
+      if (isAgent) validateAgent(parsed, {key: agentKeyOf(definition.exampleFile)});
+      else validate(parsed);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Workflow schema example "${definition.example}" is invalid: ${message}`);
@@ -418,7 +450,10 @@ export function buildWorkflowSchemaDocument({schema, examples, parseYaml, valida
       path: definition.path,
       ...(definition.kind ? {kind: definition.kind} : {}),
       fields,
-      example: {file: `.shipfox/workflows/${definition.example}`, ...example},
+      example: {
+        file: definition.exampleFile ?? `.shipfox/workflows/${definition.example}`,
+        ...example,
+      },
       markdown: renderSectionMarkdown(fields),
     };
   });
@@ -431,11 +466,11 @@ export function buildWorkflowSchemaDocument({schema, examples, parseYaml, valida
  * Their field lists must cover every property together, so a new schema
  * field cannot disappear from the page.
  */
-export function assertFieldCoverage(schema) {
+export function assertFieldCoverage(schema, agentSchema = {}) {
   const listed = new Map();
   for (const definition of WORKFLOW_SCHEMA_SECTIONS) {
     if (!definition.fields) continue;
-    const target = definition.select(schema);
+    const target = definition.select(definition.schema === 'agent' ? agentSchema : schema);
     const names = listed.get(target) ?? new Set();
     for (const name of definition.fields) names.add(name);
     listed.set(target, names);
@@ -519,6 +554,10 @@ export function renderWorkflowSchemaMarkdownMap(document) {
   return Object.fromEntries(
     document.sections.map((section) => [section.component, section.markdown]),
   );
+}
+
+function agentKeyOf(file) {
+  return file.slice(file.lastIndexOf('/') + 1).replace(AGENT_FILE_EXTENSION_PATTERN, '');
 }
 
 function typeFor(schema) {

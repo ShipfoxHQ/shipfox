@@ -39,6 +39,9 @@ const definitions: DefinitionsInterModuleClient = {
   listDefinitionsByProject: () => {
     throw new Error('listDefinitionsByProject is not used by runWorkflow');
   },
+  listProjectAgents: () => {
+    throw new Error('listProjectAgents is not used by runWorkflow');
+  },
   resolveDefinitionAtRef: () => {
     throw new Error('resolveDefinitionAtRef is not used by runWorkflow');
   },

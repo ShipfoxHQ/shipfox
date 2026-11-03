@@ -43,15 +43,20 @@ export function collectCompositePromptFileReferences(
 function stepPromptFileReferences(
   steps: readonly {step: WorkflowDocumentStep; path: string}[],
 ): PromptFileReference[] {
-  const references: PromptFileReference[] = [];
-  for (const {step, path} of steps) {
-    if (!Array.isArray(step.prompt)) continue;
-    for (const [partIndex, part] of step.prompt.entries()) {
-      if (typeof part === 'string') continue;
-      references.push({file: part.file, path: `${path}.prompt.${partIndex}`});
-    }
-  }
-  return references;
+  return steps.flatMap(({step, path}) =>
+    step.prompt === undefined ? [] : promptFileReferences(step.prompt, `${path}.prompt`),
+  );
+}
+
+/** A prompt as the document holds it: a string, or a list of strings and `file` parts. */
+export type DocumentPrompt = string | readonly (string | {readonly file: string})[];
+
+/** The `file` parts of one prompt. `path` is where the prompt sits, and parts add their index. */
+export function promptFileReferences(prompt: DocumentPrompt, path: string): PromptFileReference[] {
+  if (typeof prompt === 'string') return [];
+  return prompt.flatMap((part, partIndex) =>
+    typeof part === 'string' ? [] : [{file: part.file, path: `${path}.${partIndex}`}],
+  );
 }
 
 /** The distinct `file` paths of a document, sorted. */

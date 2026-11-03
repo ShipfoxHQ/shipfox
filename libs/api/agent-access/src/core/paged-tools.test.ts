@@ -594,6 +594,7 @@ function clients() {
       resolveDefinitionAtRef: vi.fn(),
       validateDefinitionAtRef: vi.fn(),
       listDefinitionsAtRef: vi.fn(),
+      listProjectAgents: vi.fn(),
       getActionSnapshot: vi.fn(),
     }),
     annotations: defineInterModulePresentation(annotationsInterModuleContract, {

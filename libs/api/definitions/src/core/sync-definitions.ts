@@ -84,6 +84,23 @@ export async function discoverWorkflowFiles(
   params: DiscoverWorkflowFilesParams,
 ): Promise<{paths: string[]}> {
   const workflowPath = params.workflowPath ?? DEFAULT_WORKFLOW_PATH;
+  const {paths} = await listWorkflowFiles(params);
+  if (paths.length === 0) throw noWorkflowFilesError(workflowPath);
+  return {paths};
+}
+
+export function noWorkflowFilesError(workflowPath: string): DefinitionSyncPermanentError {
+  return new DefinitionSyncPermanentError(
+    'no-workflow-files',
+    `No workflow files were found under ${workflowPath}`,
+  );
+}
+
+/** Lists the workflow files, which may be none. */
+export async function listWorkflowFiles(
+  params: DiscoverWorkflowFilesParams,
+): Promise<{paths: string[]}> {
+  const workflowPath = params.workflowPath ?? DEFAULT_WORKFLOW_PATH;
   const page = await params.sourceControl.listFiles({
     workspaceId: params.workspaceId,
     connectionId: params.sourceConnectionId,
@@ -99,15 +116,7 @@ export async function discoverWorkflowFiles(
     );
   }
 
-  const paths = page.files.filter(isWorkflowFile).map((file) => file.path);
-  if (paths.length === 0) {
-    throw new DefinitionSyncPermanentError(
-      'no-workflow-files',
-      `No workflow files were found under ${workflowPath}`,
-    );
-  }
-
-  return {paths};
+  return {paths: page.files.filter(isWorkflowFile).map((file) => file.path)};
 }
 
 export function isWorkflowFile(file: {path: string; type: string}): boolean {

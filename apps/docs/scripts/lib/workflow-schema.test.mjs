@@ -104,6 +104,24 @@ describe('assertFieldCoverage', () => {
   });
 });
 
+describe('agent file section', () => {
+  const agentSchema = {
+    type: 'object',
+    properties: {name: {type: 'string', description: 'Label.'}, surprise: {type: 'string'}},
+  };
+
+  it('names an agent schema field that the section does not list', () => {
+    assert.throws(() => assertFieldCoverage({}, agentSchema), {
+      message: UNLISTED_FIELD_PATTERN,
+    });
+  });
+
+  it('shows the agent folder as the example path', () => {
+    const section = WORKFLOW_SCHEMA_SECTIONS.find(({id}) => id === 'agent-file-fields');
+    assert.equal(section.exampleFile, '.shipfox/agents/reviewer.yml');
+  });
+});
+
 describe('parseExample', () => {
   it('normalizes line endings and keeps one trailing newline', () => {
     const example = parseExample({source: 'name: Test\r\njobs:\r\n  test:\r\n    steps: []\n\n'});
@@ -163,6 +181,18 @@ describe('buildWorkflowSchemaDocument', () => {
       },
     },
   };
+  const agentSchema = {
+    type: 'object',
+    properties: {
+      name: {type: 'string', description: 'Label.'},
+      description: {type: 'string'},
+      instructions: {type: 'string'},
+      provider: {type: 'string'},
+      model: {type: 'string'},
+      thinking: {type: 'string', enum: ['low', 'high']},
+      integrations: {type: 'array', items: {type: 'object'}},
+    },
+  };
   const examples = Object.fromEntries(
     WORKFLOW_SCHEMA_SECTIONS.map((section) => [
       section.example,
@@ -176,6 +206,7 @@ describe('buildWorkflowSchemaDocument', () => {
       () =>
         buildWorkflowSchemaDocument({
           schema,
+          agentSchema,
           examples,
           parseYaml,
           validate: () => {
@@ -188,14 +219,18 @@ describe('buildWorkflowSchemaDocument', () => {
 
   it('emits one section per definition with a validated example', () => {
     const validated = [];
+    const validatedAgents = [];
     const document = buildWorkflowSchemaDocument({
       schema,
+      agentSchema,
       examples,
       parseYaml,
       validate: (parsed) => validated.push(parsed),
+      validateAgent: (_parsed, options) => validatedAgents.push(options),
     });
     assert.equal(document.sections.length, WORKFLOW_SCHEMA_SECTIONS.length);
-    assert.equal(validated.length, WORKFLOW_SCHEMA_SECTIONS.length);
+    assert.equal(validated.length + validatedAgents.length, WORKFLOW_SCHEMA_SECTIONS.length);
+    assert.deepEqual(validatedAgents, [{key: 'reviewer'}]);
     const [first] = document.sections;
     assert.equal(first.id, 'top-level-fields');
     assert.equal(first.example.file, '.shipfox/workflows/workflow.yml');
@@ -218,6 +253,7 @@ describe('buildWorkflowSchemaDocument', () => {
     };
     const document = buildWorkflowSchemaDocument({
       schema: withBlock,
+      agentSchema,
       examples,
       parseYaml,
       validate: () => undefined,
@@ -242,6 +278,7 @@ describe('buildWorkflowSchemaDocument', () => {
   it('renders one generated export per section', () => {
     const document = buildWorkflowSchemaDocument({
       schema,
+      agentSchema,
       examples,
       parseYaml,
       validate: () => undefined,
