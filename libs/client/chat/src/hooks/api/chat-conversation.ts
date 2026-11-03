@@ -182,6 +182,14 @@ export function useChatConversation({
 
   const createMutation = useCreateConversationMutation(projectId);
   const sendMutation = useSendConversationMessageMutation({projectId, conversationId});
+  // A send error belongs to the conversation it came from, so it doesn't follow the user to another.
+  const {reset: resetCreate} = createMutation;
+  const {reset: resetSend} = sendMutation;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the reset runs when the conversation changes.
+  useEffect(() => {
+    resetCreate();
+    resetSend();
+  }, [conversationId, resetCreate, resetSend]);
   const stopMutation = useStopConversationMutation(conversationId);
   const retryMutation = useRetryConversationMutation(conversationId);
   useMarkRead({
