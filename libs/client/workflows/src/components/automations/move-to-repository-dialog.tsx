@@ -463,7 +463,7 @@ function ConfirmMoveStep({
         )}
         <ul
           aria-label="What changes"
-          className="flex w-full flex-col divide-y divide-border-neutral-base rounded-8 border border-border-neutral-base"
+          className="flex w-full list-disc flex-col gap-inline ps-row marker:text-foreground-neutral-muted"
         >
           {opensPullRequest ? (
             <>
@@ -514,7 +514,7 @@ const VISIBILITY_NOTE: Record<ConfigMoveCheck['repository']['visibility'], strin
 
 function ConsequenceItem({children}: {children: ReactNode}) {
   return (
-    <li className="px-row py-row">
+    <li>
       <Text size="sm">{children}</Text>
     </li>
   );
