@@ -253,8 +253,11 @@ export async function executeActionStep(
       },
     );
     // Read whatever the exit status, so a post can undo the work a failed main entry began.
-    const state = await readActionState(host, paths.state);
-    return withActionState(actionResult(result, await readResultStatus(host, paths.result)), state);
+    const [state, status] = await Promise.all([
+      readActionState(host, paths.state),
+      readResultStatus(host, paths.result),
+    ]);
+    return withActionState(actionResult(result, status), state);
   } finally {
     await endpoint.close();
     await rm(stepTemp, {recursive: true, force: true});
@@ -285,18 +288,21 @@ async function writeStepFiles(params: {
     state: join(stepTemp, 'state.jsonl'),
   };
   const writeOptions = {mode: PRIVATE_FILE_MODE};
-  await host.writeFile(
-    paths.inputs,
-    Buffer.from(JSON.stringify({...config.inputs, ...options.secretInputs})),
-    writeOptions,
-  );
-  await host.writeFile(
-    paths.context,
-    Buffer.from(JSON.stringify(contextFile(step, config, options))),
-    writeOptions,
-  );
-  // The seed is the state of the main attempt a post runs for. A main entry starts empty.
-  await host.writeFile(paths.state, Buffer.from(options.stateSeed ?? ''), writeOptions);
+  // In a container every write is its own `docker exec`, so the writes run together.
+  await Promise.all([
+    host.writeFile(
+      paths.inputs,
+      Buffer.from(JSON.stringify({...config.inputs, ...options.secretInputs})),
+      writeOptions,
+    ),
+    host.writeFile(
+      paths.context,
+      Buffer.from(JSON.stringify(contextFile(step, config, options))),
+      writeOptions,
+    ),
+    // The seed is the state of the main attempt a post runs for. A main entry starts empty.
+    host.writeFile(paths.state, Buffer.from(options.stateSeed ?? ''), writeOptions),
+  ]);
   return paths;
 }
 

@@ -14,7 +14,6 @@ import {
 import {encodeActionBundle} from '@shipfox/workflow-document';
 import type {ActionToolsUpstream} from '#core/action-endpoint.js';
 import {type ActionStepOptions, executeActionStep} from '#core/action-step.js';
-import {executeRunStep} from '#core/run-step.js';
 
 // Needs Docker, and a glibc image: the action runs on the runner's Node binary, which the job
 // container mounts.
@@ -247,25 +246,18 @@ describe.skipIf(!dockerAvailable()).each(USERS)(
       const result = await runAction(fixture, action, {toolsUpstream: upstream});
 
       expect(result.success).toBe(true);
+      // A later step runs as the container user, as `docker exec` without `--user` does.
       const path = join(fixture.dirs.workspaceDir, String(result.outputs?.path));
-      const edit = await executeRunStep(
-        {
-          ...action.step,
-          type: 'run',
-          config: {run: `echo second line >> "${path}" && cat "${path}"`},
-        },
-        {
-          host: fixture.host,
-          env: {PATH: (await fixture.host.probe()).path},
-          shell: (await fixture.host.probe()).shell,
-          shareScratchFiles: true,
-          tempDir: fixture.dirs.tempDir,
-          cwd: fixture.dirs.workspaceDir,
-          workspace: fixture.dirs.workspaceDir,
-        },
-      );
-      expect(edit.success).toBe(true);
-      expect((await fixture.host.readFile(path)).toString()).toBe('first line\nsecond line\n');
+      const edited = execFileSync('docker', [
+        'exec',
+        fixture.name,
+        'sh',
+        '-c',
+        'echo second line >> "$1" && cat "$1"',
+        'sh',
+        path,
+      ]).toString();
+      expect(edited).toBe('first line\nsecond line\n');
     });
 
     it('keeps secret inputs out of the environment', async () => {
