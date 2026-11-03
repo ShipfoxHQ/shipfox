@@ -1,0 +1,4 @@
+interface:
+  display_name: "Address PR Comments"
+  short_description: "Triage review comments, apply accepted fixes, and reply with decisions."
+  default_prompt: "/address-pr-comments"
