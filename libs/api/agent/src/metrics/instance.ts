@@ -228,3 +228,19 @@ export const conversationThinkingDroppedCount = meter.createCounter(
       "Input transformations pi's Anthropic adapter applied to a prompt. A rising count means a conversation's prefix changed",
   },
 );
+
+export type ConversationStreamOutcome = 'completed' | 'deadline' | 'disconnected' | 'failed';
+
+export const conversationStreamCount = meter.createCounter<{outcome: ConversationStreamOutcome}>(
+  'agent_conversation_streams',
+  {description: 'Conversation streams opened to a browser, by how they ended'},
+);
+
+export const conversationStreamTickSeconds = meter.createHistogram<Record<string, never>>(
+  'agent_conversation_stream_tick_seconds',
+  {
+    description: 'Seconds one stream tick takes to read the turn, chunks, and timeline',
+    unit: 's',
+    advice: {explicitBucketBoundaries: [0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5, 1]},
+  },
+);

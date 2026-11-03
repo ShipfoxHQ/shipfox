@@ -93,7 +93,7 @@ function openConversation(conversation: Conversation, key: Buffer): OpenConversa
   return {...rest, title};
 }
 
-function openConversationItem(
+export function openConversationItem(
   item: ConversationItem,
   params: {key: Buffer; workspaceId: string},
 ): OpenConversationItem {

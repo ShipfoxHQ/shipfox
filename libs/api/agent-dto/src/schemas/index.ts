@@ -74,6 +74,13 @@ export {
   postConversationMessageBodySchema,
 } from './conversation.js';
 export {
+  type ConversationStreamEventDto,
+  type ConversationStreamQueryDto,
+  conversationStreamEventSchema,
+  conversationStreamQuerySchema,
+  conversationStreamResetReasonSchema,
+} from './conversation-stream.js';
+export {
   type CredentialRenewalDto,
   credentialRenewalSchema,
   validateRenewalWindow,
