@@ -110,7 +110,7 @@ export type DefaultAuthModuleFactory = (options: {
   workspaces: WorkspacesInterModuleClient;
 }) => ShipfoxModule;
 
-/** Options for the standard Agent module. `defaultModules` supplies Secrets, Workflows, Projects, and Integrations. */
+/** Options for the standard Agent module. `defaultModules` supplies Secrets, Workflows, Projects, Definitions, and Integrations. */
 export type DefaultAgentModuleOptions = Pick<
   CreateAgentModuleOptions,
   'managedProvider' | 'admission'

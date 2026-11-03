@@ -1,6 +1,9 @@
-import {useCallback, useState} from 'react';
+import {isErrorWithCode} from '@shipfox/client-api';
+import {useCallback, useEffect, useState} from 'react';
 import {isAgentUnavailable, SHIPPY_AGENT_KEY} from '#core/project-agents.js';
 import {useProjectAgentsQuery} from './api/project-agents.js';
+
+export const CONVERSATION_AGENT_UNAVAILABLE_CODE = 'conversation-agent-unavailable';
 
 /**
  * Which agent the panel talks to. An existing conversation keeps the agent it was created with.
@@ -11,9 +14,15 @@ export function useAgentSelection(params: {
   conversationId: string | undefined;
   /** The `agent_key` of the open conversation, once it has loaded. */
   conversationAgentKey: string | undefined;
+  /** The latest failure of a send. A refused message tells the panel that the agent is gone. */
+  sendError: unknown;
 }) {
-  const {projectId, conversationId, conversationAgentKey} = params;
-  const agents = useProjectAgentsQuery(projectId).data;
+  const {projectId, conversationId, conversationAgentKey, sendError} = params;
+  const {data: agents, refetch} = useProjectAgentsQuery(projectId);
+  const agentRefused = isErrorWithCode(sendError, CONVERSATION_AGENT_UNAVAILABLE_CODE);
+  useEffect(() => {
+    if (agentRefused) void refetch();
+  }, [agentRefused, refetch]);
   const [picked, setPicked] = useState(SHIPPY_AGENT_KEY);
 
   const newAgentKey = agents?.some((agent) => agent.key === picked) ? picked : SHIPPY_AGENT_KEY;

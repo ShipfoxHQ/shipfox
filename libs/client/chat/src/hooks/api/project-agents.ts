@@ -26,7 +26,7 @@ export function projectAgentsQueryOptions(projectId: string) {
   return queryOptions({
     queryKey: projectAgentsQueryKey(projectId),
     queryFn: ({signal}) => listProjectAgents({projectId, signal}),
-    // An agent file changes with a sync, so a panel left open picks the change up.
+    // An agent file changes with a sync. The list is read again on focus once it is 30 seconds old.
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });

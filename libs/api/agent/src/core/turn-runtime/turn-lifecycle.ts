@@ -135,24 +135,21 @@ async function integrationPromptContext(
 /**
  * The model a new turn uses: the agent file's `provider` and `model` when it sets them, and the
  * workspace defaults for the rest. The file is read at every turn start, because the model isn't
- * part of the pinned prompt. A deleted custom agent falls back to the defaults, because its
- * conversation takes no new turn. Defaults that no longer resolve open the turn with no model, and
- * its first model call fails it with a recorded cause. Throwing here would retry without end.
+ * part of the pinned prompt. A custom agent that is gone throws `ProjectAgentNotFoundError`.
+ * Defaults that no longer resolve open the turn with no model, and its first model call fails it
+ * with a recorded cause. Throwing here would retry without end.
  */
 async function resolveTurnModel(
   conversation: Conversation,
   deps: TurnLifecycleDeps,
 ): Promise<{provider: string | null; model: string | null}> {
+  const agent = await resolveConversationAgent(conversation, deps);
   try {
     const resolveConfig = await createWorkspaceAgentDefaultsResolver(
       conversation.workspaceId,
       deps.managedProvider,
       deps.workspaceProviders,
     );
-    const agent = await resolveConversationAgent(conversation, deps).catch((error: unknown) => {
-      if (error instanceof ProjectAgentNotFoundError) return {kind: 'built-in'} as const;
-      throw error;
-    });
     const selection = agent.kind === 'configured' ? agent.agent.document : {};
     const {provider, model} = resolveConfig({
       ...builtInAgentConfigInput,
@@ -254,7 +251,16 @@ export async function beginConversationTurn(params: {
     return undefined;
   }
 
-  const {provider, model} = await resolveTurnModel(conversation, params.deps);
+  let selection: {provider: string | null; model: string | null};
+  try {
+    selection = await resolveTurnModel(conversation, params.deps);
+  } catch (error) {
+    if (!(error instanceof ProjectAgentNotFoundError)) throw error;
+    // The agent's file was deleted after the input was queued. A running turn was left alone above.
+    await settleRefusedTurn(conversation, {notice: AGENT_UNAVAILABLE_NOTICE});
+    return undefined;
+  }
+  const {provider, model} = selection;
   const opened = await openTurn({conversationId: conversation.id, model, provider});
   return opened ? {turnId: opened.turn.id} : undefined;
 }

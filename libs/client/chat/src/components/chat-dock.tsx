@@ -31,7 +31,10 @@ import {
   type ChatModelAvailability,
   useChatModelAvailability,
 } from '#hooks/api/model-availability.js';
-import {useAgentSelection} from '#hooks/use-agent-selection.js';
+import {
+  CONVERSATION_AGENT_UNAVAILABLE_CODE,
+  useAgentSelection,
+} from '#hooks/use-agent-selection.js';
 import {useAnnouncement} from '#hooks/use-announcement.js';
 import {useDraft} from '#hooks/use-draft.js';
 import {ChatHistory, conversationTitle} from './chat-history.js';
@@ -86,7 +89,10 @@ export default function ChatDock() {
 
 function composerError(draft: string, sendError: unknown): string | undefined {
   if (isMessageTooLong(draft)) return MESSAGE_TOO_LONG;
-  return sendError && !isConversationNotFound(sendError) ? SEND_FAILED : undefined;
+  if (!sendError || isConversationNotFound(sendError)) return undefined;
+  // The panel shows the deleted agent instead, once the agents are read again.
+  if (isErrorWithCode(sendError, CONVERSATION_AGENT_UNAVAILABLE_CODE)) return undefined;
+  return SEND_FAILED;
 }
 
 function panelTitle(params: {
@@ -157,6 +163,7 @@ function ProjectChat({project}: {project: Project}) {
     projectId: project.id,
     conversationId,
     conversationAgentKey: storedAgentKey({detail: chat.detail, conversations, conversationId}),
+    sendError: chat.sendError,
   });
   const deleteMutation = useDeleteConversationMutation(project.id);
   const draft = useDraft({userId, projectId: project.id, conversationId});

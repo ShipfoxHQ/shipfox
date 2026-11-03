@@ -12,8 +12,9 @@ import {
   conversationDataKey,
   openConversationEntry,
 } from '../conversation-sealing.js';
+import {postWebConversationMessage} from '../conversations.js';
 import type {ConversationItem} from '../entities/conversation.js';
-import {beginConversationTurn} from './turn-lifecycle.js';
+import {beginConversationTurn, finishConversationTurn} from './turn-lifecycle.js';
 
 const integrations = {
   listConversationTools: vi.fn().mockResolvedValue({tools: []}),
@@ -33,6 +34,17 @@ async function readSystemPrompt(item: ConversationItem, workspaceId: string): Pr
     }),
   );
   return entry.message.content;
+}
+
+async function queueMessage(conversationId: string, body: string) {
+  const conversation = await getConversationById(conversationId);
+  if (!conversation) throw new Error('The conversation was not stored');
+  await postWebConversationMessage({
+    conversation,
+    authorUserId: crypto.randomUUID(),
+    clientMessageId: crypto.randomUUID(),
+    body,
+  });
 }
 
 async function arrange(params: {agentKey?: string} = {}) {
@@ -135,13 +147,50 @@ describe('agent config in turns', () => {
         document: {provider: 'anthropic', model: 'claude-haiku-4-5'},
       }),
     ]);
-
     const first = await beginConversationTurn({conversationId: conversation.id, deps});
-
-    expect(await getTurnById(first?.turnId ?? '')).toMatchObject({
-      provider: 'anthropic',
-      model: 'claude-haiku-4-5',
+    await finishConversationTurn({
+      conversationId: conversation.id,
+      turnId: first?.turnId ?? '',
+      status: 'succeeded',
     });
+    definitions.agents.set(projectId, [
+      projectAgentSnapshot({
+        key: 'shippy',
+        document: {provider: 'anthropic', model: 'claude-opus-4-5'},
+      }),
+    ]);
+    await queueMessage(conversation.id, 'And now?');
+
+    const second = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(await getTurnById(first?.turnId ?? '')).toMatchObject({model: 'claude-haiku-4-5'});
+    expect(await getTurnById(second?.turnId ?? '')).toMatchObject({
+      provider: 'anthropic',
+      model: 'claude-opus-4-5',
+    });
+  });
+
+  it('refuses a message queued for a custom agent that was deleted since', async () => {
+    const {conversation, projectId, definitions, deps} = await arrange({
+      agentKey: 'reviewer',
+    });
+    definitions.agents.set(projectId, [
+      projectAgentSnapshot({key: 'reviewer', instructions: 'You review pull requests.'}),
+    ]);
+    const first = await beginConversationTurn({conversationId: conversation.id, deps});
+    await finishConversationTurn({
+      conversationId: conversation.id,
+      turnId: first?.turnId ?? '',
+      status: 'succeeded',
+    });
+    await queueMessage(conversation.id, 'Another one?');
+    definitions.agents.delete(projectId);
+
+    const second = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(second).toBeUndefined();
+    const items = await listContextItems({conversationId: conversation.id, fromSeq: 1});
+    expect(items.at(-1)?.meta).toEqual({custom_type: 'turn_notice'});
   });
 
   it('settles a conversation whose custom agent was deleted before its first turn', async () => {

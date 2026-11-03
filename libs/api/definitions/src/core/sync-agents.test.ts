@@ -79,6 +79,22 @@ describe('fetchAndParseAgents', () => {
     ]);
   });
 
+  it('rejects a custom agent whose instructions are blank, but not a blank shippy file', async () => {
+    const result = await parse({
+      '.shipfox/agents/blank.yaml': 'description: Blank.\ninstructions: "  "',
+      '.shipfox/agents/empty-part.yaml':
+        'description: Empty part.\ninstructions:\n  - file: ./.shipfox/prompts/empty.md',
+      '.shipfox/prompts/empty.md': '\n',
+      '.shipfox/agents/shippy.yaml': 'instructions: " "',
+    });
+
+    expect(result.valid.map((agent) => agent.key)).toEqual(['shippy']);
+    expect(result.invalid.map((agent) => agent.key).sort()).toEqual(['blank', 'empty-part']);
+    expect(result.invalid[0]?.error.diagnostics).toEqual([
+      expect.objectContaining({path: 'instructions', severity: 'error'}),
+    ]);
+  });
+
   it('keeps the other files when one is invalid', async () => {
     const result = await parse({
       '.shipfox/agents/shippy.yml': 'instructions: Prefer short answers.',
