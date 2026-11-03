@@ -50,6 +50,8 @@ export interface IntegrationValidationContext {
       readonly id: string;
       readonly provider: IntegrationProviderKind;
       readonly capabilities: readonly IntegrationCapability[];
+      /** False for a connection outside the project's access. */
+      readonly allowed: boolean;
     }
   >;
   /** Documented event names per provider; provider-minted names are never a closed set. */

@@ -11,6 +11,8 @@ describe('integrationsInterModuleContract', () => {
       ambiguous: 'repository-ambiguous',
       storeUnavailable: 'repository-authorization-unavailable',
       targetInvalid: 'repository-authorization-target-invalid',
+      connectionNotAllowed: 'connection-not-allowed',
+      projectNotFound: 'project-not-found',
     });
   });
 
@@ -147,6 +149,7 @@ describe('integrationsInterModuleContract', () => {
       integrationsInterModuleContract.methods.createCheckoutCredentials.input.parse({
         workspaceId,
         connectionId,
+        projectId,
         target: {kind: 'name', owner: 'shipfox', name: 'platform'},
         permissions: {contents: 'read'},
       }).target,
@@ -157,6 +160,7 @@ describe('integrationsInterModuleContract', () => {
     const input = {
       workspaceId: '00000000-0000-4000-8000-000000000001',
       connectionId: '00000000-0000-4000-8000-000000000002',
+      projectId: '00000000-0000-4000-8000-000000000003',
       target: {kind: 'name' as const, owner: ' shipfox ', name: ' platform '},
     };
 
@@ -192,7 +196,22 @@ describe('integrationsInterModuleContract', () => {
       integrationsInterModuleContract.methods.createCheckoutSpec.input.parse({
         workspaceId: '00000000-0000-4000-8000-000000000001',
         connectionId: '00000000-0000-4000-8000-000000000002',
+        projectId: '00000000-0000-4000-8000-000000000003',
         ...extra,
+      }),
+    ).toThrow();
+  });
+
+  test.each([
+    'createCheckoutSpec',
+    'createCheckoutCredentials',
+  ] as const)('refuses %s input from a caller without a project', (method) => {
+    expect(() =>
+      integrationsInterModuleContract.methods[method].input.parse({
+        workspaceId: '00000000-0000-4000-8000-000000000001',
+        connectionId: '00000000-0000-4000-8000-000000000002',
+        target: {kind: 'name', owner: 'shipfox', name: 'platform'},
+        permissions: {contents: 'read'},
       }),
     ).toThrow();
   });

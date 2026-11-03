@@ -35,6 +35,8 @@ type WorkspaceConnectionSnapshot = ReadonlyMap<
     id: string;
     provider: IntegrationProviderKind;
     capabilities: readonly ('source_control' | 'agent_tools' | 'interaction')[];
+    /** False for a connection outside the project's access. */
+    allowed: boolean;
   }
 >;
 
@@ -119,6 +121,7 @@ export async function loadAgentToolMaterializationContext(params: {
   const context = await params.integrations.getAgentToolsContext({
     workspaceId: params.workspaceId,
     defaultConnectionId: project.sourceConnectionId,
+    projectId: params.projectId,
   });
   const workspaceConnectionSnapshot = new Map(
     context.workspaceConnections.map(({slug, ...connection}) => [slug, connection]),
@@ -659,6 +662,12 @@ function resolveConnection(params: {
       reason: 'connection-missing',
       connection: params.connectionSlug,
     });
+  }
+  if (!connection.allowed) {
+    throw new AgentIntegrationMaterializationError(
+      `Integration connection ${params.connectionSlug} is not in this project's access`,
+      {reason: 'connection-not-allowed', connection: params.connectionSlug},
+    );
   }
   return {
     id: connection.id,

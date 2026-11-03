@@ -32,11 +32,19 @@ const integrationValidationContext: IntegrationValidationContext = {
   ]),
   agentToolCatalogs: new Map(),
   workspaceConnectionSnapshot: new Map([
-    ['team-slack', {id: 'conn-slack', provider: 'slack', capabilities: ['agent_tools']}],
-    ['slack-no-tools', {id: 'conn-slack-2', provider: 'slack', capabilities: []}],
+    [
+      'team-slack',
+      {id: 'conn-slack', provider: 'slack', capabilities: ['agent_tools'], allowed: true},
+    ],
+    ['slack-no-tools', {id: 'conn-slack-2', provider: 'slack', capabilities: [], allowed: true}],
     [
       'github-main',
-      {id: 'conn-github', provider: 'github', capabilities: ['source_control', 'agent_tools']},
+      {
+        id: 'conn-github',
+        provider: 'github',
+        capabilities: ['source_control', 'agent_tools'],
+        allowed: true,
+      },
     ],
   ]),
   eventCatalogs: new Map(),

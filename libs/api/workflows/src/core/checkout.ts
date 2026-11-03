@@ -154,7 +154,7 @@ export async function createStepCheckoutSpec({
   const response = await integrations.createCheckoutSpec({
     workspaceId,
     connectionId: resolvedTarget.connectionId,
-    ...(resolvedTarget.projectId === undefined ? {} : {projectId: resolvedTarget.projectId}),
+    projectId,
     target: resolvedTarget.target,
     ...(ref === undefined ? {} : {ref}),
     permissions,
@@ -162,6 +162,7 @@ export async function createStepCheckoutSpec({
 
   return checkoutResult(checkout, response, {
     connectionId: resolvedTarget.connectionId,
+    projectId,
     target: resolvedTarget.target,
     permissions,
   });
@@ -175,12 +176,16 @@ export function renewStepCheckoutCredentials({
 }: {
   integrations: Pick<IntegrationsModuleClient, 'createCheckoutCredentials'>;
   workspaceId: string;
-  subject: Pick<CheckoutRenewalSubject, 'connectionId' | 'externalRepositoryId' | 'permissions'>;
+  subject: Pick<
+    CheckoutRenewalSubject,
+    'connectionId' | 'projectId' | 'externalRepositoryId' | 'permissions'
+  >;
   rejectedGeneration?: string | undefined;
 }) {
   return integrations.createCheckoutCredentials({
     workspaceId,
     connectionId: subject.connectionId,
+    projectId: subject.projectId,
     externalRepositoryId: subject.externalRepositoryId,
     permissions: subject.permissions,
     ...(rejectedGeneration === undefined ? {} : {rejectedGeneration}),
@@ -262,7 +267,7 @@ type CheckoutSpecResponse = Awaited<ReturnType<IntegrationsModuleClient['createC
 function checkoutResult(
   checkout: CheckoutConfig,
   response: CheckoutSpecResponse,
-  target: Pick<CheckoutRenewalSubject, 'connectionId' | 'permissions'> & {
+  target: Pick<CheckoutRenewalSubject, 'connectionId' | 'projectId' | 'permissions'> & {
     target:
       | {kind: 'external-id'; externalRepositoryId: string}
       | {kind: 'name'; owner: string; name: string};
@@ -277,6 +282,7 @@ function checkoutResult(
       : {
           repositoryUrl: normalizeRepositoryUrl(response.repositoryUrl),
           connectionId: target.connectionId,
+          projectId: target.projectId,
           externalRepositoryId: renewalTarget.externalRepositoryId,
           permissions: target.permissions,
         };

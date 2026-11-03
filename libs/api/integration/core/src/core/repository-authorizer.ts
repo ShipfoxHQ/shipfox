@@ -3,19 +3,28 @@ import {
   isSafeRepositoryPart,
 } from '@shipfox/api-integration-core-dto';
 import {repositoryAuthorizationErrorCodes} from '@shipfox/api-integration-core-dto/inter-module';
-import type {IntegrationConnectionRepositoryAccessMode} from '@shipfox/api-integration-spi';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {
+  evaluateConnectionAccess,
+  evaluateResourceAccess,
+  isConnectionNarrowed,
+  type ProjectAccessPolicy,
+  REPOSITORY_RESOURCE_KIND,
+} from '@shipfox/api-projects-dto';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {RepositoryAuthorizerConfigurationError} from './errors.js';
 
 // Keep every outage retryable while bounding the Sentry volume process-wide.
 const REPOSITORY_AUTHORIZATION_REPORT_INTERVAL_MS = 60_000;
-const REPOSITORY_AUTHORIZATION_CACHE_TTL_MS = 30_000;
-const DEFAULT_REPOSITORY_AUTHORIZATION_CACHE_SIZE = 256;
 let lastRepositoryAuthorizationReportAt = Number.NEGATIVE_INFINITY;
 
-export type RepositoryAuthorizationMode = IntegrationConnectionRepositoryAccessMode;
+/** Whether the project's access narrows what the connection reaches. */
+export type RepositoryAuthorizationAccess = 'all' | 'selected';
 export type RepositoryAuthorizationCapability = 'checkout' | 'tools';
 
 export interface RepositoryAuthorizationExternalIdTarget {
@@ -37,12 +46,16 @@ export type RepositoryAuthorizationDenial =
   | 'repository_required'
   | 'repository_not_granted'
   | 'repository_ambiguous'
+  | 'connection_not_allowed'
+  | 'project_not_found'
   | 'authorization_store_unavailable';
 
 export const repositoryAuthorizationClientErrorCodes = {
   repository_required: repositoryAuthorizationErrorCodes.required,
   repository_not_granted: repositoryAuthorizationErrorCodes.notGranted,
   repository_ambiguous: repositoryAuthorizationErrorCodes.ambiguous,
+  connection_not_allowed: repositoryAuthorizationErrorCodes.connectionNotAllowed,
+  project_not_found: repositoryAuthorizationErrorCodes.projectNotFound,
   authorization_store_unavailable: repositoryAuthorizationErrorCodes.storeUnavailable,
 } as const satisfies Record<RepositoryAuthorizationDenial, string>;
 
@@ -65,26 +78,51 @@ export type RepositoryAuthorizationResult =
   | {
       authorized: true;
       repository: AuthorizedRepository;
-      targetProjectId?: string | undefined;
+      access: RepositoryAuthorizationAccess;
     }
-  | {authorized: false; reason: RepositoryAuthorizationDenial};
+  | {
+      authorized: false;
+      reason: RepositoryAuthorizationDenial;
+      access: RepositoryAuthorizationAccess;
+    };
+
+export type ConnectionAuthorizationDenial = Extract<
+  RepositoryAuthorizationDenial,
+  'connection_not_allowed' | 'project_not_found' | 'authorization_store_unavailable'
+>;
+
+export type ConnectionAuthorizationResult =
+  | {
+      authorized: true;
+      /** Whether the project's access limits the connection to some of its repositories. */
+      repositoriesNarrowed: boolean;
+    }
+  | {authorized: false; reason: ConnectionAuthorizationDenial};
+
+type ProjectAccessPolicyLoad =
+  | {policy: ProjectAccessPolicy}
+  | {denial: 'project_not_found' | 'authorization_store_unavailable'};
 
 export interface RepositoryAuthorizationRequestContext {
-  readonly memo: Map<string, Promise<RepositoryAuthorizationResult>>;
+  /** One policy load per project, shared by every target one request names. */
+  readonly memo: Map<string, Promise<ProjectAccessPolicyLoad>>;
 }
 
 export function createRepositoryAuthorizationRequestContext(): RepositoryAuthorizationRequestContext {
   return {memo: new Map()};
 }
 
-export interface ResolveRepositoryAuthorizationInput {
+export interface ResolveConnectionAuthorizationInput {
   workspaceId: string;
+  /** The calling project, whose access decides. */
+  projectId: string;
   connectionId: string;
-  /** The `all` mode may only originate from trusted server-side authorization state. */
-  mode: RepositoryAuthorizationMode;
+  request?: RepositoryAuthorizationRequestContext | undefined;
+}
+
+export interface ResolveRepositoryAuthorizationInput extends ResolveConnectionAuthorizationInput {
   repository: RepositoryAuthorizationTarget;
   capability: RepositoryAuthorizationCapability;
-  request?: RepositoryAuthorizationRequestContext | undefined;
 }
 
 export interface ResolveRepositoryAuthorizationParams extends ResolveRepositoryAuthorizationInput {
@@ -95,8 +133,6 @@ export interface CreateRepositoryAuthorizerOptions {
   projects?: ProjectsModuleClient | undefined;
   /** Every composition must explicitly choose whether authorization is enabled. */
   enabled: boolean;
-  now?: (() => number) | undefined;
-  maxCacheEntries?: number | undefined;
 }
 
 export interface RepositoryAuthorizer {
@@ -104,7 +140,9 @@ export interface RepositoryAuthorizer {
   resolveRepositoryAuthorization(
     input: ResolveRepositoryAuthorizationInput,
   ): Promise<RepositoryAuthorizationResult | undefined>;
-  invalidateRepositoryAuthorizationCache?: (connectionId: string) => void;
+  resolveConnectionAuthorization(
+    input: ResolveConnectionAuthorizationInput,
+  ): Promise<ConnectionAuthorizationResult | undefined>;
 }
 
 export class RepositoryAuthorizationTargetInvalidError extends Error {
@@ -115,37 +153,142 @@ export class RepositoryAuthorizationTargetInvalidError extends Error {
 }
 
 /**
- * Resolves a repository declaration against local project state. Provider
+ * Decides a repository declaration against the calling project's access. Provider
  * adapters are deliberately not part of the authorization boundary.
  */
 export async function resolveRepositoryAuthorization({
   projects,
+  workspaceId,
+  projectId,
+  connectionId,
+  repository,
   request,
-  ...input
 }: ResolveRepositoryAuthorizationParams): Promise<RepositoryAuthorizationResult> {
-  assertValidTarget(input.repository, input.mode);
+  assertValidTarget(repository);
 
-  if (input.mode === 'all') {
-    return authorizeAllMode(input.repository);
+  const loaded = await loadPolicy({projects, workspaceId, projectId, request});
+  if ('denial' in loaded) return deny(loaded.denial, 'selected');
+  const {policy} = loaded;
+
+  const connection = evaluateConnectionAccess(policy, {connectionId});
+  if (!connection.allowed) return deny('connection_not_allowed', 'selected');
+
+  if (!isConnectionNarrowed(policy, {connectionId, resourceKind: REPOSITORY_RESOURCE_KIND})) {
+    return authorizeUnnarrowed(repository);
   }
 
-  const resolve = () => resolveSelectedMode({projects, ...input});
-  if (!request) return await resolve();
+  const decision = evaluateResourceAccess(policy, {
+    connectionId,
+    target:
+      repository.kind === 'external-id'
+        ? {
+            kind: 'external-id',
+            resourceKind: REPOSITORY_RESOURCE_KIND,
+            externalId: repository.externalRepositoryId,
+          }
+        : {
+            kind: 'name',
+            resourceKind: REPOSITORY_RESOURCE_KIND,
+            lookupName: `${repository.owner}/${repository.name}`,
+          },
+  });
+  if (!decision.allowed) {
+    return deny(
+      decision.reason === 'resource_ambiguous' ? 'repository_ambiguous' : 'repository_not_granted',
+      'selected',
+    );
+  }
+  if (decision.resource === null) return authorizeUnnarrowed(repository);
 
-  const key = authorizationMemoKey(input);
+  // The matched id pins a by-name target to the repository access named.
+  return {
+    authorized: true,
+    repository: {externalRepositoryId: decision.resource.externalId},
+    access: 'selected',
+  };
+}
+
+/** Decides whether the calling project can use the connection at all. */
+export async function resolveConnectionAuthorization({
+  projects,
+  workspaceId,
+  projectId,
+  connectionId,
+  request,
+}: ResolveConnectionAuthorizationInput & {
+  projects: ProjectsModuleClient;
+}): Promise<ConnectionAuthorizationResult> {
+  const loaded = await loadPolicy({projects, workspaceId, projectId, request});
+  if ('denial' in loaded) return {authorized: false, reason: loaded.denial};
+  if (!evaluateConnectionAccess(loaded.policy, {connectionId}).allowed) {
+    return {authorized: false, reason: 'connection_not_allowed'};
+  }
+  return {
+    authorized: true,
+    repositoriesNarrowed: isConnectionNarrowed(loaded.policy, {
+      connectionId,
+      resourceKind: REPOSITORY_RESOURCE_KIND,
+    }),
+  };
+}
+
+/**
+ * Creates the integration-owned authorizer. The required `enabled` option keeps
+ * the disabled test seam explicit. A disabled authorizer returns `undefined`,
+ * allowing test callers to preserve the pre-enforcement behavior.
+ *
+ * Nothing is cached across requests: an access change applies on the next call,
+ * including the credential renewal of a running job.
+ */
+export function createRepositoryAuthorizer({
+  projects,
+  enabled,
+}: CreateRepositoryAuthorizerOptions): RepositoryAuthorizer {
+  if (!enabled) {
+    return {
+      enabled: false,
+      resolveRepositoryAuthorization() {
+        return Promise.resolve(undefined);
+      },
+      resolveConnectionAuthorization() {
+        return Promise.resolve(undefined);
+      },
+    };
+  }
+  if (!projects) throw new RepositoryAuthorizerConfigurationError();
+
+  return {
+    enabled: true,
+    resolveRepositoryAuthorization: (input) => resolveRepositoryAuthorization({projects, ...input}),
+    resolveConnectionAuthorization: (input) => resolveConnectionAuthorization({projects, ...input}),
+  };
+}
+
+async function loadPolicy({
+  projects,
+  workspaceId,
+  projectId,
+  request,
+}: {
+  projects: ProjectsModuleClient;
+  workspaceId: string;
+  projectId: string;
+  request: RepositoryAuthorizationRequestContext | undefined;
+}): Promise<ProjectAccessPolicyLoad> {
+  const load = () => loadPolicyOnce({projects, workspaceId, projectId});
+  if (!request) return await load();
+
+  const key = JSON.stringify([workspaceId, projectId]);
   const cached = request.memo.get(key);
   if (cached) return await cached;
 
-  const pending = resolve();
+  const pending = load();
   request.memo.set(key, pending);
   try {
     const result = await pending;
-    if (
-      !result.authorized &&
-      result.reason === 'authorization_store_unavailable' &&
-      request.memo.get(key) === pending
-    ) {
-      request.memo.delete(key);
+    // An outage must stay retryable inside the same request.
+    if ('denial' in result && result.denial === 'authorization_store_unavailable') {
+      if (request.memo.get(key) === pending) request.memo.delete(key);
     }
     return result;
   } catch (error) {
@@ -154,114 +297,41 @@ export async function resolveRepositoryAuthorization({
   }
 }
 
-/**
- * Creates the integration-owned authorizer. The required `enabled` option keeps
- * the disabled test seam explicit. A disabled authorizer returns `undefined`,
- * allowing test callers to preserve the pre-enforcement behavior.
- */
-export function createRepositoryAuthorizer({
-  projects,
-  enabled,
-  now = Date.now,
-  maxCacheEntries = DEFAULT_REPOSITORY_AUTHORIZATION_CACHE_SIZE,
-}: CreateRepositoryAuthorizerOptions): RepositoryAuthorizer {
-  if (!enabled) {
-    return {
-      enabled: false,
-      resolveRepositoryAuthorization() {
-        return Promise.resolve(undefined);
-      },
-    };
-  }
-  if (!projects) throw new RepositoryAuthorizerConfigurationError();
-
-  const cache = createSharedAuthorizationCache({now, maxCacheEntries});
-
-  return {
-    enabled: true,
-    async resolveRepositoryAuthorization(input) {
-      assertValidTarget(input.repository, input.mode);
-      if (input.mode === 'all') {
-        return await resolveRepositoryAuthorization({projects, ...input});
-      }
-
-      const key = authorizationSharedCacheKey(input);
-      const cached = cache.get(key);
-      if (cached) return cloneAuthorizationResult(cached);
-
-      const generation = cache.generation();
-      const result = await resolveRepositoryAuthorization({projects, ...input});
-      if (result.authorized && cache.generation() === generation) {
-        cache.set(key, input.connectionId, result);
-      }
-      return result;
-    },
-    invalidateRepositoryAuthorizationCache(connectionId) {
-      cache.invalidate(connectionId);
-    },
-  };
-}
-
-async function resolveSelectedMode({
+async function loadPolicyOnce({
   projects,
   workspaceId,
-  connectionId,
-  repository,
-}: Pick<
-  ResolveRepositoryAuthorizationParams,
-  'projects' | 'workspaceId' | 'connectionId' | 'repository'
->): Promise<RepositoryAuthorizationResult> {
-  if (repository.kind === 'external-id') {
-    try {
-      const projectResult = await projects.getProjectBySource({
-        workspaceId,
-        sourceConnectionId: connectionId,
-        sourceExternalRepositoryId: repository.externalRepositoryId,
-      });
-
-      const candidates = new Map<string, RepositoryAuthorizationCandidate>();
-      if (projectResult.project)
-        addCandidate(candidates, projectToCandidate(projectResult.project));
-      return authorizeCandidates(candidates);
-    } catch (error) {
-      return storeUnavailable(error, repository.kind);
-    }
-  }
-
+  projectId,
+}: {
+  projects: ProjectsModuleClient;
+  workspaceId: string;
+  projectId: string;
+}): Promise<ProjectAccessPolicyLoad> {
   try {
-    const projectResult = await projects.findProjectBySourceRepositoryName({
-      workspaceId,
-      sourceConnectionId: connectionId,
-      sourceRepositoryOwner: repository.owner,
-      sourceRepositoryName: repository.name,
-    });
-
-    const candidates = new Map<string, RepositoryAuthorizationCandidate>();
-    for (const project of projectResult.projects) {
-      addCandidate(candidates, projectToCandidate(project));
-    }
-    return authorizeCandidates(candidates);
+    const {policy} = await projects.getProjectAccessPolicy({workspaceId, projectId});
+    return {policy};
   } catch (error) {
-    return storeUnavailable(error, repository.kind);
+    // A missing project is final: retrying cannot bring it back.
+    if (
+      isInterModuleKnownError(projectsInterModuleContract.methods.getProjectAccessPolicy, error)
+    ) {
+      if (error.code === 'project-not-found') return {denial: 'project_not_found'};
+    }
+    return {denial: storeUnavailable(error)};
   }
 }
 
-function storeUnavailable(
-  error: unknown,
-  targetKind: RepositoryAuthorizationTarget['kind'],
-): RepositoryAuthorizationResult {
+function storeUnavailable(error: unknown): 'authorization_store_unavailable' {
   if (isCancellationError(error)) throw error;
-  logger().error({err: error, targetKind}, 'Repository authorization lookup failed');
+  logger().error({err: error}, 'Repository authorization lookup failed');
   const now = Date.now();
   if (now - lastRepositoryAuthorizationReportAt >= REPOSITORY_AUTHORIZATION_REPORT_INTERVAL_MS) {
     const eventId = reportError(error, {
       boundary: 'integration.repository-authorization',
-      operation: 'resolve-selected',
-      tags: {target: targetKind},
+      operation: 'load-project-access',
     });
     if (eventId) lastRepositoryAuthorizationReportAt = now;
   }
-  return deny('authorization_store_unavailable');
+  return 'authorization_store_unavailable';
 }
 
 function isCancellationError(error: unknown): boolean {
@@ -273,206 +343,31 @@ function isCancellationError(error: unknown): boolean {
   );
 }
 
-function authorizeAllMode(
+function authorizeUnnarrowed(
   repository: RepositoryAuthorizationTarget,
 ): RepositoryAuthorizationResult {
   if (repository.kind === 'external-id') {
     return {
       authorized: true,
       repository: {externalRepositoryId: repository.externalRepositoryId},
+      access: 'all',
     };
   }
   return {
     authorized: true,
     repository: {owner: repository.owner, name: repository.name},
+    access: 'all',
   };
 }
 
-interface RepositoryAuthorizationCandidate {
-  externalRepositoryId: string;
-  owner?: string | undefined;
-  name?: string | undefined;
-  targetProjectId?: string | undefined;
-}
-
-function projectToCandidate(project: {
-  id: string;
-  sourceExternalRepositoryId: string;
-  sourceRepositoryOwner?: string | null | undefined;
-  sourceRepositoryName?: string | null | undefined;
-}): RepositoryAuthorizationCandidate {
-  return {
-    externalRepositoryId: project.sourceExternalRepositoryId,
-    ...(project.sourceRepositoryOwner == null ? {} : {owner: project.sourceRepositoryOwner}),
-    ...(project.sourceRepositoryName == null ? {} : {name: project.sourceRepositoryName}),
-    targetProjectId: project.id,
-  };
-}
-
-function addCandidate(
-  candidates: Map<string, RepositoryAuthorizationCandidate>,
-  candidate: RepositoryAuthorizationCandidate,
-): void {
-  const existing = candidates.get(candidate.externalRepositoryId);
-  if (!existing) {
-    candidates.set(candidate.externalRepositoryId, candidate);
-    return;
-  }
-
-  candidates.set(candidate.externalRepositoryId, {
-    externalRepositoryId: candidate.externalRepositoryId,
-    owner: existing.owner ?? candidate.owner,
-    name: existing.name ?? candidate.name,
-    targetProjectId: existing.targetProjectId ?? candidate.targetProjectId,
-  });
-}
-
-function authorizeCandidates(
-  candidates: Map<string, RepositoryAuthorizationCandidate>,
+function deny(
+  reason: RepositoryAuthorizationDenial,
+  access: RepositoryAuthorizationAccess,
 ): RepositoryAuthorizationResult {
-  if (candidates.size === 0) return deny('repository_not_granted');
-  if (candidates.size > 1) return deny('repository_ambiguous');
-
-  const candidate = candidates.values().next().value;
-  if (!candidate) return deny('repository_not_granted');
-
-  return {
-    authorized: true,
-    repository: {
-      externalRepositoryId: candidate.externalRepositoryId,
-      ...(candidate.owner === undefined ? {} : {owner: candidate.owner}),
-      ...(candidate.name === undefined ? {} : {name: candidate.name}),
-    },
-    ...(candidate.targetProjectId === undefined
-      ? {}
-      : {targetProjectId: candidate.targetProjectId}),
-  };
+  return {authorized: false, reason, access};
 }
 
-function deny(reason: RepositoryAuthorizationDenial): RepositoryAuthorizationResult {
-  return {authorized: false, reason};
-}
-
-function authorizationMemoKey({
-  workspaceId,
-  connectionId,
-  mode,
-  capability,
-  repository,
-}: ResolveRepositoryAuthorizationInput): string {
-  return JSON.stringify([
-    workspaceId,
-    connectionId,
-    mode,
-    capability,
-    normalizedRepositoryTarget(repository),
-  ]);
-}
-
-function authorizationSharedCacheKey({
-  connectionId,
-  mode,
-  repository,
-}: Pick<ResolveRepositoryAuthorizationInput, 'connectionId' | 'mode' | 'repository'>): string {
-  return JSON.stringify([connectionId, mode, normalizedRepositoryTarget(repository)]);
-}
-
-function normalizedRepositoryTarget(
-  repository: RepositoryAuthorizationTarget,
-): readonly [string, ...string[]] {
-  return repository.kind === 'external-id'
-    ? [repository.kind, repository.externalRepositoryId]
-    : [repository.kind, repository.owner.toLowerCase(), repository.name.toLowerCase()];
-}
-
-type AuthorizedRepositoryAuthorizationResult = Extract<
-  RepositoryAuthorizationResult,
-  {authorized: true}
->;
-
-function cloneAuthorizationResult(
-  result: AuthorizedRepositoryAuthorizationResult,
-): AuthorizedRepositoryAuthorizationResult {
-  return {
-    authorized: true,
-    repository: {...result.repository},
-    ...(result.targetProjectId === undefined ? {} : {targetProjectId: result.targetProjectId}),
-  };
-}
-
-function createSharedAuthorizationCache({
-  now,
-  maxCacheEntries,
-}: {
-  now: () => number;
-  maxCacheEntries: number;
-}): {
-  get(key: string): AuthorizedRepositoryAuthorizationResult | undefined;
-  set(key: string, connectionId: string, result: AuthorizedRepositoryAuthorizationResult): void;
-  generation(): number;
-  invalidate(connectionId: string): void;
-} {
-  const entries = new Map<
-    string,
-    {
-      connectionId: string;
-      expiresAt: number;
-      result: AuthorizedRepositoryAuthorizationResult;
-    }
-  >();
-  let invalidationGeneration = 0;
-  const capacity =
-    Number.isSafeInteger(maxCacheEntries) && maxCacheEntries > 0
-      ? maxCacheEntries
-      : DEFAULT_REPOSITORY_AUTHORIZATION_CACHE_SIZE;
-
-  function removeExpired(currentTime: number): void {
-    for (const [key, entry] of entries) {
-      if (entry.expiresAt <= currentTime) entries.delete(key);
-    }
-  }
-
-  return {
-    get(key) {
-      const currentTime = now();
-      const entry = entries.get(key);
-      if (!entry) return undefined;
-      if (entry.expiresAt <= currentTime) {
-        entries.delete(key);
-        return undefined;
-      }
-      return entry.result;
-    },
-    set(key, connectionId, result) {
-      removeExpired(now());
-      entries.delete(key);
-      entries.set(key, {
-        connectionId,
-        expiresAt: now() + REPOSITORY_AUTHORIZATION_CACHE_TTL_MS,
-        result: cloneAuthorizationResult(result),
-      });
-      while (entries.size > capacity) {
-        const oldest = entries.keys().next();
-        if (oldest.done) break;
-        entries.delete(oldest.value);
-      }
-    },
-    generation() {
-      return invalidationGeneration;
-    },
-    invalidate(connectionId) {
-      invalidationGeneration += 1;
-      for (const [key, entry] of entries) {
-        if (entry.connectionId === connectionId) entries.delete(key);
-      }
-    },
-  };
-}
-
-function assertValidTarget(
-  repository: RepositoryAuthorizationTarget,
-  mode: RepositoryAuthorizationMode,
-): void {
+function assertValidTarget(repository: RepositoryAuthorizationTarget): void {
   if (!repository || typeof repository !== 'object') {
     throw new RepositoryAuthorizationTargetInvalidError();
   }
@@ -484,12 +379,6 @@ function assertValidTarget(
     const separatorIndex = repository.externalRepositoryId.indexOf(':');
     const namespace = repository.externalRepositoryId.slice(0, separatorIndex);
     const value = repository.externalRepositoryId.slice(separatorIndex + 1);
-    if (mode === 'selected') {
-      if (!isSafeExternalRepositoryValue(repository.externalRepositoryId)) {
-        throw new RepositoryAuthorizationTargetInvalidError();
-      }
-      return;
-    }
     if (
       separatorIndex <= 0 ||
       !isSafeRepositoryPart(namespace) ||

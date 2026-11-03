@@ -317,7 +317,6 @@ async function loadGithubModuleParts(
         writeOptions,
       ),
     repositoryAuthorization: 'enforced',
-    invalidateRepositoryAuthorizationCache: options.invalidateRepositoryAuthorizationCache,
     coreDb: db,
     deleteSecrets: options.secrets?.deleteSecrets,
     checkoutTokenCache,

@@ -67,7 +67,7 @@ export function buildValidateDefinitionRoute(options: {
       });
 
       if (result.valid && needsIntegrationValidationContext(result.definition.document)) {
-        if (project === null) {
+        if (project === null || projectId === undefined) {
           return {
             valid: false as const,
             errors: [
@@ -83,11 +83,12 @@ export function buildValidateDefinitionRoute(options: {
         result = validateDefinition(yaml, {
           agentValidationCatalog,
           ...actionSupport,
-          integrationValidationContext: await loadIntegrationValidationContext(
-            options.integrations,
-            project.workspaceId,
-            project.sourceConnectionId,
-          ),
+          integrationValidationContext: await loadIntegrationValidationContext({
+            integrations: options.integrations,
+            workspaceId: project.workspaceId,
+            projectId,
+            defaultConnectionId: project.sourceConnectionId,
+          }),
         });
       }
 

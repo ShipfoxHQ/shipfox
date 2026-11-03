@@ -19,6 +19,7 @@ import type {
   WorkflowModelValidationIssue,
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
+import {connectionNotAllowedIssue} from './normalize-agent-integrations.js';
 import type {WorkflowModelStepBaseFields} from './normalize-jobs.js';
 import {parseInterpolationField} from './parse-interpolation-field.js';
 import {issue} from './validation-issue.js';
@@ -289,6 +290,12 @@ function validateConnectionAndTool(params: {
       }),
     );
     return undefined;
+  }
+
+  if (!connection.allowed) {
+    params.issues.push(
+      connectionNotAllowedIssue({connectionSlug, path: toolConnectionPath(params)}),
+    );
   }
 
   const catalog = context.agentToolCatalogs.get(connection.provider);

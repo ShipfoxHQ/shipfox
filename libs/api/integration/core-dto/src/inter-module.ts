@@ -88,7 +88,8 @@ const checkoutInput = z
   .object({
     workspaceId: id,
     connectionId: id,
-    projectId: id.optional(),
+    /** The project whose access decides the checkout: the run's project, not the target's. */
+    projectId: id,
     target: checkoutTarget.optional(),
     externalRepositoryId: z.string().min(1).optional(),
   })
@@ -231,6 +232,8 @@ export const repositoryAuthorizationErrorCodes = {
   ambiguous: 'repository-ambiguous',
   storeUnavailable: 'repository-authorization-unavailable',
   targetInvalid: 'repository-authorization-target-invalid',
+  connectionNotAllowed: 'connection-not-allowed',
+  projectNotFound: 'project-not-found',
 } as const;
 const repositoryAuthorizationDetails = z.object({
   workspaceId: id.optional(),
@@ -243,6 +246,8 @@ const repositoryAuthorizationErrors = {
   [repositoryAuthorizationErrorCodes.ambiguous]: repositoryAuthorizationDetails,
   [repositoryAuthorizationErrorCodes.storeUnavailable]: repositoryAuthorizationDetails,
   [repositoryAuthorizationErrorCodes.targetInvalid]: repositoryAuthorizationDetails,
+  [repositoryAuthorizationErrorCodes.connectionNotAllowed]: repositoryAuthorizationDetails,
+  [repositoryAuthorizationErrorCodes.projectNotFound]: repositoryAuthorizationDetails,
 };
 const toolCallErrors = {
   'connection-not-found': z.object({connectionId: id}),
@@ -622,7 +627,7 @@ export const integrationsInterModuleContract = defineInterModuleContract({
     },
     getAgentToolsContext: {
       /** Without a default connection, the output has none and a selection must name its connection. */
-      input: z.object({workspaceId: id, defaultConnectionId: id.optional()}),
+      input: z.object({workspaceId: id, defaultConnectionId: id.optional(), projectId: id}),
       output: z.object({
         selectionCatalogs: z.array(
           z.object({
@@ -667,14 +672,21 @@ export const integrationsInterModuleContract = defineInterModuleContract({
             ),
           }),
         ),
+        /** `allowed` is false for a connection outside the project's access. */
         workspaceConnections: z.array(
-          z.object({slug: z.string(), id, provider, capabilities: z.array(capability)}),
+          z.object({
+            slug: z.string(),
+            id,
+            provider,
+            capabilities: z.array(capability),
+            allowed: z.boolean(),
+          }),
         ),
         eventCatalogs: z.array(z.object({provider, events: z.array(z.string())})),
         fixedEventProviders: z.array(provider),
         defaultConnection: z.object({id, slug: z.string(), provider}).nullable(),
       }),
-      errors: sourceErrors,
+      errors: {...sourceErrors, 'project-not-found': z.object({projectId: id})},
     },
     /**
      * Expands tool selectors into the tools a connection grants, in the order of `integrations`.

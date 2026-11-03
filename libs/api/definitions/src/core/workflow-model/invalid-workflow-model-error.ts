@@ -40,6 +40,7 @@ export type WorkflowModelValidationIssueCode =
   | 'integration-connection-not-capable'
   | 'integration-connection-not-found'
   | 'integration-connection-provider-mismatch'
+  | 'integration-connection-not-allowed'
   | 'integration-no-tools-selected'
   | 'integration-tool-agent-only'
   | 'integration-write-not-allowed'

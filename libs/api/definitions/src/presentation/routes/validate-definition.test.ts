@@ -282,6 +282,7 @@ jobs:
     expect(getAgentToolsContext).toHaveBeenCalledWith({
       workspaceId,
       defaultConnectionId: sourceConnectionId,
+      projectId,
     });
     expect(res.json()).toEqual({
       valid: false,

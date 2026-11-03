@@ -112,6 +112,7 @@ function githubAgentToolContext(
           id: 'connection-1',
           provider: 'github',
           capabilities: ['agent_tools'],
+          allowed: true,
         },
       ],
     ]),

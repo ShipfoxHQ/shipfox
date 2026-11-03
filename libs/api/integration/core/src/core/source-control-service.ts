@@ -32,11 +32,7 @@ import type {
   ResolvedRef,
   TriggerReference,
 } from './providers/source-control.js';
-import type {
-  RepositoryAuthorizationMode,
-  RepositoryAuthorizationResult,
-  RepositoryAuthorizer,
-} from './repository-authorizer.js';
+import type {RepositoryAuthorizationResult, RepositoryAuthorizer} from './repository-authorizer.js';
 import {RepositoryAuthorizationTargetInvalidError} from './repository-authorizer.js';
 
 export type AuthorizedCheckoutSpec = CheckoutSpec & {target: CheckoutTarget};
@@ -93,7 +89,8 @@ export interface FetchSourceFileInput extends ResolveSourceRepositoryInput {
 export type CreateSourceCheckoutSpecInput = {
   workspaceId: string;
   connectionId: string;
-  projectId?: string | undefined;
+  /** The project whose access decides the checkout. */
+  projectId: string;
   ref?: string | undefined;
   permissions?: CheckoutPermissions | undefined;
 } & CheckoutTargetInput;
@@ -101,7 +98,7 @@ export type CreateSourceCheckoutSpecInput = {
 export type CreateSourceCheckoutCredentialsInput = {
   workspaceId: string;
   connectionId: string;
-  projectId?: string | undefined;
+  projectId: string;
   permissions: CheckoutPermissions;
   rejectedGeneration?: string | undefined;
 } & CheckoutTargetInput;
@@ -121,12 +118,6 @@ export interface CreateIntegrationSourceControlServiceOptions {
   recordRepositoryAuthorizationMetric?:
     | typeof recordIntegrationCheckoutRepositoryAuthorization
     | undefined;
-  /** Trusted server-side seam for overriding the persisted per-connection repository mode. */
-  getRepositoryAuthorizationMode?:
-    | ((
-        connection: IntegrationConnection,
-      ) => RepositoryAuthorizationMode | Promise<RepositoryAuthorizationMode>)
-    | undefined;
 }
 
 export function createSourceControlIntegrationService({
@@ -134,7 +125,6 @@ export function createSourceControlIntegrationService({
   getIntegrationConnectionById,
   repositoryAuthorizer,
   recordRepositoryAuthorizationMetric = recordIntegrationCheckoutRepositoryAuthorization,
-  getRepositoryAuthorizationMode = (connection) => connection.repositoryAccessMode,
 }: CreateIntegrationSourceControlServiceOptions): IntegrationSourceControlService {
   // Best-effort: the hint refines an error that is already being thrown.
   async function resolveProviderAccess(
@@ -259,13 +249,12 @@ export function createSourceControlIntegrationService({
         repositoryAuthorizer,
         checkoutRepositoryAuthorization: sourceControl.checkoutRepositoryAuthorization,
         recordRepositoryAuthorizationMetric,
-        getRepositoryAuthorizationMode,
       });
 
       const spec = await sourceControl.createCheckoutSpec({
         connection,
         target,
-        ...(projectId === undefined ? {} : {projectId}),
+        projectId,
         ref,
         permissions,
       });
@@ -291,13 +280,12 @@ export function createSourceControlIntegrationService({
         repositoryAuthorizer,
         checkoutRepositoryAuthorization: sourceControl.checkoutRepositoryAuthorization,
         recordRepositoryAuthorizationMetric,
-        getRepositoryAuthorizationMode,
       });
 
       const credentials = await sourceControl.createCheckoutCredentials({
         connection,
         target,
-        ...(projectId === undefined ? {} : {projectId}),
+        projectId,
         permissions,
         rejectedGeneration,
       });
@@ -317,13 +305,10 @@ export function createSourceControlIntegrationService({
 
 async function authorizeCheckoutTarget(params: {
   connection: IntegrationConnection;
-  input: CheckoutTargetInput & {workspaceId: string};
+  input: CheckoutTargetInput & {workspaceId: string; projectId: string};
   repositoryAuthorizer: RepositoryAuthorizer | undefined;
   checkoutRepositoryAuthorization: 'enforced' | 'unclassified' | undefined;
   recordRepositoryAuthorizationMetric: typeof recordIntegrationCheckoutRepositoryAuthorization;
-  getRepositoryAuthorizationMode: (
-    connection: IntegrationConnection,
-  ) => RepositoryAuthorizationMode | Promise<RepositoryAuthorizationMode>;
 }): Promise<CheckoutTarget> {
   const target = checkoutTarget(params.input);
   if (
@@ -332,26 +317,24 @@ async function authorizeCheckoutTarget(params: {
   ) {
     recordCheckoutAuthorizationMetric(params.recordRepositoryAuthorizationMetric, {
       provider: params.connection.provider,
-      mode: params.connection.repositoryAccessMode,
+      mode: 'all',
       decision: 'not-enforced',
       denial_reason: 'none',
     });
     return target;
   }
 
-  const mode = await params.getRepositoryAuthorizationMode(params.connection);
-
   const authorization = await params.repositoryAuthorizer.resolveRepositoryAuthorization({
     workspaceId: params.input.workspaceId,
+    projectId: params.input.projectId,
     connectionId: params.connection.id,
-    mode,
     repository: target,
     capability: 'checkout',
   });
   if (authorization === undefined) {
     recordCheckoutAuthorizationMetric(params.recordRepositoryAuthorizationMetric, {
       provider: params.connection.provider,
-      mode,
+      mode: 'all',
       decision: 'not-enforced',
       denial_reason: 'none',
     });
@@ -360,13 +343,14 @@ async function authorizeCheckoutTarget(params: {
   if (!authorization.authorized) {
     recordCheckoutAuthorizationMetric(params.recordRepositoryAuthorizationMetric, {
       provider: params.connection.provider,
-      mode,
+      mode: authorization.access,
       decision: 'denied',
       denial_reason: authorization.reason,
     });
     logger().warn(
       {
         workspaceId: params.input.workspaceId,
+        projectId: params.input.projectId,
         connectionId: params.connection.id,
         provider: params.connection.provider,
         repository: target,
@@ -378,7 +362,7 @@ async function authorizeCheckoutTarget(params: {
   }
   recordCheckoutAuthorizationMetric(params.recordRepositoryAuthorizationMetric, {
     provider: params.connection.provider,
-    mode,
+    mode: authorization.access,
     decision: 'allowed',
     denial_reason: 'none',
   });

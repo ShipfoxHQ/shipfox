@@ -92,6 +92,7 @@ function subject(fixture: Awaited<ReturnType<typeof checkoutFixture>>, attempt =
   return {
     repositoryUrl: 'https://github.com/acme/repo',
     connectionId: crypto.randomUUID(),
+    projectId: fixture.run.projectId,
     externalRepositoryId: 'github:repo-1',
     permissions: {contents: 'write' as const},
     stepId: fixture.step.id,
@@ -148,6 +149,7 @@ describe('checkout renewal subjects', () => {
     ).resolves.toEqual({
       repositoryUrl: pending.repositoryUrl,
       connectionId: pending.connectionId,
+      projectId: pending.projectId,
       externalRepositoryId: pending.externalRepositoryId,
       permissions: pending.permissions,
       stepId: fixture.step.id,
@@ -245,6 +247,7 @@ describe('checkout renewal subjects', () => {
     expect(await loadCheckoutRenewalSubject(fixture.step.id)).toEqual({
       repositoryUrl: 'https://github.com/acme/repo',
       connectionId: first.connectionId,
+      projectId: first.projectId,
       externalRepositoryId: first.externalRepositoryId,
       permissions: first.permissions,
       stepId: fixture.step.id,

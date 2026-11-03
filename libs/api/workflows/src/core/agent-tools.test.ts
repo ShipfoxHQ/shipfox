@@ -64,7 +64,10 @@ function materializationContext(): AgentToolMaterializationContext {
   return {
     catalogs: new Map([['github', [tool, checkRunTool]]]),
     workspaceConnectionSnapshot: new Map([
-      ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+      [
+        'github-main',
+        {id: 'connection-1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+      ],
     ]),
     defaultConnection: {id: 'connection-1', slug: 'github-main', provider: 'github'},
   };
@@ -271,8 +274,14 @@ describe('action integrations', () => {
     return {
       catalogs: new Map([['slack', catalog]]),
       workspaceConnectionSnapshot: new Map([
-        ['team-slack', {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']}],
-        ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+        [
+          'team-slack',
+          {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools'], allowed: true},
+        ],
+        [
+          'github-main',
+          {id: 'connection-1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+        ],
       ]),
       defaultConnection: {id: 'connection-1', slug: 'github-main', provider: 'github'},
     };
@@ -611,8 +620,14 @@ describe('integration materialization reasons', () => {
         ],
       ]),
       workspaceConnectionSnapshot: new Map([
-        ['team-slack', {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']}],
-        ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+        [
+          'team-slack',
+          {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools'], allowed: true},
+        ],
+        [
+          'github-main',
+          {id: 'connection-1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+        ],
       ]),
       defaultConnection: {id: 'connection-1', slug: 'github-main', provider: 'github'},
     };
@@ -694,7 +709,12 @@ describe('integration materialization reasons', () => {
           workspaceConnectionSnapshot: new Map([
             [
               'team-slack',
-              {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']},
+              {
+                id: 'connection-slack',
+                provider: 'slack',
+                capabilities: ['agent_tools'],
+                allowed: true,
+              },
             ],
           ]),
         },
@@ -703,6 +723,35 @@ describe('integration materialization reasons', () => {
 
     expect(error.message).toBe('Integration provider slack has no agent tool catalog');
     expect(error.reason).toBeUndefined();
+  });
+
+  test('names a tool step connection outside the project access', () => {
+    const base = materializationContext();
+    const error = materializationFailure(() =>
+      materializeToolStep({
+        jobKey: 'build',
+        stepId: 'build-tool',
+        tool: {id: 'issue_read', method: 'get'},
+        connection: 'github-other',
+        context: {
+          ...base,
+          workspaceConnectionSnapshot: new Map([
+            ...base.workspaceConnectionSnapshot,
+            [
+              'github-other',
+              {
+                id: 'connection-9',
+                provider: 'github',
+                capabilities: ['agent_tools'],
+                allowed: false,
+              },
+            ],
+          ]),
+        },
+      }),
+    );
+
+    expect(error).toMatchObject({reason: 'connection-not-allowed', connection: 'github-other'});
   });
 
   test('names an unknown method of a known tool', () => {
@@ -765,6 +814,42 @@ describe('integration materialization reasons', () => {
 
     expect(error).toBeInstanceOf(AgentIntegrationMaterializationError);
     expect(error).toMatchObject({reason: 'source-connection-missing', connection: 'source-1'});
+  });
+
+  test('asks for the connections of the project that runs the workflow', async () => {
+    const model = workflowModel({
+      name: 'Tools',
+      runner: 'ubuntu-latest',
+      jobs: {build: {steps: [{tool: 'get_issue', with: {id: 'ENG-1'}}]}},
+    });
+    const getAgentToolsContext = vi.fn(() =>
+      Promise.resolve({
+        catalogs: [],
+        workspaceConnections: [],
+        defaultConnection: {id: 'source-1', slug: 'github-main', provider: 'github'},
+      }),
+    );
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+
+    await loadAgentToolMaterializationContext({
+      model,
+      workspaceId,
+      projectId,
+      integrations: {getAgentToolsContext} as never,
+      projects: {
+        getProjectById: () =>
+          Promise.resolve({
+            project: {sourceConnectionId: 'source-1', sourceExternalRepositoryId: 'acme/api'},
+          }),
+      } as never,
+    });
+
+    expect(getAgentToolsContext).toHaveBeenCalledWith({
+      workspaceId,
+      defaultConnectionId: 'source-1',
+      projectId,
+    });
   });
 
   test('leaves the reason out for a setup failure', () => {

@@ -80,11 +80,12 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
           ? parseDefinitionForCreate(yamlString, {
               agentValidationCatalog,
               ...actionSupport,
-              integrationValidationContext: await loadIntegrationValidationContext(
+              integrationValidationContext: await loadIntegrationValidationContext({
                 integrations,
-                project.workspaceId,
-                project.sourceConnectionId,
-              ),
+                workspaceId: project.workspaceId,
+                projectId,
+                defaultConnectionId: project.sourceConnectionId,
+              }),
             })
           : structurallyParsed;
 

@@ -64,7 +64,10 @@ const integrationValidationContext: IntegrationValidationContext = {
     ],
   ]),
   workspaceConnectionSnapshot: new Map([
-    ['linear-acme', {id: 'conn-linear', provider: 'linear', capabilities: ['agent_tools']}],
+    [
+      'linear-acme',
+      {id: 'conn-linear', provider: 'linear', capabilities: ['agent_tools'], allowed: true},
+    ],
   ]),
   eventCatalogs: new Map(),
   fixedEventProviders: new Set(),

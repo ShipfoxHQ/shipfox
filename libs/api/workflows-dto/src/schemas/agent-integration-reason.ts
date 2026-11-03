@@ -4,6 +4,7 @@ import {z} from 'zod';
 export const agentIntegrationMaterializationReasonSchema = z.enum([
   'connection-missing',
   'connection-provider-mismatch',
+  'connection-not-allowed',
   'source-connection-missing',
   'tool-unknown',
   'no-tools-selected',

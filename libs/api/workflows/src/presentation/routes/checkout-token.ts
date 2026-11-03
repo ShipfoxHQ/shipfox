@@ -405,13 +405,13 @@ function integrationCheckoutError(
       );
     case repositoryAuthorizationErrorCodes.notGranted:
       return new ClientError(
-        `Shipfox isn't allowed to check out ${repository}: no project in this workspace is linked to it, and ${connection} doesn't allow all repositories`,
+        `Shipfox isn't allowed to check out ${repository} through ${connection}: it is not in this project's access`,
         repositoryAuthorizationErrorCodes.notGranted,
         {details: targetDetails, status: 404},
       );
     case repositoryAuthorizationErrorCodes.ambiguous:
       return new ClientError(
-        `More than one project is linked to ${repository} on ${connection}, so Shipfox can't tell which one authorizes the checkout`,
+        `More than one repository in this project's access matches ${repository} on ${connection}, so Shipfox can't tell which one to check out`,
         repositoryAuthorizationErrorCodes.ambiguous,
         {details: targetDetails, status: 409},
       );
@@ -420,6 +420,18 @@ function integrationCheckoutError(
         'Repository authorization is unavailable',
         repositoryAuthorizationErrorCodes.storeUnavailable,
         {status: 503},
+      );
+    case repositoryAuthorizationErrorCodes.connectionNotAllowed:
+      return new ClientError(
+        `Shipfox isn't allowed to check out ${repository}: ${connection} is not in this project's access`,
+        repositoryAuthorizationErrorCodes.connectionNotAllowed,
+        {details: targetDetails, status: 403},
+      );
+    case repositoryAuthorizationErrorCodes.projectNotFound:
+      return new ClientError(
+        'The project of this run no longer exists',
+        repositoryAuthorizationErrorCodes.projectNotFound,
+        {status: 404},
       );
     case repositoryAuthorizationErrorCodes.targetInvalid:
       return new ClientError(

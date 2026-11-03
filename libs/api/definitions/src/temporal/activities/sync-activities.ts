@@ -319,11 +319,12 @@ function createFetchAndApplyActivity(
           integrations === undefined
             ? undefined
             : async () => {
-                return await loadIntegrationValidationContext(
+                return await loadIntegrationValidationContext({
                   integrations,
-                  input.workspaceId,
-                  input.sourceConnectionId,
-                );
+                  workspaceId: input.workspaceId,
+                  projectId: input.projectId,
+                  defaultConnectionId: input.sourceConnectionId,
+                });
               },
       });
 

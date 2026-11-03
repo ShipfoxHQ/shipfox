@@ -920,7 +920,7 @@ describe('StepInspectorSheet', () => {
     {
       code: 'repository-not-granted',
       title: 'Shipfox is not allowed to check out this repository',
-      fix: 'Link a project to the repository, or let the connection use all repositories. Then rerun the job.',
+      fix: "Add the repository to the project's access. Then rerun the job.",
     },
     {
       code: 'checkout-repository-not-authorized',

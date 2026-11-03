@@ -156,6 +156,7 @@ export interface DefinitionsAtRefListing {
 }
 
 interface ResolvedProjectSource {
+  projectId: string;
   workspaceId: string;
   connectionId: string;
   externalRepositoryId: string;
@@ -563,7 +564,7 @@ async function requireProjectSource(
   projectOverride: DefinitionAtRefProject | undefined,
   signal: AbortSignal | undefined,
 ): Promise<ResolvedProjectSource> {
-  if (projectOverride !== undefined) return sourceForProject(projectOverride);
+  if (projectOverride !== undefined) return sourceForProject(projectOverride, projectId);
 
   const {project} = await callWithSignal(projects.getProjectById, {projectId}, signal);
   if (project === null) {
@@ -571,11 +572,15 @@ async function requireProjectSource(
       projectId,
     });
   }
-  return sourceForProject(project);
+  return sourceForProject(project, projectId);
 }
 
-function sourceForProject(project: DefinitionAtRefProject): ResolvedProjectSource {
+function sourceForProject(
+  project: DefinitionAtRefProject,
+  projectId: string,
+): ResolvedProjectSource {
   return {
+    projectId,
     workspaceId: project.workspaceId,
     connectionId: project.sourceConnectionId,
     externalRepositoryId: project.sourceExternalRepositoryId,
@@ -1105,12 +1110,13 @@ async function loadAtRefIntegrationValidationContext(params: {
   signal: AbortSignal | undefined;
 }) {
   try {
-    return await loadIntegrationValidationContext(
-      params.integrations,
-      params.source.workspaceId,
-      params.source.connectionId,
-      params.signal,
-    );
+    return await loadIntegrationValidationContext({
+      integrations: params.integrations,
+      workspaceId: params.source.workspaceId,
+      projectId: params.source.projectId,
+      defaultConnectionId: params.source.connectionId,
+      signal: params.signal,
+    });
   } catch (error) {
     throwIfAborted(params.signal);
     throw sourceUnavailable(error, 'Integration validation context is unavailable');

@@ -168,6 +168,8 @@ const STABLE_ERROR_CODES = new Set([
   'repository-not-granted',
   'repository-ambiguous',
   'repository-authorization-unavailable',
+  'connection-not-allowed',
+  'project-not-found',
   'search-qualifier-conflict',
   'repository-not-found',
   'installation-not-found',

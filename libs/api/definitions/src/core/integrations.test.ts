@@ -19,14 +19,20 @@ describe('loadIntegrationValidationContext', () => {
     const integrations = {getAgentToolsContext} as unknown as IntegrationsModuleClient;
     const workspaceId = crypto.randomUUID();
     const defaultConnectionId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
 
-    const context = await loadIntegrationValidationContext(
+    const context = await loadIntegrationValidationContext({
       integrations,
       workspaceId,
+      projectId,
       defaultConnectionId,
-    );
+    });
 
-    expect(getAgentToolsContext).toHaveBeenCalledWith({workspaceId, defaultConnectionId});
+    expect(getAgentToolsContext).toHaveBeenCalledWith({
+      workspaceId,
+      defaultConnectionId,
+      projectId,
+    });
     expect(context.eventCatalogs).toEqual(
       new Map([
         ['github', new Set(['push', 'pull_request.opened'])],

@@ -86,7 +86,6 @@ export function createRepositoryAccessReadRoute(
 
 export interface CreateRepositoryAccessMutationRoutesParams {
   registry: IntegrationProviderRegistry;
-  invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
 }
 
 export function createRepositoryAccessMutationRoutes(
@@ -119,7 +118,6 @@ export function createRepositoryAccessMutationRoutes(
       });
       if (!updated) throw connectionNotFound();
 
-      invalidate(params.invalidateRepositoryAuthorizationCache, updated.id);
       return {mode: updated.repositoryAccessMode};
     },
   });
@@ -181,13 +179,6 @@ function decodeRepositoryAccessCursor(
   } catch {
     return undefined;
   }
-}
-
-function invalidate(
-  invalidateRepositoryAuthorizationCache: ((connectionId: string) => void) | undefined,
-  connectionId: string,
-): void {
-  invalidateRepositoryAuthorizationCache?.(connectionId);
 }
 
 function connectionNotFound(): ClientError {

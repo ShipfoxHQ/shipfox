@@ -173,9 +173,14 @@ describe('buildAgentToolsMcpServer', () => {
       repositories: [{owner: 'shipfox', name: 'platform'}],
     }));
     const onOpenSession = vi.fn();
+    const resolveConnectionAuthorization = vi.fn(async () => ({
+      authorized: true as const,
+      repositoriesNarrowed: true,
+    }));
     const resolveRepositoryAuthorization = vi.fn(async () => ({
       authorized: false as const,
       reason: 'repository_not_granted' as const,
+      access: 'selected' as const,
     }));
     const authorizedTools = defaultAuthorizedTools();
     const authorizedTool = authorizedTools.get('github_main__issue_read');
@@ -193,6 +198,7 @@ describe('buildAgentToolsMcpServer', () => {
       repositoryAuthorizer: {
         enabled: true,
         resolveRepositoryAuthorization,
+        resolveConnectionAuthorization,
       },
     });
     const records: Parameters<

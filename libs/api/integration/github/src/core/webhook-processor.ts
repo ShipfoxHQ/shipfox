@@ -31,8 +31,6 @@ export interface CreateGithubWebhookProcessorOptions {
   updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
   /** Reads the authoritative installation state for suspend and unsuspend. */
   github: Pick<GithubApiClient, 'getInstallation'>;
-  /** Invalidates local repository authorization decisions after the delivery transaction commits. */
-  invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
   deleteInstallationTokenSecret?:
     | ((params: {workspaceId: string; installationId: number}) => Promise<unknown>)
     | undefined;
@@ -98,12 +96,6 @@ async function processGithubWebhookRequest(
       github: options.github,
     }),
   );
-
-  if (result.repositoryAuthorizationCacheInvalidationConnectionId !== undefined) {
-    options.invalidateRepositoryAuthorizationCache?.(
-      result.repositoryAuthorizationCacheInvalidationConnectionId,
-    );
-  }
 
   if (result.installationTokenCleanup && options.deleteInstallationTokenSecret) {
     await options.deleteInstallationTokenSecret(result.installationTokenCleanup);

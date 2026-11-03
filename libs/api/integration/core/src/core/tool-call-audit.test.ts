@@ -285,7 +285,6 @@ describe('integration tool call audit', () => {
       repositoryAccess: 'selected',
       decision: 'denied',
       denialReason: 'repository_not_granted',
-      targetProjectIds: ['project-platform'],
       runProjectId: 'project-run',
       indirectTargetNote: 'The provider resolved a parent resource.',
     });
@@ -304,7 +303,6 @@ describe('integration tool call audit', () => {
         repositoryAccess: 'selected',
         decision: 'denied',
         denialReason: 'repository_not_granted',
-        targetProjectIds: ['project-platform'],
         runProjectId: 'project-run',
         indirectTargetNote: 'The provider resolved a parent resource.',
       }),

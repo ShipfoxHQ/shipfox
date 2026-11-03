@@ -341,6 +341,8 @@ const HTTP_STATUS_BY_CODE: Partial<Record<IntegrationToolCallError['code'], numb
   'repository-required': 403,
   'repository-not-granted': 403,
   'repository-ambiguous': 403,
+  'connection-not-allowed': 403,
+  'project-not-found': 404,
   'not-found': 404,
   'file-not-found': 404,
   'file-too-large': 413,

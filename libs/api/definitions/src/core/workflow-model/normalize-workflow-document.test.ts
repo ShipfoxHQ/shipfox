@@ -355,13 +355,22 @@ const integrationValidationContext = {
     ],
   ]),
   workspaceConnectionSnapshot: new Map([
-    ['github-main', {id: 'conn_1', provider: 'github', capabilities: ['agent_tools']}],
-    ['sentry-main', {id: 'conn_2', provider: 'sentry', capabilities: []}],
-    ['linear-main', {id: 'conn_3', provider: 'linear', capabilities: ['agent_tools']}],
-    ['jira-main', {id: 'conn_4', provider: 'jira', capabilities: ['agent_tools']}],
-    ['clickup-main', {id: 'conn_5', provider: 'clickup', capabilities: ['agent_tools']}],
-    ['deploy-hook', {id: 'conn_6', provider: 'webhook', capabilities: []}],
-    ['shipfox', {id: 'conn_7', provider: 'shipfox', capabilities: ['agent_tools']}],
+    [
+      'github-main',
+      {id: 'conn_1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+    ],
+    ['sentry-main', {id: 'conn_2', provider: 'sentry', capabilities: [], allowed: true}],
+    [
+      'linear-main',
+      {id: 'conn_3', provider: 'linear', capabilities: ['agent_tools'], allowed: true},
+    ],
+    ['jira-main', {id: 'conn_4', provider: 'jira', capabilities: ['agent_tools'], allowed: true}],
+    [
+      'clickup-main',
+      {id: 'conn_5', provider: 'clickup', capabilities: ['agent_tools'], allowed: true},
+    ],
+    ['deploy-hook', {id: 'conn_6', provider: 'webhook', capabilities: [], allowed: true}],
+    ['shipfox', {id: 'conn_7', provider: 'shipfox', capabilities: ['agent_tools'], allowed: true}],
   ]),
   eventCatalogs: new Map([
     ['github', new Set(['push', 'pull_request.opened'])],
@@ -494,6 +503,100 @@ describe('normalizeWorkflowDocument', () => {
       gate: {
         success: expect.objectContaining({source: 'step.outputs.result.title != ""'}),
       },
+    });
+  });
+
+  describe('connections outside the project access', () => {
+    type SnapshotEntry = NonNullable<
+      ReturnType<IntegrationValidationContext['workspaceConnectionSnapshot']['get']>
+    >;
+    const outsideAccessContext: IntegrationValidationContext = {
+      ...integrationValidationContext,
+      workspaceConnectionSnapshot: new Map<string, SnapshotEntry>([
+        ...integrationValidationContext.workspaceConnectionSnapshot,
+        [
+          'github-other',
+          {id: 'conn_9', provider: 'github', capabilities: ['agent_tools'], allowed: false},
+        ],
+      ]),
+    };
+
+    it('warns on a tool step that names a connection outside access', () => {
+      const document: WorkflowDocument = {
+        name: 'Read an issue',
+        jobs: {
+          inspect: {
+            steps: [
+              {
+                key: 'issue',
+                tool: 'issue_read.get',
+                connection: 'github-other',
+                with: {owner: 'acme', repo: 'platform', number: 1},
+              },
+            ],
+          },
+        },
+      };
+
+      const {diagnostics} = normalizeWithDiagnostics(document, {
+        integrationValidationContext: outsideAccessContext,
+      });
+
+      expect(diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'integration-connection-not-allowed',
+          severity: 'warning',
+          details: {connection: 'github-other'},
+        }),
+      ]);
+    });
+
+    it('warns on an agent integration that names a connection outside access', () => {
+      const document: WorkflowDocument = {
+        name: 'agent integrations',
+        jobs: {
+          fix: {
+            steps: [
+              {
+                prompt: 'Fix the issue.',
+                integrations: [{connection: 'github-other', include: ['issue_read']}],
+              },
+            ],
+          },
+        },
+      };
+
+      const {diagnostics} = normalizeWithDiagnostics(document, {
+        integrationValidationContext: outsideAccessContext,
+      });
+
+      expect(diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'integration-connection-not-allowed',
+          severity: 'warning',
+          details: {connection: 'github-other'},
+        }),
+      ]);
+    });
+
+    it('stays silent for a connection inside access', () => {
+      const document: WorkflowDocument = {
+        name: 'agent integrations',
+        jobs: {
+          fix: {
+            steps: [
+              {
+                prompt: 'Fix the issue.',
+                integrations: [{connection: 'github-main', include: ['issue_read']}],
+              },
+            ],
+          },
+        },
+      };
+
+      const {diagnostics} = normalizeWithDiagnostics(document, {integrationValidationContext});
+
+      expect(diagnostics).toEqual([]);
     });
   });
 
