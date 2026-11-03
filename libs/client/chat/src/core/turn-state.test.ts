@@ -1,5 +1,5 @@
 import type {ConversationTurn} from './conversation.js';
-import {currentTurn, replyActivity, turnFailure} from './turn-state.js';
+import {currentTurn, partialTextOf, replyActivity, turnFailure} from './turn-state.js';
 
 const stored: ConversationTurn = {
   id: 'turn-1',
@@ -40,6 +40,22 @@ describe('currentTurn', () => {
     });
 
     expect(turn?.id).toBe('turn-2');
+  });
+});
+
+describe('partialTextOf', () => {
+  const live = {
+    turn: {turnId: 'turn-1', status: 'running' as const, failureCode: null},
+    partialText: 'The tests',
+  };
+
+  test('keeps the text of a dropped stream while its turn runs', () => {
+    expect(partialTextOf({live, turn: stored})).toBe('The tests');
+  });
+
+  test('drops the text once another turn runs, or the turn ends', () => {
+    expect(partialTextOf({live, turn: {...stored, id: 'turn-2'}})).toBe('');
+    expect(partialTextOf({live, turn: {...stored, status: 'failed'}})).toBe('');
   });
 });
 

@@ -35,6 +35,19 @@ export function currentTurn(params: {
   };
 }
 
+/**
+ * Streamed text of the turn the panel shows. A dropped stream keeps its text while that turn
+ * runs, and never lends it to a newer turn that a read found first.
+ */
+export function partialTextOf(params: {
+  live: {turn: LiveTurn | undefined; partialText: string} | undefined;
+  turn: ConversationTurn | undefined;
+}): string {
+  const {live, turn} = params;
+  if (!live || turn?.status !== 'running' || live.turn?.turnId !== turn.id) return '';
+  return live.partialText;
+}
+
 export type ReplyActivity =
   | {kind: 'idle'}
   | {kind: 'thinking'}

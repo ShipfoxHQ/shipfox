@@ -4,6 +4,7 @@ import {lastItemSeq, mergeItemPages, withLiveItems} from '#core/conversation.js'
 import {buildTranscript} from '#core/transcript.js';
 import {
   currentTurn,
+  partialTextOf,
   RECONNECTING_NOTICE_MS,
   replyActivity,
   SLOW_START_MS,
@@ -160,7 +161,7 @@ export function useChatConversation({
   );
   const lastSeq = lastItemSeq(items);
   const turn = currentTurn({stored: storedTurn, live: liveTurn.live?.turn});
-  const partialText = liveTurn.live?.partialText ?? '';
+  const partialText = partialTextOf({live: liveTurn.live, turn});
 
   const awaitingTurn = !turnRunning && (queued.length > 0 || retryPickup.awaitingRetry);
   const slowStart = useElapsed(useSince(awaitingTurn), SLOW_START_MS);
