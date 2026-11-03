@@ -294,6 +294,7 @@ describe('defaultModules', () => {
               name: 'Project',
             },
           }),
+          moveProjectSource: () => ({moved: false}),
           resolveCheckoutTarget: () => ({
             projectId: crypto.randomUUID(),
             connectionId: crypto.randomUUID(),

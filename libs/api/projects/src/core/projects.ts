@@ -19,9 +19,11 @@ import {
   ProjectAlreadyExistsError,
   ProjectNotFoundError,
   ProjectSlugConflictError,
+  ProjectSourceChangedError,
 } from './errors.js';
 
 const PROJECTS_WORKSPACE_SLUG_UNIQUE_CONSTRAINT = 'projects_workspace_slug_unique';
+const PROJECTS_SOURCE_UNIQUE_CONSTRAINT = 'projects_source_unique';
 type ProjectsDb = ReturnType<typeof db>;
 type ProjectsTx = Parameters<Parameters<ProjectsDb['transaction']>[0]>[0];
 
@@ -238,5 +240,89 @@ export function updateProjectDetails(params: UpdateProjectDetailsParams): Promis
     });
 
     return update.project;
+  });
+}
+
+export interface MoveProjectSourceParams {
+  actorId: string;
+  workspaceId: string;
+  projectId: string;
+  from: {connectionId: string; externalRepositoryId: string};
+  to: {
+    connectionId: string;
+    provider: string;
+    externalRepositoryId: string;
+    owner: string;
+    name: string;
+    defaultBranch: string;
+  };
+}
+
+/**
+ * Moves the config source of a project from `from` to `to`, and announces it as a source bind. A
+ * repeat call that finds `to` already set changes nothing and succeeds, so a retried move can't
+ * bind twice. Another project that already owns `to` makes this throw `ProjectAlreadyExistsError`.
+ */
+export async function moveProjectSource(
+  params: MoveProjectSourceParams,
+): Promise<{moved: boolean}> {
+  const {from, to} = params;
+  return await db().transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(projects)
+      .where(eq(projects.id, params.projectId))
+      .for('update');
+    if (!current || current.workspaceId !== params.workspaceId) {
+      throw new ProjectNotFoundError(params.projectId);
+    }
+    if (
+      current.sourceConnectionId === to.connectionId &&
+      current.sourceExternalRepositoryId === to.externalRepositoryId
+    ) {
+      return {moved: false};
+    }
+    if (
+      current.sourceConnectionId !== from.connectionId ||
+      current.sourceExternalRepositoryId !== from.externalRepositoryId
+    ) {
+      throw new ProjectSourceChangedError(params.projectId);
+    }
+
+    try {
+      // A savepoint, so the lookup below still runs after the unique violation.
+      await tx.transaction(async (savepoint) => {
+        await savepoint
+          .update(projects)
+          .set({
+            sourceConnectionId: to.connectionId,
+            sourceExternalRepositoryId: to.externalRepositoryId,
+            sourceRepositoryOwner: to.owner,
+            sourceRepositoryName: to.name,
+            sourceDefaultBranch: to.defaultBranch,
+            updatedAt: new Date(),
+          })
+          .where(eq(projects.id, params.projectId));
+      });
+    } catch (error) {
+      if (isUniqueViolation(error, PROJECTS_SOURCE_UNIQUE_CONSTRAINT)) {
+        await assertSourceProjectDoesNotExist(tx, to.connectionId, to.externalRepositoryId);
+      }
+      throw error;
+    }
+
+    await writeOutboxEvent<ProjectsEventMap>(tx, projectsOutbox, {
+      type: PROJECT_SOURCE_BOUND,
+      orderingKey: params.projectId,
+      payload: {
+        actorId: params.actorId,
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        sourceConnectionId: to.connectionId,
+        provider: to.provider,
+        externalRepositoryId: to.externalRepositoryId,
+      },
+    });
+    return {moved: true};
   });
 }

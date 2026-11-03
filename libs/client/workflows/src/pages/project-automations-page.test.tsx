@@ -1037,6 +1037,8 @@ function configDto(overrides: Partial<{head: {ref: string; commit: string} | nul
     },
     head: {ref: 'refs/heads/main', commit: HEAD_COMMIT},
     history_supported: true,
+    move: null,
+    pull_request: null,
     ...overrides,
   };
 }

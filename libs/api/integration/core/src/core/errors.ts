@@ -112,3 +112,40 @@ export class ManagedProjectConflictError extends Error {
     this.name = 'ManagedProjectConflictError';
   }
 }
+
+export type ConfigLinkRefusalCode =
+  | 'project-not-managed'
+  | 'already-moved'
+  | 'move-in-progress'
+  | 'link-unsupported'
+  | 'connection-inactive'
+  | 'repository-in-use'
+  | 'repository-empty'
+  | 'config-exists'
+  | 'pull-request-closed'
+  | 'source-already-bound'
+  | 'source-changed'
+  | 'no-pull-request'
+  | 'pull-request-not-closed';
+
+/**
+ * A definite answer to a move request. Most codes leave the managed repository free again.
+ * `source-changed` does not: the move stays resumable.
+ */
+export class ConfigLinkRefusedError extends Error {
+  constructor(
+    public readonly code: ConfigLinkRefusalCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ConfigLinkRefusedError';
+  }
+}
+
+/** The pull request may exist, so the managed repository stays read-only until a retry resolves it. */
+export class ConfigLinkUnconfirmedError extends Error {
+  constructor(options?: {cause?: unknown}) {
+    super('We could not confirm the move. Retry to finish it.', options);
+    this.name = 'ConfigLinkUnconfirmedError';
+  }
+}

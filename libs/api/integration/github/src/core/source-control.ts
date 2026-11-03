@@ -8,11 +8,13 @@ import {
   type CheckoutSpec,
   type CheckoutTarget,
   type CommitPage,
+  type ConfigPullRequest,
   type CreateCheckoutCredentialsInput,
   type CreateCheckoutSpecInput,
   type FetchFileInput,
   type FilePage,
   type FileSnapshot,
+  type GetConfigPullRequestInput,
   type IntegrationConnection,
   isRecord,
   isSafeCheckoutRef,
@@ -25,6 +27,7 @@ import {
   MAX_REPOSITORY_FILE_BYTES,
   nonEmptyString,
   normalizeCheckoutTarget as normalizeTarget,
+  type OpenConfigPullRequestInput,
   parseProviderRepositoryId,
   positiveInteger,
   type RepositoryPage,
@@ -49,7 +52,9 @@ import {
 } from '#api/github-checkout-token-cache.js';
 import {config, normalizedGithubApiBaseUrl} from '#config.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';
+import {createGithubToolClient, type GithubToolClientFactory} from './agent-tools.js';
 import {configuredGithubAppBotLogin} from './bot-identity.js';
+import {findGithubConfigPullRequest, openGithubConfigPullRequest} from './config-pull-request.js';
 import {GithubIntegrationProviderError} from './errors.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
@@ -122,6 +127,8 @@ export class GithubSourceControlProvider
     private readonly github: GithubApiClient,
     private readonly appBotLogin: () => string | undefined = configuredGithubAppBotLogin,
     private readonly checkoutTokenCache?: GithubCheckoutTokenCachePort,
+    private readonly createToolClient: GithubToolClientFactory = (token) =>
+      createGithubToolClient({token}),
   ) {}
 
   async listRepositories(
@@ -295,6 +302,46 @@ export class GithubSourceControlProvider
       })),
       nextCursor: page.nextCursor,
     };
+  }
+
+  async openConfigPullRequest(
+    input: OpenConfigPullRequestInput<GithubIntegrationConnection>,
+  ): Promise<ConfigPullRequest> {
+    const installationId = await this.installationId(input.connection.id);
+    const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const repository = await this.github.getRepository({installationId, repositoryId});
+    const token = await this.github.createInstallationAccessToken({
+      installationId,
+      repositoryId,
+      permissions: {contents: 'write', pull_requests: 'write'},
+    });
+    return await openGithubConfigPullRequest(this.createToolClient(token.token), {
+      owner: repository.ownerLogin,
+      repo: repository.name,
+      defaultBranch: repository.defaultBranch,
+      branch: input.branch,
+      files: input.files,
+      title: input.title,
+      body: input.body,
+    });
+  }
+
+  async getConfigPullRequest(
+    input: GetConfigPullRequestInput<GithubIntegrationConnection>,
+  ): Promise<ConfigPullRequest | null> {
+    const installationId = await this.installationId(input.connection.id);
+    const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const repository = await this.github.getRepository({installationId, repositoryId});
+    const token = await this.github.createInstallationAccessToken({
+      installationId,
+      repositoryId,
+      permissions: {contents: 'read', pull_requests: 'read'},
+    });
+    return await findGithubConfigPullRequest(this.createToolClient(token.token), {
+      owner: repository.ownerLogin,
+      repo: repository.name,
+      branch: input.branch,
+    });
   }
 
   async createCheckoutSpec(

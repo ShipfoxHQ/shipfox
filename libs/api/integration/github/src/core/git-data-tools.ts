@@ -319,7 +319,7 @@ async function assertBranchHead(
 }
 
 /** The commit a branch points at, or `undefined` when the branch does not exist. */
-async function branchHead(
+export async function branchHead(
   client: GithubToolClient,
   params: {owner: string; repo: string; branch: string},
 ): Promise<string | undefined> {
@@ -404,7 +404,7 @@ function treeEntry(entry: Record<string, unknown>): Record<string, unknown> {
   return entry.oid === undefined ? {...base, content: entry.contents} : {...base, sha: entry.oid};
 }
 
-async function request(
+export async function request(
   client: GithubToolClient,
   route: string,
   parameters: Record<string, unknown>,

@@ -3,6 +3,7 @@ import {isManagedRepositoryId} from '@shipfox/api-integration-managed-vcs-dto';
 import {isValidGitObjectId} from '@shipfox/api-integration-spi';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {ConfigMoveState} from './config-link-service.js';
 import type {IntegrationConnection} from './entities/connection.js';
 import {
   IntegrationConnectionInactiveError,
@@ -41,6 +42,8 @@ export interface ConfigSource {
   };
   head: {ref: string; commit: string} | null;
   historySupported: boolean;
+  move: ConfigMoveState['move'];
+  pullRequest: ConfigMoveState['pullRequest'];
 }
 
 export interface ListConfigFilesInput {
@@ -97,12 +100,15 @@ export interface CreateProjectConfigServiceOptions {
   getIntegrationConnectionById: (
     connectionId: string,
   ) => Promise<IntegrationConnection | undefined>;
+  /** Without it, a project reports no move. */
+  readMoveState?: ((project: ConfigProject) => Promise<ConfigMoveState>) | undefined;
 }
 
 export function createProjectConfigService({
   registry,
   sourceControl,
   getIntegrationConnectionById,
+  readMoveState,
 }: CreateProjectConfigServiceOptions): ProjectConfigService {
   async function loadConnection(project: ConfigProject): Promise<IntegrationConnection> {
     const connection = await getIntegrationConnectionById(project.connectionId);
@@ -160,6 +166,7 @@ export function createProjectConfigService({
         },
         head: await resolveHead({project, resolveCommit}),
         historySupported: adapter?.listCommits !== undefined,
+        ...((await readMoveState?.(project)) ?? {move: null, pullRequest: null}),
       };
     },
 

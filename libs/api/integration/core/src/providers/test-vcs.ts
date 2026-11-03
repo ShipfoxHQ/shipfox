@@ -4,11 +4,13 @@ import {
   type CheckoutPermissions,
   type CheckoutSpec,
   type CheckoutTarget,
+  type ConfigPullRequest,
   type CreateCheckoutCredentialsInput,
   type CreateCheckoutSpecInput,
   type FetchFileInput,
   type FilePage,
   type FileSnapshot,
+  type GetConfigPullRequestInput,
   type IntegrationConnection,
   IntegrationProviderError,
   isValidResolvableRef,
@@ -16,6 +18,7 @@ import {
   type ListRepositoriesInput,
   MAX_REPOSITORY_FILE_BYTES,
   normalizeCheckoutTarget,
+  type OpenConfigPullRequestInput,
   parseProviderRepositoryId,
   type RepositoryPage,
   type RepositorySnapshot,
@@ -148,6 +151,46 @@ export class TestVcsSourceControlProvider implements SourceControlProvider<TestV
         `Test VCS ref ${JSON.stringify(input.ref)} was not found in ${input.externalRepositoryId}`,
       );
     }
+  }
+
+  async openConfigPullRequest(
+    input: OpenConfigPullRequestInput<TestVcsConnection>,
+  ): Promise<ConfigPullRequest> {
+    const locator = this.repositoryLocator(input.connection, input.externalRepositoryId);
+    this.requireRepository(locator);
+    return await this.options.fixture.openPullRequest({
+      ...locator,
+      branch: input.branch,
+      files: input.files,
+      title: input.title,
+      body: input.body,
+    });
+  }
+
+  getConfigPullRequest(
+    input: GetConfigPullRequestInput<TestVcsConnection>,
+  ): Promise<ConfigPullRequest | null> {
+    const locator = this.repositoryLocator(input.connection, input.externalRepositoryId);
+    this.requireRepository(locator);
+    return Promise.resolve(this.options.fixture.getPullRequest({...locator, branch: input.branch}));
+  }
+
+  async mergePullRequest(input: {
+    connection: TestVcsConnection;
+    externalRepositoryId: string;
+    number: number;
+  }): Promise<ConfigPullRequest> {
+    const locator = this.repositoryLocator(input.connection, input.externalRepositoryId);
+    return await this.options.fixture.mergePullRequest({...locator, number: input.number});
+  }
+
+  closePullRequest(input: {
+    connection: TestVcsConnection;
+    externalRepositoryId: string;
+    number: number;
+  }): ConfigPullRequest {
+    const locator = this.repositoryLocator(input.connection, input.externalRepositoryId);
+    return this.options.fixture.closePullRequest({...locator, number: input.number});
   }
 
   async createCheckoutSpec(

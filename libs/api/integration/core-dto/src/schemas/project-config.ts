@@ -47,11 +47,40 @@ export const projectConfigSourceDtoSchema = z.object({
 });
 export type ProjectConfigSourceDto = z.infer<typeof projectConfigSourceDtoSchema>;
 
+export const configMoveStatusSchema = z.enum(['linking', 'linked']);
+export const configPullRequestStateSchema = z.enum(['open', 'merged', 'closed']);
+
+/** A move to a repository that is running, stopped, or finished with a pull request to merge. */
+export const projectConfigMoveDtoSchema = z.object({
+  status: configMoveStatusSchema,
+  target: z.object({
+    connection_id: z.string().uuid(),
+    external_repository_id: z.string(),
+    /** Null when the provider can't answer, or once the move is no longer running. */
+    full_name: z.string().nullable(),
+  }),
+  started_by: z.string().nullable(),
+  started_at: z.string().datetime().nullable(),
+});
+export type ProjectConfigMoveDto = z.infer<typeof projectConfigMoveDtoSchema>;
+
+export const projectConfigPullRequestDtoSchema = z.object({
+  url: z.string(),
+  number: z.number().int(),
+  /** `unknown` while the provider can't answer. */
+  state: z.union([configPullRequestStateSchema, z.literal('unknown')]),
+});
+export type ProjectConfigPullRequestDto = z.infer<typeof projectConfigPullRequestDtoSchema>;
+
 export const projectConfigResponseSchema = z.object({
   source: projectConfigSourceDtoSchema,
   /** Null while the provider can't answer, so the source header still renders. */
   head: z.object({ref: z.string(), commit: z.string()}).nullable(),
   history_supported: z.boolean(),
+  /** Null unless the project moved, or is moving, from a managed repository. */
+  move: projectConfigMoveDtoSchema.nullable(),
+  /** Null once the pull request merged, or when the move opened none. */
+  pull_request: projectConfigPullRequestDtoSchema.nullable(),
 });
 export type ProjectConfigResponseDto = z.infer<typeof projectConfigResponseSchema>;
 
@@ -115,4 +144,41 @@ export const listProjectConfigCommitsResponseSchema = z.object({
 });
 export type ListProjectConfigCommitsResponseDto = z.infer<
   typeof listProjectConfigCommitsResponseSchema
+>;
+
+export const linkProjectConfigParamsSchema = projectParams;
+export const linkProjectConfigBodySchema = z.object({
+  connection_id: z.string().uuid(),
+  external_repository_id: z.string().min(1),
+  /** Runs the checks only. */
+  dry_run: z.boolean().default(false),
+});
+export type LinkProjectConfigBodyDto = z.infer<typeof linkProjectConfigBodySchema>;
+
+const pullRequestSummarySchema = z.object({
+  url: z.string(),
+  number: z.number().int(),
+  state: configPullRequestStateSchema,
+});
+export const linkProjectConfigResponseSchema = z.object({
+  /** `ready` after a dry run that passed the checks. */
+  status: z.enum(['ready', 'linked']),
+  repository: z.object({
+    external_repository_id: z.string(),
+    full_name: z.string(),
+    default_branch: z.string(),
+    visibility: z.enum(['public', 'private', 'internal', 'unknown']),
+  }),
+  file_count: z.number().int(),
+  /** Null after a dry run, and when the config had no files to add. */
+  pull_request: pullRequestSummarySchema.nullable(),
+});
+export type LinkProjectConfigResponseDto = z.infer<typeof linkProjectConfigResponseSchema>;
+
+export const openProjectConfigPullRequestParamsSchema = projectParams;
+export const openProjectConfigPullRequestResponseSchema = z.object({
+  pull_request: pullRequestSummarySchema,
+});
+export type OpenProjectConfigPullRequestResponseDto = z.infer<
+  typeof openProjectConfigPullRequestResponseSchema
 >;

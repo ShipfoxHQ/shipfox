@@ -2,6 +2,7 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {WorkspaceBuiltinConnection} from '#core/agent-tool-selection.js';
+import type {ConfigLinkService} from '#core/config-link-service.js';
 import type {ProjectConfigService} from '#core/project-config-service.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {RepositoryAuthorizer} from '#core/repository-authorizer.js';
@@ -27,6 +28,7 @@ import {
 export interface CreateIntegrationRoutesOptions {
   projects?: ProjectsModuleClient | undefined;
   projectConfig?: ProjectConfigService | undefined;
+  configLink?: ConfigLinkService | undefined;
   repositoryAuthorization?:
     | {
         invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
@@ -65,6 +67,7 @@ export function createIntegrationRoutes(
       ? createProjectConfigRoutes({
           projects: options.projects,
           projectConfig: options.projectConfig,
+          configLink: options.configLink,
         })
       : [];
 

@@ -5,6 +5,8 @@ import {integrationConnectionProviderAccessSchema} from './schemas/integrations.
 import {
   configFilePathSchema,
   configHistoryPathSchema,
+  configMoveStatusSchema,
+  configPullRequestStateSchema,
   configSourceKindSchema,
 } from './schemas/project-config.js';
 
@@ -357,6 +359,25 @@ export const integrationsInterModuleContract = defineInterModuleContract({
         }),
         head: z.object({ref: z.string(), commit: z.string()}).nullable(),
         historySupported: z.boolean(),
+        move: z
+          .object({
+            status: configMoveStatusSchema,
+            target: z.object({
+              connectionId: id,
+              externalRepositoryId: z.string(),
+              fullName: z.string().nullable(),
+            }),
+            startedBy: z.string().nullable(),
+            startedAt: z.string().datetime().nullable(),
+          })
+          .nullable(),
+        pullRequest: z
+          .object({
+            url: z.string(),
+            number: z.number().int(),
+            state: z.union([configPullRequestStateSchema, z.literal('unknown')]),
+          })
+          .nullable(),
       }),
       errors: configReadErrors,
     },
