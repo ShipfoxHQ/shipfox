@@ -197,10 +197,7 @@ describe('turn runtime', () => {
         },
         {
           projects: {
-            listProjectsByWorkspace: vi.fn().mockResolvedValue({
-              projects: [{id: projectId}],
-              nextCursor: null,
-            }),
+            getDefaultProject: vi.fn().mockResolvedValue({project: {id: projectId}}),
           },
           wake: async () => undefined,
         },

@@ -9,6 +9,8 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsEventSchemas} from '@shipfox/api-projects-dto';
+import {WORKSPACES_WORKSPACE_CREATED, type WorkspacesEventMap} from '@shipfox/api-workspaces-dto';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
@@ -20,6 +22,7 @@ import {
   onConnectionDeleted,
   onSourceCommitPushed,
   onSourceRepositoryUpdated,
+  onWorkspaceCreated,
 } from '#presentation/subscribers/index.js';
 import {createProjectsMaintenanceActivities} from '#temporal/activities/index.js';
 import {PROJECTS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
@@ -28,12 +31,14 @@ import {projectsFlags} from './flags.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<IntegrationsEventMap>();
+const subscriber = subscriberFactory<IntegrationsEventMap & WorkspacesEventMap>();
 
 export type {Project} from '#core/index.js';
 export {
+  backfillDefaultProjects,
   createManagedProject,
   createProjectFromSource,
+  ensureDefaultProject,
   ProjectAccessDeniedError,
   ProjectAlreadyExistsError,
   ProjectNotFoundError,
@@ -62,19 +67,21 @@ export {projectsFlags} from './flags.js';
 export interface CreateProjectsModuleOptions {
   integrations: IntegrationsModuleClient;
   auth: AuthInterModuleClient;
+  workspaces: Pick<WorkspacesInterModuleClient, 'listAdminWorkspaces'>;
   flags: FeatureFlags;
 }
 
 export function createProjectsModule({
   integrations,
   auth,
+  workspaces,
   flags,
 }: CreateProjectsModuleOptions): ShipfoxModule {
   return {
     name: 'projects',
     flags: projectsFlags,
     database: {db, migrationsPath, databaseNamespace: 'projects'},
-    routes: createProjectRoutes(integrations, auth, flags),
+    routes: createProjectRoutes(integrations, auth, workspaces, flags),
     e2eRoutes: [projectsE2eRoutes],
     metrics: registerProjectsServiceMetrics,
     publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],
@@ -83,6 +90,9 @@ export function createProjectsModule({
       subscriber(INTEGRATION_CONNECTION_DELETED, onConnectionDeleted),
       subscriber(INTEGRATION_SOURCE_COMMIT_PUSHED, onSourceCommitPushed),
       subscriber(INTEGRATION_SOURCE_REPOSITORY_UPDATED, onSourceRepositoryUpdated),
+      subscriber(WORKSPACES_WORKSPACE_CREATED, (payload) =>
+        onWorkspaceCreated(payload, {integrations}),
+      ),
     ],
     workers: [
       {

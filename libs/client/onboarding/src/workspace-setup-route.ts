@@ -7,7 +7,11 @@ import {
   type IntegrationConnection,
   sourceConnectionsQueryOptions,
 } from '@shipfox/client-integrations';
-import {projectExistenceQueryOptions} from '@shipfox/client-projects';
+import {
+  hasUserProject,
+  type ProjectList,
+  projectExistenceQueryOptions,
+} from '@shipfox/client-projects';
 import {
   userWorkspacesQueryOptions,
   WorkspaceSetupLoadError,
@@ -148,6 +152,9 @@ async function fetchWorkspaceSummary(queryClient: QueryClient, workspaceId: stri
 }
 
 /**
+ * Whether the workspace has a project of its own. Every workspace starts with a default project,
+ * which says nothing about setup, so only the projects a user made count.
+ *
  * A workspace that had a project on this device is let through at once and
  * checked in the background, so an established workspace never waits on the
  * read. The hint only steers navigation: when the read finds no project, it is
@@ -169,7 +176,7 @@ async function workspaceHasProject({
   if (revalidate && hint.read() === true) {
     void queryClient.fetchQuery(projectExistenceQueryOptions(workspaceId)).then(
       (projects) => {
-        if (projects.projects.length > 0) return;
+        if (hasUserProject(projects)) return;
         hint.remove();
         revalidate();
       },
@@ -179,7 +186,7 @@ async function workspaceHasProject({
   }
 
   const projects = await fetchWorkspaceProjectExistence(queryClient, workspaceId);
-  const hasProject = projects.projects.length > 0;
+  const hasProject = hasUserProject(projects);
   if (hasProject) hint.write(true);
   else hint.remove();
   return hasProject;
@@ -191,7 +198,7 @@ async function fetchWorkspaceProjectExistence(queryClient: QueryClient, workspac
   try {
     return await queryClient.fetchQuery(options);
   } catch (error) {
-    const cached = queryClient.getQueryData<{projects: unknown[]}>(options.queryKey);
+    const cached = queryClient.getQueryData<ProjectList>(options.queryKey);
     if (cached !== undefined) return cached;
     throw new WorkspaceSetupLoadError(error);
   }

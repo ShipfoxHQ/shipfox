@@ -142,6 +142,7 @@ function createDefaultTestProjects(): ProjectsModuleClient {
       sourceConnectionId,
       sourceExternalRepositoryId,
       name: 'Test project',
+      isDefault: false,
     },
   });
   const findProjectBySourceRepositoryName: ProjectsModuleClient['findProjectBySourceRepositoryName'] =
@@ -155,6 +156,7 @@ function createDefaultTestProjects(): ProjectsModuleClient {
           sourceRepositoryOwner,
           sourceRepositoryName,
           name: 'Test project',
+          isDefault: false,
         },
       ],
     });

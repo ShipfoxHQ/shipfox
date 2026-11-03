@@ -16,6 +16,7 @@ import {projects, toProject} from '#db/schema/projects.js';
 import {recordProjectCreated} from '#metrics/instance.js';
 import type {Project} from './entities/project.js';
 import {
+  DefaultProjectExistsError,
   ProjectAlreadyExistsError,
   ProjectNotFoundError,
   ProjectSlugConflictError,
@@ -24,6 +25,7 @@ import {
 
 const PROJECTS_WORKSPACE_SLUG_UNIQUE_CONSTRAINT = 'projects_workspace_slug_unique';
 const PROJECTS_SOURCE_UNIQUE_CONSTRAINT = 'projects_source_unique';
+const PROJECTS_WORKSPACE_DEFAULT_UNIQUE_CONSTRAINT = 'projects_workspace_default_unique';
 type ProjectsDb = ReturnType<typeof db>;
 type ProjectsTx = Parameters<Parameters<ProjectsDb['transaction']>[0]>[0];
 
@@ -55,6 +57,8 @@ export interface CreateManagedProjectParams {
   slug: string;
   /** The tree of the first commit. Without it, the project starts with no config. */
   files?: ReadonlyArray<{path: string; content: string}> | undefined;
+  /** Marks the workspace's default project. A workspace has at most one. */
+  isDefault?: boolean | undefined;
   integrations: IntegrationsModuleClient;
 }
 
@@ -107,6 +111,7 @@ async function insertProject(params: {
   name: string;
   slug: string;
   projectId?: string | undefined;
+  isDefault?: boolean | undefined;
   source: ResolvedSource;
 }): Promise<Project> {
   const {source} = params;
@@ -126,13 +131,14 @@ async function insertProject(params: {
             sourceDefaultBranch: source.repository.defaultBranch,
             name: params.name,
             slug: params.slug,
+            isDefault: params.isDefault ?? false,
           })
           .onConflictDoNothing({
             target: [projects.sourceConnectionId, projects.sourceExternalRepositoryId],
           })
           .returning();
       } catch (error) {
-        throw mapProjectInsertError(error, params.slug);
+        throw mapProjectInsertError(error, params.slug, params.workspaceId);
       }
 
       if (!projectRow)
@@ -180,9 +186,12 @@ async function insertProject(params: {
   return project;
 }
 
-function mapProjectInsertError(error: unknown, slug: string): unknown {
+function mapProjectInsertError(error: unknown, slug: string, workspaceId: string): unknown {
   if (isUniqueViolation(error, PROJECTS_WORKSPACE_SLUG_UNIQUE_CONSTRAINT)) {
     return new ProjectSlugConflictError(slug);
+  }
+  if (isUniqueViolation(error, PROJECTS_WORKSPACE_DEFAULT_UNIQUE_CONSTRAINT)) {
+    return new DefaultProjectExistsError(workspaceId);
   }
   return error;
 }

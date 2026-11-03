@@ -16,6 +16,8 @@ export interface Project {
   workspaceId: string;
   name: string;
   slug: string;
+  /** The workspace's one project that answers requests no other agent claims. */
+  isDefault: boolean;
   source: ProjectSource;
   createdAt: string;
   updatedAt: string;
@@ -24,6 +26,14 @@ export interface Project {
 export interface ProjectList {
   projects: Project[];
   nextCursor: string | null;
+}
+
+/**
+ * Whether a list holds a project the user made. Every workspace has a default project from the
+ * start, so the default alone says nothing about onboarding.
+ */
+export function hasUserProject(list: Pick<ProjectList, 'projects'>): boolean {
+  return list.projects.some((project) => !project.isDefault);
 }
 
 export interface CreateProjectCommand {

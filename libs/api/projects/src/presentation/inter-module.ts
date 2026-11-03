@@ -15,6 +15,7 @@ import {getProjectAccess, getProjectAccesses} from '#core/project-access.js';
 import {moveProjectSource} from '#core/projects.js';
 import {
   findProjectBySourceRepositoryName,
+  getDefaultProject,
   getProjectById,
   getProjectBySource,
   getWorkspaceProjectCounts,
@@ -89,6 +90,9 @@ export function createProjectsInterModulePresentation(): InterModulePresentation
         nextCursor: toProjectCursor(result.nextCursor),
       };
     },
+    getDefaultProject: async ({workspaceId}) => ({
+      project: (await getDefaultProject(workspaceId)) ?? null,
+    }),
     requireProjectForWorkspace: async ({projectId, workspaceId}) => {
       const project = await getProjectById(projectId);
       if (project === undefined) {
@@ -221,5 +225,6 @@ function toProjectInterModule(project: Project) {
     sourceRepositoryName: project.sourceRepositoryName,
     sourceDefaultBranch: project.sourceDefaultBranch,
     name: project.name,
+    isDefault: project.isDefault,
   };
 }

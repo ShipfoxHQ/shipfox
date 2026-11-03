@@ -13,6 +13,7 @@ describe('projectsInterModuleContract', () => {
         sourceRepositoryName: 'project',
         sourceDefaultBranch: 'main',
         name: 'Project',
+        isDefault: false,
       },
     });
 
@@ -146,6 +147,7 @@ describe('projectsInterModuleContract', () => {
       sourceRepositoryName: 'project',
       sourceDefaultBranch: 'main',
       name: 'Project',
+      isDefault: true,
       slug: 'project',
       createdAt: '2026-08-05T12:00:00.000Z',
       updatedAt: '2026-08-05T12:01:00.000Z',
@@ -169,6 +171,7 @@ describe('projectsInterModuleContract', () => {
       sourceRepositoryName: 'project',
       sourceDefaultBranch: 'main',
       name: 'Project',
+      isDefault: false,
     };
 
     expect(

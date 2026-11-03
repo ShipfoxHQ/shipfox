@@ -7,6 +7,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
+import {WORKSPACES_WORKSPACE_CREATED} from '@shipfox/api-workspaces-dto';
 import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {and, eq, sql} from 'drizzle-orm';
@@ -148,6 +149,7 @@ describe('onSourceCommitPushed', () => {
     const module = createProjectsModule({
       integrations: {} as IntegrationsModuleClient,
       auth: {} as AuthInterModuleClient,
+      workspaces: {listAdminWorkspaces: vi.fn()},
       flags: createTestFeatureFlags(),
     });
 
@@ -155,5 +157,6 @@ describe('onSourceCommitPushed', () => {
 
     expect(events).toContain(INTEGRATION_SOURCE_COMMIT_PUSHED);
     expect(events).toContain(INTEGRATION_SOURCE_REPOSITORY_UPDATED);
+    expect(events).toContain(WORKSPACES_WORKSPACE_CREATED);
   });
 });

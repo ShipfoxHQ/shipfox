@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {boolean, index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {Project} from '#core/entities/project.js';
 import {pgTable} from './common.js';
 
@@ -22,6 +22,7 @@ export const projects = pgTable(
       .$type<ProjectConnectionAccess>()
       .notNull()
       .default('all'),
+    isDefault: boolean('is_default').notNull().default(false),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -31,6 +32,9 @@ export const projects = pgTable(
       table.sourceExternalRepositoryId,
     ),
     uniqueIndex('projects_workspace_slug_unique').on(table.workspaceId, table.slug),
+    uniqueIndex('projects_workspace_default_unique')
+      .on(table.workspaceId)
+      .where(sql`${table.isDefault}`),
     index('projects_workspace_created_id_idx').on(table.workspaceId, table.createdAt, table.id),
     index('projects_source_repository_lookup_idx').on(
       table.workspaceId,
@@ -55,6 +59,7 @@ export function toProject(row: ProjectDb): Project {
     sourceDefaultBranch: row.sourceDefaultBranch,
     name: row.name,
     slug: row.slug,
+    isDefault: row.isDefault,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

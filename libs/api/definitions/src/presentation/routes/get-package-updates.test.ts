@@ -20,6 +20,7 @@ const projects = {
         sourceExternalRepositoryId: 'repo',
         sourceDefaultBranch: 'main',
         name: 'Project',
+        isDefault: false,
       },
     }),
   ),

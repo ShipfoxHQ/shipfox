@@ -2,6 +2,7 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {Popover, PopoverContent, PopoverTrigger} from '@shipfox/react-ui/popover';
 import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
+import {DefaultProjectBadge} from './default-project-badge.js';
 import {ProjectSwitcher} from './project-switcher.js';
 
 export interface ProjectCrumbProps {
@@ -10,6 +11,7 @@ export interface ProjectCrumbProps {
   projectId?: string | undefined;
   projectSlug?: string | undefined;
   projectName?: string | undefined;
+  projectIsDefault?: boolean | undefined;
 }
 
 export function ProjectCrumb({
@@ -18,6 +20,7 @@ export function ProjectCrumb({
   projectId,
   projectSlug,
   projectName,
+  projectIsDefault,
 }: ProjectCrumbProps) {
   const [open, setOpen] = useState(false);
 
@@ -32,6 +35,7 @@ export function ProjectCrumb({
         >
           {projectName}
         </Link>
+        {projectIsDefault ? <DefaultProjectBadge /> : null}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <button

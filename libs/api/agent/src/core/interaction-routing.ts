@@ -20,7 +20,6 @@ import {wrapUntrustedText} from './turn-runtime/tool-result.js';
 
 /** The most a request stores. A model can't use more, and a thread can be read again with a tool. */
 const INTERACTION_TEXT_MAX_BYTES = 64 * 1024;
-const PROJECT_PAGE_SIZE = 100;
 
 export interface RouteInteractionParams {
   workspaceId: string;
@@ -37,7 +36,7 @@ export interface RouteInteractionParams {
 }
 
 export interface RouteInteractionDeps {
-  projects: Pick<ProjectsModuleClient, 'listProjectsByWorkspace'>;
+  projects: Pick<ProjectsModuleClient, 'getDefaultProject'>;
   /** Tells the conversation to look at its inputs again. It never throws. */
   wake: (conversationId: string) => Promise<void>;
 }
@@ -61,7 +60,7 @@ export async function routeInteraction(
   if (owner) return await deliverToOwner({params, owner, messageId, wake: deps.wake});
   if (interaction.role !== 'request') return {outcome: 'dropped', reason: 'no-owner'};
 
-  const project = await findOldestProject(params.workspaceId, deps.projects);
+  const {project} = await deps.projects.getDefaultProject({workspaceId: params.workspaceId});
   if (!project) return {outcome: 'dropped', reason: 'no-project'};
 
   const key = await conversationDataKey(params.workspaceId);
@@ -173,26 +172,4 @@ export function deliveryMessageId(deliveryKey: string): string {
   bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   const hex = bytes.toString('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-/**
- * The default agent answers from the workspace's oldest project. Projects list newest first, so
- * the oldest is the last of the last page.
- */
-async function findOldestProject(
-  workspaceId: string,
-  projects: RouteInteractionDeps['projects'],
-): Promise<{id: string} | undefined> {
-  let oldest: {id: string} | undefined;
-  let cursor: Awaited<ReturnType<typeof projects.listProjectsByWorkspace>>['nextCursor'] = null;
-  do {
-    const page = await projects.listProjectsByWorkspace({
-      workspaceId,
-      limit: PROJECT_PAGE_SIZE,
-      ...(cursor ? {cursor} : {}),
-    });
-    oldest = page.projects.at(-1) ?? oldest;
-    cursor = page.nextCursor;
-  } while (cursor);
-  return oldest;
 }

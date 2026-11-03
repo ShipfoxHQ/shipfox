@@ -287,6 +287,7 @@ describe('defaultModules', () => {
           listProjectsByWorkspace: () => ({projects: [], nextCursor: null}),
           listProjectCatalogByWorkspace: () => ({projects: [], nextCursor: null}),
           listAdminProjects: () => ({projects: [], nextCursor: null}),
+          getDefaultProject: () => ({project: null}),
           getWorkspaceProjectCounts: () => ({counts: []}),
           requireProjectForWorkspace: () => ({
             project: {
@@ -295,6 +296,7 @@ describe('defaultModules', () => {
               sourceConnectionId: crypto.randomUUID(),
               sourceExternalRepositoryId: 'repo',
               name: 'Project',
+              isDefault: false,
             },
           }),
           moveProjectSource: () => ({moved: false}),

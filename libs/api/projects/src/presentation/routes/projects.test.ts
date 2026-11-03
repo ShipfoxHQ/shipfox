@@ -12,6 +12,7 @@ import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
 } from '@shipfox/api-integration-core-dto/inter-module';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
@@ -54,6 +55,7 @@ describe('project routes', () => {
   >;
   let flags: ReturnType<typeof createTestFeatureFlags>;
   let auth: Pick<AuthInterModuleClient, 'requireAdminRole'>;
+  let workspaces: Pick<WorkspacesInterModuleClient, 'listAdminWorkspaces'>;
 
   beforeEach(async () => {
     await closeApp();
@@ -89,9 +91,15 @@ describe('project routes', () => {
     auth = {
       requireAdminRole: vi.fn().mockResolvedValue({role: 'admin-observer'}),
     };
+    workspaces = {listAdminWorkspaces: vi.fn()};
     app = await createApp({
       auth: [fakeUserAuth],
-      routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+      routes: createProjectRoutes(
+        integrations as IntegrationsModuleClient,
+        auth,
+        workspaces,
+        flags,
+      ),
       swagger: false,
     });
     await app.ready();
@@ -176,7 +184,12 @@ describe('project routes', () => {
       await closeApp();
       app = await createApp({
         auth: [fakeUserAuth],
-        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        routes: createProjectRoutes(
+          integrations as IntegrationsModuleClient,
+          auth,
+          workspaces,
+          flags,
+        ),
         swagger: false,
       });
       const files = [{path: '.shipfox/workflows/triage.yml', content: 'name: Triage\n'}];
@@ -202,7 +215,12 @@ describe('project routes', () => {
       await closeApp();
       app = await createApp({
         auth: [fakeUserAuth],
-        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        routes: createProjectRoutes(
+          integrations as IntegrationsModuleClient,
+          auth,
+          workspaces,
+          flags,
+        ),
         swagger: false,
       });
       const request = arrangeManagedSource();
@@ -222,7 +240,12 @@ describe('project routes', () => {
       await closeApp();
       app = await createApp({
         auth: [fakeUserAuth],
-        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        routes: createProjectRoutes(
+          integrations as IntegrationsModuleClient,
+          auth,
+          workspaces,
+          flags,
+        ),
         swagger: false,
       });
       const request = arrangeManagedSource();
@@ -258,7 +281,12 @@ describe('project routes', () => {
       await closeApp();
       app = await createApp({
         auth: [fakeUserAuth],
-        routes: createProjectRoutes(integrations as IntegrationsModuleClient, auth, flags),
+        routes: createProjectRoutes(
+          integrations as IntegrationsModuleClient,
+          auth,
+          workspaces,
+          flags,
+        ),
         swagger: false,
       });
       const request = arrangeManagedSource();
@@ -895,5 +923,73 @@ describe('project routes', () => {
       workspace_id: workspaceId,
     });
     expect(res.json().projects[0]).not.toHaveProperty('source');
+  });
+
+  describe('default project backfill', () => {
+    test('requires the administrator operator role', async () => {
+      vi.mocked(auth.requireAdminRole).mockRejectedValueOnce(
+        createInterModuleKnownError(
+          authInterModuleContract.methods.requireAdminRole,
+          'admin-role-required',
+          {requiredRole: 'admin-operator'},
+        ),
+      );
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/projects/default-backfill',
+        headers: {authorization: 'Bearer user'},
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({
+        code: 'forbidden',
+        details: {required_role: 'admin-operator'},
+      });
+      expect(workspaces.listAdminWorkspaces).not.toHaveBeenCalled();
+    });
+
+    test('gives a default project to a workspace that lacks one', async () => {
+      vi.mocked(workspaces.listAdminWorkspaces).mockImplementation(({status}) =>
+        Promise.resolve({
+          workspaces:
+            status === 'active'
+              ? [
+                  {
+                    id: workspaceId,
+                    name: 'Acme',
+                    slug: 'acme',
+                    status: 'active' as const,
+                    memberCount: 1,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  },
+                ]
+              : [],
+          nextCursor: null,
+        }),
+      );
+      vi.mocked(integrations.createManagedRepository).mockResolvedValue({
+        connectionId: sourceConnectionId,
+        externalRepositoryId: 'managed-vcs:default',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/projects/default-backfill',
+        headers: {authorization: 'Bearer user'},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({workspaces_checked: 1, defaults_created: 1, failures: 0});
+      const listed = await app.inject({
+        method: 'GET',
+        url: `/projects?workspace_id=${workspaceId}`,
+        headers: {authorization: 'Bearer user'},
+      });
+      expect(listed.json().projects).toEqual([
+        expect.objectContaining({name: 'Default', slug: 'default', is_default: true}),
+      ]);
+    });
   });
 });

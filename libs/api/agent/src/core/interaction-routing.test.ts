@@ -16,39 +16,30 @@ import {
 
 const UUID_V5 = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-type ProjectsPage = Awaited<
-  ReturnType<RouteInteractionDeps['projects']['listProjectsByWorkspace']>
->;
-
-function project(id: string): ProjectsPage['projects'][number] {
+/** Answers with the workspace's default project, or none when the workspace has none. */
+function defaultProjectIs(id: string | null): RouteInteractionDeps['projects'] {
   return {
-    id,
-    workspaceId: crypto.randomUUID(),
-    sourceConnectionId: crypto.randomUUID(),
-    sourceExternalRepositoryId: 'repository',
-    name: 'Project',
-  } as ProjectsPage['projects'][number];
+    getDefaultProject: vi.fn(() =>
+      Promise.resolve({
+        project:
+          id === null
+            ? null
+            : {
+                id,
+                workspaceId: crypto.randomUUID(),
+                sourceConnectionId: crypto.randomUUID(),
+                sourceExternalRepositoryId: 'repository',
+                name: 'Default',
+                isDefault: true,
+              },
+      }),
+    ),
+  };
 }
 
-/** Lists projects newest first, a page at a time, as the Projects module does. */
-function projectsNewestFirst(ids: string[], pageSize = 100): RouteInteractionDeps['projects'] {
-  return {
-    listProjectsByWorkspace: vi.fn(({cursor}) => {
-      const start = cursor ? Number(cursor.id) : 0;
-      const page = ids.slice(start, start + pageSize);
-      const next = start + pageSize;
-      return Promise.resolve({
-        projects: page.map(project),
-        nextCursor:
-          next < ids.length ? {createdAt: new Date(0).toISOString(), id: String(next)} : null,
-      });
-    }),
-  } as RouteInteractionDeps['projects'];
-}
-
-function setup(projectIds: string[] = [crypto.randomUUID()], pageSize?: number) {
+function setup(defaultProjectId: string | null = crypto.randomUUID()) {
   const wake = vi.fn(() => Promise.resolve());
-  const deps: RouteInteractionDeps = {projects: projectsNewestFirst(projectIds, pageSize), wake};
+  const deps: RouteInteractionDeps = {projects: defaultProjectIs(defaultProjectId), wake};
   const base = {
     workspaceId: crypto.randomUUID(),
     connectionId: crypto.randomUUID(),
@@ -114,21 +105,14 @@ describe('routeInteraction', () => {
     expect(wake).toHaveBeenCalledWith(result.conversationId);
   });
 
-  it('answers from the project created first', async () => {
-    const [newest, middle, oldest] = [
-      crypto.randomUUID(),
-      crypto.randomUUID(),
-      crypto.randomUUID(),
-    ] as const;
-    const {deps, base, interaction} = setup([newest, middle, oldest], 2);
+  it('answers from the default project', async () => {
+    const defaultProjectId = crypto.randomUUID();
+    const {deps, base, interaction} = setup(defaultProjectId);
 
     const result = await routeInteraction(interaction(), deps);
 
-    expect(result).toMatchObject({outcome: 'default', projectId: oldest});
-    expect(deps.projects.listProjectsByWorkspace).toHaveBeenCalledWith(
-      expect.objectContaining({workspaceId: base.workspaceId}),
-    );
-    expect(deps.projects.listProjectsByWorkspace).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({outcome: 'default', projectId: defaultProjectId});
+    expect(deps.projects.getDefaultProject).toHaveBeenCalledWith({workspaceId: base.workspaceId});
   });
 
   it('stores the request as an untrusted user message from no Shipfox user', async () => {
@@ -220,7 +204,7 @@ describe('routeInteraction', () => {
   });
 
   it('drops a request when the workspace has no project', async () => {
-    const {deps, interaction} = setup([]);
+    const {deps, interaction} = setup(null);
 
     const result = await routeInteraction(interaction(), deps);
 

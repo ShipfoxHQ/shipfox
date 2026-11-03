@@ -46,7 +46,7 @@ export function createAgentInterModulePresentation(params: {
   /** Routing starts conversations, so a composition without both drops every interaction. */
   routing?:
     | {
-        projects: Pick<ProjectsModuleClient, 'listProjectsByWorkspace'>;
+        projects: Pick<ProjectsModuleClient, 'getDefaultProject'>;
         wake: (conversationId: string) => Promise<void>;
       }
     | undefined;

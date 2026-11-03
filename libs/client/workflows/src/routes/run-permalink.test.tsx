@@ -120,6 +120,7 @@ function projectResponse(slug: string) {
     workspace_id: WORKSPACE_ID,
     name: 'Payments',
     slug,
+    is_default: false,
     source: {
       kind: 'linked',
       connection_id: '44444444-4444-4444-8444-444444444444',

@@ -69,3 +69,10 @@ export class ProjectAccessProviderError extends Error {
     this.name = 'ProjectAccessProviderError';
   }
 }
+
+export class DefaultProjectExistsError extends Error {
+  constructor(public readonly workspaceId: string) {
+    super(`Workspace already has a default project: ${workspaceId}`);
+    this.name = 'DefaultProjectExistsError';
+  }
+}

@@ -582,6 +582,7 @@ function clients() {
         projectHandlers.listProjectCatalogByWorkspace(input),
       listAdminProjects: vi.fn(),
       requireProjectForWorkspace: (input) => projectHandlers.requireProjectForWorkspace(input),
+      getDefaultProject: vi.fn(),
       getWorkspaceProjectCounts: vi.fn(),
       moveProjectSource: vi.fn(),
       getProjectAccessPolicy: vi.fn(),
@@ -679,6 +680,7 @@ function project(id = projectId, name = 'Project', slug = 'project') {
     sourceDefaultBranch: 'main',
     name,
     slug,
+    isDefault: false,
     createdAt: isoDate,
     updatedAt: isoDate,
   };

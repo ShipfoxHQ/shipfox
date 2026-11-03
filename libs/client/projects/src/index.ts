@@ -7,6 +7,7 @@ export type {
 } from '#core/definition.js';
 export {
   type CreateProjectCommand,
+  hasUserProject,
   type Project,
   type ProjectList,
   type ProjectSource,

@@ -27,6 +27,7 @@ export function toProject(dto: ProjectResponseDto): Project {
     workspaceId: dto.workspace_id,
     name: dto.name,
     slug: dto.slug,
+    isDefault: dto.is_default,
     source: {
       kind: dto.source.kind,
       connectionId: dto.source.connection_id,

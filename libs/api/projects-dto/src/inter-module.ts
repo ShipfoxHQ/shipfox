@@ -13,6 +13,7 @@ const projectSchema = z.object({
   sourceRepositoryName: z.string().min(1).nullable().optional(),
   sourceDefaultBranch: z.string().min(1).nullable().optional(),
   name: z.string(),
+  isDefault: z.boolean(),
 });
 const projectCatalogSchema = projectSchema.extend({
   slug: slugSchema,
@@ -140,6 +141,14 @@ export const projectsInterModuleContract = defineInterModuleContract({
         projects: z.array(adminProjectSchema),
         nextCursor: projectCursorSchema.nullable(),
       }),
+    },
+    /**
+     * The workspace's default project, which answers requests no other agent claims. Null for a
+     * workspace the release backfill has not reached yet.
+     */
+    getDefaultProject: {
+      input: z.object({workspaceId: idSchema}),
+      output: z.object({project: projectSchema.nullable()}),
     },
     requireProjectForWorkspace: {
       input: z.object({projectId: idSchema, workspaceId: idSchema}),

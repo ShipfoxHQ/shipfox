@@ -8,6 +8,8 @@ export interface Project {
   sourceDefaultBranch: string | null;
   name: string;
   slug: string;
+  /** The workspace's one project that answers requests no other agent claims. */
+  isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

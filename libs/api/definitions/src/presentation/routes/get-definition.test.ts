@@ -18,6 +18,7 @@ const getProjectById = vi.fn<ProjectsModuleClient['getProjectById']>(({projectId
       sourceExternalRepositoryId: 'repo',
       sourceDefaultBranch: 'main',
       name: 'Project',
+      isDefault: false,
     },
   }),
 );
@@ -176,6 +177,7 @@ describe('GET /api/definitions/:id', () => {
         sourceExternalRepositoryId: 'repo',
         sourceDefaultBranch: 'main',
         name: 'Project',
+        isDefault: false,
       },
     });
 

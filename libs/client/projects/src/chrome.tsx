@@ -34,6 +34,7 @@ export function ProjectBreadcrumb() {
       projectId={project?.id}
       projectSlug={project?.slug}
       projectName={project?.name}
+      projectIsDefault={project?.isDefault}
     />
   );
 }

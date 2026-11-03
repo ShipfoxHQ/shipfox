@@ -61,6 +61,23 @@ async function expectUnauthorized(
 }
 
 describe('Projects checkout target inter-module presentation', () => {
+  test('returns the default project of a workspace, or none', async () => {
+    const client = createClient();
+    const workspaceId = crypto.randomUUID();
+    const ordinary = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'first',
+    });
+    expect(await client.getDefaultProject({workspaceId})).toEqual({project: null});
+    await db().update(projects).set({isDefault: true}).where(eq(projects.id, ordinary.projectId));
+
+    const {project} = await client.getDefaultProject({workspaceId});
+
+    expect(project).toMatchObject({id: ordinary.projectId, isDefault: true});
+  });
+
   test('lists workspace projects through the paginated inter-module contract', async () => {
     const client = createClient();
     const workspaceId = crypto.randomUUID();

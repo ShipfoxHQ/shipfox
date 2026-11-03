@@ -54,6 +54,8 @@ export const projectDtoSchema = z.object({
   workspace_id: z.string().uuid(),
   name: z.string(),
   slug: slugSchema,
+  /** True for the workspace's one project that answers requests no other agent claims. */
+  is_default: z.boolean(),
   source: projectSourceDtoSchema,
   created_at: z.string(),
   updated_at: z.string(),
@@ -107,3 +109,14 @@ export const listAdminProjectsResponseSchema = z.object({
 });
 
 export type ListAdminProjectsResponseDto = z.infer<typeof listAdminProjectsResponseSchema>;
+
+export const backfillDefaultProjectsResponseSchema = z.object({
+  workspaces_checked: z.number().int().nonnegative(),
+  defaults_created: z.number().int().nonnegative(),
+  repositories_filled: z.number().int().nonnegative(),
+  failures: z.number().int().nonnegative(),
+});
+
+export type BackfillDefaultProjectsResponseDto = z.infer<
+  typeof backfillDefaultProjectsResponseSchema
+>;

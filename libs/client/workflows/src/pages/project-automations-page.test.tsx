@@ -1548,6 +1548,7 @@ function projectDto() {
     workspace_id: PROJECT_TEST_WID,
     name: 'Platform',
     slug: 'platform',
+    is_default: false,
     source: {
       kind: 'linked',
       connection_id: CONNECTION_ID,

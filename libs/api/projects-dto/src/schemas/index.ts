@@ -15,6 +15,8 @@ export {
 export {
   type AdminProjectSummaryDto,
   adminProjectSummaryDtoSchema,
+  type BackfillDefaultProjectsResponseDto,
+  backfillDefaultProjectsResponseSchema,
   type CreateProjectBodyDto,
   createProjectBodySchema,
   type ListAdminProjectsQueryDto,

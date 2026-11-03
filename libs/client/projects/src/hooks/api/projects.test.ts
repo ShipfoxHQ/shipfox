@@ -75,6 +75,7 @@ describe('readWorkspaceHasNoProject', () => {
               workspace_id: WORKSPACE_ID,
               name: 'Platform',
               slug: 'platform',
+              is_default: false,
               source: {
                 kind: 'linked',
                 connection_id: '33333333-3333-4333-8333-333333333333',
@@ -92,6 +93,36 @@ describe('readWorkspaceHasNoProject', () => {
     await expect(
       readWorkspaceHasNoProject({queryClient: new QueryClient(), workspaceId: WORKSPACE_ID}),
     ).resolves.toBe(false);
+  });
+
+  test('returns true when the only project is the default one', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn().mockResolvedValue(
+        jsonResponse({
+          projects: [
+            {
+              id: '44444444-4444-4444-8444-444444444444',
+              workspace_id: WORKSPACE_ID,
+              name: 'Default',
+              slug: 'default',
+              is_default: true,
+              source: {
+                kind: 'managed',
+                connection_id: '33333333-3333-4333-8333-333333333333',
+                external_repository_id: 'managed-vcs:1',
+              },
+              created_at: '2026-05-07T01:00:00.000Z',
+              updated_at: '2026-05-07T01:00:00.000Z',
+            },
+          ],
+          next_cursor: null,
+        }),
+      ),
+    });
+
+    await expect(
+      readWorkspaceHasNoProject({queryClient: new QueryClient(), workspaceId: WORKSPACE_ID}),
+    ).resolves.toBe(true);
   });
 
   test('falls back to a cached empty list when the fresh read fails', async () => {
@@ -180,6 +211,7 @@ describe('createProject', () => {
         workspace_id: '11111111-1111-4111-8111-111111111111',
         name: 'Platform',
         slug: 'platform',
+        is_default: false,
         source: {
           kind: 'linked',
           connection_id: '33333333-3333-4333-8333-333333333333',
@@ -442,6 +474,7 @@ function projectResponse(slug: string, id = '33333333-3333-4333-8333-33333333333
     workspace_id: '11111111-1111-4111-8111-111111111111',
     name: slug,
     slug,
+    is_default: false,
     source: {
       kind: 'linked',
       connection_id: '22222222-2222-4222-8222-222222222222',
