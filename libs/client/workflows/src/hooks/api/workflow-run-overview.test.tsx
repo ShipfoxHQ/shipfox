@@ -687,6 +687,7 @@ function workflowRunOverviewResponseDto(
       trigger_reference: null,
       secret_inputs: null,
       parent_run: null,
+      conversation: null,
       created_at: CREATED_AT,
     },
     has_started_job_execution: true,

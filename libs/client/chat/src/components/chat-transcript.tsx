@@ -15,7 +15,7 @@ import {useRouter} from '@tanstack/react-router';
 import type {MouseEvent, ReactNode} from 'react';
 import type {TranscriptEntry} from '#core/transcript.js';
 import type {ReplyActivity} from '#core/turn-state.js';
-import {ChatToolRows} from './chat-tool-rows.js';
+import {ChatRunStarted, ChatToolRows} from './chat-tool-rows.js';
 
 const activityCopy: Partial<Record<ReplyActivity['kind'], string>> = {
   thinking: 'Thinking',
@@ -78,6 +78,8 @@ function EntryView({entry}: {entry: TranscriptEntry}) {
       );
     case 'tools':
       return <ChatToolRows nodes={entry.nodes} />;
+    case 'run-started':
+      return <ChatRunStarted run={entry.run} />;
     case 'notice':
       return null;
   }

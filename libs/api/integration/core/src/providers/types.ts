@@ -1,4 +1,5 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {UserContextMembership} from '@shipfox/api-auth-context';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {WebhookRequestProcessor, WebhookRouteId} from '@shipfox/api-integration-spi';
@@ -31,6 +32,7 @@ export interface IntegrationBuiltinConnection {
 }
 
 export interface IntegrationProviderInterModuleClients {
+  agent: AgentInterModuleClient;
   annotations: AnnotationsInterModuleClient;
   definitions: DefinitionsInterModuleClient;
   /** The shared documentation cache behind the Shipfox `search_docs` tool. */

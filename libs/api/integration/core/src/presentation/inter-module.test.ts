@@ -1154,6 +1154,7 @@ describe('integrations inter-module callTool', () => {
         kind: 'conversation',
         projectId: 'project-1',
         conversationId: 'conversation-1',
+        agentKey: 'shippy',
         turnId: 'turn-1',
         callItemId: 'item-1',
       },
@@ -1196,6 +1197,7 @@ describe('integrations inter-module callTool', () => {
         kind: 'conversation',
         projectId: 'project-1',
         conversationId: 'conversation-1',
+        agentKey: 'shippy',
         turnId: 'turn-1',
         callItemId: 'item-1',
       },
@@ -1515,6 +1517,7 @@ describe('integrations inter-module callTool', () => {
       kind: 'conversation' as const,
       projectId: conversationProjectId,
       conversationId: 'conversation-1',
+      agentKey: 'shippy',
       turnId: 'turn-1',
       callItemId: 'item-1',
       actorUserId: 'user-1',
@@ -1525,6 +1528,7 @@ describe('integrations inter-module callTool', () => {
         .fn()
         .mockResolvedValue({annotations: [], nextCursor: null});
       const provider = createShipfoxAgentToolsProvider({
+        agent: {claimConversationRunStart: vi.fn()},
         clientBaseUrl: 'https://app.example.test',
         annotations: {listAnnotationsForRunAttempt},
         definitions: {
@@ -1540,6 +1544,7 @@ describe('integrations inter-module callTool', () => {
         logs: {readStepLogTail: vi.fn()},
         triggers: {fireManualTrigger: vi.fn()},
         workflows: {
+          hasRunForIdempotencyKey: vi.fn(),
           listWorkflowRuns: vi.fn(),
           listWorkflowRunJobs: vi.fn(),
           getWorkflowJobDetail: vi.fn(),
@@ -1599,7 +1604,18 @@ describe('integrations inter-module callTool', () => {
 
       expect(tools.map((tool) => tool.provider)).toEqual(tools.map(() => 'shipfox'));
       expect(tools.map((tool) => tool.id)).not.toContain('list_projects');
-      expect(tools.map((tool) => tool.id)).not.toContain('start_workflow_run');
+      expect(tools.find((tool) => tool.id === 'start_workflow_run')?.inputSchema).toMatchObject({
+        properties: {workflow: expect.any(Object), inputs: expect.any(Object)},
+      });
+      expect(
+        Object.keys(
+          (
+            tools.find((tool) => tool.id === 'start_workflow_run')?.inputSchema as {
+              properties: Record<string, unknown>;
+            }
+          ).properties,
+        ),
+      ).toEqual(['workflow', 'inputs']);
       expect(tools.find((tool) => tool.id === 'list_workflow_runs')).toMatchObject({
         description: expect.any(String),
         sensitivity: 'read',
@@ -1630,6 +1646,7 @@ describe('integrations inter-module callTool', () => {
             workspaceId,
             projectId: conversationProjectId,
             conversationId: 'conversation-1',
+            agentKey: 'shippy',
             turnId: 'turn-1',
             callItemId: 'item-1',
             actorUserId: 'user-1',
@@ -1694,6 +1711,7 @@ describe('integrations inter-module callTool', () => {
       deduplicated: false,
     });
     const provider = createShipfoxAgentToolsProvider({
+      agent: {claimConversationRunStart: vi.fn()},
       clientBaseUrl: 'https://app.example.test',
       annotations: {
         listAnnotationsForRunAttempt: vi.fn(),
@@ -1715,6 +1733,7 @@ describe('integrations inter-module callTool', () => {
       logs: {readStepLogTail: vi.fn()},
       triggers: {fireManualTrigger: trigger},
       workflows: {
+        hasRunForIdempotencyKey: vi.fn(),
         listWorkflowRuns: vi.fn(),
         listWorkflowRunJobs: vi.fn(),
         getWorkflowJobDetail: vi.fn(),

@@ -158,6 +158,7 @@ describe('finalizeAttemptLogStream', () => {
         getLatestRunAttempt: vi.fn(),
         getLatestStepAttempt: vi.fn(),
         getWorkflowRunOrigin: vi.fn(),
+        hasRunForIdempotencyKey: vi.fn(),
       }),
     }).workflows;
     const body = ndjsonBody(

@@ -261,6 +261,45 @@ describe('postWebConversationMessage', () => {
     expect(item.authorUserId).toBe(owner);
   });
 
+  it('gives the run budget back, and only for a new message', async () => {
+    const owner = crypto.randomUUID();
+    const {conversation} = await conversationFactory.create({ownerUserId: owner});
+    const loaded = await requireConversation(conversation.id, owner);
+    const clientMessageId = crypto.randomUUID();
+    const budget = async () =>
+      (
+        await db()
+          .select({value: conversations.runStartsSinceHuman})
+          .from(conversations)
+          .where(eq(conversations.id, conversation.id))
+      )[0]?.value;
+    const spend = async (count: number) =>
+      await db()
+        .update(conversations)
+        .set({runStartsSinceHuman: count})
+        .where(eq(conversations.id, conversation.id));
+    await spend(5);
+
+    await postWebConversationMessage({
+      conversation: loaded,
+      authorUserId: owner,
+      clientMessageId,
+      body: 'go on',
+    });
+    const afterMessage = await budget();
+    await spend(2);
+    await postWebConversationMessage({
+      conversation: loaded,
+      authorUserId: owner,
+      clientMessageId,
+      body: 'go on',
+    });
+    const afterRepeat = await budget();
+
+    expect(afterMessage).toBe(0);
+    expect(afterRepeat).toBe(2);
+  });
+
   it('dedupes a repeated post on its client message id', async () => {
     const owner = crypto.randomUUID();
     const {conversation} = await conversationFactory.create({ownerUserId: owner});

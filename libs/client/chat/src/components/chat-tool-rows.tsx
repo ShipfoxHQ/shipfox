@@ -16,6 +16,7 @@ import {
   type TraceStatus,
   TraceTitle,
 } from '@shipfox/react-ui/trace';
+import type {RunStarted} from '#core/run-started.js';
 import type {ToolNode} from '#core/transcript.js';
 
 // A call with no result reads as unknown, never failed, because a write may have applied.
@@ -92,6 +93,30 @@ export function ChatToolRows({nodes}: {nodes: readonly ToolNode[]}) {
           <ToolRow key={node.seq} action={node.action} />
         ),
       )}
+    </Trace>
+  );
+}
+
+/**
+ * A run Shippy started. The link is the run permalink, so the page moves and the panel stays.
+ * Only the run id reaches the address, never a URL from the result.
+ */
+export function ChatRunStarted({run}: {run: RunStarted}) {
+  const label = run.name ? `${run.name} #${run.number}` : `Run #${run.number}`;
+
+  return (
+    <Trace>
+      <TraceLine status="succeeded">
+        <TraceTitle>Run started</TraceTitle>
+        <TraceDescription>
+          <a
+            href={`/runs/${run.runId}`}
+            className="underline underline-offset-2 hover:text-foreground-neutral-base"
+          >
+            {label}
+          </a>
+        </TraceDescription>
+      </TraceLine>
     </Trace>
   );
 }

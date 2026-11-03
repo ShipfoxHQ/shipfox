@@ -309,6 +309,7 @@ function devRunDto({
     trigger_event: 'issue.labeled',
     trigger_reference: null,
     parent_run: null,
+    conversation: null,
     created_at: createdAt,
     updated_at: createdAt,
     started_at: createdAt,

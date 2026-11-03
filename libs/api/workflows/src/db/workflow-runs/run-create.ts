@@ -13,7 +13,7 @@ import {
   WorkflowTemplateResolutionError,
 } from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
-import {eq, sql} from 'drizzle-orm';
+import {and, eq, sql} from 'drizzle-orm';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {
   createAgentToolMaterializationSnapshot,
@@ -175,11 +175,19 @@ export async function createWorkflowRun(
  * Whether a run already holds the trigger idempotency key, so the start would return it. A plain
  * read: the run created in the transaction still settles any race.
  */
-export async function workflowRunExistsForIdempotencyKey(idempotencyKey: string): Promise<boolean> {
+export async function workflowRunExistsForIdempotencyKey(
+  idempotencyKey: string,
+  workspaceId?: string,
+): Promise<boolean> {
   const [existing] = await db()
     .select({id: workflowRuns.id})
     .from(workflowRuns)
-    .where(eq(workflowRuns.triggerIdempotencyKey, idempotencyKey))
+    .where(
+      and(
+        eq(workflowRuns.triggerIdempotencyKey, idempotencyKey),
+        workspaceId === undefined ? undefined : eq(workflowRuns.workspaceId, workspaceId),
+      ),
+    )
     .limit(1);
   return existing !== undefined;
 }

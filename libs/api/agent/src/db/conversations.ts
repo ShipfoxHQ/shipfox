@@ -634,3 +634,26 @@ export async function deleteConversationUnlessTurnRunning(
     return 'deleted';
   });
 }
+
+/**
+ * Spends one run start from the conversation's budget. It returns false once the budget is used,
+ * and when the conversation is gone.
+ */
+export async function claimConversationRunStart(params: {
+  conversationId: string;
+  workspaceId: string;
+  limit: number;
+}): Promise<boolean> {
+  const claimed = await db()
+    .update(conversations)
+    .set({runStartsSinceHuman: sql`${conversations.runStartsSinceHuman} + 1`})
+    .where(
+      and(
+        eq(conversations.id, params.conversationId),
+        eq(conversations.workspaceId, params.workspaceId),
+        lt(conversations.runStartsSinceHuman, params.limit),
+      ),
+    )
+    .returning({id: conversations.id});
+  return claimed.length > 0;
+}

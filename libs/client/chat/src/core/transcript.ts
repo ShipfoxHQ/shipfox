@@ -8,6 +8,7 @@ import {
   type SessionViewRow,
 } from '@shipfox/client-logs';
 import type {ConversationItem, TurnNotice} from './conversation.js';
+import {type RunStarted, readRunStarted} from './run-started.js';
 
 export type ToolNode = ActivityActionNode | ActivityReadGroupNode;
 
@@ -15,6 +16,8 @@ export type TranscriptEntry =
   | {kind: 'user'; key: string; text: string; queued: boolean}
   | {kind: 'agent'; key: string; text: string; stopped: boolean; streaming: boolean}
   | {kind: 'tools'; key: string; nodes: readonly ToolNode[]}
+  // A write has its own row, so a run never hides in a group of reads.
+  | {kind: 'run-started'; key: string; run: RunStarted}
   | {kind: 'notice'; key: string; notice: TurnNotice};
 
 export interface BuildTranscriptParams {
@@ -140,6 +143,12 @@ export function buildTranscript(params: BuildTranscriptParams): TranscriptEntry[
   for (const paired of pairSessionRows(sources)) {
     if (paired.kind === 'action') {
       const action = settle(paired.action, turnOf, params.runningTurnId);
+      const run = readRunStarted(action);
+      if (run) {
+        flushTools();
+        entries.push({kind: 'run-started', key: `run-started-${action.key}`, run});
+        continue;
+      }
       tools.push({kind: 'action', seq: action.key, action});
       continue;
     }

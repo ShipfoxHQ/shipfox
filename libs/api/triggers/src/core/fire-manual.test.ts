@@ -216,6 +216,29 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(event.outcome).toBe('routed');
   });
 
+  test('stores the conversation that started the run, with its owner as the user', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    const userId = crypto.randomUUID();
+    const conversation = {id: crypto.randomUUID(), agentKey: 'shippy'};
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Run'});
+
+    await fireManualTrigger({
+      workflows,
+      workspaceId: subscription.workspaceId,
+      definitionId: subscription.workflowDefinitionId,
+      userId,
+      conversation,
+    });
+
+    const [call] = runWorkflow.mock.calls;
+    expect(call?.[0].triggerPayload).toMatchObject({userId, conversation});
+    expect(call?.[0]).not.toHaveProperty('parentRun');
+  });
+
   test('pins an own __proto__ secret input key', async () => {
     const projectId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();

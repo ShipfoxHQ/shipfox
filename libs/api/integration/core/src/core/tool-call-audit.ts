@@ -47,6 +47,7 @@ export type IntegrationToolCallCaller =
       workspaceId: string;
       projectId: string;
       conversationId: string;
+      agentKey: string;
       turnId: string;
       callItemId: string;
       actorUserId?: string | undefined;

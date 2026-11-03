@@ -4,6 +4,7 @@ import {
   type ChromeSlots,
   type WorkflowRunActionsProps,
 } from '@shipfox/client-shell/runtime';
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
   createMemoryHistory,
   createRootRoute,
@@ -30,6 +31,7 @@ const COPY_RUN_BUTTON_NAME = /Copy run/;
 const DEV_BADGE_TEXT = 'Dev';
 const AT_SIGN_TEXT = /@/;
 const REPLAY_OF_TEXT = /Replay of/;
+const SHIPPY_LINK_NAME = /Shippy/;
 const REACT_ID_PATTERN = /_r_\w+_/g;
 
 const originalScrollWidth = Object.getOwnPropertyDescriptor(
@@ -566,6 +568,44 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).queryByText('99999999')).not.toBeInTheDocument();
   });
 
+  test('says a run was started by the current user through an agent, with no link', async () => {
+    const userId = '99999999-9999-4999-8999-999999999999';
+    const store = createStore();
+    store.set(authStateAtom, {
+      status: 'authenticated',
+      token: 'token',
+      user: {id: userId, email: 'me@example.com'},
+    });
+    const run = workflowRunOverview({
+      conversation: {agent_key: 'shippy', provider: null, author_user_id: userId},
+    });
+
+    renderSummaryWithRouter({run, workspaceSlug: 'acme', projectSlug: 'project', store});
+
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(within(summary).getByText('Started by you via Shippy')).toBeInTheDocument();
+    expect(within(summary).queryByRole('link', {name: SHIPPY_LINK_NAME})).not.toBeInTheDocument();
+  });
+
+  test('names only the agent when the author is not a known member', async () => {
+    renderSummaryWithRouter({
+      run: workflowRunOverview({
+        conversation: {
+          agent_key: 'shippy',
+          provider: null,
+          author_user_id: '88888888-8888-4888-8888-888888888888',
+        },
+      }),
+      workspaceSlug: 'acme',
+      projectSlug: 'project',
+    });
+
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(within(summary).getByText('Started by Shippy')).toBeInTheDocument();
+  });
+
   test('links a dev replay run to its source event', async () => {
     const EVENT_ID = '88888888-8888-4888-8888-888888888888';
     const run = workflowRunOverview({
@@ -745,10 +785,12 @@ function renderSummaryWithRouter({
   run,
   workspaceSlug,
   projectSlug,
+  store,
 }: {
   run: ReturnType<typeof workflowRunOverview>;
   workspaceSlug: string;
   projectSlug: string;
+  store?: ReturnType<typeof createStore>;
 }) {
   const rootRoute = createRootRoute({component: Outlet});
   const runRoute = createRoute({
@@ -770,7 +812,12 @@ function renderSummaryWithRouter({
     routeTree: rootRoute.addChildren([runRoute, eventsRoute]),
   });
 
-  render(<RouterProvider router={router} />);
+  const view = (
+    <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  );
+  render(store ? <JotaiProvider store={store}>{view}</JotaiProvider> : view);
 }
 
 function runningAttemptDto() {

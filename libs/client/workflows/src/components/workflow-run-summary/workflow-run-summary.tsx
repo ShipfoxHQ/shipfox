@@ -19,6 +19,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {Fragment, type ReactElement, useId} from 'react';
+import {WorkflowRunConversationLabel} from '#components/workflow-run-conversation-label.js';
 import {WorkflowRunNumberLabel} from '#components/workflow-run-number-label.js';
 import {WorkflowRunParentLabel} from '#components/workflow-run-parent-label.js';
 import {
@@ -79,7 +80,7 @@ export function WorkflowRunSummary({
   const attemptSwitcher = workflowAttemptSwitcher(latestAttempt, workspaceSlug, projectSlug);
   const displayDuration = run.runAttempt.displayDuration;
   const hasStarted = workflowRunHasStartedJobExecution(run);
-  const hasStartedBy = Boolean(run.parentRun);
+  const hasStartedBy = Boolean(run.parentRun ?? run.conversation);
   const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
     useIsTextTruncated<HTMLSpanElement>(run.name);
   const currentUser = useAuthState().user;
@@ -185,6 +186,7 @@ export function WorkflowRunSummary({
             <WorkflowRunTriggerMetadata
               run={run}
               attemptSwitcher={attemptSwitcher}
+              currentUserId={currentUser?.id}
               workspaceSlug={workspaceSlug}
               projectSlug={projectSlug}
             />
@@ -254,11 +256,13 @@ export function WorkflowRunSummary({
 function WorkflowRunTriggerMetadata({
   run,
   attemptSwitcher,
+  currentUserId,
   workspaceSlug,
   projectSlug,
 }: {
   run: WorkflowRunSummaryRun;
   attemptSwitcher: ReturnType<typeof workflowAttemptSwitcher>;
+  currentUserId: string | undefined;
   workspaceSlug?: string | undefined;
   projectSlug?: string | undefined;
 }) {
@@ -272,6 +276,19 @@ function WorkflowRunTriggerMetadata({
           workspaceSlug={workspaceSlug}
           projectSlug={projectSlug}
           className="text-foreground-neutral-subtle hover:text-foreground-neutral-base"
+        />
+      </>
+    );
+  }
+
+  if (run.conversation) {
+    return (
+      <>
+        {attemptSwitcher ? <MetadataSeparator /> : null}
+        <WorkflowRunConversationLabel
+          conversation={run.conversation}
+          currentUserId={currentUserId}
+          className="text-foreground-neutral-subtle"
         />
       </>
     );
@@ -341,7 +358,7 @@ function metadataHasLeadingContent(
     run.number !== null ||
     attemptSwitcher !== null ||
     Boolean(run.triggerDisplayLabel) ||
-    Boolean(run.parentRun)
+    Boolean(run.parentRun ?? run.conversation)
   );
 }
 

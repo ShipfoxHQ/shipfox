@@ -17,6 +17,7 @@ import {WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT} from '@shipfox/api-workflows-
 import {encodeStringIdCursor} from '@shipfox/node-drizzle';
 import type {
   WorkflowRun,
+  WorkflowRunConversation,
   WorkflowRunDevSource,
   WorkflowRunList,
   WorkflowRunParent,
@@ -116,6 +117,7 @@ function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyR
     trigger_event: run.triggerEvent,
     trigger_reference: toTriggerReferenceDto(run.triggerReference),
     parent_run: toParentRunDto(run.parentRun),
+    conversation: toConversationDto(run.conversation),
     created_at: run.createdAt.toISOString(),
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
@@ -138,6 +140,15 @@ function toSecretInputsDto(
       },
     ]),
   );
+}
+
+function toConversationDto(conversation: WorkflowRunConversation | null | undefined) {
+  if (!conversation) return null;
+  return {
+    agent_key: conversation.agentKey,
+    provider: conversation.provider,
+    author_user_id: conversation.authorUserId,
+  };
 }
 
 function toParentRunDto(parentRun: WorkflowRunParent | null | undefined) {
@@ -260,6 +271,7 @@ export function toRunOverviewDto(
       trigger_reference: toTriggerReferenceDto(overview.run.triggerReference),
       secret_inputs: toSecretInputsDto(overview.run.secretInputs),
       parent_run: toParentRunDto(overview.run.parentRun),
+      conversation: toConversationDto(overview.run.conversation),
       created_at: overview.run.createdAt.toISOString(),
     },
     attempt: toRunOverviewAttemptDto(overview.attempt),

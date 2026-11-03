@@ -6,6 +6,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
+import {workflowRunViaLabel} from '#components/workflow-run-conversation-label.js';
 import {
   useWorkflowRunDurationAccessibleLabel,
   WorkflowRunDurationLabel,
@@ -218,6 +219,13 @@ function RunActorMetadata({
       />
     );
   }
+  if (run.conversation) {
+    return (
+      <Text as="span" size="xs" className="shrink-0">
+        {workflowRunViaLabel(run.conversation)}
+      </Text>
+    );
+  }
   if (actor) return <ActorLabel actor={actor} />;
   return null;
 }
@@ -227,6 +235,7 @@ function workflowRunActorAccessibleLabel(
   actor: string | null,
 ): string | undefined {
   if (run.parentRun) return `started by ${run.parentRun.name} #${run.parentRun.number}`;
+  if (run.conversation) return `started ${workflowRunViaLabel(run.conversation)}`;
   if (actor) return `by ${actor}`;
   return undefined;
 }

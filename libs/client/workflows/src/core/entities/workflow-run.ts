@@ -101,6 +101,16 @@ export interface WorkflowActionFile {
   content: string;
 }
 
+/**
+ * The agent conversation that started a run. It names the agent and the author, and carries no
+ * conversation id, because the conversation is private to its author.
+ */
+export interface WorkflowRunConversation {
+  agentKey: string;
+  provider: string | null;
+  authorUserId: string | null;
+}
+
 export interface WorkflowRunParent {
   id: string;
   number: number;
@@ -178,6 +188,7 @@ export interface WorkflowRun {
   /** Present on detail responses and omitted from run-list rows. */
   secretInputs?: WorkflowRunSecretInput[] | undefined;
   parentRun?: WorkflowRunParent | null;
+  conversation?: WorkflowRunConversation | null;
   createdAt: string;
   updatedAt: string;
   isTemporary: boolean;

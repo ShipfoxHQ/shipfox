@@ -31,6 +31,12 @@ import {
   type WorkflowsModuleClient,
 } from './workflows-client.js';
 
+export interface ManualTriggerConversation {
+  id: string;
+  agentKey: string;
+  provider?: string | undefined;
+}
+
 export interface FireManualTriggerParams {
   workflows: WorkflowsModuleClient;
   secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
@@ -38,6 +44,7 @@ export interface FireManualTriggerParams {
   definitionId: string;
   userId?: string | undefined;
   parentRun?: {runId: string} | undefined;
+  conversation?: ManualTriggerConversation | undefined;
   inputs?: Record<string, unknown> | undefined;
   secretInputs?: Record<string, SecretInputSource> | undefined;
   idempotencyKey?: string | undefined;
@@ -50,6 +57,7 @@ export interface FireManualSubscriptionParams {
   callerWorkspaceId: string;
   userId?: string | undefined;
   parentRun?: {runId: string} | undefined;
+  conversation?: ManualTriggerConversation | undefined;
   inputs?: Record<string, unknown> | undefined;
   secretInputs?: Record<string, SecretInputSource> | undefined;
   idempotencyKey?: string | undefined;
@@ -72,6 +80,7 @@ export async function fireManualTrigger(
     callerWorkspaceId: params.workspaceId,
     userId: params.userId,
     parentRun: params.parentRun,
+    conversation: params.conversation,
     inputs: params.inputs,
     secretInputs: params.secretInputs,
     idempotencyKey: params.idempotencyKey,
@@ -127,14 +136,7 @@ export async function fireManualSubscription(
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
       definitionId: subscription.workflowDefinitionId,
-      triggerPayload: {
-        provider: 'manual',
-        source: 'manual',
-        event: 'fire',
-        subscriptionId: subscription.id,
-        ...(params.userId === undefined ? {} : {userId: params.userId}),
-        ...(params.parentRun === undefined ? {} : {parentRun: params.parentRun}),
-      },
+      triggerPayload: manualTriggerPayload(subscription.id, params),
       ...(inputs === undefined ? {} : {inputs}),
       ...optionalSecretInputs(secretInputs),
       ...(params.parentRun === undefined ? {} : {parentRun: params.parentRun}),
@@ -159,6 +161,21 @@ export async function fireManualSubscription(
   eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'routed'});
   await history.routed(1);
   return run;
+}
+
+function manualTriggerPayload(
+  subscriptionId: string,
+  params: Pick<FireManualSubscriptionParams, 'userId' | 'parentRun' | 'conversation'>,
+) {
+  return {
+    provider: 'manual' as const,
+    source: 'manual' as const,
+    event: 'fire' as const,
+    subscriptionId,
+    ...(params.userId === undefined ? {} : {userId: params.userId}),
+    ...(params.parentRun === undefined ? {} : {parentRun: params.parentRun}),
+    ...(params.conversation === undefined ? {} : {conversation: params.conversation}),
+  };
 }
 
 function isPermanentManualFireError(error: unknown): boolean {

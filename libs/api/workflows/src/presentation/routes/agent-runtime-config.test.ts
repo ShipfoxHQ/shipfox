@@ -62,6 +62,7 @@ const agentTestClient: AgentInterModuleClient = {
   releaseSession: vi.fn(),
   carryOverSessions: vi.fn(),
   routeInteraction: vi.fn(),
+  claimConversationRunStart: vi.fn(),
 };
 
 describe('GET /runs/jobs/current/agent-runtime-config', () => {

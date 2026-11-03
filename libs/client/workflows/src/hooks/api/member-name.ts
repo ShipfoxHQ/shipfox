@@ -5,7 +5,7 @@ import {useQuery} from '@tanstack/react-query';
 export function useMemberName(workspaceId: string, userId: string | null): string | null {
   const membersQuery = useQuery({
     ...listMembersQueryOptions(workspaceId),
-    enabled: Boolean(userId),
+    enabled: Boolean(userId) && Boolean(workspaceId),
   });
   if (!userId) return null;
   const member = membersQuery.data?.find((candidate) => candidate.userId === userId);

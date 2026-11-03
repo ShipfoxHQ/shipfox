@@ -9,6 +9,7 @@ import {
   secretInputReferenceDtoSchema,
   WORKFLOW_RUN_ATTEMPT_MAX,
   workflowRunAttemptDtoSchema,
+  workflowRunConversationSchema,
   workflowRunDevSourceSchema,
   workflowRunOriginSchema,
   workflowRunParentSchema,
@@ -132,6 +133,7 @@ export const workflowRunOverviewHeaderDtoSchema = z.object({
   trigger_reference: workflowRunTriggerReferenceSchema.nullable(),
   secret_inputs: z.record(z.string(), secretInputReferenceDtoSchema).nullable(),
   parent_run: workflowRunParentSchema.nullable().optional().default(null),
+  conversation: workflowRunConversationSchema.nullable().optional().default(null),
   created_at: z.string().datetime(),
 });
 

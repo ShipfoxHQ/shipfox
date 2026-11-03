@@ -203,6 +203,7 @@ describe('integration tool call audit', () => {
         workspaceId: 'workspace-1',
         projectId: 'project-1',
         conversationId: 'conversation-1',
+        agentKey: 'shippy',
         turnId: 'turn-1',
         callItemId: 'item-1',
         actorUserId: 'user-1',

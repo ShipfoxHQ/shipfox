@@ -155,6 +155,7 @@ const toolCallCaller = z.discriminatedUnion('kind', [
     kind: z.literal('conversation'),
     projectId: z.string().min(1),
     conversationId: z.string().min(1),
+    agentKey: z.string().min(1),
     turnId: z.string().min(1),
     callItemId: z.string().min(1),
     actorUserId: z.string().min(1).optional(),

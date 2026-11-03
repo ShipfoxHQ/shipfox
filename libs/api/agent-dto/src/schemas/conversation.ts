@@ -7,6 +7,9 @@ export const CONVERSATION_MESSAGE_MAX_BYTES = 32 * 1024;
 // `seq` columns are int4, so a larger value would reach Postgres and fail as a 500.
 export const CONVERSATION_SEQ_MAX = 2_147_483_647;
 
+/** How many runs a conversation starts before the agent has to hear from a person again. */
+export const CONVERSATION_RUN_START_LIMIT = 5;
+
 export const agentTurnStatusSchema = z.enum(['running', 'succeeded', 'failed', 'stopped']);
 
 export type AgentTurnStatus = z.infer<typeof agentTurnStatusSchema>;

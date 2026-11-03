@@ -88,6 +88,19 @@ describe('ChatTranscript', () => {
     expect(screen.getByRole('img', {name: 'Result unknown'})).toBeInTheDocument();
   });
 
+  test('shows a started run with its number and a link to the run', async () => {
+    const runId = '44444444-4444-4444-8444-444444444444';
+    await renderTranscript({
+      entries: [{kind: 'run-started', key: 'run', run: {runId, number: 12, name: 'Deploy'}}],
+    });
+
+    expect(screen.getByText('Run started')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Deploy #12'})).toHaveAttribute(
+      'href',
+      `/runs/${runId}`,
+    );
+  });
+
   test('says when a reply is slow to start', async () => {
     await renderTranscript({entries: [], activity: {kind: 'slow-start'}});
     expect(screen.getByText('Taking longer than usual to start.')).toBeInTheDocument();

@@ -277,6 +277,7 @@ export async function defaultModules(
       },
     },
     interModule: {
+      agent: agentClient,
       annotations: annotationsClient,
       definitions: definitionsClient,
       docs,

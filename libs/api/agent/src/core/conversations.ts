@@ -173,6 +173,7 @@ export async function postWebConversationMessage(params: {
     id: itemId,
     conversationId,
     authorUserId: params.authorUserId,
+    resetRunBudget: true,
     clientMessageId: params.clientMessageId,
     sessionVersion: CONVERSATION_SESSION_VERSION,
     sealedEntry: sealConversationEntry({

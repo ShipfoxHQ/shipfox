@@ -620,6 +620,7 @@ function toToolCallCaller(caller: CallToolCaller, workspaceId: string): Integrat
       workspaceId,
       projectId: caller.projectId,
       conversationId: caller.conversationId,
+      agentKey: caller.agentKey,
       turnId: caller.turnId,
       callItemId: caller.callItemId,
       actorUserId: caller.actorUserId,

@@ -707,6 +707,35 @@ describe('workflow run queries', () => {
       );
     });
 
+    test('lists the agent and author of a conversation run, and none for other runs', async () => {
+      const userId = crypto.randomUUID();
+      await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({name: 'From chat'}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId,
+          conversation: {id: crypto.randomUUID(), agentKey: 'shippy'},
+        },
+      });
+      await createTestRun({workspaceId, projectId, definitionId});
+
+      const {runs} = await listWorkflowRuns({projectId, limit: 100});
+
+      const conversations = runs.map((run) => run.conversation);
+      expect(conversations).toContainEqual({
+        agentKey: 'shippy',
+        provider: null,
+        authorUserId: userId,
+      });
+      expect(conversations).toContainEqual(null);
+      expect(JSON.stringify(runs)).not.toContain('"conversation":{"id"');
+    });
+
     test('returns waiting runs in listings and aggregates', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
       await updateWorkflowRunStatus({

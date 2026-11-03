@@ -1,4 +1,5 @@
 import {
+  CONVERSATION_RUN_START_LIMIT,
   type ManagedModelProvider,
   MODEL_UNAVAILABLE_ERROR_CODE,
   type ModelUnavailableDetails,
@@ -37,6 +38,7 @@ import {
   getWorkspaceAgentValidationCatalog,
 } from '#core/workspace-agent-defaults-resolver.js';
 import {getWorkspaceModels} from '#core/workspace-models.js';
+import {claimConversationRunStart} from '#db/conversations.js';
 import {carryOverSessions, releaseSession} from '#db/index.js';
 
 export function createAgentInterModulePresentation(params: {
@@ -110,6 +112,9 @@ export function createAgentInterModulePresentation(params: {
       params.routing === undefined
         ? {outcome: 'dropped', reason: 'no-project'}
         : await routeInteraction(input, params.routing),
+    claimConversationRunStart: async (input) => ({
+      claimed: await claimConversationRunStart({...input, limit: CONVERSATION_RUN_START_LIMIT}),
+    }),
     releaseSession: async (input) => ({
       released: await releaseSession(input),
     }),

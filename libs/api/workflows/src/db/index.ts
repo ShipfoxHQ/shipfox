@@ -216,6 +216,7 @@ export {
   updateJobStatus,
   updateWorkflowRunStatus,
   workflowRunAnnotationOriginKey,
+  workflowRunExistsForIdempotencyKey,
   workflowRunUsesCompositeAction,
 } from './workflow-runs.js';
 
