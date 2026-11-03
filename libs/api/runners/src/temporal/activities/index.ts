@@ -8,6 +8,7 @@ import {
   reapStaleRunnerInstancesActivity,
   reconcileCapacityHoldsActivity,
   recoverStaleIdleRunnerSessionsActivity,
+  runMaintenanceSweepActivity,
 } from './maintenance-activities.js';
 export function createRunnersMaintenanceActivities(placement?: InstallationPlacementPolicy) {
   return {
@@ -20,5 +21,6 @@ export function createRunnersMaintenanceActivities(placement?: InstallationPlace
     recoverStaleIdleRunnerSessionsActivity,
     reconcileCapacityHoldsActivity: () =>
       reconcileCapacityHoldsActivity(placement ? {placement} : {}),
+    runMaintenanceSweepActivity: () => runMaintenanceSweepActivity(placement ? {placement} : {}),
   };
 }

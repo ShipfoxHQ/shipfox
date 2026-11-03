@@ -6,7 +6,7 @@ export function registerTriggersServiceMetrics(): void {
 
   const cronBacklog = meter.createObservableGauge('triggers_cron_backlog', {
     description:
-      'Cron schedules past their next fire time and still pending a fire (including any a drain is mid-flight on). A sustained nonzero value means the minute tick is falling behind; raise TRIGGER_CRON_FANOUT, TRIGGER_CRON_CLAIM_BATCH, or pod count.',
+      'Cron schedules past their next fire time and still pending a fire (including any a drain is mid-flight on). A sustained nonzero value means the minute tick is falling behind; raise TRIGGER_CRON_FANOUT or TRIGGER_CRON_CLAIM_BATCH.',
   });
 
   meter.addBatchObservableCallback(

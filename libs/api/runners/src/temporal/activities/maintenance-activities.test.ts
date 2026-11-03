@@ -7,13 +7,21 @@ vi.mock('#core/maintenance.js', () => ({
   reapStaleRunnerInstances: vi.fn(),
   recoverStaleIdleRunnerSessions: vi.fn(),
 }));
+vi.mock('#db/capacity-holds.js', () => ({reconcileCapacityHolds: vi.fn()}));
+vi.mock('#metrics/instance.js', () => ({
+  recordCapacityHoldReconciliation: vi.fn(),
+  recordCapacityHoldReleaseLag: vi.fn(),
+  recordCapacityHoldSweep: vi.fn(),
+}));
 
 let maintenance: typeof import('#core/maintenance.js');
+let capacityHolds: typeof import('#db/capacity-holds.js');
 let activities: typeof import('./maintenance-activities.js');
 
 beforeEach(async () => {
   vi.resetModules();
   maintenance = await import('#core/maintenance.js');
+  capacityHolds = await import('#db/capacity-holds.js');
   activities = await import('./maintenance-activities.js');
   vi.clearAllMocks();
 });
@@ -117,5 +125,61 @@ describe('deleteExpiredEphemeralRegistrationTokensActivity', () => {
       retentionDays: 7,
       limit: 25,
     });
+  });
+});
+
+describe('runMaintenanceSweepActivity', () => {
+  beforeEach(() => {
+    vi.mocked(maintenance.deleteExpiredRunnerReservations).mockResolvedValue({deleted: 0});
+    vi.mocked(maintenance.deleteExpiredJobExecutionTombstones).mockResolvedValue({deleted: 0});
+    vi.mocked(maintenance.deleteExpiredRunnerSessions).mockResolvedValue({deleted: 0});
+    vi.mocked(maintenance.deleteExpiredEphemeralRegistrationTokens).mockResolvedValue({
+      deleted: 0,
+    });
+    vi.mocked(maintenance.detectAndExpireStuckJobs).mockResolvedValue({expired: 0});
+    vi.mocked(maintenance.recoverStaleIdleRunnerSessions).mockResolvedValue({recovered: 0});
+    vi.mocked(capacityHolds.reconcileCapacityHolds).mockResolvedValue({reconciled: 0, swept: 0});
+    vi.mocked(maintenance.reapStaleRunnerInstances).mockResolvedValue({
+      reaped: 0,
+      reservationsReleased: 0,
+    });
+  });
+
+  it('runs every step in order', async () => {
+    await activities.runMaintenanceSweepActivity({});
+
+    const order = [
+      maintenance.deleteExpiredRunnerReservations,
+      maintenance.deleteExpiredJobExecutionTombstones,
+      maintenance.deleteExpiredRunnerSessions,
+      maintenance.deleteExpiredEphemeralRegistrationTokens,
+      maintenance.detectAndExpireStuckJobs,
+      maintenance.recoverStaleIdleRunnerSessions,
+      capacityHolds.reconcileCapacityHolds,
+      maintenance.reapStaleRunnerInstances,
+    ].map((step) => vi.mocked(step).mock.invocationCallOrder[0]);
+    expect(order).toEqual([...order].sort((a = 0, b = 0) => a - b));
+    expect(order.every((call) => call !== undefined)).toBe(true);
+    expect(maintenance.detectAndExpireStuckJobs).toHaveBeenCalledWith({thresholdSeconds: 180});
+  });
+
+  it('continues past a failed GC step', async () => {
+    vi.mocked(maintenance.deleteExpiredRunnerSessions).mockRejectedValueOnce(
+      new Error('database down'),
+    );
+
+    await activities.runMaintenanceSweepActivity({});
+
+    expect(maintenance.detectAndExpireStuckJobs).toHaveBeenCalled();
+    expect(maintenance.reapStaleRunnerInstances).toHaveBeenCalled();
+  });
+
+  it('fails when stuck job expiry fails', async () => {
+    vi.mocked(maintenance.detectAndExpireStuckJobs).mockRejectedValueOnce(
+      new Error('database down'),
+    );
+
+    await expect(activities.runMaintenanceSweepActivity({})).rejects.toThrow('database down');
+    expect(maintenance.reapStaleRunnerInstances).not.toHaveBeenCalled();
   });
 });
