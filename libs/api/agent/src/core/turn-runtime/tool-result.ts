@@ -16,21 +16,34 @@ function truncateUtf8(text: string, maxBytes: number): {text: string; truncated:
 }
 
 /**
- * Caps a tool result and wraps it as untrusted data. The wrapper is part of the stored bytes, so
- * every later prompt carries it. A result can't close the tag early, because its own closing
- * tags are defanged first.
+ * Caps text and wraps it as untrusted data. The wrapper is part of the stored bytes, so every
+ * later prompt carries it. The text can't close the tag early, because its own closing tags are
+ * defanged first. The caller passes a `source` that is already safe to put in an attribute.
  */
-export function wrapToolResultText(params: {toolName: string; text: string}): string {
+export function wrapUntrustedText(params: {
+  source: string;
+  text: string;
+  maxBytes: number;
+}): string {
   const defanged = params.text.replace(CLOSING_TAG, '<\\/untrusted_data');
-  const tool = params.toolName.replace(/[^A-Za-z0-9_.-]/g, '_');
-  const open = `<untrusted_data source="tool:${tool}">\n`;
+  const open = `<untrusted_data source="${params.source}">\n`;
   const close = '\n</untrusted_data>';
   // The cap covers the stored bytes, so the wrapper and the notice come out of the budget.
   const budget =
-    TOOL_RESULT_MAX_BYTES -
+    params.maxBytes -
     Buffer.byteLength(open) -
     Buffer.byteLength(close) -
     Buffer.byteLength(TRUNCATION_NOTICE);
   const {text, truncated} = truncateUtf8(defanged, budget);
   return `${open}${text}${truncated ? TRUNCATION_NOTICE : ''}${close}`;
+}
+
+/** Caps a tool result and wraps it as untrusted data. */
+export function wrapToolResultText(params: {toolName: string; text: string}): string {
+  const tool = params.toolName.replace(/[^A-Za-z0-9_.-]/g, '_');
+  return wrapUntrustedText({
+    source: `tool:${tool}`,
+    text: params.text,
+    maxBytes: TOOL_RESULT_MAX_BYTES,
+  });
 }

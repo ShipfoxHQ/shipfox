@@ -1,5 +1,6 @@
 import {agentAccessFeature, agentFeature} from '@shipfox/client-agent/feature';
 import {authFeature} from '@shipfox/client-auth/feature';
+import {chatFeature} from '@shipfox/client-chat/feature';
 import {integrationsFeature} from '@shipfox/client-integrations/feature';
 import {invitationsFeature} from '@shipfox/client-invitations/feature';
 import {projectsFeature} from '@shipfox/client-projects/feature';
@@ -19,6 +20,7 @@ export function defaultFeatures(): ClientFeature[] {
     workflowsFeature,
     agentFeature,
     agentAccessFeature,
+    chatFeature,
     runnersFeature,
     secretsFeature,
     triggersFeature,

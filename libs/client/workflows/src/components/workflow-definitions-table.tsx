@@ -15,6 +15,7 @@ import {type ReactNode, useMemo} from 'react';
 import {matchesWorkflowSearch, workflowTriggerLabel} from '#core/automations.js';
 import {type LatestRunLookup, type LatestRuns, PENDING_LATEST_RUN} from '#core/latest-run.js';
 import type {IssueCopy} from '#core/run-issue-copy.js';
+import {ConfigFileLink, type ConfigFileView} from './automations/config-file-link.js';
 import {RunIssueCallout} from './run-issue-callout.js';
 import {WorkflowStatusIcon} from './workflow-status/workflow-status-icon.js';
 
@@ -94,11 +95,25 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
   }),
   workflowDefinitionColumnHelper.accessor('updatedAt', {
     header: 'Updated',
-    cell: ({getValue}) => (
-      <Text size="sm" className="whitespace-nowrap text-foreground-neutral-muted">
-        <RelativeTime value={getValue()} />
-      </Text>
-    ),
+    cell: ({getValue, row, table}) => {
+      const time = (
+        <Text size="sm" className="whitespace-nowrap text-foreground-neutral-muted">
+          <RelativeTime value={getValue()} />
+        </Text>
+      );
+      return (
+        <DefinitionFileLink
+          definition={row.original}
+          meta={table.options.meta}
+          view="history"
+          className="rounded-4 outline-none hover:underline focus-visible:shadow-border-interactive-with-active"
+          fallback={time}
+        >
+          <span className="sr-only">File history, updated </span>
+          {time}
+        </DefinitionFileLink>
+      );
+    },
   }),
   workflowDefinitionColumnHelper.display({
     id: 'actions',
@@ -106,23 +121,71 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
     cell: ({row, table}) => {
       const definition = row.original;
       const meta = table.options.meta;
-      if (!definition.manualTrigger) return null;
 
       return (
-        <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <Button
-            size="xs"
-            variant="transparentMuted"
-            isLoading={meta?.runningDefinitionId === definition.id}
-            onClick={() => meta?.onRun(definition)}
+        <div className="flex justify-end gap-tight opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <DefinitionFileLink
+            definition={definition}
+            meta={meta}
+            view="code"
+            fallback={null}
+            asButton
           >
-            Run
-          </Button>
+            View file
+          </DefinitionFileLink>
+          {definition.manualTrigger ? (
+            <Button
+              size="xs"
+              variant="transparentMuted"
+              isLoading={meta?.runningDefinitionId === definition.id}
+              onClick={() => meta?.onRun(definition)}
+            >
+              Run
+            </Button>
+          ) : null}
         </div>
       );
     },
   }),
 ]);
+
+/** Opens the definition's file on the Files tab, when it has one and the page knows its slugs. */
+function DefinitionFileLink({
+  definition,
+  meta,
+  view,
+  fallback,
+  asButton = false,
+  children,
+  ...props
+}: {
+  definition: Definition;
+  meta: WorkflowDefinitionsTableMeta | undefined;
+  view: ConfigFileView;
+  fallback: ReactNode;
+  asButton?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  if (!definition.configPath || !meta?.workspaceSlug || !meta.projectSlug) return fallback;
+  const link = (
+    <ConfigFileLink
+      workspaceSlug={meta.workspaceSlug}
+      projectSlug={meta.projectSlug}
+      path={definition.configPath}
+      view={view}
+      {...props}
+    >
+      {children}
+    </ConfigFileLink>
+  );
+  if (!asButton) return link;
+  return (
+    <Button asChild size="xs" variant="transparentMuted">
+      {link}
+    </Button>
+  );
+}
 
 export interface WorkflowDefinitionsTableProps {
   definitions: Definition[];

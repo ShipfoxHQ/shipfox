@@ -463,7 +463,15 @@ describe('conversation routes', () => {
       const caller = member({workspaceId});
       const rows = await db()
         .insert(conversations)
-        .values({workspaceId, projectId, agentKey: 'shippy', originKind: 'integration'})
+        .values({
+          workspaceId,
+          projectId,
+          agentKey: 'shippy',
+          originKind: 'integration',
+          originConnectionId: crypto.randomUUID(),
+          originProvider: 'slack',
+          originKey: 'C1:1.1',
+        })
         .returning({id: conversations.id});
 
       const res = await app.inject({
@@ -520,6 +528,7 @@ describe('conversation routes', () => {
         title: 'First question',
         last_seq: 0,
         active_turn: null,
+        latest_turn: null,
       });
     });
 
@@ -540,6 +549,50 @@ describe('conversation routes', () => {
       });
 
       expect(res.json().active_turn).toMatchObject({id: turn.id, status: 'running'});
+      expect(res.json().latest_turn).toMatchObject({id: turn.id, status: 'running'});
+    });
+
+    it('returns the latest finished turn with its failure', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      const {conversation} = await conversationFactory.create({
+        workspaceId,
+        projectId,
+        ownerUserId: owner.userId,
+      });
+      await turnFactory.create({
+        conversationId: conversation.id,
+        status: 'succeeded',
+        startedAt: new Date('2026-11-01T10:00:00Z'),
+        finishedAt: new Date('2026-11-01T10:01:00Z'),
+      });
+      const failed = await turnFactory.create({
+        conversationId: conversation.id,
+        status: 'failed',
+        failureCode: 'model_unavailable',
+        model: 'claude-opus-5-5',
+        provider: 'anthropic',
+        startedAt: new Date('2026-11-01T11:00:00Z'),
+        finishedAt: new Date('2026-11-01T11:00:05Z'),
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/conversations/${conversation.id}`,
+        headers: {authorization: owner.authorization},
+      });
+
+      expect(res.json()).toMatchObject({
+        active_turn: null,
+        latest_turn: {
+          id: failed.id,
+          status: 'failed',
+          failure_code: 'model_unavailable',
+          model: 'claude-opus-5-5',
+          provider: 'anthropic',
+          finished_at: '2026-11-01T11:00:05.000Z',
+        },
+      });
     });
   });
 

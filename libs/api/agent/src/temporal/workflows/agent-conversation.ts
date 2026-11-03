@@ -4,11 +4,13 @@ import {
   CancelledFailure,
   continueAsNew,
   defineSignal,
+  log,
   proxyActivities,
   setHandler,
   TimeoutFailure,
   workflowInfo,
 } from '@temporalio/workflow';
+import type {CompactionCause} from '#core/turn-runtime/compaction.js';
 import {isTurnFailureCode, type TurnFailureCode} from '#core/turn-runtime/failure-codes.js';
 import type {ConversationActivities} from '../activities/conversation.js';
 import {
@@ -22,7 +24,12 @@ const {beginTurn, claimPendingInputs, finishTurn} = proxyActivities<Conversation
   startToCloseTimeout: '30 seconds',
 });
 
-const {modelCall} = proxyActivities<ConversationActivities>({
+const {deliverReply: deliverReplyActivity} = proxyActivities<ConversationActivities>({
+  startToCloseTimeout: '1 minute',
+  retry: {maximumAttempts: 3},
+});
+
+const {modelCall, compactConversation} = proxyActivities<ConversationActivities>({
   startToCloseTimeout: '10 minutes',
   heartbeatTimeout: '30 seconds',
   retry: {maximumAttempts: MODEL_CALL_MAX_ATTEMPTS},
@@ -40,6 +47,22 @@ export interface AgentConversationInput {
   conversationId: string;
 }
 
+/**
+ * Sends a turn's outcome, or a denial's when there is no turn. A reply that can't be sent doesn't
+ * end the conversation: the next input still gets its turn.
+ */
+async function deliverReply(input: {conversationId: string; turnId?: string}): Promise<void> {
+  try {
+    await deliverReplyActivity(input);
+  } catch (error) {
+    if (error instanceof CancelledFailure) throw error;
+    log.warn('Failed to deliver the reply of an agent conversation', {
+      conversationId: input.conversationId,
+      error: String(error),
+    });
+  }
+}
+
 function failureCodeOf(error: unknown): TurnFailureCode {
   if (error instanceof ActivityFailure) {
     if (error.cause instanceof ApplicationFailure) {
@@ -51,41 +74,94 @@ function failureCodeOf(error: unknown): TurnFailureCode {
   return 'internal_error';
 }
 
+/**
+ * Compacts the prompt, so the same model call can run again. When it can't, the turn fails: a
+ * second compaction for the same call, or nothing left to summarize, means the prompt can't fit.
+ * Returns whether the turn goes on.
+ */
+async function compactOrFail(params: {
+  conversationId: string;
+  turnId: string;
+  modelCallIndex: number;
+  cause: CompactionCause;
+  alreadyCompacted: boolean;
+}): Promise<boolean> {
+  const {alreadyCompacted, ...input} = params;
+  if (!alreadyCompacted && (await compactConversation(input)).compacted) return true;
+  await finishTurn({
+    conversationId: params.conversationId,
+    turnId: params.turnId,
+    status: 'failed',
+    failureCode: 'context_overflow',
+  });
+  return false;
+}
+
+/** `again` runs the same model call once more, after a compaction. `done` ends the turn. */
+type ModelStep = 'next' | 'again' | 'done';
+
+async function runModelStep(params: {
+  conversationId: string;
+  turnId: string;
+  modelCallIndex: number;
+  alreadyCompacted: boolean;
+}): Promise<ModelStep> {
+  const {conversationId, turnId, modelCallIndex} = params;
+  // A message or result that arrived since the last call joins the turn here, never inside a tool call.
+  const claim = await claimPendingInputs({conversationId, turnId});
+  if (claim.stopRequested) {
+    await finishTurn({conversationId, turnId, status: 'stopped'});
+    return 'done';
+  }
+  const result = await modelCall({conversationId, turnId, modelCallIndex});
+  if (result.stopReason === 'stopped') {
+    await finishTurn({conversationId, turnId, status: 'stopped'});
+    return 'done';
+  }
+  if (result.stopReason === 'compact') {
+    const proceed = await compactOrFail({
+      conversationId,
+      turnId,
+      modelCallIndex,
+      cause: result.compactionCause,
+      alreadyCompacted: params.alreadyCompacted,
+    });
+    return proceed ? 'again' : 'done';
+  }
+  if (result.toolCallCount === 0) {
+    await finishTurn({conversationId, turnId, status: 'succeeded'});
+    return 'done';
+  }
+  for (let callIndex = 0; callIndex < result.toolCallCount; callIndex += 1) {
+    await toolCall({conversationId, turnId, modelCallIndex, callIndex});
+  }
+  return 'next';
+}
+
 async function runTurn(params: {conversationId: string; turnId: string}): Promise<void> {
   const {conversationId, turnId} = params;
   try {
-    for (let modelCallIndex = 0; ; modelCallIndex += 1) {
+    // The model call that last compacted. A second compaction for the same call means the prompt
+    // can't fit, so the turn fails instead of looping.
+    let compactedModelCall: number | undefined;
+    for (let modelCallIndex = 0; ; ) {
       if (modelCallIndex >= MODEL_CALLS_PER_TURN) {
         await finishTurn({conversationId, turnId, status: 'failed', failureCode: 'step_limit'});
         return;
       }
-      // A message or result that arrived since the last call joins the turn here, never inside a tool call.
-      const claim = await claimPendingInputs({conversationId, turnId});
-      if (claim.stopRequested) {
-        await finishTurn({conversationId, turnId, status: 'stopped'});
-        return;
-      }
-      const {stopReason, toolCallCount} = await modelCall({conversationId, turnId, modelCallIndex});
-      if (stopReason === 'stopped') {
-        await finishTurn({conversationId, turnId, status: 'stopped'});
-        return;
-      }
-      if (toolCallCount === 0) {
-        await finishTurn({conversationId, turnId, status: 'succeeded'});
-        return;
-      }
-      for (let callIndex = 0; callIndex < toolCallCount; callIndex += 1) {
-        await toolCall({conversationId, turnId, modelCallIndex, callIndex});
-      }
+      const step = await runModelStep({
+        conversationId,
+        turnId,
+        modelCallIndex,
+        alreadyCompacted: compactedModelCall === modelCallIndex,
+      });
+      if (step === 'done') return;
+      if (step === 'again') compactedModelCall = modelCallIndex;
+      else modelCallIndex += 1;
     }
   } catch (error) {
     if (error instanceof CancelledFailure) throw error;
-    await finishTurn({
-      conversationId,
-      turnId,
-      status: 'failed',
-      failureCode: failureCodeOf(error),
-    });
+    await finishTurn({conversationId, turnId, status: 'failed', failureCode: failureCodeOf(error)});
   }
 }
 
@@ -106,11 +182,14 @@ export async function agentConversationWorkflow({
     woken = false;
     const turn = await beginTurn({conversationId});
     if (turn === undefined) {
+      // A denial opens no turn, and its notice is the only reply it has.
+      await deliverReply({conversationId});
       // A wake that arrived while beginTurn ran may have queued something it missed.
       if (woken) continue;
       return;
     }
     await runTurn({conversationId, turnId: turn.turnId});
+    await deliverReply({conversationId, turnId: turn.turnId});
     if (workflowInfo().continueAsNewSuggested)
       await continueAsNew<typeof agentConversationWorkflow>({conversationId});
   }

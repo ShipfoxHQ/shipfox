@@ -238,6 +238,8 @@ export function e2eEnv(sourceEnv) {
     // Workflow actions stay dark in production until launch. The flag defaults to
     // off, so the E2E deployment turns it on.
     FLAG_DEFINITIONS_ACTIONS: valueOr(sourceEnv.FLAG_DEFINITIONS_ACTIONS, 'true'),
+    // Projects with a managed repository stay dark in production until Config proposals ships.
+    FLAG_MANAGED_CONFIG_REPOS: valueOr(sourceEnv.FLAG_MANAGED_CONFIG_REPOS, 'true'),
     // The harness builds the API before it starts it, so the workflow bundles
     // already exist. Compiling them again at worker startup takes most of the boot.
     TEMPORAL_PREBUILT_WORKFLOW_BUNDLES: valueOr(

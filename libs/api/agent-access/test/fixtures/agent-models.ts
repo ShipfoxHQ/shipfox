@@ -113,6 +113,7 @@ export function createTestAgentClient(params: {
       claimSession: vi.fn(),
       releaseSession: vi.fn(),
       carryOverSessions: vi.fn(),
+      routeInteraction: vi.fn(),
     }),
   }).agent;
 }

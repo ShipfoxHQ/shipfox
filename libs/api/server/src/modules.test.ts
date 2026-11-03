@@ -174,6 +174,7 @@ describe('defaultModules', () => {
           defineInterModulePresentation(integrationsInterModuleContract, {
             callTool: vi.fn(),
             checkTemplateConformance: vi.fn(),
+            commitConfigChanges: vi.fn(),
             createCheckoutCredentials: vi.fn(),
             createCheckoutSpec: vi.fn(),
             createManagedRepository: vi.fn(),
@@ -294,6 +295,7 @@ describe('defaultModules', () => {
               name: 'Project',
             },
           }),
+          moveProjectSource: () => ({moved: false}),
           resolveCheckoutTarget: () => ({
             projectId: crypto.randomUUID(),
             connectionId: crypto.randomUUID(),
@@ -333,6 +335,7 @@ describe('defaultModules', () => {
             claimSession: vi.fn(),
             releaseSession: vi.fn(),
             carryOverSessions: vi.fn(),
+            routeInteraction: vi.fn(),
           },
         },
       ],

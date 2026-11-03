@@ -189,6 +189,44 @@ describe('GET /trigger-events/:id', () => {
     });
   });
 
+  test('serializes an agent decision with a null subscription id next to a workflow decision', async () => {
+    const event = await receivedEventFactory.create({workspaceId, matchedCount: 1});
+    const projectId = crypto.randomUUID();
+    const workflowDecision = await decisionFactory.create({
+      receivedEventId: event.id,
+      decision: 'triggered',
+    });
+    await decisionFactory.create({
+      receivedEventId: event.id,
+      subscriptionKind: 'agent',
+      subscriptionId: null,
+      subscriptionName: 'shippy',
+      workflowDefinitionId: null,
+      projectId,
+      decision: 'default',
+      runId: null,
+      runName: null,
+    });
+
+    const res = await app.inject({method: 'GET', url: `/trigger-events/${event.id}`});
+
+    expect(res.statusCode).toBe(200);
+    const decisions = res.json().decisions;
+    expect(decisions).toHaveLength(2);
+    expect(decisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({id: workflowDecision.id, decision: 'triggered'}),
+        expect.objectContaining({
+          subscription_kind: 'agent',
+          subscription_id: null,
+          subscription_name: 'shippy',
+          decision: 'default',
+          project_id: projectId,
+        }),
+      ]),
+    );
+  });
+
   test('returns replay_of_event_id on a dev event that replayed a source event', async () => {
     const source = await receivedEventFactory.create({workspaceId});
     const replay = await receivedEventFactory.create({

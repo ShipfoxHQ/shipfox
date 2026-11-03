@@ -28,6 +28,7 @@ import {
   isValidTestVcsBranchName,
   isValidTestVcsRefreshTiming,
   type TestVcsFileInput,
+  TestVcsPullRequestError,
   type TestVcsRenewalMode,
 } from '#providers/test-vcs-fixture.js';
 import type {IntegrationModuleParts} from '#providers/types.js';
@@ -75,6 +76,20 @@ const commitFilesBodySchema = z
     external_repository_id: z.string().min(1),
     message: z.string().min(1).max(200),
     files: z.array(fileSchema).min(1).max(128),
+  })
+  .strict();
+const pullRequestBodySchema = z
+  .object({
+    connection_id: z.string().uuid(),
+    external_repository_id: z.string().min(1),
+    number: z.number().int().positive(),
+  })
+  .strict();
+const pullRequestResponseSchema = z
+  .object({
+    url: z.string(),
+    number: z.number().int(),
+    state: z.enum(['open', 'merged', 'closed']),
   })
   .strict();
 const statsQuerySchema = z.object({connection_id: z.string().uuid().optional()}).strict();
@@ -180,6 +195,46 @@ function createTestVcsRoutes(options: {
         },
       }),
       defineRoute({
+        method: 'POST',
+        path: '/pull-requests/merge',
+        description: 'Merge a Test VCS pull request into its default branch for E2E tests.',
+        schema: {
+          body: pullRequestBodySchema,
+          response: {200: pullRequestResponseSchema},
+        },
+        handler: async (request) => {
+          const connection = await requireTestVcsConnection(request.body.connection_id);
+          return await pullRequestAction(() =>
+            options.sourceControl.mergePullRequest({
+              connection,
+              externalRepositoryId: request.body.external_repository_id,
+              number: request.body.number,
+            }),
+          );
+        },
+      }),
+      defineRoute({
+        method: 'POST',
+        path: '/pull-requests/close',
+        description: 'Close a Test VCS pull request without merging it for E2E tests.',
+        schema: {
+          body: pullRequestBodySchema,
+          response: {200: pullRequestResponseSchema},
+        },
+        handler: async (request) => {
+          const connection = await requireTestVcsConnection(request.body.connection_id);
+          return await pullRequestAction(() =>
+            Promise.resolve(
+              options.sourceControl.closePullRequest({
+                connection,
+                externalRepositoryId: request.body.external_repository_id,
+                number: request.body.number,
+              }),
+            ),
+          );
+        },
+      }),
+      defineRoute({
         method: 'GET',
         path: '/stats',
         description: 'Read redacted Test VCS fixture observations for E2E assertions.',
@@ -252,6 +307,16 @@ async function connectTestVcsConnection(input: {
       );
     }),
   )) as TestVcsConnection;
+}
+
+/** Turns the fixture's plain errors (unknown number, wrong state) into readable E2E failures. */
+async function pullRequestAction<T>(action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    if (!(error instanceof TestVcsPullRequestError)) throw error;
+    throw new ClientError(error.message, 'test-vcs-pull-request-invalid', {status: 409});
+  }
 }
 
 async function requireTestVcsConnection(connectionId: string): Promise<TestVcsConnection> {

@@ -61,9 +61,10 @@ async function pinConversationPrompt(
 ): Promise<void> {
   if (conversation.lastSeq > 0) return;
 
-  const [{project}, toolSet] = await Promise.all([
+  const [{project}, toolSet, integration] = await Promise.all([
     deps.projects.getProjectById({projectId: conversation.projectId}),
     listConversationToolSet(deps.integrations),
+    integrationPromptContext(conversation, deps.integrations),
   ]);
   const itemId = await newConversationRecordId();
   await pinSystemEntry({
@@ -84,6 +85,7 @@ async function pinConversationPrompt(
             agentKey: conversation.agentKey,
             projectId: conversation.projectId,
             projectName: project?.name ?? 'unknown',
+            integration,
           }),
           tools: toolSet.definitions,
         }),
@@ -91,6 +93,24 @@ async function pinConversationPrompt(
       meta: {role: 'system'},
     },
   });
+}
+
+/**
+ * What an integration conversation adds to its prompt. A provider that no longer lists the
+ * interaction capability adds nothing, so the conversation still runs.
+ */
+async function integrationPromptContext(
+  conversation: Conversation,
+  integrations: IntegrationsModuleClient,
+): Promise<{provider: string; replyGuidance: string} | undefined> {
+  if (conversation.originKind !== 'integration' || conversation.originProvider === null) {
+    return undefined;
+  }
+  const {providers} = await integrations.listInteractionProviders({});
+  const provider = providers.find(({provider: id}) => id === conversation.originProvider);
+  return provider
+    ? {provider: provider.provider, replyGuidance: provider.replyGuidance}
+    : undefined;
 }
 
 /**
@@ -119,7 +139,7 @@ async function resolveTurnModel(
   }
 }
 
-async function sealTurnNotice(
+export async function sealTurnNotice(
   conversation: Conversation,
   notice: ConversationTurnNoticeDto,
 ): Promise<NewTimelineEntry> {
@@ -206,20 +226,35 @@ export async function claimConversationInputs(params: {
   return await claimPendingInputs(params);
 }
 
+export const CONTEXT_OVERFLOW_NOTICE =
+  'This conversation is too long to continue. Start a new conversation.';
+
+/** The entry that tells a reader why a turn failed, for the failures that need one. */
+async function failureNotice(
+  conversation: Conversation,
+  failureCode: TurnFailureCode | undefined,
+): Promise<NewTimelineEntry | undefined> {
+  if (failureCode !== 'context_overflow') return undefined;
+  return await sealTurnNotice(conversation, {
+    code: failureCode,
+    message: CONTEXT_OVERFLOW_NOTICE,
+    required_action: null,
+  });
+}
+
 export async function finishConversationTurn(params: {
   conversationId: string;
   turnId: string;
   status: 'succeeded' | 'failed' | 'stopped';
   failureCode?: TurnFailureCode | undefined;
 }): Promise<void> {
+  const conversation = await getConversationById(params.conversationId);
   const finished = await finishTurnRow({
-    turnId: params.turnId,
-    status: params.status,
-    failureCode: params.failureCode,
+    ...params,
+    notice: conversation ? await failureNotice(conversation, params.failureCode) : undefined,
   });
   // A repeat after the first commit finds the turn finished and counts nothing.
   if (!finished) return;
-  const conversation = await getConversationById(params.conversationId);
   conversationTurnCount.add(1, {
     origin: conversation?.originKind ?? 'web',
     trigger: 'message',

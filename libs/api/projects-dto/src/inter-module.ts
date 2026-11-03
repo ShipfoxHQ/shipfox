@@ -152,6 +152,35 @@ export const projectsInterModuleContract = defineInterModuleContract({
       input: z.object({workspaceIds: z.array(idSchema).min(1).max(100)}),
       output: z.object({counts: z.array(workspaceProjectCountSchema)}),
     },
+    /**
+     * Moves a project's config source from `from` to `to` with a compare-and-set, and writes
+     * `PROJECT_SOURCE_BOUND`. A repeat call that finds `to` already set succeeds with
+     * `moved: false`.
+     */
+    moveProjectSource: {
+      input: z.object({
+        projectId: idSchema,
+        workspaceId: idSchema,
+        actorId: z.string().min(1),
+        from: z.object({connectionId: idSchema, externalRepositoryId: z.string()}),
+        to: z.object({
+          connectionId: idSchema,
+          provider: z.string().min(1),
+          externalRepositoryId: z.string(),
+          owner: z.string().min(1),
+          name: z.string().min(1),
+          defaultBranch: z.string().min(1),
+        }),
+      }),
+      output: z.object({moved: z.boolean()}),
+      errors: {
+        'project-not-found': z.object({projectId: idSchema}),
+        /** The project's source is neither `from` nor `to`. */
+        'source-changed': z.object({projectId: idSchema}),
+        /** Another project already owns `to`. */
+        'source-already-bound': z.object({existingProjectId: idSchema}),
+      },
+    },
     resolveCheckoutTarget: {
       input: z.object({
         workspaceId: idSchema,

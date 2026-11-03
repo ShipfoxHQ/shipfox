@@ -33,6 +33,9 @@ const GIT_TREE_FIELD_PATTERN = /\s+/u;
 const GIT_REPOSITORY_PATH_PATTERN = /^\/([^/]+)\/([^/]+)\.git(?:\/|$)/u;
 const MINIMUM_REFRESH_DELAY_MS = 50;
 
+/** A pull request action the caller got wrong, as opposed to a git failure. */
+export class TestVcsPullRequestError extends Error {}
+
 export type TestVcsRenewalMode = 'refresh-at' | 'on-rejection';
 
 export interface TestVcsFileInput {
@@ -52,6 +55,21 @@ export interface TestVcsCommitFilesInput {
   name: string;
   message: string;
   files: readonly TestVcsFileInput[];
+}
+
+export interface TestVcsPullRequest {
+  url: string;
+  number: number;
+  state: 'open' | 'merged' | 'closed';
+}
+
+export interface TestVcsOpenPullRequestInput {
+  owner: string;
+  name: string;
+  branch: string;
+  files: readonly TestVcsFileInput[];
+  title: string;
+  body?: string | undefined;
 }
 
 export interface TestVcsCredentialInput {
@@ -88,6 +106,16 @@ export interface TestVcsFixture {
   close(): Promise<void>;
   createRepository(input: TestVcsCreateRepositoryInput): Promise<RepositorySnapshot>;
   commitFiles(input: TestVcsCommitFilesInput): Promise<string>;
+  /** Idempotent on the branch: a pull request from it, in any state, is returned as it is. */
+  openPullRequest(input: TestVcsOpenPullRequestInput): Promise<TestVcsPullRequest>;
+  getPullRequest(input: {owner: string; name: string; branch: string}): TestVcsPullRequest | null;
+  /** Merges the branch into the default branch, as a push to it. */
+  mergePullRequest(input: {
+    owner: string;
+    name: string;
+    number: number;
+  }): Promise<TestVcsPullRequest>;
+  closePullRequest(input: {owner: string; name: string; number: number}): TestVcsPullRequest;
   getRepository(owner: string, name: string): RepositorySnapshot | undefined;
   listRepositories(owner: string): RepositoryPage;
   listFiles(input: {
@@ -120,6 +148,12 @@ interface RepositoryRecord {
   seedPath: string;
 }
 
+interface PullRequestRecord extends TestVcsPullRequest {
+  owner: string;
+  name: string;
+  branch: string;
+}
+
 interface CredentialRecord {
   owner: string;
   name: string;
@@ -148,10 +182,18 @@ interface CredentialInvalidation {
 export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
   const repositories = new Map<string, RepositoryRecord>();
   const credentials = new Map<string, CredentialRecord>();
+  const pullRequests = new Map<string, PullRequestRecord>();
   const requests: GitHttpRequest[] = [];
   const invalidatedGenerations = new Set<string>();
   const consumedInvalidationKeys = new Set<string>();
   const invalidations: CredentialInvalidation[] = [];
+  // The pull request methods share one working tree per repository, so they run one at a time.
+  let gitQueue: Promise<unknown> = Promise.resolve();
+  function serialized<T>(operation: () => Promise<T>): Promise<T> {
+    const result = gitQueue.then(operation, operation);
+    gitQueue = result.catch(() => undefined);
+    return result;
+  }
   const children = new Set<ChildProcess>();
   const childExitPromises = new Map<ChildProcess, Promise<number>>();
   let rootPath: string | undefined;
@@ -198,6 +240,7 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
       rootPath = undefined;
       if (currentRoot !== undefined) await rm(currentRoot, {recursive: true, force: true});
       repositories.clear();
+      pullRequests.clear();
       credentials.clear();
       requests.length = 0;
       invalidatedGenerations.clear();
@@ -254,6 +297,75 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
         );
       }
       return await currentCommit(repository.seedPath);
+    },
+
+    openPullRequest: (input) =>
+      serialized(async () => {
+        const existing = fixture.getPullRequest(input);
+        if (existing) return existing;
+        const repository = requireRepository(input.owner, input.name);
+        const seed = repository.seedPath;
+        const base = repository.snapshot.defaultBranch;
+        await assertBranchName(input.branch, requireRoot());
+        await git(['checkout', '-B', input.branch, base], seed);
+        try {
+          await writeFiles(seed, input.files);
+          await git(['add', '--all'], seed);
+          await git(
+            input.body === undefined
+              ? ['commit', '-m', input.title]
+              : ['commit', '-m', input.title, '-m', input.body],
+            seed,
+          );
+          await git(['push', 'origin', `HEAD:refs/heads/${input.branch}`], seed);
+        } finally {
+          await git(['checkout', base], seed);
+        }
+        const number =
+          [...pullRequests.values()].filter(
+            (record) => record.owner === input.owner && record.name === input.name,
+          ).length + 1;
+        const record: PullRequestRecord = {
+          owner: input.owner,
+          name: input.name,
+          branch: input.branch,
+          number,
+          url: `${repository.snapshot.htmlUrl}/pull/${number}`,
+          state: 'open',
+        };
+        pullRequests.set(pullRequestKey(input), record);
+        return toPullRequest(record);
+      }),
+
+    getPullRequest(input) {
+      const record = pullRequests.get(pullRequestKey(input));
+      return record ? toPullRequest(record) : null;
+    },
+
+    mergePullRequest: (input) =>
+      serialized(async () => {
+        const record = requirePullRequest(input);
+        if (record.state === 'closed')
+          throw new TestVcsPullRequestError('Test VCS pull request is closed');
+        if (record.state === 'merged') return toPullRequest(record);
+        const repository = requireRepository(input.owner, input.name);
+        const seed = repository.seedPath;
+        await git(['checkout', repository.snapshot.defaultBranch], seed);
+        await git(
+          ['merge', '--no-ff', '-m', `Merge pull request #${record.number}`, record.branch],
+          seed,
+        );
+        await git(['push', 'origin', `HEAD:${repository.snapshot.defaultBranch}`], seed);
+        record.state = 'merged';
+        return toPullRequest(record);
+      }),
+
+    closePullRequest(input) {
+      const record = requirePullRequest(input);
+      if (record.state === 'merged')
+        throw new TestVcsPullRequestError('Test VCS pull request is merged');
+      record.state = 'closed';
+      return toPullRequest(record);
     },
 
     getRepository(owner, name) {
@@ -526,6 +638,22 @@ export function createTestVcsFixture(options: {port: number}): TestVcsFixture {
     return (address as AddressInfo).port;
   }
 
+  function requirePullRequest(input: {
+    owner: string;
+    name: string;
+    number: number;
+  }): PullRequestRecord {
+    const record = [...pullRequests.values()].find(
+      (candidate) =>
+        candidate.owner === input.owner &&
+        candidate.name === input.name &&
+        candidate.number === input.number,
+    );
+    if (!record)
+      throw new TestVcsPullRequestError(`Test VCS pull request not found: #${input.number}`);
+    return record;
+  }
+
   function requireRepository(owner: string, name: string): RepositoryRecord {
     const repository = repositories.get(repositoryKey(owner, name));
     if (!repository) throw new Error(`Test VCS repository not found: ${owner}/${name}`);
@@ -625,6 +753,14 @@ function repositorySnapshot(input: {
 
 function repositoryKey(owner: string, name: string): string {
   return `${owner}/${name}`;
+}
+
+function pullRequestKey(input: {owner: string; name: string; branch: string}): string {
+  return `${input.owner}/${input.name}#${input.branch}`;
+}
+
+function toPullRequest(record: PullRequestRecord): TestVcsPullRequest {
+  return {url: record.url, number: record.number, state: record.state};
 }
 
 function parseInvalidationKey(value: string | string[] | undefined): string | undefined {

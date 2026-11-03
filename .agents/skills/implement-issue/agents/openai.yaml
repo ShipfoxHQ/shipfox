@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Issue"
+  short_description: "Implement a Linear issue from an issue ID or URL."
+  default_prompt: "/implement-issue ENG-123"

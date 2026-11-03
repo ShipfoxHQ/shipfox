@@ -6,7 +6,7 @@ import {
   useCurrentAgentPageContext,
 } from './agent-page-context.js';
 
-function Page({context}: {context: AgentPageContext}) {
+function Page({context}: {context: AgentPageContext | undefined}) {
   useAgentPageContext(context);
   return null;
 }
@@ -17,6 +17,17 @@ function Reader({onRender}: {onRender?: () => void}) {
 }
 
 describe('useAgentPageContext', () => {
+  test('publishes nothing while the page cannot name its resource', () => {
+    render(
+      <ShellProviders>
+        <Page context={undefined} />
+        <Reader />
+      </ShellProviders>,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('null');
+  });
+
   test('publishes the page and clears it on unmount', () => {
     const tree = (page?: AgentPageContext) => (
       <ShellProviders>

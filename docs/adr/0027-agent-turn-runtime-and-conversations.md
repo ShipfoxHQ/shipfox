@@ -173,7 +173,12 @@ reports. A rising count means a conversation's prefix changed.
 - **Admission, stop, retry, and the recovery sweep come next.** Until they land, nothing re-wakes
   a conversation after a failed signal, and a failed turn stays failed. A message sent after a
   failed turn starts a new turn, with the model-call count back at 0.
-- **Compaction comes next.** A prompt over the context window fails with `context_overflow`.
+- **Compaction keeps long conversations working.** `modelCall` returns `compact` when pi's
+  `shouldCompact` says the assembled prompt is too big, or when the provider rejects it and
+  `isContextOverflow` matches. `compactConversation` then summarizes with pi's `compact`, stores
+  pi's compaction entry after everything on the timeline, and moves `context_start_seq` to the
+  first entry it keeps. Existing entries are never rewritten, so only the prompt shrinks. A second compaction for the
+  same model call fails the turn with `context_overflow` and a notice to start a new conversation.
 - **A pi upgrade needs no data migration**, because rows are never rewritten. A change to pi's
   session format needs a migration step in the loader.
 - **Entries are never edited.** A client that reads by `seq` sees every change as a new entry.

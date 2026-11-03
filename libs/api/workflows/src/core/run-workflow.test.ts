@@ -89,6 +89,7 @@ describe('runWorkflow', () => {
     claimSession: vi.fn(),
     releaseSession: vi.fn(),
     carryOverSessions: vi.fn(),
+    routeInteraction: vi.fn(),
   };
 
   beforeEach(() => {
@@ -384,6 +385,7 @@ describe('runDevWorkflow', () => {
     claimSession: vi.fn(),
     releaseSession: vi.fn(),
     carryOverSessions: vi.fn(),
+    routeInteraction: vi.fn(),
   };
 
   beforeEach(() => {

@@ -49,7 +49,8 @@ const defaultProps: WorkflowDefinitionsTableProps = {
   searchQuery: '',
   onSearchChange: vi.fn(),
   sync: null,
-  projectSlug: 'platform',
+  // Without a project slug the rows render no links, so most tests need no router.
+  projectSlug: undefined,
   workspaceSlug: 'acme',
 };
 
@@ -121,7 +122,7 @@ describe('WorkflowDefinitionsTable last run', () => {
   test('links the latest run with its status', async () => {
     const latestRuns: LatestRuns = new Map([[definition.id, {status: 'found', run: latestRun}]]);
 
-    renderWithRouter(table({latestRuns}));
+    renderWithRouter(table({latestRuns, projectSlug: 'platform'}));
 
     const link = await screen.findByRole('link', {name: SUCCEEDED_RUN_LINK_REGEX});
     expect(link).toHaveAttribute('href', `/w/acme/p/platform/runs/${latestRun.id}`);

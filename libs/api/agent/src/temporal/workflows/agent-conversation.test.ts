@@ -18,6 +18,9 @@ interface Scenario {
   modelCall: (input: {modelCallIndex: number; turnId: string}) => Promise<unknown> | unknown;
   /** Whether the claim before a model call finds a requested stop. */
   stopRequested?: () => boolean;
+  compact: (input: unknown) => Promise<{compacted: boolean}> | {compacted: boolean};
+  /** Runs inside each deliverReply. Throwing makes the delivery fail. */
+  deliverReply?: () => Promise<void> | void;
 }
 
 let testEnv: TestWorkflowEnvironment;
@@ -50,12 +53,20 @@ beforeAll(async () => {
         calls.push({name: 'modelCall', input});
         return await scenario.modelCall(input);
       },
+      compactConversation: async (input: unknown) => {
+        calls.push({name: 'compactConversation', input});
+        return await scenario.compact(input);
+      },
       toolCall: (input: unknown) => {
         calls.push({name: 'toolCall', input});
         return {status: 'success'};
       },
       finishTurn: (input: unknown) => {
         calls.push({name: 'finishTurn', input});
+      },
+      deliverReply: async (input: unknown) => {
+        calls.push({name: 'deliverReply', input});
+        await scenario.deliverReply?.();
       },
     },
   });
@@ -71,7 +82,11 @@ afterAll(async () => {
 
 beforeEach(() => {
   calls = [];
-  scenario = {turns: [], modelCall: () => ({stopReason: 'stop', toolCallCount: 0})};
+  scenario = {
+    turns: [],
+    modelCall: () => ({stopReason: 'stop', toolCallCount: 0}),
+    compact: () => ({compacted: true}),
+  };
 });
 
 async function run(conversationId = crypto.randomUUID()) {
@@ -102,7 +117,9 @@ describe('agentConversationWorkflow', () => {
       'claimPendingInputs',
       'modelCall',
       'finishTurn',
+      'deliverReply',
       'beginTurn',
+      'deliverReply',
     ]);
     expect(named('toolCall')).toEqual([
       {conversationId, turnId: 'turn-1', modelCallIndex: 0, callIndex: 0},
@@ -193,6 +210,128 @@ describe('agentConversationWorkflow', () => {
 
     expect(named('finishTurn')).toEqual([
       {conversationId, turnId: 'turn-1', status: 'failed', failureCode: 'internal_error'},
+    ]);
+  });
+
+  it('compacts, then repeats the same model call, without using up a call of the budget', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+    scenario.modelCall = ({modelCallIndex}) =>
+      calls.filter((call) => call.name === 'modelCall').length === 1
+        ? {stopReason: 'compact', toolCallCount: 0, compactionCause: 'overflow'}
+        : {stopReason: 'stop', toolCallCount: 0, modelCallIndex};
+
+    const conversationId = await run();
+
+    expect(calls.map((call) => call.name).slice(0, 7)).toEqual([
+      'beginTurn',
+      'claimPendingInputs',
+      'modelCall',
+      'compactConversation',
+      'claimPendingInputs',
+      'modelCall',
+      'finishTurn',
+    ]);
+    expect(named('compactConversation')).toEqual([
+      {conversationId, turnId: 'turn-1', modelCallIndex: 0, cause: 'overflow'},
+    ]);
+    expect(named('modelCall')).toEqual([
+      {conversationId, turnId: 'turn-1', modelCallIndex: 0},
+      {conversationId, turnId: 'turn-1', modelCallIndex: 0},
+    ]);
+    expect(named('finishTurn')).toEqual([{conversationId, turnId: 'turn-1', status: 'succeeded'}]);
+  });
+
+  it('fails the turn when a second compaction in a row is needed for the same call', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+    scenario.modelCall = () => ({
+      stopReason: 'compact',
+      toolCallCount: 0,
+      compactionCause: 'estimate',
+    });
+
+    const conversationId = await run();
+
+    expect(named('compactConversation')).toHaveLength(1);
+    expect(named('modelCall')).toHaveLength(2);
+    expect(named('finishTurn')).toEqual([
+      {conversationId, turnId: 'turn-1', status: 'failed', failureCode: 'context_overflow'},
+    ]);
+  });
+
+  it('fails the turn when there is nothing to summarize', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+    scenario.modelCall = () => ({
+      stopReason: 'compact',
+      toolCallCount: 0,
+      compactionCause: 'estimate',
+    });
+    scenario.compact = () => ({compacted: false});
+
+    const conversationId = await run();
+
+    expect(named('modelCall')).toHaveLength(1);
+    expect(named('finishTurn')).toEqual([
+      {conversationId, turnId: 'turn-1', status: 'failed', failureCode: 'context_overflow'},
+    ]);
+  });
+
+  it('may compact again for a later call of the same turn', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+    const compactAt = new Set([0, 1]);
+    scenario.modelCall = ({modelCallIndex}) => {
+      const done = calls.filter(
+        (call) =>
+          call.name === 'compactConversation' &&
+          (call.input as {modelCallIndex: number}).modelCallIndex === modelCallIndex,
+      );
+      if (compactAt.has(modelCallIndex) && done.length === 0) {
+        return {stopReason: 'compact', toolCallCount: 0, compactionCause: 'estimate'};
+      }
+      return modelCallIndex === 0
+        ? {stopReason: 'toolUse', toolCallCount: 1}
+        : {stopReason: 'stop', toolCallCount: 0};
+    };
+
+    await run();
+
+    expect(named('compactConversation')).toHaveLength(2);
+    expect(named('finishTurn')).toMatchObject([{status: 'succeeded'}]);
+  });
+
+  it('delivers the reply of each turn, and tells a denial when no turn opens', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+
+    const conversationId = await run();
+
+    expect(named('deliverReply')).toEqual([{conversationId, turnId: 'turn-1'}, {conversationId}]);
+  });
+
+  it('delivers the reply of a stopped turn', async () => {
+    scenario.turns = [{turnId: 'turn-1'}];
+    scenario.stopRequested = () => true;
+
+    const conversationId = await run();
+
+    expect(named('finishTurn')).toEqual([{conversationId, turnId: 'turn-1', status: 'stopped'}]);
+    expect(named('deliverReply')[0]).toEqual({conversationId, turnId: 'turn-1'});
+  });
+
+  it('goes on to the next turn when a reply can not be delivered', async () => {
+    scenario.turns = [{turnId: 'turn-1'}, {turnId: 'turn-2'}];
+    scenario.deliverReply = () => {
+      throw ApplicationFailure.nonRetryable('Slack is down');
+    };
+
+    const conversationId = await run();
+
+    expect(named('finishTurn')).toEqual([
+      {conversationId, turnId: 'turn-1', status: 'succeeded'},
+      {conversationId, turnId: 'turn-2', status: 'succeeded'},
+    ]);
+    expect(named('deliverReply')).toEqual([
+      {conversationId, turnId: 'turn-1'},
+      {conversationId, turnId: 'turn-2'},
+      {conversationId},
     ]);
   });
 

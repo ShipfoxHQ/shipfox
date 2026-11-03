@@ -157,6 +157,8 @@ describe('integrations inter-module config reads', () => {
       },
       head: {ref: 'refs/heads/main', commit: HEAD},
       historySupported: false,
+      move: null,
+      pullRequest: null,
     });
   });
 

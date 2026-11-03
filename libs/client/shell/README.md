@@ -133,7 +133,9 @@ composition and collision rules.
   navigation up to three times per project. See
   [ADR 0026](../../../docs/adr/0026-project-dock-contribution.md).
 - `useAgentPageContext()` publishes the current page until it unmounts, and
-  `useCurrentAgentPageContext()` reads it. Call it once per page, not from a nested layout.
+  `useCurrentAgentPageContext()` reads it. Call it once per page, not from a nested layout. Pass
+  `undefined` while the page can't name its resource. `runNumber` and `name` only label the page
+  for the reader, and never reach the agent.
 - Consumers import browser components from `@shipfox/client-shell/runtime`.
   The package root remains safe for build-time feature evaluation.
 

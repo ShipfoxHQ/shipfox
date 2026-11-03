@@ -3,6 +3,7 @@ import {
   type ConversationActiveTurnDto,
   type ConversationItemContentDto,
   type ConversationItemDto,
+  type ConversationLatestTurnDto,
   type ConversationSummaryDto,
   conversationRunResultDtoSchema,
   conversationTurnNoticeDtoSchema,
@@ -101,5 +102,15 @@ export function toConversationActiveTurnDto(turn: AgentTurn): ConversationActive
     status: turn.status,
     started_at: turn.startedAt.toISOString(),
     stop_requested_at: turn.stopRequestedAt?.toISOString() ?? null,
+  };
+}
+
+export function toConversationLatestTurnDto(turn: AgentTurn): ConversationLatestTurnDto {
+  return {
+    ...toConversationActiveTurnDto(turn),
+    failure_code: turn.failureCode,
+    model: turn.model,
+    provider: turn.provider,
+    finished_at: turn.finishedAt?.toISOString() ?? null,
   };
 }

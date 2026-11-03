@@ -124,6 +124,29 @@ export interface CommitPage {
   nextCursor: string | null;
 }
 
+export interface ConfigPullRequest {
+  url: string;
+  number: number;
+  /** `closed` means closed without a merge. */
+  state: 'open' | 'merged' | 'closed';
+}
+
+export interface GetConfigPullRequestInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> extends ResolveRepositoryInput<Connection> {
+  /** The branch the pull request was opened from. */
+  branch: string;
+}
+
+export interface OpenConfigPullRequestInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> extends GetConfigPullRequestInput<Connection> {
+  /** The whole tree to add on top of the default branch. */
+  files: readonly {path: string; content: string}[];
+  title: string;
+  body: string;
+}
+
 export type CheckoutCredentialRenewal =
   | {mode: 'refresh-at'; refreshAt: Date}
   | {mode: 'on-rejection'};
@@ -237,6 +260,16 @@ export interface SourceControlProvider<
   resolveRef(input: ResolveRefInput<Connection>): Promise<ResolvedRef>;
   /** Lists the commits that changed one path, newest first. */
   listCommits?(input: ListCommitsInput<Connection>): Promise<CommitPage>;
+  /**
+   * Opens a pull request from `branch` that adds `files` on top of the default branch. Idempotent
+   * on `branch`: it looks for a pull request from that branch in any state first, so a retry after
+   * a lost response gets the same pull request back.
+   */
+  openConfigPullRequest?(input: OpenConfigPullRequestInput<Connection>): Promise<ConfigPullRequest>;
+  /** The lookup behind `openConfigPullRequest`, with no write. Null when no pull request exists. */
+  getConfigPullRequest?(
+    input: GetConfigPullRequestInput<Connection>,
+  ): Promise<ConfigPullRequest | null>;
   createCheckoutSpec?(input: CreateCheckoutSpecInput<Connection>): Promise<CheckoutSpec>;
   createCheckoutCredentials?(
     input: CreateCheckoutCredentialsInput<Connection>,

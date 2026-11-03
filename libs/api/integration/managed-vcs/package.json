@@ -46,6 +46,7 @@
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
+    "@shipfox/regex": "workspace:*",
     "drizzle-orm": "catalog:",
     "isomorphic-git": "catalog:"
   },

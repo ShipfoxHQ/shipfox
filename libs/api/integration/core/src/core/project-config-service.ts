@@ -3,8 +3,10 @@ import {isManagedRepositoryId} from '@shipfox/api-integration-managed-vcs-dto';
 import {isValidGitObjectId} from '@shipfox/api-integration-spi';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {ConfigMoveState} from './config-link-service.js';
 import type {IntegrationConnection} from './entities/connection.js';
 import {
+  ConfigRepositoryReadOnlyError,
   IntegrationConnectionInactiveError,
   IntegrationConnectionNotFoundError,
   IntegrationConnectionWorkspaceMismatchError,
@@ -12,6 +14,7 @@ import {
   IntegrationProviderError,
   IntegrationProviderUnavailableError,
 } from './errors.js';
+import {commitManagedProjectChanges} from './managed-repositories.js';
 import type {IntegrationProviderRegistry} from './providers/registry.js';
 import type {CommitPage, FilePage} from './providers/source-control.js';
 import type {IntegrationSourceControlService} from './source-control-service.js';
@@ -41,6 +44,8 @@ export interface ConfigSource {
   };
   head: {ref: string; commit: string} | null;
   historySupported: boolean;
+  move: ConfigMoveState['move'];
+  pullRequest: ConfigMoveState['pullRequest'];
 }
 
 export interface ListConfigFilesInput {
@@ -61,6 +66,14 @@ export interface ListConfigCommitsInput {
   cursor?: string | undefined;
 }
 
+export interface CommitConfigChangesInput {
+  branch: string;
+  expectedHead?: string | undefined;
+  message: string;
+  changes: ReadonlyArray<{path: string; content: string | null}>;
+  actor: {id: string; name: string};
+}
+
 export interface ProjectConfigService {
   getConfigSource(project: ConfigProject): Promise<ConfigSource>;
   listConfigFiles(
@@ -75,6 +88,10 @@ export interface ProjectConfigService {
     project: ConfigProject,
     input: ListConfigCommitsInput,
   ): Promise<CommitPage & {commit: string}>;
+  commitConfigChanges(
+    project: ConfigProject,
+    input: CommitConfigChangesInput,
+  ): Promise<{branch: string; commit: string; parent: string}>;
 }
 
 export function toConfigProject(
@@ -97,12 +114,15 @@ export interface CreateProjectConfigServiceOptions {
   getIntegrationConnectionById: (
     connectionId: string,
   ) => Promise<IntegrationConnection | undefined>;
+  /** Without it, a project reports no move. */
+  readMoveState?: ((project: ConfigProject) => Promise<ConfigMoveState>) | undefined;
 }
 
 export function createProjectConfigService({
   registry,
   sourceControl,
   getIntegrationConnectionById,
+  readMoveState,
 }: CreateProjectConfigServiceOptions): ProjectConfigService {
   async function loadConnection(project: ConfigProject): Promise<IntegrationConnection> {
     const connection = await getIntegrationConnectionById(project.connectionId);
@@ -160,6 +180,7 @@ export function createProjectConfigService({
         },
         head: await resolveHead({project, resolveCommit}),
         historySupported: adapter?.listCommits !== undefined,
+        ...((await readMoveState?.(project)) ?? {move: null, pullRequest: null}),
       };
     },
 
@@ -207,6 +228,21 @@ export function createProjectConfigService({
         cursor,
       });
       return {...page, commit};
+    },
+
+    async commitConfigChanges(project, input) {
+      if (!isManagedRepositoryId(project.externalRepositoryId)) {
+        const repository =
+          project.owner !== null && project.name !== null
+            ? `${project.owner}/${project.name}`
+            : project.externalRepositoryId;
+        throw new ConfigRepositoryReadOnlyError(repository);
+      }
+      return await commitManagedProjectChanges({
+        workspaceId: project.workspaceId,
+        externalRepositoryId: project.externalRepositoryId,
+        ...input,
+      });
     },
   };
 }

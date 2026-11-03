@@ -1,4 +1,5 @@
 import ky, {type Options as KyOptions} from 'ky';
+import {parseServerSentEvents} from './server-sent-events.js';
 
 export {apiConfigShape} from './config.js';
 
@@ -378,4 +379,115 @@ export async function checkedApiRequest<Schema extends StandardSchema>(
   const result = await schema['~standard'].validate(response);
   if (result.issues) throw new InvalidApiResponseError();
   return result.value as StandardSchemaOutput<Schema>;
+}
+
+export interface ApiEventStreamOptions {
+  headers?: HeadersInit;
+  signal?: AbortSignal | undefined;
+}
+
+async function fetchEventStream(
+  url: string,
+  headers: Headers,
+  signal: AbortSignal | undefined,
+): Promise<Response> {
+  const fetchImpl = apiOptions.fetchImpl ?? defaultFetch;
+  try {
+    return await fetchImpl(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers,
+      ...(signal ? {signal} : {}),
+    });
+  } catch (error) {
+    // A caller that aborts expects the abort, not a failed request.
+    if (signal?.aborted) throw error;
+    throw new ApiError({
+      message: error instanceof Error ? error.message : 'Network request failed',
+      code: 'network-error',
+      status: 0,
+      details: {url, error},
+    });
+  }
+}
+
+async function openEventStream(
+  path: string,
+  options: ApiEventStreamOptions,
+): Promise<ReadableStream<Uint8Array>> {
+  const headers = new Headers(options.headers);
+  headers.set('accept', 'text/event-stream');
+  const hasCallerAuthorization = headers.has('authorization');
+  const {accessToken, usedConfiguredAccessToken} = await prepareConfiguredAccessToken(
+    {signal: options.signal},
+    hasCallerAuthorization,
+  );
+  options.signal?.throwIfAborted();
+  if (accessToken && !hasCallerAuthorization) headers.set('authorization', `Bearer ${accessToken}`);
+
+  const url = joinUrl(defaultBaseUrl(), path);
+  let response = await fetchEventStream(url, headers, options.signal);
+  if (response.status === 401 && usedConfiguredAccessToken) {
+    const rejected = toApiError(response, await parseResponseBody(response));
+    if (!shouldRefreshAccessToken({error: rejected, path, usedConfiguredAccessToken})) {
+      throw rejected;
+    }
+    const refreshedToken = await getRetryAccessTokenOrThrowOriginal(
+      accessToken,
+      options.signal,
+      rejected,
+    );
+    options.signal?.throwIfAborted();
+    if (!refreshedToken) throw rejected;
+    headers.set('authorization', `Bearer ${refreshedToken}`);
+    response = await fetchEventStream(url, headers, options.signal);
+  }
+
+  if (!response.ok) throw toApiError(response, await parseResponseBody(response));
+  if (!response.body) {
+    throw new ApiError({
+      message: 'The server sent no stream.',
+      code: 'network-error',
+      status: response.status,
+    });
+  }
+  return response.body;
+}
+
+/**
+ * Opens a server-sent event stream with `fetch`, because `EventSource` cannot send the bearer
+ * token, and validates each message at the transport boundary. The schema parses
+ * `{event, data}`, with `data` already decoded from JSON.
+ *
+ * The generator ends when the server closes the stream. A connection that drops mid-stream
+ * throws a `network-error` `ApiError`, so the caller decides whether to reconnect. Invalid
+ * messages throw an `InvalidApiResponseError` that exposes none of their content.
+ */
+export async function* checkedApiEventStream<Schema extends StandardSchema>(
+  schema: Schema,
+  path: string,
+  options: ApiEventStreamOptions = {},
+): AsyncGenerator<StandardSchemaOutput<Schema>> {
+  const body = await openEventStream(path, options);
+  try {
+    for await (const message of parseServerSentEvents(body)) {
+      let data: unknown;
+      try {
+        data = JSON.parse(message.data);
+      } catch {
+        throw new InvalidApiResponseError();
+      }
+      const result = await schema['~standard'].validate({event: message.event, data});
+      if (result.issues) throw new InvalidApiResponseError();
+      yield result.value as StandardSchemaOutput<Schema>;
+    }
+  } catch (error) {
+    if (error instanceof InvalidApiResponseError || options.signal?.aborted) throw error;
+    throw new ApiError({
+      message: error instanceof Error ? error.message : 'The stream was interrupted',
+      code: 'network-error',
+      status: 0,
+      details: {path, error},
+    });
+  }
 }

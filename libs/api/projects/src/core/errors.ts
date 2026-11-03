@@ -31,3 +31,10 @@ export class ProjectSlugConflictError extends Error {
     this.name = 'ProjectSlugConflictError';
   }
 }
+
+export class ProjectSourceChangedError extends Error {
+  constructor(public readonly projectId: string) {
+    super(`Project source changed: ${projectId}`);
+    this.name = 'ProjectSourceChangedError';
+  }
+}

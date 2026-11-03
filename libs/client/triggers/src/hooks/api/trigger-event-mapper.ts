@@ -45,7 +45,18 @@ export function toTriggerEventListPage(
   };
 }
 
-function toMatchedWorkflowResult(decision: TriggerDecisionDto): TriggerEventMatchedWorkflowResult {
+type WorkflowDecisionDto = TriggerDecisionDto & {
+  subscription_kind: 'trigger' | 'listener' | 'dev';
+  decision: Exclude<TriggerDecisionDto['decision'], 'owner' | 'default' | 'dropped'>;
+};
+
+// Agent routing decisions answer a different question than a matched workflow, and the event
+// view has no place for them yet.
+function isWorkflowDecision(decision: TriggerDecisionDto): decision is WorkflowDecisionDto {
+  return decision.subscription_kind !== 'agent';
+}
+
+function toMatchedWorkflowResult(decision: WorkflowDecisionDto): TriggerEventMatchedWorkflowResult {
   return {
     id: decision.id,
     subscriptionKind: decision.subscription_kind,
@@ -70,7 +81,7 @@ export function toTriggerEventDetail(response: TriggerEventDetailResponseDto): T
     connectionName: response.connection_name,
     payload: response.payload,
     processingDiagnostic: response.processing_diagnostic ?? null,
-    decisions: response.decisions.map(toMatchedWorkflowResult),
+    decisions: response.decisions.filter(isWorkflowDecision).map(toMatchedWorkflowResult),
   };
 }
 

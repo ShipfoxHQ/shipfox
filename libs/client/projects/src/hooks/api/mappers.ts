@@ -1,5 +1,10 @@
 import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
-import type {ProjectConfigResponseDto} from '@shipfox/api-integration-core-dto';
+import type {
+  LinkProjectConfigResponseDto,
+  ListProjectConfigCommitsResponseDto,
+  ProjectConfigResponseDto,
+  ReadProjectConfigFileResponseDto,
+} from '@shipfox/api-integration-core-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import type {
   Definition,
@@ -8,7 +13,13 @@ import type {
   DefinitionTrigger,
 } from '#core/definition.js';
 import type {Project, ProjectList} from '#core/project.js';
-import type {ProjectConfig} from '#core/project-config.js';
+import type {
+  ConfigCommitPage,
+  ConfigFile,
+  ConfigFileEntry,
+  ConfigMoveResult,
+  ProjectConfig,
+} from '#core/project-config.js';
 
 export function toProject(dto: ProjectResponseDto): Project {
   return {
@@ -117,5 +128,50 @@ export function toProjectConfig(dto: ProjectConfigResponseDto): ProjectConfig {
     },
     head: dto.head,
     historySupported: dto.history_supported,
+    move: dto.move && {
+      status: dto.move.status,
+      target: {
+        connectionId: dto.move.target.connection_id,
+        externalRepositoryId: dto.move.target.external_repository_id,
+        fullName: dto.move.target.full_name,
+      },
+      startedBy: dto.move.started_by,
+      startedAt: dto.move.started_at,
+    },
+    pullRequest: dto.pull_request,
+  };
+}
+
+export function toConfigMoveResult(dto: LinkProjectConfigResponseDto): ConfigMoveResult {
+  return {
+    repository: {
+      externalRepositoryId: dto.repository.external_repository_id,
+      fullName: dto.repository.full_name,
+      defaultBranch: dto.repository.default_branch,
+      visibility: dto.repository.visibility,
+    },
+    fileCount: dto.file_count,
+    pullRequest: dto.pull_request,
+  };
+}
+
+export function toConfigFileEntry(dto: ConfigFileEntry): ConfigFileEntry {
+  return {path: dto.path, type: dto.type, size: dto.size};
+}
+
+export function toConfigFile(dto: ReadProjectConfigFileResponseDto): ConfigFile {
+  return {path: dto.path, commit: dto.commit, content: dto.content};
+}
+
+export function toConfigCommitPage(dto: ListProjectConfigCommitsResponseDto): ConfigCommitPage {
+  return {
+    commits: dto.commits.map((commit) => ({
+      oid: commit.oid,
+      message: commit.message,
+      authorName: commit.author_name,
+      authoredAt: commit.authored_at,
+      htmlUrl: commit.html_url ?? null,
+    })),
+    nextCursor: dto.next_cursor,
   };
 }

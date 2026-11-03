@@ -9,10 +9,14 @@ import type {AgentSecretsClient} from '#core/secrets-client.js';
 import type {AgentAdmissionPolicy, TurnAdmissionWorkspaces} from '#core/turn-admission.js';
 import {
   beginConversationTurn,
+  type CompactionCause,
   type CreateModelRuntime,
   claimConversationInputs,
+  compactConversation,
   createServerModelRuntime,
+  deliverConversationReply,
   finishConversationTurn,
+  type ModelCallResult,
   runModelCall,
   runToolCall,
   TurnFailure,
@@ -35,10 +39,7 @@ export interface ConversationActivityDeps {
   createModelRuntime?: CreateModelRuntime | undefined;
 }
 
-export interface ModelCallActivityResult {
-  stopReason: 'stop' | 'length' | 'toolUse' | 'stopped';
-  toolCallCount: number;
-}
+export type ModelCallActivityResult = ModelCallResult;
 
 /**
  * A failure the workflow reads by its `type`, which is a turn failure code. A retryable one
@@ -107,6 +108,25 @@ export function createConversationActivities(deps: ConversationActivityDeps) {
       }
     },
 
+    compactConversation: async (input: {
+      conversationId: string;
+      turnId: string;
+      modelCallIndex: number;
+      cause: CompactionCause;
+    }): Promise<{compacted: boolean}> => {
+      const context = Context.current();
+      try {
+        return await compactConversation({
+          ...input,
+          createModelRuntime,
+          signal: context.cancellationSignal,
+          heartbeat: () => context.heartbeat(),
+        });
+      } catch (error) {
+        return toActivityFailure(error);
+      }
+    },
+
     toolCall: async (input: {
       conversationId: string;
       turnId: string;
@@ -132,6 +152,12 @@ export function createConversationActivities(deps: ConversationActivityDeps) {
     }): Promise<void> => {
       await finishConversationTurn(input);
     },
+
+    deliverReply: async (input: {
+      conversationId: string;
+      turnId?: string | undefined;
+    }): Promise<void> =>
+      await deliverConversationReply({...input, integrations: deps.integrations}),
 
     recoverConversations: async (): Promise<{woken: number}> =>
       await recoverConversations({wake: deps.wake ?? wakeConversation}),

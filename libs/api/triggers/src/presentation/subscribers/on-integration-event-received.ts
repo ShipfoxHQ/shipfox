@@ -3,10 +3,12 @@ import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-modu
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {dispatchIntegrationEvent} from '#core/dispatch-integration-event.js';
+import type {AgentRoutingClient, AgentRoutingIntegrations} from '#core/route-event-to-agent.js';
 
 export function createOnIntegrationEventReceived(
   workflows: WorkflowsModuleClient,
   secrets?: Pick<SecretsInterModuleClient, 'getSecret'>,
+  agentRouting?: {integrations: AgentRoutingIntegrations; agent: AgentRoutingClient},
 ) {
   return async function onIntegrationEventReceived(
     envelope: IntegrationEventReceivedEvent,
@@ -15,6 +17,8 @@ export function createOnIntegrationEventReceived(
     await dispatchIntegrationEvent({
       workflows,
       secrets,
+      integrations: agentRouting?.integrations,
+      agent: agentRouting?.agent,
       eventRef: event.id,
       workspaceId: envelope.workspaceId,
       provider: envelope.provider,

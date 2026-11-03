@@ -35,7 +35,8 @@ import {
   ConversationTurnRunningError,
 } from './errors.js';
 
-const SHIPPY_AGENT_KEY = 'shippy';
+export const SHIPPY_AGENT_KEY = 'shippy';
+export const SHIPPY_AGENT_NAME = 'Shippy';
 const CONVERSATION_TITLE_MAX_CHARS = 80;
 const CONVERSATION_QUEUED_ITEMS_CAP = 100;
 
@@ -93,7 +94,7 @@ function openConversation(conversation: Conversation, key: Buffer): OpenConversa
   return {...rest, title};
 }
 
-function openConversationItem(
+export function openConversationItem(
   item: ConversationItem,
   params: {key: Buffer; workspaceId: string},
 ): OpenConversationItem {

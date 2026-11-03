@@ -15,9 +15,23 @@ export {
   type UpdateProjectCommand,
 } from '#core/project.js';
 export type {
+  ConfigCommit,
+  ConfigCommitPage,
+  ConfigFile,
+  ConfigFileEntry,
+  ConfigFileList,
+  ConfigFileType,
+  ConfigMoveCheck,
+  ConfigMoveResult,
+  ConfigMoveStatus,
+  ConfigPullRequestState,
   ConfigSourceKind,
+  MoveProjectConfigCommand,
   ProjectConfig,
+  ProjectConfigMove,
+  ProjectConfigPullRequest,
   ProjectConfigSource,
+  RepositoryVisibility,
 } from '#core/project-config.js';
 export {
   ProjectBreadcrumb,

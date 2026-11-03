@@ -7,6 +7,12 @@ import {
 import {createTimestampIdCursor, timestampIdCursorTimestamp} from '@shipfox/node-drizzle';
 import type {Project} from '#core/entities/project.js';
 import {
+  ProjectAlreadyExistsError,
+  ProjectNotFoundError,
+  ProjectSourceChangedError,
+} from '#core/errors.js';
+import {moveProjectSource} from '#core/projects.js';
+import {
   findProjectBySourceRepositoryName,
   getProjectById,
   getProjectBySource,
@@ -103,6 +109,29 @@ export function createProjectsInterModulePresentation(): InterModulePresentation
     getWorkspaceProjectCounts: async ({workspaceIds}) => ({
       counts: await getWorkspaceProjectCounts({workspaceIds}),
     }),
+    moveProjectSource: async (input) => {
+      const method = projectsInterModuleContract.methods.moveProjectSource;
+      try {
+        return await moveProjectSource(input);
+      } catch (error) {
+        if (error instanceof ProjectNotFoundError) {
+          throw createInterModuleKnownError(method, 'project-not-found', {
+            projectId: input.projectId,
+          });
+        }
+        if (error instanceof ProjectSourceChangedError) {
+          throw createInterModuleKnownError(method, 'source-changed', {
+            projectId: input.projectId,
+          });
+        }
+        if (error instanceof ProjectAlreadyExistsError) {
+          throw createInterModuleKnownError(method, 'source-already-bound', {
+            existingProjectId: error.existingProjectId,
+          });
+        }
+        throw error;
+      }
+    },
     resolveCheckoutTarget: async (input) => {
       const target = await resolveCheckoutTarget(input);
       if (target === undefined) {

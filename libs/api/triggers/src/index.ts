@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {
   DEFINITION_DELETED,
   DEFINITION_RESOLVED,
@@ -100,8 +101,13 @@ export interface CreateTriggersModuleOptions {
   definitions: DefinitionsInterModuleClient;
   projects: ProjectsModuleClient;
   secrets: SecretsInterModuleClient;
-  /** Enables the E2E synthetic dispatch route when supplied by the composition root. */
+  /**
+   * Enables the E2E synthetic dispatch route when supplied by the composition root. With `agent`,
+   * it also reads interactions from connections that support them.
+   */
   integrations?: IntegrationsModuleClient | undefined;
+  /** Routes interactions to agents. Without it, no event reaches an agent. */
+  agent?: AgentInterModuleClient | undefined;
 }
 
 export function createTriggersModule({
@@ -110,6 +116,7 @@ export function createTriggersModule({
   projects,
   secrets,
   integrations,
+  agent,
 }: CreateTriggersModuleOptions): ShipfoxModule {
   return {
     name: 'triggers',
@@ -129,7 +136,14 @@ export function createTriggersModule({
     subscribers: [
       subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
       subscriber(DEFINITION_DELETED, onDefinitionDeleted),
-      subscriber(INTEGRATION_EVENT_RECEIVED, createOnIntegrationEventReceived(workflows, secrets)),
+      subscriber(
+        INTEGRATION_EVENT_RECEIVED,
+        createOnIntegrationEventReceived(
+          workflows,
+          secrets,
+          integrations && agent ? {integrations, agent} : undefined,
+        ),
+      ),
       subscriber(WORKFLOWS_JOB_ACTIVATED, onJobActivated),
       subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
       subscriber(

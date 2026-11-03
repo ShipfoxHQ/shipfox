@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship"
+  short_description: "Implement a Linear issue, open the PR, and loop on CI and review."
+  default_prompt: "/ship ENG-123"

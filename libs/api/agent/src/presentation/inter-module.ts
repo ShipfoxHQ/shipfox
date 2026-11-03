@@ -6,6 +6,7 @@ import {
   type WorkspaceProvidersPolicy,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {
   createInterModuleKnownError,
@@ -26,6 +27,7 @@ import {
   ModelProviderConfigNotFoundError,
   WorkspaceProvidersDisabledError,
 } from '#core/errors.js';
+import {routeInteraction} from '#core/interaction-routing.js';
 import {resolveAgentConfig} from '#core/resolve-agent-config.js';
 import {resolveRuntimeCredentials} from '#core/resolve-runtime-credentials.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
@@ -41,6 +43,13 @@ export function createAgentInterModulePresentation(params: {
   secrets: AgentSecretsClient;
   managedProvider?: ManagedModelProvider | undefined;
   workspaceProviders?: WorkspaceProvidersPolicy | undefined;
+  /** Routing starts conversations, so a composition without both drops every interaction. */
+  routing?:
+    | {
+        projects: Pick<ProjectsModuleClient, 'listProjectsByWorkspace'>;
+        wake: (conversationId: string) => Promise<void>;
+      }
+    | undefined;
 }): InterModulePresentation<typeof agentInterModuleContract> {
   return defineInterModulePresentation(agentInterModuleContract, {
     getValidationCatalog: () =>
@@ -97,6 +106,10 @@ export function createAgentInterModulePresentation(params: {
         throw toClaimSessionKnownError(error);
       }
     },
+    routeInteraction: async (input) =>
+      params.routing === undefined
+        ? {outcome: 'dropped', reason: 'no-project'}
+        : await routeInteraction(input, params.routing),
     releaseSession: async (input) => ({
       released: await releaseSession(input),
     }),

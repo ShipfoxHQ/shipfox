@@ -426,6 +426,7 @@ export async function defaultModules(
       projects: projectsClient,
       secrets: secretsClient,
       integrations: integrationsClient,
+      agent: agentClient,
     }),
     dispatcherModule,
     ...extensionModules,

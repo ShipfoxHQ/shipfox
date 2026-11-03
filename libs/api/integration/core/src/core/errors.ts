@@ -112,3 +112,72 @@ export class ManagedProjectConflictError extends Error {
     this.name = 'ManagedProjectConflictError';
   }
 }
+
+export type ConfigLinkRefusalCode =
+  | 'project-not-managed'
+  | 'already-moved'
+  | 'move-in-progress'
+  | 'link-unsupported'
+  | 'connection-inactive'
+  | 'repository-in-use'
+  | 'repository-empty'
+  | 'config-exists'
+  | 'pull-request-closed'
+  | 'source-already-bound'
+  | 'source-changed'
+  | 'no-pull-request'
+  | 'pull-request-not-closed';
+
+/**
+ * A definite answer to a move request. Most codes leave the managed repository free again.
+ * `source-changed` does not: the move stays resumable.
+ */
+export class ConfigLinkRefusedError extends Error {
+  constructor(
+    public readonly code: ConfigLinkRefusalCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ConfigLinkRefusedError';
+  }
+}
+
+/** The pull request may exist, so the managed repository stays read-only until a retry resolves it. */
+export class ConfigLinkUnconfirmedError extends Error {
+  constructor(options?: {cause?: unknown}) {
+    super('We could not confirm the move. Retry to finish it.', options);
+    this.name = 'ConfigLinkUnconfirmedError';
+  }
+}
+
+/** Why a managed repository refused a commit, which the caller can act on. */
+export type ConfigCommitRefusal =
+  | 'move-in-progress'
+  | 'protected-branch'
+  | 'branch-invalid'
+  | 'stale-head'
+  | 'path-not-allowed'
+  | 'content-not-text'
+  | 'file-too-large'
+  | 'file-not-found'
+  | 'too-many-changes'
+  | 'commit-too-large'
+  | 'no-changes';
+
+export class ConfigCommitRefusedError extends Error {
+  constructor(
+    public readonly refusal: ConfigCommitRefusal,
+    public readonly details: {branch?: string; path?: string; head?: string | null},
+  ) {
+    super(`The config commit was refused: ${refusal}`);
+    this.name = 'ConfigCommitRefusedError';
+  }
+}
+
+/** The project's config lives in a linked repository, which only its own tools write to. */
+export class ConfigRepositoryReadOnlyError extends Error {
+  constructor(public readonly repository: string) {
+    super(`The config of this project lives in ${repository}, which Shipfox does not write to`);
+    this.name = 'ConfigRepositoryReadOnlyError';
+  }
+}

@@ -29,6 +29,8 @@ import {
   resolveDefaultConnection,
 } from '#core/default-source-connection.js';
 import {
+  ConfigCommitRefusedError,
+  ConfigRepositoryReadOnlyError,
   IntegrationCapabilityUnavailableError,
   IntegrationCheckoutUnsupportedError,
   IntegrationConnectionInactiveError,
@@ -388,6 +390,22 @@ export function createIntegrationsInterModulePresentation(params: {
           nextCursor: page.nextCursor,
         };
       }),
+    commitConfigChanges: async (input) => {
+      const method = contract.methods.commitConfigChanges;
+      return await configOperation(method, input, async (project, config) => {
+        try {
+          return await config.commitConfigChanges(project, {
+            branch: input.branch,
+            expectedHead: input.expectedHead,
+            message: input.message,
+            changes: input.changes,
+            actor: input.actor,
+          });
+        } catch (error) {
+          throw mapConfigCommitError(method, input.branch, error);
+        }
+      });
+    },
     createCheckoutSpec: async (input) =>
       await known(contract.methods.createCheckoutSpec, input, async () => {
         const spec = await params.sourceControl.createCheckoutSpec(input);
@@ -919,4 +937,40 @@ function refDetails(input: {ref?: string | undefined}): {ref: string} {
     throw new Error('Ref error mapping requires a ref input');
   }
   return {ref: input.ref};
+}
+
+function mapConfigCommitError(
+  method: typeof integrationsInterModuleContract.methods.commitConfigChanges,
+  branch: string,
+  error: unknown,
+): unknown {
+  if (error instanceof ConfigRepositoryReadOnlyError) {
+    return createInterModuleKnownError(method, 'repository-read-only', {
+      repository: error.repository,
+    });
+  }
+  if (!(error instanceof ConfigCommitRefusedError)) return error;
+
+  const {details} = error;
+  switch (error.refusal) {
+    case 'move-in-progress':
+      return createInterModuleKnownError(method, 'move-in-progress', {});
+    case 'protected-branch':
+    case 'branch-invalid':
+      return createInterModuleKnownError(method, error.refusal, {branch: details.branch ?? branch});
+    case 'stale-head':
+      return createInterModuleKnownError(method, 'stale-head', {
+        branch: details.branch ?? branch,
+        head: details.head ?? null,
+      });
+    case 'path-not-allowed':
+    case 'content-not-text':
+    case 'file-too-large':
+    case 'file-not-found':
+      return createInterModuleKnownError(method, error.refusal, {path: details.path ?? ''});
+    case 'too-many-changes':
+    case 'commit-too-large':
+    case 'no-changes':
+      return createInterModuleKnownError(method, error.refusal, {});
+  }
 }

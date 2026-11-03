@@ -44,6 +44,7 @@ export {
   type ConversationDetailDto,
   type ConversationItemContentDto,
   type ConversationItemDto,
+  type ConversationLatestTurnDto,
   type ConversationRunResultDto,
   type ConversationSummaryDto,
   type ConversationTurnNoticeDto,
@@ -53,6 +54,7 @@ export {
   conversationDetailDtoSchema,
   conversationItemContentDtoSchema,
   conversationItemDtoSchema,
+  conversationLatestTurnDtoSchema,
   conversationRunResultDtoSchema,
   conversationSummaryDtoSchema,
   conversationTurnNoticeDtoSchema,
@@ -73,6 +75,13 @@ export {
   pageContextSchema,
   postConversationMessageBodySchema,
 } from './conversation.js';
+export {
+  type ConversationStreamEventDto,
+  type ConversationStreamQueryDto,
+  conversationStreamEventSchema,
+  conversationStreamQuerySchema,
+  conversationStreamResetReasonSchema,
+} from './conversation-stream.js';
 export {
   type CredentialRenewalDto,
   credentialRenewalSchema,

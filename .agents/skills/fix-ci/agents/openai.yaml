@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix CI"
+  short_description: "Diagnose failing PR checks, fix the cause, and push."
+  default_prompt: "/fix-ci"

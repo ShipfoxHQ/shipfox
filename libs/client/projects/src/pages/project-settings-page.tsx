@@ -2,6 +2,7 @@ import {slugSchema} from '@shipfox/api-common-dto';
 import {createProjectBodySchema} from '@shipfox/api-projects-dto';
 import {ApiError} from '@shipfox/client-api';
 import {useActiveWorkspace} from '@shipfox/client-auth';
+import {useAgentPageContext} from '@shipfox/client-shell/runtime';
 import {
   displayNameFieldError,
   QueryLoadError,
@@ -35,6 +36,7 @@ function isSlugValid(value: string): boolean {
 
 export function ProjectSettingsPage() {
   const projectQuery = useMaybeActiveProjectQuery();
+  useAgentPageContext({page: 'project_settings', section: 'general'});
   if (projectQuery.isPending) return <FullPageLoader />;
   if (projectQuery.isError && projectQuery.data === undefined) {
     if (projectQuery.error instanceof ApiError && projectQuery.error.status === 404) {

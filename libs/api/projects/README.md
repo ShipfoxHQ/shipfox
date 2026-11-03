@@ -79,6 +79,14 @@ and the path. The path is empty when the seed as a whole is over 1 MiB. More
 than 100 files fails request validation with `400`. The project DTO derives
 `source.kind` from the repository id, so no column holds it.
 
+`moveProjectSource` on the inter-module contract moves a project's config source
+from the repository it expects to the target. It locks the project row and
+compares the current source, so a repeat call that finds the target already set
+succeeds with `moved: false` and writes nothing. Otherwise it updates the source
+fields and writes `PROJECT_SOURCE_BOUND` in the same transaction. A source that is
+neither the expected one nor the target answers `source-changed`, and a target
+that another project already owns answers `source-already-bound`.
+
 The create form derives an editable default slug from the project name. The API
 requires an explicit slug and never adds a suffix when the value is taken. A
 rename frees the old slug immediately and emits a project-updated outbox event.

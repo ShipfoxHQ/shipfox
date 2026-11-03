@@ -92,14 +92,31 @@ export function ActivityActionRow({
         </span>
       </LogDisclosureTrigger>
       <LogDisclosureContent className="border-l-0 pb-row">
-        {resolvedPresentation.meta?.length ? <ActionMeta meta={resolvedPresentation.meta} /> : null}
-        {hasPresentedDetail ? (
-          <PresentedDetails detail={resolvedPresentation.detail ?? null} />
-        ) : (
-          <GenericDetails action={action} kind={resolvedPresentation.detailKind} />
-        )}
+        <ActionDetails action={action} presentation={resolvedPresentation} />
       </LogDisclosureContent>
     </LogDisclosure>
+  );
+}
+
+export interface ActionDetailsProps {
+  action: PairedAction;
+  presentation: ActionPresentation;
+}
+
+/**
+ * What an action recorded: its identity facts, then its presented detail or its raw request and
+ * result. It uses the contrast tokens, so place it on a contrast surface.
+ */
+export function ActionDetails({action, presentation}: ActionDetailsProps) {
+  return (
+    <>
+      {presentation.meta?.length ? <ActionMeta meta={presentation.meta} /> : null}
+      {presentation.detail !== undefined ? (
+        <PresentedDetails detail={presentation.detail ?? null} />
+      ) : (
+        <GenericDetails action={action} kind={presentation.detailKind} />
+      )}
+    </>
   );
 }
 

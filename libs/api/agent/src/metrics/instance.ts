@@ -199,6 +199,15 @@ export const conversationTurnCount = meter.createCounter<{
     'Agent conversation turns by conversation origin, trigger, and outcome. A denied turn never opened: admission or a departed owner refused its inputs',
 });
 
+export const conversationReplyCount = meter.createCounter<{
+  provider: string;
+  kind: 'response' | 'error';
+  outcome: 'delivered' | 'undeliverable';
+}>('agent_conversation_replies', {
+  description:
+    'Replies sent back to an integration conversation by provider, kind, and outcome. An undeliverable reply is not retried',
+});
+
 export const conversationFirstTokenSeconds = meter.createHistogram<{
   origin: 'web' | 'integration';
 }>('agent_conversation_first_token_seconds', {
@@ -214,6 +223,14 @@ export const conversationModelCallCount = meter.createCounter<{
     'Agent conversation model calls by outcome: stored a reply, returned one a crashed attempt stored, or failed',
 });
 
+export const conversationCompactionCount = meter.createCounter<{
+  cause: 'estimate' | 'overflow';
+  outcome: 'compacted' | 'replayed' | 'nothing_to_compact' | 'failed';
+}>('agent_conversation_compactions', {
+  description:
+    'Agent conversation compactions by cause, the prompt estimate or a provider overflow, and outcome',
+});
+
 export const conversationToolCallCount = meter.createCounter<{
   sensitivity: 'read' | 'write' | 'local' | 'unknown';
   outcome: 'success' | 'error' | 'replayed';
@@ -226,5 +243,21 @@ export const conversationThinkingDroppedCount = meter.createCounter(
   {
     description:
       "Input transformations pi's Anthropic adapter applied to a prompt. A rising count means a conversation's prefix changed",
+  },
+);
+
+export type ConversationStreamOutcome = 'completed' | 'deadline' | 'disconnected' | 'failed';
+
+export const conversationStreamCount = meter.createCounter<{outcome: ConversationStreamOutcome}>(
+  'agent_conversation_streams',
+  {description: 'Conversation streams opened to a browser, by how they ended'},
+);
+
+export const conversationStreamTickSeconds = meter.createHistogram<Record<string, never>>(
+  'agent_conversation_stream_tick_seconds',
+  {
+    description: 'Seconds one stream tick takes to read the turn, chunks, and timeline',
+    unit: 's',
+    advice: {explicitBucketBoundaries: [0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5, 1]},
   },
 );

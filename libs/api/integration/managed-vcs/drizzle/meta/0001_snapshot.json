@@ -1,0 +1,266 @@
+{
+  "id": "c7d529a9-1478-4b70-b219-eb655000e199",
+  "prevId": "5a4daf67-78bb-4cf3-9684-2e872da87ead",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.integrations_managed_vcs_objects": {
+      "name": "integrations_managed_vcs_objects",
+      "schema": "",
+      "columns": {
+        "repository_id": {
+          "name": "repository_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "oid": {
+          "name": "oid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "integrations_managed_vcs_objects_repository_fk": {
+          "name": "integrations_managed_vcs_objects_repository_fk",
+          "tableFrom": "integrations_managed_vcs_objects",
+          "tableTo": "integrations_managed_vcs_repositories",
+          "columnsFrom": ["repository_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "integrations_managed_vcs_objects_repository_id_oid_pk": {
+          "name": "integrations_managed_vcs_objects_repository_id_oid_pk",
+          "columns": ["repository_id", "oid"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.integrations_managed_vcs_refs": {
+      "name": "integrations_managed_vcs_refs",
+      "schema": "",
+      "columns": {
+        "repository_id": {
+          "name": "repository_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commit_oid": {
+          "name": "commit_oid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "integrations_managed_vcs_refs_repository_fk": {
+          "name": "integrations_managed_vcs_refs_repository_fk",
+          "tableFrom": "integrations_managed_vcs_refs",
+          "tableTo": "integrations_managed_vcs_repositories",
+          "columnsFrom": ["repository_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "integrations_managed_vcs_refs_commit_fk": {
+          "name": "integrations_managed_vcs_refs_commit_fk",
+          "tableFrom": "integrations_managed_vcs_refs",
+          "tableTo": "integrations_managed_vcs_objects",
+          "columnsFrom": ["repository_id", "commit_oid"],
+          "columnsTo": ["repository_id", "oid"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "integrations_managed_vcs_refs_repository_id_name_pk": {
+          "name": "integrations_managed_vcs_refs_repository_id_name_pk",
+          "columns": ["repository_id", "name"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.integrations_managed_vcs_repositories": {
+      "name": "integrations_managed_vcs_repositories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "link_attempt_id": {
+          "name": "link_attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link_connection_id": {
+          "name": "link_connection_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link_external_repository_id": {
+          "name": "link_external_repository_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link_started_by": {
+          "name": "link_started_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link_started_at": {
+          "name": "link_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pull_request_url": {
+          "name": "pull_request_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pull_request_number": {
+          "name": "pull_request_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "integrations_managed_vcs_repositories_project_unique": {
+          "name": "integrations_managed_vcs_repositories_project_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "integrations_managed_vcs_repositories_workspace_idx": {
+          "name": "integrations_managed_vcs_repositories_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

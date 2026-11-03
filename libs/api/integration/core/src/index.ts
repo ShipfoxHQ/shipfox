@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {MANAGED_VCS_PROVIDER} from '@shipfox/api-integration-managed-vcs-dto';
 import {
   integrationsEventSchemas,
   type StoredWebhookRequest,
@@ -13,6 +14,7 @@ import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inte
 import {reportError} from '@shipfox/node-error-monitoring';
 import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
+import {createConfigLinkService} from '#core/config-link-service.js';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {WebhookProcessorNotConfiguredError} from '#core/errors.js';
 import {createProjectConfigService} from '#core/project-config-service.js';
@@ -31,6 +33,7 @@ import {
 import {
   type GetIntegrationConnectionByIdFn,
   getIntegrationConnectionById,
+  listIntegrationConnectionsByWorkspace,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -370,10 +373,26 @@ export async function createIntegrationsContext(
     getIntegrationConnectionById: resolveIntegrationConnectionById,
     repositoryAuthorizer,
   });
+  const configLink = options.projects
+    ? createConfigLinkService({
+        registry,
+        sourceControl,
+        projects: options.projects,
+        getManagedConnection: async (workspaceId) =>
+          (
+            await listIntegrationConnectionsByWorkspace({
+              workspaceId,
+              provider: [MANAGED_VCS_PROVIDER],
+              limit: 1,
+            })
+          ).connections[0],
+      })
+    : undefined;
   const projectConfig = createProjectConfigService({
     registry,
     sourceControl,
     getIntegrationConnectionById: resolveIntegrationConnectionById,
+    readMoveState: configLink?.readMoveState,
   });
   const webhookProcessor = createComposedWebhookProcessor(
     parts.flatMap((part) => part.webhookProcessors ?? []),
@@ -421,6 +440,7 @@ export async function createIntegrationsContext(
     routes: createIntegrationRoutes(registry, sourceControl, {
       projects: options.projects,
       projectConfig,
+      configLink,
       repositoryAuthorization: repositoryAuthorizer,
       agentTools: options.agentTools
         ? {
