@@ -1,4 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {upsertModelProviderConfig} from '#db/index.js';
 import {getConversationById, getTurnById, listContextItems} from '#db/turn-runtime.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {
@@ -197,11 +198,18 @@ describe('agent config in turns', () => {
   });
 
   it('uses the workspace default thinking when the agent file sets none', async () => {
-    const {conversation, deps} = await arrange();
+    const {conversation, workspaceId, deps} = await arrange();
+    await upsertModelProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: null,
+      defaultThinking: 'medium',
+      setAsDefault: true,
+    });
 
     const turn = await beginConversationTurn({conversationId: conversation.id, deps});
 
-    expect((await getTurnById(turn?.turnId ?? ''))?.thinking).toEqual(expect.any(String));
+    expect(await getTurnById(turn?.turnId ?? '')).toMatchObject({thinking: 'medium'});
   });
 
   it('refuses a message queued for a custom agent that was deleted since', async () => {
