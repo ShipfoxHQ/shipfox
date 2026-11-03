@@ -10,7 +10,7 @@ import {
   type DefinitionSyncErrorCode,
   isDefinitionSyncErrorCode,
 } from '#core/entities/sync-state.js';
-import type {createDefinitionSyncActivities} from '../activities/index.js';
+import type {createDefinitionSyncActivities, SyncRefScopedInput} from '../activities/index.js';
 
 export interface DefinitionSyncWorkflowInput {
   projectId: string;
@@ -44,8 +44,10 @@ const DB_RETRY = {
 const {
   prepareDefinitionSync,
   discoverDefinitionWorkflows,
+  discoverDefinitionFiles,
   fetchAndApplyDefinitionWorkflows,
   fetchAndApplyDefinitionWorkflowsV2,
+  fetchAndApplyDefinitionAgents,
 } = proxyActivities<ReturnType<typeof createDefinitionSyncActivities>>({
   startToCloseTimeout: '5 minutes',
   heartbeatTimeout: '30 seconds',
@@ -91,10 +93,17 @@ export async function definitionSyncWorkflow(
       sourceRef: prepared.sourceRef,
       sourceCommitSha: prepared.sourceCommitSha,
     };
-    const {paths} = await discoverDefinitionWorkflows(source);
-    const applied = await fetchAndApply({...source, paths});
+    const agentsEnabled = patched('definition-sync-agents');
+    const discovered = await discoverFiles(source, agentsEnabled);
+    const applied = await fetchAndApply({...source, paths: discovered.workflowPaths});
+    const agents = agentsEnabled
+      ? await fetchAndApplyDefinitionAgents({...source, paths: discovered.agentPaths})
+      : {diagnostics: []};
 
-    await markSucceeded({...source, diagnostics: applied.diagnostics});
+    await markSucceeded({
+      ...source,
+      diagnostics: [...applied.diagnostics, ...agents.diagnostics],
+    });
 
     return {
       sourceRef,
@@ -138,6 +147,17 @@ export async function definitionSyncWorkflow(
     }
     throw error;
   }
+}
+
+// Agent files sync after the workflows, so a history started before it keeps
+// the workflow-only discovery.
+async function discoverFiles(
+  source: SyncRefScopedInput,
+  agentsEnabled: boolean,
+): Promise<{workflowPaths: string[]; agentPaths: string[]}> {
+  if (agentsEnabled) return await discoverDefinitionFiles(source);
+  const {paths} = await discoverDefinitionWorkflows(source);
+  return {workflowPaths: paths, agentPaths: []};
 }
 
 export function classifyWorkflowError(error: unknown): {

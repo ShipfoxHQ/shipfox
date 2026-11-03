@@ -102,6 +102,10 @@ function promptSchema(mode: WorkflowDocumentStepMode) {
   ]);
 }
 
+/** A workflow prompt: a string, or a list of strings and repository `file` parts. */
+export const workflowDocumentPromptSchema = promptSchema('workflow');
+export type WorkflowDocumentPrompt = z.infer<typeof workflowDocumentPromptSchema>;
+
 const workflowNameSchema = literalNameSchema(
   'Workflow name must be literal. Move runtime interpolation to run_name.',
 ).meta({description: 'Names the workflow.'});
@@ -1348,7 +1352,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   model: z.string().min(1).optional().meta({
     description: 'Selects the model that the agent uses.',
   }),
-  prompt: promptSchema('workflow').optional().meta({
+  prompt: workflowDocumentPromptSchema.optional().meta({
     description:
       'Gives the agent its instructions. Use a string, or a list of parts that Shipfox joins with a blank line. A part is a string or a `file` reference.',
   }),

@@ -591,6 +591,7 @@ function clients() {
       getWorkflow: vi.fn(),
       getDefinitionByConfigPath: vi.fn(),
       listDefinitionsByProject: (input) => definitionHandlers.listDefinitionsByProject(input),
+      listProjectAgents: vi.fn(),
       resolveDefinitionAtRef: vi.fn(),
       validateDefinitionAtRef: vi.fn(),
       listDefinitionsAtRef: vi.fn(),

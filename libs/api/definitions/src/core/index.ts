@@ -22,9 +22,21 @@ export {
   validateDefinitionAtRef,
 } from './resolve-definition-at-ref.js';
 export {
+  AGENT_FILE_INVALID_CODE,
+  type FetchAndParseAgentsParams,
+  fetchAndParseAgents,
+  type InvalidAgent,
+  type ParsedAgent,
+  type ParsedAgents,
+} from './sync-agents.js';
+export {
   classifySyncFailure,
+  DEFAULT_AGENT_PATH,
   DEFAULT_WORKFLOW_PATH,
+  type DiscoverDefinitionFilesParams,
+  type DiscoveredDefinitionFiles,
   type DiscoverWorkflowFilesParams,
+  discoverDefinitionFiles,
   discoverWorkflowFiles,
   type FetchAndParseWorkflowsParams,
   fetchAndParseWorkflows,

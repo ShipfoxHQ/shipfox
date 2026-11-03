@@ -71,6 +71,13 @@
       "when": 1792092442037,
       "tag": "0009_composite_action_sync_error_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793750000000,
+      "tag": "0010_agents",
+      "breakpoints": true
     }
   ]
 }

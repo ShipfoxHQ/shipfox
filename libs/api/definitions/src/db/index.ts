@@ -6,6 +6,14 @@ export {
   type UpsertActionSnapshotParams,
   upsertActionSnapshot,
 } from './action-snapshots.js';
+export {
+  type ApplyVcsAgentsBatchParams,
+  type ApplyVcsAgentsBatchResult,
+  applyVcsAgentsBatch,
+  type InvalidAgentUpsert,
+  listProjectAgents,
+  type ValidAgentUpsert,
+} from './agents.js';
 export {closeDb, db, schema} from './db.js';
 export type {
   ApplyVcsDefinitionsBatchParams,
@@ -30,6 +38,7 @@ export {
   upsertDefinition,
 } from './definitions.js';
 export {definitionActionSnapshots} from './schema/action-snapshots.js';
+export {definitionAgents} from './schema/agents.js';
 export {definitionsOutbox} from './schema/outbox.js';
 export {definitionSyncStates} from './schema/sync-states.js';
 export {type WorkflowCreateDb, type WorkflowDb, workflowWorkflows} from './schema/workflows.js';

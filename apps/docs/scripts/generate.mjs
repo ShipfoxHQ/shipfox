@@ -117,7 +117,12 @@ import {
   workflowContextDocs,
   workflowContextNames,
 } from '@shipfox/expression';
-import {buildWorkflowJsonSchema, parseWorkflowDocument} from '@shipfox/workflow-document';
+import {
+  buildAgentDocumentJsonSchema,
+  buildWorkflowJsonSchema,
+  parseAgentDocument,
+  parseWorkflowDocument,
+} from '@shipfox/workflow-document';
 import {listShippedSkillResources} from '@shipfox/workflow-templates';
 import {load} from 'js-yaml';
 import {buildEventReference} from '@/lib/event-reference/build';
@@ -427,9 +432,12 @@ let cachedWorkflowSchemaDocument;
 function workflowSchemaDocument() {
   cachedWorkflowSchemaDocument ??= buildWorkflowSchemaDocument({
     schema: buildWorkflowJsonSchema(),
+    agentSchema: buildAgentDocumentJsonSchema(),
     examples: readWorkflowSchemaExamples(),
     parseYaml: (code) => load(code),
     validate: parseWorkflowDocument,
+    // The example documents a custom agent, so the required fields apply.
+    validateAgent: (parsed) => parseAgentDocument(parsed, {key: 'reviewer'}),
   });
   return cachedWorkflowSchemaDocument;
 }

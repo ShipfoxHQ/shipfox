@@ -63,7 +63,7 @@ import {
   resolveWorkflowActions,
   summarizeResolvedActions,
 } from './resolve-actions.js';
-import {resolvePromptFiles} from './resolve-prompt-files.js';
+import {collectWorkflowPromptFileUses, resolvePromptFiles} from './resolve-prompt-files.js';
 import {
   DEFAULT_WORKFLOW_PATH,
   isWorkflowFile,
@@ -890,8 +890,10 @@ async function resolveDevRunPromptFiles(params: {
         fetchFile: (input) =>
           callWithSignal(params.integrations.fetchSourceFile, input, params.signal),
       },
-      workflows: [{path: params.configPath, document: params.document}],
-      actions: params.actions,
+      references: collectWorkflowPromptFileUses({
+        workflows: [{path: params.configPath, document: params.document}],
+        actions: params.actions,
+      }),
     });
   } catch (error) {
     throwIfAborted(params.signal);

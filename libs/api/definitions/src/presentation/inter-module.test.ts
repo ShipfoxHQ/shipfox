@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getLatestDefinitionSyncState: vi.fn(),
   listDefinitions: vi.fn(),
   listDefinitionsAtRef: vi.fn(),
+  listProjectAgents: vi.fn(),
   requireProjectForWorkspace: vi.fn(),
   resolveDefinitionAtRef: vi.fn(),
   validateDefinitionAtRef: vi.fn(),
@@ -23,6 +24,10 @@ vi.mock('#db/definitions.js', () => ({
   getDefinitionById: mocks.getDefinitionById,
   getWorkflowLineageById: mocks.getWorkflowLineageById,
   listDefinitions: mocks.listDefinitions,
+}));
+
+vi.mock('#db/agents.js', () => ({
+  listProjectAgents: mocks.listProjectAgents,
 }));
 
 vi.mock('#db/sync-states.js', () => ({
@@ -67,6 +72,7 @@ describe('definitions inter-module presentation', () => {
     mocks.getWorkflowLineageById.mockReset();
     mocks.getLatestDefinitionSyncState.mockReset();
     mocks.listDefinitions.mockReset();
+    mocks.listProjectAgents.mockReset();
     mocks.requireProjectForWorkspace.mockReset();
   });
 
@@ -711,5 +717,77 @@ describe('definitions inter-module presentation', () => {
     expect(isInterModuleKnownError(method, error)).toBe(true);
     expect((error as {code: string}).code).toBe('too-many-files');
     expect((error as {details: unknown}).details).toEqual({fileCount: 100});
+  });
+
+  describe('listProjectAgents', () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000010';
+
+    it('returns the synced agents of the project', async () => {
+      mocks.requireProjectForWorkspace.mockResolvedValue({project: {id: PROJECT_ID}});
+      const fetchedAt = new Date('2026-11-03T10:00:00.000Z');
+      mocks.listProjectAgents.mockResolvedValue([
+        {
+          id: '00000000-0000-4000-8000-000000000020',
+          projectId: PROJECT_ID,
+          key: 'shippy',
+          configPath: '.shipfox/agents/shippy.yaml',
+          name: null,
+          description: null,
+          instructions: 'Prefer short answers.',
+          document: {instructions: 'Prefer short answers.'},
+          contentHash: 'hash',
+          lastError: null,
+          fetchedAt,
+          createdAt: fetchedAt,
+          updatedAt: fetchedAt,
+        },
+      ]);
+
+      const result = await presentation().handlers.listProjectAgents(
+        {workspaceId, projectId: PROJECT_ID},
+        {signal: new AbortController().signal},
+      );
+
+      expect(mocks.listProjectAgents).toHaveBeenCalledWith(PROJECT_ID);
+      expect(result).toEqual({
+        agents: [
+          {
+            key: 'shippy',
+            configPath: '.shipfox/agents/shippy.yaml',
+            name: null,
+            description: null,
+            instructions: 'Prefer short answers.',
+            document: {instructions: 'Prefer short answers.'},
+            contentHash: 'hash',
+            lastError: null,
+            fetchedAt: '2026-11-03T10:00:00.000Z',
+            updatedAt: '2026-11-03T10:00:00.000Z',
+          },
+        ],
+      });
+    });
+
+    it('maps a project access failure to the method known error', async () => {
+      mocks.requireProjectForWorkspace.mockRejectedValue(
+        createInterModuleKnownError(
+          projectsInterModuleContract.methods.requireProjectForWorkspace,
+          'project-not-found',
+          {projectId: PROJECT_ID},
+        ),
+      );
+
+      const error = await rejection(
+        presentation().handlers.listProjectAgents(
+          {workspaceId, projectId: PROJECT_ID},
+          {signal: new AbortController().signal},
+        ),
+      );
+
+      expect(
+        isInterModuleKnownError(definitionsInterModuleContract.methods.listProjectAgents, error) &&
+          error.code,
+      ).toBe('project-not-found');
+      expect(mocks.listProjectAgents).not.toHaveBeenCalled();
+    });
   });
 });

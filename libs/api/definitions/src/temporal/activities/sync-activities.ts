@@ -14,7 +14,9 @@ import {
 } from '#core/entities/sync-state.js';
 import {
   classifySyncFailure,
+  discoverDefinitionFiles as discoverDefinitionFilesCore,
   discoverWorkflowFiles,
+  fetchAndParseAgents,
   fetchAndParseWorkflows,
   resolveSyncSource,
   UNRESOLVED_SYNC_REF,
@@ -22,6 +24,7 @@ import {
 import type {DefinitionsSourceControl} from '#core/integrations.js';
 import {loadIntegrationValidationContext} from '#core/integrations.js';
 import {
+  applyVcsAgentsBatch,
   applyVcsDefinitionsBatch,
   markDefinitionSyncState,
   moveVcsDefinitionsToRef,
@@ -61,6 +64,17 @@ export interface DiscoverWorkflowsActivityResult {
   paths: string[];
 }
 
+export interface DiscoverDefinitionFilesActivityResult {
+  workflowPaths: string[];
+  agentPaths: string[];
+}
+
+export interface FetchAndApplyAgentsActivityResult {
+  appliedCount: number;
+  deletedCount: number;
+  diagnostics: DefinitionSyncDiagnostic[];
+}
+
 export interface FetchAndApplyActivityResult {
   appliedCount: number;
   deletedCount: number;
@@ -73,6 +87,8 @@ export interface MarkSyncSucceededActivityInput extends SyncRefScopedInput {
 
 export interface DefinitionSyncActivityOptions {
   workflowPath: string;
+  /** Where agent files live. Defaults to `.shipfox/agents/`. */
+  agentPath?: string | undefined;
   /** Resolves registry actions during sync. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   /** Reads the `definitions-actions` flag per workspace. Without it, the flag's default applies. */
@@ -103,7 +119,14 @@ export function createDefinitionSyncActivities(
       sourceControl,
       options?.workflowPath,
     ),
+    discoverDefinitionFiles: createDiscoverDefinitionFilesActivity(sourceControl, options),
     fetchAndApplyDefinitionWorkflows,
+    fetchAndApplyDefinitionAgents: createFetchAndApplyAgentsActivity(
+      sourceControl,
+      agent,
+      projects,
+      options?.agentPath,
+    ),
     // Versioned names keep old workers from silently dropping diagnostics.
     fetchAndApplyDefinitionWorkflowsV2: fetchAndApplyDefinitionWorkflows,
     markDefinitionSyncSucceeded,
@@ -182,6 +205,78 @@ function createDiscoverDefinitionWorkflowsActivity(
         sourceControl,
         workflowPath,
       });
+    });
+  };
+}
+
+function createDiscoverDefinitionFilesActivity(
+  sourceControl: DefinitionsSourceControl,
+  options?: Pick<DefinitionSyncActivityOptions, 'workflowPath' | 'agentPath'> | undefined,
+) {
+  return async function discoverDefinitionFiles(
+    input: SyncRefScopedInput,
+  ): Promise<DiscoverDefinitionFilesActivityResult> {
+    return await runWithPermanentTranslation(async () => {
+      return await discoverDefinitionFilesCore({
+        ...input,
+        ref: input.sourceCommitSha ?? input.sourceRef,
+        sourceControl,
+        workflowPath: options?.workflowPath,
+        agentPath: options?.agentPath,
+      });
+    });
+  };
+}
+
+/**
+ * Agent files are applied after the workflows, on their own. A file that
+ * fails validation is a diagnostic, never a sync failure, so an agent file
+ * cannot block workflow sync.
+ */
+function createFetchAndApplyAgentsActivity(
+  sourceControl: DefinitionsSourceControl,
+  agent: AgentInterModuleClient,
+  projects: Pick<ProjectsModuleClient, 'getProjectById'>,
+  agentPath?: string | undefined,
+) {
+  return async function fetchAndApplyDefinitionAgents(
+    input: FetchAndApplyActivityInput,
+  ): Promise<FetchAndApplyAgentsActivityResult> {
+    return await runWithPermanentTranslation(async () => {
+      const parsed = await fetchAndParseAgents({
+        ...input,
+        ref: input.sourceCommitSha ?? input.sourceRef,
+        sourceControl,
+        agentPath,
+        agentValidationCatalog: await agent.getValidationCatalogV2({
+          workspaceId: input.workspaceId,
+        }),
+        onProgress: (path) => Context.current().heartbeat({path}),
+      });
+
+      if (await isSyncSuperseded(projects, input)) {
+        return {appliedCount: 0, deletedCount: 0, diagnostics: []};
+      }
+
+      const result = await applyVcsAgentsBatch({
+        projectId: input.projectId,
+        valid: parsed.valid.map((entry) => ({
+          key: entry.key,
+          configPath: entry.path,
+          name: entry.name,
+          description: entry.description,
+          instructions: entry.instructions,
+          document: entry.document,
+          contentHash: entry.contentHash,
+        })),
+        invalid: parsed.invalid.map((entry) => ({
+          key: entry.key,
+          configPath: entry.path,
+          error: entry.error,
+        })),
+      });
+
+      return {...result, diagnostics: limitDefinitionSyncDiagnostics(parsed.diagnostics)};
     });
   };
 }

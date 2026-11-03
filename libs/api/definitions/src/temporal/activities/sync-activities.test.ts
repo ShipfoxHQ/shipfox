@@ -9,7 +9,13 @@ import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import type {DefinitionsSourceControl} from '#core/integrations.js';
-import {db, definitionSyncStates, definitionsOutbox, getActionSnapshot} from '#db/index.js';
+import {
+  db,
+  definitionSyncStates,
+  definitionsOutbox,
+  getActionSnapshot,
+  listProjectAgents,
+} from '#db/index.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {createDefinitionSyncActivities} from './sync-activities.js';
@@ -358,6 +364,161 @@ describe('definition sync activities', () => {
       expect(source.listFiles).toHaveBeenCalledWith(
         expect.objectContaining({prefix: '.shipfox/staging/workflows/'}),
       );
+    });
+  });
+
+  describe('discoverDefinitionFiles', () => {
+    function repositoryListing(paths: string[]) {
+      return vi.fn(({prefix}: {prefix: string}) =>
+        Promise.resolve({
+          files: paths
+            .filter((path) => path.startsWith(prefix))
+            .map((path) => ({path, type: 'file' as const, size: 64})),
+          nextCursor: null,
+        }),
+      );
+    }
+    const input = () => ({
+      projectId,
+      workspaceId: crypto.randomUUID(),
+      sourceConnectionId,
+      sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
+      sourceRef: 'main',
+    });
+
+    it('lists workflow and agent files, nested agent files included', async () => {
+      const source = sourceControl({
+        listFiles: repositoryListing([
+          '.shipfox/workflows/ci.yml',
+          '.shipfox/agents/shippy.yaml',
+          '.shipfox/agents/team/reviewer.yaml',
+          '.shipfox/agents/README.md',
+        ]),
+      });
+      const activities = createDefinitionSyncActivities(source, agent, projects);
+
+      const result = await activities.discoverDefinitionFiles(input());
+
+      expect(result).toEqual({
+        workflowPaths: ['.shipfox/workflows/ci.yml'],
+        agentPaths: ['.shipfox/agents/shippy.yaml', '.shipfox/agents/team/reviewer.yaml'],
+      });
+    });
+
+    it('accepts a repository with only agent files', async () => {
+      const source = sourceControl({listFiles: repositoryListing(['.shipfox/agents/shippy.yaml'])});
+      const activities = createDefinitionSyncActivities(source, agent, projects);
+
+      const result = await activities.discoverDefinitionFiles(input());
+
+      expect(result).toEqual({workflowPaths: [], agentPaths: ['.shipfox/agents/shippy.yaml']});
+    });
+
+    it('fails with no-workflow-files when both folders are empty', async () => {
+      const source = sourceControl({listFiles: repositoryListing([])});
+      const activities = createDefinitionSyncActivities(source, agent, projects);
+
+      await expect(activities.discoverDefinitionFiles(input())).rejects.toMatchObject({
+        type: 'no-workflow-files',
+        nonRetryable: true,
+      });
+    });
+  });
+
+  describe('fetchAndApplyDefinitionAgents', () => {
+    const shippyPath = '.shipfox/agents/shippy.yaml';
+    const reviewerPath = '.shipfox/agents/reviewer.yaml';
+    const reviewerYaml = 'description: Reviews.\ninstructions: Review the change.\n';
+
+    function repositorySource(repository: Record<string, string>) {
+      return sourceControl({
+        fetchFile: vi.fn(({path, ref}: {path: string; ref: string}) =>
+          Promise.resolve({path, ref, content: repository[path] ?? ''}),
+        ),
+      });
+    }
+
+    function sync(activities: ReturnType<typeof createDefinitionSyncActivities>, paths: string[]) {
+      return activities.fetchAndApplyDefinitionAgents({
+        projectId,
+        workspaceId: crypto.randomUUID(),
+        sourceConnectionId,
+        sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        sourceRef: 'main',
+        paths,
+      });
+    }
+
+    it('stores valid agents, keeps the last valid version of an invalid one, and deletes the rest', async () => {
+      const first = createDefinitionSyncActivities(
+        repositorySource({[shippyPath]: 'instructions: Be short.', [reviewerPath]: reviewerYaml}),
+        agent,
+        projects,
+      );
+      expect(await sync(first, [shippyPath, reviewerPath])).toEqual({
+        appliedCount: 2,
+        deletedCount: 0,
+        diagnostics: [],
+      });
+
+      const second = createDefinitionSyncActivities(
+        repositorySource({[reviewerPath]: 'name: Broken'}),
+        agent,
+        projects,
+      );
+      const result = await sync(second, [reviewerPath]);
+
+      expect(result).toMatchObject({appliedCount: 0, deletedCount: 1});
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'agent-file-invalid',
+          filePath: reviewerPath,
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          code: 'agent-file-invalid',
+          filePath: reviewerPath,
+          severity: 'error',
+        }),
+      ]);
+      const agents = await listProjectAgents(projectId);
+      expect(agents).toEqual([
+        expect.objectContaining({
+          key: 'reviewer',
+          instructions: 'Review the change.',
+          lastError: expect.objectContaining({message: 'A custom agent requires "description".'}),
+        }),
+      ]);
+    });
+
+    it('creates no agent for a nested file and reports it', async () => {
+      const nested = '.shipfox/agents/team/reviewer.yaml';
+      const activities = createDefinitionSyncActivities(
+        repositorySource({[nested]: reviewerYaml}),
+        agent,
+        projects,
+      );
+
+      const result = await sync(activities, [nested]);
+
+      expect(result).toMatchObject({appliedCount: 0, deletedCount: 0});
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({filePath: nested, message: expect.stringContaining('is nested')}),
+      ]);
+      expect(await listProjectAgents(projectId)).toEqual([]);
+    });
+
+    it('changes nothing when the project points at another source', async () => {
+      const activities = createDefinitionSyncActivities(
+        repositorySource({[shippyPath]: ''}),
+        agent,
+        projectsClient({sourceConnectionId, sourceExternalRepositoryId: 'github:acme/config'}),
+      );
+
+      const result = await sync(activities, [shippyPath]);
+
+      expect(result).toEqual({appliedCount: 0, deletedCount: 0, diagnostics: []});
+      expect(await listProjectAgents(projectId)).toEqual([]);
     });
   });
 
