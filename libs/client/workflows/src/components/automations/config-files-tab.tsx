@@ -105,7 +105,7 @@ function ConfigFilesTabContent({
   }
   if (!filesQuery.data || filesQuery.data.files.length === 0) {
     const pullRequest = config?.pullRequest;
-    if (pullRequest && pullRequest.state !== 'merged') {
+    if (pullRequest?.state === 'open') {
       return (
         <Panel>
           <EmptyState

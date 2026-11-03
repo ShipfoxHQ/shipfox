@@ -139,8 +139,9 @@ export function configMoveErrorCopy(
       };
     case 'connection-inactive':
     case 'integration-connection-inactive':
+    case 'integration-connection-not-found':
       return {
-        title: 'Connection inactive',
+        title: 'Connection unavailable',
         message: 'Reconnect it from Integrations, or pick another connection.',
       };
     case 'link-unsupported':

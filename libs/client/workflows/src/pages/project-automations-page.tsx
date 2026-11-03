@@ -222,7 +222,12 @@ function ConfigSourceSection({
           setActionError(null);
           openPullRequest.mutate(
             {projectId},
-            {onError: (error) => setActionError(configMoveErrorCopy(error))},
+            {
+              onError: (error) =>
+                setActionError(
+                  configMoveErrorCopy(error, {repositoryName: sourceFullName(config)}),
+                ),
+            },
           );
         }}
         pendingAction={pendingAction}
@@ -240,6 +245,11 @@ function ConfigSourceSection({
       ) : null}
     </>
   );
+}
+
+function sourceFullName(config: ProjectConfig | undefined): string | null {
+  const {owner, name} = config?.source ?? {};
+  return owner && name ? `${owner}/${name}` : null;
 }
 
 function isConfigMoving(config: ProjectConfig): boolean {

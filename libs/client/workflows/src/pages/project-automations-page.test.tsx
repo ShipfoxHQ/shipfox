@@ -1130,6 +1130,33 @@ describe('ProjectAutomationsPage', () => {
       ]);
     });
 
+    test('offers a retry when the repositories fail to load', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(managedConfigDto()),
+          route: ({url}) => {
+            if (url.pathname === '/integration-connections') {
+              return jsonResponse({connections: [connectionDto()]});
+            }
+            if (url.pathname === `/integration-connections/${CONNECTION_ID}/repositories`) {
+              return jsonResponse({code: 'provider-unavailable'}, {status: 503});
+            }
+            return undefined;
+          },
+        }),
+      });
+      const user = userEvent.setup();
+
+      renderAutomationsPage();
+      await user.click(await screen.findByRole('button', {name: 'Move to your repository'}));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(await within(dialog).findByText("Couldn't load repositories")).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole('button', {name: 'Retry loading repositories'}),
+      ).toBeEnabled();
+    });
+
     test('links to Integrations when the workspace has no source control connection', async () => {
       configureApiClient({
         fetchImpl: createProjectDetailFetch({

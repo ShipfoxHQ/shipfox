@@ -82,11 +82,11 @@ export function RepositoryPicker({
   );
 }
 
-const VISIBILITY_LABEL: Record<Repository['visibility'], string | null> = {
+const VISIBILITY_LABEL: Record<Repository['visibility'], string> = {
   public: 'Public',
   private: 'Private',
   internal: 'Internal',
-  unknown: null,
+  unknown: 'Visibility unknown',
 };
 
 function RepositoryCard({repository, showDetails}: {repository: Repository; showDetails: boolean}) {
@@ -108,7 +108,7 @@ function RepositoryCard({repository, showDetails}: {repository: Repository; show
               <Code as="span" variant="label">
                 {repository.defaultBranch}
               </Code>
-              {visibility ? ` · ${visibility}` : null}
+              {` · ${visibility}`}
             </Text>
           ) : null}
         </RadioGroupItem>

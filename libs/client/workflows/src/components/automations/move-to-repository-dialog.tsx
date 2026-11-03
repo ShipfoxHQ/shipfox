@@ -50,13 +50,16 @@ export function MoveToRepositoryDialog({
   onOpenChange,
 }: MoveToRepositoryDialogProps) {
   const move = useMoveProjectConfigMutation();
+  function close() {
+    move.reset();
+    onOpenChange(false);
+  }
   return (
     <Modal
       open={open}
       onOpenChange={(nextOpen) => {
-        if (move.isPending && !nextOpen) return;
-        if (!nextOpen) move.reset();
-        onOpenChange(nextOpen);
+        if (nextOpen) onOpenChange(true);
+        else if (!move.isPending) close();
       }}
     >
       <ModalContent aria-describedby={undefined}>
@@ -67,7 +70,7 @@ export function MoveToRepositoryDialog({
           workspaceId={workspaceId}
           workspaceSlug={workspaceSlug}
           move={move}
-          onClose={() => onOpenChange(false)}
+          onClose={close}
         />
       </ModalContent>
     </Modal>
@@ -337,28 +340,40 @@ function RepositorySection({
         />
       </div>
       <div className="max-h-[280px] overflow-y-auto rounded-8 border border-border-neutral-base scrollbar">
-        <RepositoryPicker
-          repositories={repositories}
-          selectedRepositoryId={selectedRepositoryId}
-          onSelect={(externalRepositoryId) => {
-            const repository = repositories.find(
-              (candidate) => candidate.externalRepositoryId === externalRepositoryId,
-            );
-            if (repository) onSelect(repository);
-          }}
-          isLoading={repositoriesQuery.isPending}
-          isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
-          hasNextPage={repositoriesQuery.hasNextPage}
-          onLoadMore={() => {
-            void repositoriesQuery.fetchNextPage();
-          }}
-          emptyMessage={
-            debouncedSearch
-              ? `No repositories matching "${debouncedSearch}".`
-              : 'No repositories visible to this connection.'
-          }
-          showDetails
-        />
+        {repositoriesQuery.isError && repositories.length === 0 ? (
+          <LoadErrorState
+            title="Couldn't load repositories"
+            description="The connection didn't answer."
+            onRetry={() => {
+              void repositoriesQuery.refetch();
+            }}
+            retrying={repositoriesQuery.isRefetching}
+            retryLabel="Retry loading repositories"
+          />
+        ) : (
+          <RepositoryPicker
+            repositories={repositories}
+            selectedRepositoryId={selectedRepositoryId}
+            onSelect={(externalRepositoryId) => {
+              const repository = repositories.find(
+                (candidate) => candidate.externalRepositoryId === externalRepositoryId,
+              );
+              if (repository) onSelect(repository);
+            }}
+            isLoading={repositoriesQuery.isPending}
+            isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
+            hasNextPage={repositoriesQuery.hasNextPage}
+            onLoadMore={() => {
+              void repositoriesQuery.fetchNextPage();
+            }}
+            emptyMessage={
+              debouncedSearch
+                ? `No repositories matching "${debouncedSearch}".`
+                : 'No repositories visible to this connection.'
+            }
+            showDetails
+          />
+        )}
       </div>
     </section>
   );
@@ -410,16 +425,20 @@ function ConfirmMoveStep({
 }) {
   const {repository, fileCount} = check;
   const files = fileCount === 1 ? '1 file' : `${fileCount} files`;
+  // With no config files, the move opens no pull request and finishes at once.
+  const opensPullRequest = fileCount > 0;
 
   if (isMoving) {
     return (
       <ModalBody className="gap-group">
         <Text size="sm" role="status" className="flex items-center gap-inline">
           <Icon name="spinner" className="size-16 shrink-0" aria-hidden="true" />
-          Opening a pull request on {repository.fullName}…
+          {opensPullRequest
+            ? `Opening a pull request on ${repository.fullName}…`
+            : `Moving to ${repository.fullName}…`}
         </Text>
         <Text size="sm" className="text-foreground-neutral-subtle">
-          Keep this dialog open. The move finishes when the pull request opens.
+          Keep this dialog open until the move finishes.
         </Text>
       </ModalBody>
     );
@@ -428,24 +447,36 @@ function ConfirmMoveStep({
   return (
     <>
       <ModalBody className="gap-group">
-        <Text size="sm">
-          Shipfox opens a pull request that adds {files} to{' '}
-          <Code as="span">{repository.fullName}</Code> on{' '}
-          <Code as="span">{repository.defaultBranch}</Code>. The move takes effect when the pull
-          request opens, and it can't be undone.
-        </Text>
+        {opensPullRequest ? (
+          <Text size="sm">
+            Shipfox opens a pull request that adds {files} to{' '}
+            <Code as="span">{repository.fullName}</Code> on{' '}
+            <Code as="span">{repository.defaultBranch}</Code>. The move takes effect when the pull
+            request opens, and it can't be undone.
+          </Text>
+        ) : (
+          <Text size="sm">
+            This project has no config files yet, so it moves to{' '}
+            <Code as="span">{repository.fullName}</Code> right away, with no pull request. It can't
+            be undone.
+          </Text>
+        )}
         <ul
           aria-label="What changes"
           className="flex w-full flex-col divide-y divide-border-neutral-base rounded-8 border border-border-neutral-base"
         >
-          <ConsequenceItem>
-            Workflows keep running on today's config until the merge. Triggers, schedules, and run
-            numbers carry over.
-          </ConsequenceItem>
-          <ConsequenceItem>
-            Config can't change until the merge. Files stay empty until then, and past commits stay
-            behind.
-          </ConsequenceItem>
+          {opensPullRequest ? (
+            <>
+              <ConsequenceItem>
+                Workflows keep running on today's config until the merge. Triggers, schedules, and
+                run numbers carry over.
+              </ConsequenceItem>
+              <ConsequenceItem>
+                Config can't change until the merge. Files stay empty until then, and past commits
+                stay behind.
+              </ConsequenceItem>
+            </>
+          ) : null}
           <ConsequenceItem>
             Jobs and tools change now. Jobs with no checkout start checking out{' '}
             {repository.fullName}.
@@ -478,7 +509,7 @@ const VISIBILITY_NOTE: Record<ConfigMoveCheck['repository']['visibility'], strin
   public: ' The repository is public, so anyone can read it.',
   private: ' The repository is private.',
   internal: ' The repository is internal to its organization.',
-  unknown: '',
+  unknown: " Shipfox couldn't read its visibility.",
 };
 
 function ConsequenceItem({children}: {children: ReactNode}) {

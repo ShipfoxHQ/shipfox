@@ -318,7 +318,8 @@ export async function openProjectConfigPullRequest({
 async function refreshMovedProject(queryClient: QueryClient, projectId: string): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({queryKey: projectConfigQueryKeys.source(projectId)}),
-    queryClient.invalidateQueries({queryKey: projectsQueryKeys.detail(projectId)}),
+    // Every project query carries the source, including the list and slug lookups.
+    queryClient.invalidateQueries({queryKey: projectsQueryKeys.all}),
     queryClient.invalidateQueries({queryKey: definitionsQueryKeys.list(projectId)}),
   ]);
 }
