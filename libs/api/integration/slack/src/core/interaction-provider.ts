@@ -85,6 +85,7 @@ const PERSON_MESSAGE_SUBTYPES: ReadonlySet<string | undefined> = new Set([
   undefined,
   'thread_broadcast',
   'file_share',
+  'me_message',
 ]);
 
 const CHANNEL_ENTITY_TYPE = 'slack#/types/channel_id';

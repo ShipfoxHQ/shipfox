@@ -146,8 +146,19 @@ describe('Slack interaction provider', () => {
       ts: '300.1',
     });
 
-    expect(result?.conversationKey).toBe(`${connection.id}:D1:300.1`);
-    expect(result?.context).not.toHaveProperty('viewing_channel_id');
+    expect(result).toEqual({
+      conversationKey: `${connection.id}:D1:300.1`,
+      role: 'request',
+      context: {
+        surface: 'agent_view',
+        channel_id: 'D1',
+        channel_type: 'im',
+        user_id: 'U1',
+        team_id: 'T1',
+      },
+      author: {externalId: 'U1'},
+      text: 'hello',
+    });
   });
 
   it('reads the agent view stop control as a stop on the session thread', async () => {
