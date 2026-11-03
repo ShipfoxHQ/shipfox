@@ -3,7 +3,9 @@ import {
   type IntegrationSourceRepositoryUpdatedEvent,
 } from '@shipfox/api-integration-core-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
+import {db} from '#db/db.js';
 import {getProjectBySource} from '#db/index.js';
+import {loadProjectAccessByIds, replaceProjectAccess} from '#db/project-access.js';
 import {projectFactory} from '#test/index.js';
 import {onSourceRepositoryUpdated} from './on-source-repository-updated.js';
 
@@ -104,5 +106,51 @@ describe('onSourceRepositoryUpdated', () => {
     expect(refreshed).toMatchObject({
       sourceRepositoryName: 'platform-renamed',
     });
+  });
+
+  it('follows a rename in the stored names of a listed repository, in every project', async () => {
+    const connectionId = crypto.randomUUID();
+    const externalId = `github:${crypto.randomUUID()}`;
+    const listed = {
+      kind: 'repository',
+      externalId,
+      lookupName: 'acme/platform',
+      displayName: 'acme/Platform',
+    };
+    const other = {
+      kind: 'repository',
+      externalId: 'github:other',
+      lookupName: 'acme/other',
+      displayName: 'acme/other',
+    };
+    const first = await projectFactory.create();
+    const second = await projectFactory.create();
+    for (const project of [first, second]) {
+      await db().transaction((tx) =>
+        replaceProjectAccess({
+          tx,
+          projectId: project.id,
+          access: {
+            connectionAccess: 'selected',
+            scopes: [{connectionId, resources: [listed, other]}],
+          },
+        }),
+      );
+    }
+    const event = buildEvent({
+      workspaceId: first.workspaceId,
+      connectionId,
+      externalRepositoryId: externalId,
+    });
+
+    await onSourceRepositoryUpdated(event.payload, event);
+
+    const access = await loadProjectAccessByIds([first.id, second.id]);
+    for (const project of [first, second]) {
+      expect(access.get(project.id)?.scopes[0]?.resources).toEqual([
+        other,
+        {...listed, lookupName: 'acme/platform-renamed', displayName: 'acme/platform-renamed'},
+      ]);
+    }
   });
 });

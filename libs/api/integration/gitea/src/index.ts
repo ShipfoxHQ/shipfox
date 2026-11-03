@@ -5,6 +5,7 @@ import type {
   PublishSourcePushFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
+import {repositoryScopeResources} from '@shipfox/api-integration-spi';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGiteaApiClient, type GiteaApiClient} from '#api/client.js';
 import {GiteaAgentToolsProvider} from '#core/agent-tools-provider.js';
@@ -77,13 +78,15 @@ export interface CreateGiteaIntegrationProviderOptions {
 export function createGiteaIntegrationProvider(options: CreateGiteaIntegrationProviderOptions) {
   const gitea = options.gitea ?? createGiteaApiClient();
   const webhookProcessor = createGiteaWebhookProcessor(options);
+  const sourceControl = new GiteaSourceControlProvider(gitea);
 
   return {
     provider: giteaProviderKind,
     displayName: 'Gitea',
     eventCatalog: giteaEventCatalog,
+    ...repositoryScopeResources(sourceControl),
     adapters: {
-      source_control: new GiteaSourceControlProvider(gitea),
+      source_control: sourceControl,
       agent_tools: new GiteaAgentToolsProvider({gitea}),
     },
     connectionExternalUrl(connection: {externalAccountId: string}): Promise<string | undefined> {

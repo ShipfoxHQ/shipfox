@@ -12,6 +12,7 @@ import {
   deleteIntegrationConnection,
   getIntegrationConnectionById,
   updateIntegrationConnectionLifecycleStatus,
+  writeConnectionDeletedEvent,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
 import {enqueueIntegrationSecretCleanup} from '#db/secret-cleanups.js';
@@ -125,6 +126,7 @@ export function createDeleteIntegrationConnectionRoute(registry: IntegrationProv
           await provider?.deleteConnectionRecords?.(connection, {tx});
           await enqueueIntegrationSecretCleanup({connection}, {tx});
           await deleteIntegrationConnection({id: connection.id}, {tx});
+          await writeConnectionDeletedEvent(connection, {tx});
         });
         try {
           await deleteRemoteResources?.();

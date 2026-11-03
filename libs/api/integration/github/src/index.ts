@@ -9,6 +9,7 @@ import type {
   RecordDeliveryOnlyFn,
   UpdateIntegrationConnectionLifecycleStatusFn,
 } from '@shipfox/api-integration-spi';
+import {repositoryScopeResources} from '@shipfox/api-integration-spi';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
 import {
@@ -266,13 +267,16 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     deleteInstallationTokenSecret,
   });
 
+  const sourceControl = new GithubSourceControlProvider(github, undefined, checkoutTokenCache);
+
   return {
     provider: 'github' as const,
     displayName: 'GitHub',
     repositoryAuthorization: options.repositoryAuthorization ?? 'unclassified',
     eventCatalog: githubEventCatalog,
+    ...repositoryScopeResources(sourceControl),
     adapters: {
-      source_control: new GithubSourceControlProvider(github, undefined, checkoutTokenCache),
+      source_control: sourceControl,
       agent_tools: new GithubAgentToolsProvider({
         getInstallationByConnectionId: getInstallationByConnectionId,
         tokenProvider: installationTokenProvider,

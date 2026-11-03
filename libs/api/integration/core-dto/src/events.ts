@@ -6,6 +6,7 @@ import {
 
 export const INTEGRATION_EVENT_RECEIVED = 'integrations.event.received' as const;
 export const INTEGRATION_CONNECTION_AVAILABLE = 'integrations.connection.available' as const;
+export const INTEGRATION_CONNECTION_DELETED = 'integrations.connection.deleted' as const;
 export const CONNECTION_REPOSITORY_ACCESS_CHANGED =
   'integrations.connection.repository_access_changed' as const;
 
@@ -44,6 +45,16 @@ export const integrationConnectionAvailableSchema = z.object({
 export type IntegrationConnectionAvailableEvent = z.infer<
   typeof integrationConnectionAvailableSchema
 >;
+
+// Written in the transaction that deletes the connection. Consumers that keep rows keyed by the
+// connection id remove them, because nothing else tells them the connection is gone.
+export const integrationConnectionDeletedSchema = z.object({
+  provider: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+  connectionId: nonEmptyStringSchema,
+  slug: nonEmptyStringSchema,
+});
+export type IntegrationConnectionDeletedEvent = z.infer<typeof integrationConnectionDeletedSchema>;
 
 const repositoryAccessAuditBaseSchema = z.object({
   actorId: nonEmptyStringSchema.max(255),
@@ -148,6 +159,7 @@ export type SentryIssueAction = (typeof SENTRY_ISSUE_ACTIONS)[number];
 export interface IntegrationsEventMap {
   [CONNECTION_REPOSITORY_ACCESS_CHANGED]: ConnectionRepositoryAccessChangedEvent;
   [INTEGRATION_CONNECTION_AVAILABLE]: IntegrationConnectionAvailableEvent;
+  [INTEGRATION_CONNECTION_DELETED]: IntegrationConnectionDeletedEvent;
   [INTEGRATION_EVENT_RECEIVED]: IntegrationEventReceivedEvent;
   [INTEGRATION_SOURCE_COMMIT_PUSHED]: IntegrationSourceCommitPushedEvent;
   [INTEGRATION_SOURCE_REPOSITORY_UPDATED]: IntegrationSourceRepositoryUpdatedEvent;
@@ -156,6 +168,7 @@ export interface IntegrationsEventMap {
 export const integrationsEventSchemas = {
   [CONNECTION_REPOSITORY_ACCESS_CHANGED]: connectionRepositoryAccessChangedSchema,
   [INTEGRATION_CONNECTION_AVAILABLE]: integrationConnectionAvailableSchema,
+  [INTEGRATION_CONNECTION_DELETED]: integrationConnectionDeletedSchema,
   [INTEGRATION_EVENT_RECEIVED]: integrationEventReceivedSchema,
   [INTEGRATION_SOURCE_COMMIT_PUSHED]: integrationSourceCommitPushedSchema,
   [INTEGRATION_SOURCE_REPOSITORY_UPDATED]: integrationSourceRepositoryUpdatedSchema,

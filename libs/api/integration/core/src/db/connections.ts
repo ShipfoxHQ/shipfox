@@ -1,6 +1,7 @@
 import {
   CONNECTION_SLUG_MAX_LENGTH,
   INTEGRATION_CONNECTION_AVAILABLE,
+  INTEGRATION_CONNECTION_DELETED,
   type IntegrationsEventMap,
   RESERVED_CONNECTION_SLUGS,
 } from '@shipfox/api-integration-core-dto';
@@ -477,6 +478,22 @@ async function writeConnectionAvailableEvent(
       slug: connection.slug,
       ...(actorUserId === undefined ? {} : {actorUserId}),
       capabilities: capabilities ?? [],
+    },
+  });
+}
+
+export async function writeConnectionDeletedEvent(
+  connection: IntegrationConnection,
+  options: {tx: IntegrationDb | IntegrationTx},
+): Promise<void> {
+  await writeOutboxEvent<IntegrationsEventMap>(options.tx, integrationsOutbox, {
+    type: INTEGRATION_CONNECTION_DELETED,
+    orderingKey: connection.id,
+    payload: {
+      provider: connection.provider,
+      workspaceId: connection.workspaceId,
+      connectionId: connection.id,
+      slug: connection.slug,
     },
   });
 }

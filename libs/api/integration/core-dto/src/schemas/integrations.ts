@@ -174,3 +174,30 @@ export const listRepositoriesResponseSchema = z.object({
   next_cursor: z.string().nullable(),
 });
 export type ListRepositoriesResponseDto = z.infer<typeof listRepositoriesResponseSchema>;
+
+export const listScopeResourcesParamsSchema = z.object({
+  connectionId: z.string().uuid(),
+});
+export type ListScopeResourcesParamsDto = z.infer<typeof listScopeResourcesParamsSchema>;
+
+export const listScopeResourcesQuerySchema = z.object({
+  kind: z.string().min(1).max(64),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().optional(),
+  search: z.string().min(1).max(100).optional(),
+});
+export type ListScopeResourcesQueryDto = z.infer<typeof listScopeResourcesQuerySchema>;
+
+export const scopeResourceDtoSchema = z.object({
+  kind: z.string(),
+  external_id: z.string(),
+  lookup_name: z.string(),
+  display_name: z.string(),
+});
+export type ScopeResourceDto = z.infer<typeof scopeResourceDtoSchema>;
+
+export const listScopeResourcesResponseSchema = z.object({
+  resources: z.array(scopeResourceDtoSchema),
+  next_cursor: z.string().nullable(),
+});
+export type ListScopeResourcesResponseDto = z.infer<typeof listScopeResourcesResponseSchema>;

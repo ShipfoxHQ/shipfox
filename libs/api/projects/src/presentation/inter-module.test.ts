@@ -3,6 +3,7 @@ import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/index.js';
+import {replaceProjectAccess} from '#db/project-access.js';
 import {projects} from '#db/schema/projects.js';
 import {createProjectsInterModulePresentation} from './inter-module.js';
 
@@ -479,5 +480,156 @@ describe('Projects moveProjectSource inter-module presentation', () => {
 
     expect(error.code).toBe('source-already-bound');
     expect(error.details).toEqual({existingProjectId: owner.projectId});
+  });
+});
+
+describe('Projects access policy inter-module presentation', () => {
+  const sdk = {
+    kind: 'repository',
+    externalId: 'github:1',
+    lookupName: 'acme/sdk',
+    displayName: 'acme/SDK',
+  };
+
+  test('returns all connections for a project that never set its access', async () => {
+    const client = createClient();
+    const workspaceId = crypto.randomUUID();
+    const project = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'Acme',
+      name: 'Config',
+      externalRepositoryId: 'github:9',
+    });
+
+    const {policy} = await client.getProjectAccessPolicy({
+      workspaceId,
+      projectId: project.projectId,
+    });
+
+    expect(policy).toEqual({
+      projectId: project.projectId,
+      configSource: {
+        managed: false,
+        connectionId: project.connectionId,
+        externalRepositoryId: 'github:9',
+        lookupName: 'acme/config',
+      },
+      connections: 'all',
+    });
+  });
+
+  test('marks a managed config source and has no name for it', async () => {
+    const client = createClient();
+    const workspaceId = crypto.randomUUID();
+    const project = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: null,
+      name: null,
+      externalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
+    });
+
+    const {policy} = await client.getProjectAccessPolicy({
+      workspaceId,
+      projectId: project.projectId,
+    });
+
+    expect(policy.configSource).toMatchObject({managed: true, lookupName: null});
+  });
+
+  test('returns the stored scopes and resources without display names', async () => {
+    const client = createClient();
+    const workspaceId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    const linear = crypto.randomUUID();
+    const project = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'config',
+    });
+    await db().transaction((tx) =>
+      replaceProjectAccess({
+        tx,
+        projectId: project.projectId,
+        access: {
+          connectionAccess: 'selected',
+          scopes: [
+            {connectionId, resources: [sdk]},
+            {connectionId: linear, resources: 'all'},
+          ],
+        },
+      }),
+    );
+
+    const {policy} = await client.getProjectAccessPolicy({
+      workspaceId,
+      projectId: project.projectId,
+    });
+
+    expect(policy.connections).toHaveLength(2);
+    expect(policy.connections).toEqual(
+      expect.arrayContaining([
+        {
+          connectionId,
+          resources: [{kind: 'repository', externalId: 'github:1', lookupName: 'acme/sdk'}],
+        },
+        {connectionId: linear, resources: 'all'},
+      ]),
+    );
+  });
+
+  test('throws project-not-found for a missing project or one of another workspace', async () => {
+    const client = createClient();
+    const project = await insertProject({
+      workspaceId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'config',
+    });
+
+    for (const input of [
+      {workspaceId: crypto.randomUUID(), projectId: crypto.randomUUID()},
+      {workspaceId: crypto.randomUUID(), projectId: project.projectId},
+    ]) {
+      const error = await client.getProjectAccessPolicy(input).catch((caught) => caught);
+      expect(
+        isInterModuleKnownError(projectsInterModuleContract.methods.getProjectAccessPolicy, error),
+      ).toBe(true);
+      expect(error.code).toBe('project-not-found');
+    }
+  });
+
+  test('returns the policies of the projects it finds and leaves the others out', async () => {
+    const client = createClient();
+    const workspaceId = crypto.randomUUID();
+    const first = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'first',
+    });
+    const second = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'second',
+    });
+    const foreign = await insertProject({
+      workspaceId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'foreign',
+    });
+
+    const {policies} = await client.getProjectAccessPolicies({
+      workspaceId,
+      projectIds: [first.projectId, second.projectId, foreign.projectId, crypto.randomUUID()],
+    });
+
+    expect(policies.map((policy) => policy.projectId).sort()).toEqual(
+      [first.projectId, second.projectId].sort(),
+    );
   });
 });

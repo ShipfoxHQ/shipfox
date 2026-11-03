@@ -1,4 +1,18 @@
 export {
+  type ProjectAccessConnectionDto,
+  type ProjectAccessConnectionInputDto,
+  type ProjectAccessResourceDto,
+  type ProjectAccessResourceInputDto,
+  type ProjectAccessResponseDto,
+  projectAccessConnectionDtoSchema,
+  projectAccessConnectionInputSchema,
+  projectAccessResourceDtoSchema,
+  projectAccessResourceInputSchema,
+  projectAccessResponseSchema,
+  type UpdateProjectAccessBodyDto,
+  updateProjectAccessBodySchema,
+} from './access.js';
+export {
   type AdminProjectSummaryDto,
   adminProjectSummaryDtoSchema,
   type CreateProjectBodyDto,

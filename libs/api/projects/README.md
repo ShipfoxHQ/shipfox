@@ -7,6 +7,7 @@ Shipfox API Projects manages project resources and their source repository bindi
 - **`createProjectFromSource`**: Creates a project from a repository in an integration connection.
 - **`createManagedProject`**: Creates a project whose config lives in a repository Shipfox hosts, with optional seed files.
 - **`updateProjectDetails`**: Changes a project's name or slug and writes the update event.
+- **`setProjectAccess`**: Replaces the connections and resources a project's workloads can use. See [Access](#access).
 - **`createProjectRoutes`**: Mounts project and administrator HTTP routes.
 - **`Project`**: Represents the project identity, URL slug, source repository, and timestamps.
 
@@ -46,6 +47,8 @@ Routes mount under `/projects` and use UUIDs for resource identity:
 | `GET` | `/projects?workspace_id=<workspaceId>` | List projects in a workspace. |
 | `GET` | `/projects/<projectId>` | Read one project. |
 | `PATCH` | `/projects/<projectId>` | Update a project's name or slug. |
+| `GET` | `/projects/<projectId>/access` | Read the project's access. Members can read it. |
+| `PUT` | `/projects/<projectId>/access` | Replace the project's access. Workspace admins only, and never an impersonated session. |
 
 The create and update bodies carry the mutable `slug` field. A project slug is
 unique within its workspace. A duplicate returns `409 slug-conflict`, while a
@@ -63,6 +66,35 @@ repository already bound to a project returns the separate
 Project slugs are navigation values. The API does not resolve a project from a
 slug in a resource path or query. The client resolves a project slug from its
 workspace project list, then sends the UUID to the API.
+
+## Access
+
+A project's access lists the connections its workloads can use and, for each connection, the
+resources they can reach. Nothing enforces it yet; this module stores and serves it.
+
+- **`connection_access`** on the project is `all` (the default) or `selected`. Only `selected`
+  projects have rows in `projects_connection_scopes`, one per listed connection. A scope limited to
+  some resources has rows in `projects_connection_resources`, with the provider id, a lowercase
+  `lookup_name` for name targets, and the provider's `display_name`.
+- **`PUT` replaces everything** in one transaction and writes `PROJECT_ACCESS_CHANGED`, an audit
+  event with the actor, the correlation id, and a count of resources per connection. The body is
+  `{"connections": "all"}` or a list of `{connection_id, resources: "all" | [{kind, external_id}]}`.
+- **Validation** goes through the integrations client. Each listed connection must belong to the
+  workspace, be active, and not be internal. A listed resource must be a `repository` that the
+  connection's provider declares and can resolve, or the request answers `422 resource-not-found`.
+  The other refusals are `access-connection-invalid`, `access-connection-duplicate`,
+  `access-resource-kind-unsupported`, `access-resource-scope-empty`, and `access-limit-exceeded`.
+- **Limits** are 100 connections and 1,000 resources per project.
+- **The config source counts.** A linked project's config repository counts toward the one-resource
+  minimum of its connection, so that connection can hold zero resource rows and still mean "only the
+  config repository". The config source is never stored as a resource.
+- **`getProjectAccessPolicy` and `getProjectAccessPolicies`** on the inter-module contract return
+  the policy that the evaluator in `@shipfox/api-projects-dto` takes. The single read throws
+  `project-not-found`. The batch read takes up to 100 ids and leaves out projects it can't find.
+- **Connection deletion** removes the connection from every project. The module consumes
+  `integrations.connection.deleted` and deletes the matching scopes, which cascades to their
+  resources. A repository rename updates the stored `lookup_name` and `display_name` of a listed
+  repository through `integrations.source_control.repository_updated`.
 
 ## Behavior Notes
 

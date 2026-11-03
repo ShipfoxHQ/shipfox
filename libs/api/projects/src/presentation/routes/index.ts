@@ -7,6 +7,7 @@ import {createAdminProjectsRoute} from './admin-projects.js';
 import {createProjectRoute} from './create-project.js';
 import {getProjectRoute} from './get-project.js';
 import {listProjectsRoute} from './list-projects.js';
+import {createGetProjectAccessRoute, createUpdateProjectAccessRoute} from './project-access.js';
 import {updateProjectRoute} from './update-project.js';
 
 export function createProjectRoutes(
@@ -22,6 +23,8 @@ export function createProjectRoutes(
         listProjectsRoute,
         getProjectRoute,
         updateProjectRoute,
+        createGetProjectAccessRoute(integrations),
+        createUpdateProjectAccessRoute(integrations),
       ],
     },
     {

@@ -2,6 +2,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import {
+  INTEGRATION_CONNECTION_DELETED,
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   INTEGRATION_SOURCE_REPOSITORY_UPDATED,
   type IntegrationsEventMap,
@@ -15,7 +16,11 @@ import {registerProjectsServiceMetrics} from '#metrics/index.js';
 import {projectsE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
 import {createProjectsInterModulePresentation} from '#presentation/inter-module.js';
-import {onSourceCommitPushed, onSourceRepositoryUpdated} from '#presentation/subscribers/index.js';
+import {
+  onConnectionDeleted,
+  onSourceCommitPushed,
+  onSourceRepositoryUpdated,
+} from '#presentation/subscribers/index.js';
 import {createProjectsMaintenanceActivities} from '#temporal/activities/index.js';
 import {PROJECTS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 import {projectsFlags} from './flags.js';
@@ -75,6 +80,7 @@ export function createProjectsModule({
     publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],
     interModulePresentations: [createProjectsInterModulePresentation()],
     subscribers: [
+      subscriber(INTEGRATION_CONNECTION_DELETED, onConnectionDeleted),
       subscriber(INTEGRATION_SOURCE_COMMIT_PUSHED, onSourceCommitPushed),
       subscriber(INTEGRATION_SOURCE_REPOSITORY_UPDATED, onSourceRepositoryUpdated),
     ],

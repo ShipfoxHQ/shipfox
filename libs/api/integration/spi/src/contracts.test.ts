@@ -9,6 +9,7 @@ import {
   isValidTriggerRef,
   normalizeCheckoutTarget,
   parseProviderRepositoryId,
+  repositoryScopeResources,
 } from './contracts.js';
 
 describe('git ref names', () => {
@@ -172,5 +173,121 @@ describe('repository file text', () => {
     const result = decodeRepositoryFileText(bytes);
 
     expect(result).toBeNull();
+  });
+});
+
+describe('repositoryScopeResources', () => {
+  const connection = {
+    id: 'conn-1',
+    workspaceId: 'ws-1',
+    provider: 'github',
+    externalAccountId: '1',
+    slug: 'github_acme',
+    displayName: 'GitHub',
+    lifecycleStatus: 'active' as const,
+    repositoryAccessMode: 'all' as const,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  const repository = {
+    externalRepositoryId: 'github:1',
+    owner: 'Acme',
+    name: 'SDK',
+    fullName: 'Acme/SDK',
+    defaultBranch: 'main',
+    visibility: 'private' as const,
+    cloneUrl: 'https://github.com/Acme/SDK.git',
+    htmlUrl: 'https://github.com/Acme/SDK',
+  };
+
+  it('declares the repository kind', () => {
+    const scope = repositoryScopeResources({listRepositories: vi.fn(), resolveRepository: vi.fn()});
+
+    expect(scope.resourceKinds).toEqual([{kind: 'repository', label: 'Repositories'}]);
+  });
+
+  it('lists repositories as resources with a lowercase lookup name', async () => {
+    const listRepositories = vi
+      .fn()
+      .mockResolvedValue({repositories: [repository], nextCursor: 'n'});
+    const scope = repositoryScopeResources({listRepositories, resolveRepository: vi.fn()});
+
+    const page = await scope.listScopeResources({
+      connection,
+      kind: 'repository',
+      limit: 20,
+      cursor: 'c',
+      query: 'sdk',
+    });
+
+    expect(page).toEqual({
+      resources: [
+        {
+          kind: 'repository',
+          externalId: 'github:1',
+          lookupName: 'acme/sdk',
+          displayName: 'Acme/SDK',
+        },
+      ],
+      nextCursor: 'n',
+    });
+    expect(listRepositories).toHaveBeenCalledWith({
+      connection,
+      limit: 20,
+      cursor: 'c',
+      search: 'sdk',
+    });
+  });
+
+  it('lists nothing for another kind', async () => {
+    const listRepositories = vi.fn();
+    const scope = repositoryScopeResources({listRepositories, resolveRepository: vi.fn()});
+
+    const page = await scope.listScopeResources({connection, kind: 'team', limit: 20});
+
+    expect(page).toEqual({resources: [], nextCursor: null});
+    expect(listRepositories).not.toHaveBeenCalled();
+  });
+
+  it('resolves a repository, and answers null when the provider cannot find it', async () => {
+    const resolveRepository = vi
+      .fn()
+      .mockResolvedValueOnce(repository)
+      .mockRejectedValueOnce(new IntegrationProviderError('repository-not-found', 'gone'));
+    const scope = repositoryScopeResources({listRepositories: vi.fn(), resolveRepository});
+
+    await expect(
+      scope.resolveScopeResource({connection, kind: 'repository', externalId: 'github:1'}),
+    ).resolves.toEqual({
+      kind: 'repository',
+      externalId: 'github:1',
+      lookupName: 'acme/sdk',
+      displayName: 'Acme/SDK',
+    });
+    await expect(
+      scope.resolveScopeResource({connection, kind: 'repository', externalId: 'github:2'}),
+    ).resolves.toBeNull();
+  });
+
+  it('does not hide other provider failures', async () => {
+    const failure = new IntegrationProviderError('rate-limited', 'slow down');
+    const scope = repositoryScopeResources({
+      listRepositories: vi.fn(),
+      resolveRepository: vi.fn().mockRejectedValue(failure),
+    });
+
+    await expect(
+      scope.resolveScopeResource({connection, kind: 'repository', externalId: 'github:1'}),
+    ).rejects.toBe(failure);
+  });
+
+  it('resolves nothing for another kind', async () => {
+    const resolveRepository = vi.fn();
+    const scope = repositoryScopeResources({listRepositories: vi.fn(), resolveRepository});
+
+    await expect(
+      scope.resolveScopeResource({connection, kind: 'team', externalId: 't1'}),
+    ).resolves.toBeNull();
+    expect(resolveRepository).not.toHaveBeenCalled();
   });
 });

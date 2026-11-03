@@ -584,6 +584,8 @@ function clients() {
       requireProjectForWorkspace: (input) => projectHandlers.requireProjectForWorkspace(input),
       getWorkspaceProjectCounts: vi.fn(),
       moveProjectSource: vi.fn(),
+      getProjectAccessPolicy: vi.fn(),
+      getProjectAccessPolicies: vi.fn(),
       resolveCheckoutTarget: vi.fn(),
     }),
     definitions: defineInterModulePresentation(definitionsInterModuleContract, {

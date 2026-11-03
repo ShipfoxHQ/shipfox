@@ -2,10 +2,12 @@ import {
   CONNECTION_REPOSITORY_ACCESS_CHANGED,
   connectionRepositoryAccessChangedSchema,
   INTEGRATION_CONNECTION_AVAILABLE,
+  INTEGRATION_CONNECTION_DELETED,
   INTEGRATION_EVENT_RECEIVED,
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   INTEGRATION_SOURCE_REPOSITORY_UPDATED,
   integrationConnectionAvailableSchema,
+  integrationConnectionDeletedSchema,
   integrationEventReceivedSchema,
   integrationSourceCommitPushedSchema,
   integrationSourceRepositoryUpdatedSchema,
@@ -251,6 +253,33 @@ describe('connectionRepositoryAccessChangedSchema', () => {
   });
 });
 
+describe('integrationConnectionDeletedSchema', () => {
+  it('accepts the connection that was deleted', () => {
+    const payload = {
+      provider: 'github',
+      workspaceId: 'ws-1',
+      connectionId: 'conn-1',
+      slug: 'github_acme',
+    };
+
+    expect(integrationConnectionDeletedSchema.parse(payload)).toEqual(payload);
+  });
+
+  it('refuses a payload without the connection id', () => {
+    expect(() =>
+      integrationConnectionDeletedSchema.parse({
+        provider: 'github',
+        workspaceId: 'ws-1',
+        slug: 'github_acme',
+      }),
+    ).toThrow();
+  });
+
+  it('is registered under its event name', () => {
+    expect(INTEGRATION_CONNECTION_DELETED).toBe('integrations.connection.deleted');
+  });
+});
+
 describe('integrationsEventSchemas', () => {
   it('registers every integration publisher event type', () => {
     const registeredTypes = Object.keys(integrationsEventSchemas).sort();
@@ -259,6 +288,7 @@ describe('integrationsEventSchemas', () => {
       [
         CONNECTION_REPOSITORY_ACCESS_CHANGED,
         INTEGRATION_CONNECTION_AVAILABLE,
+        INTEGRATION_CONNECTION_DELETED,
         INTEGRATION_EVENT_RECEIVED,
         INTEGRATION_SOURCE_COMMIT_PUSHED,
         INTEGRATION_SOURCE_REPOSITORY_UPDATED,

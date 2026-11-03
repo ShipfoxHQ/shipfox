@@ -37,6 +37,7 @@ documentation model and other engineering sources, start with the
 | [0025: Managed config repositories](0025-managed-config-repositories.md) | Accepted | The managed repo as a provider, objects and refs in Postgres, the objects-only adapter, no wire protocol, the rule that only a merge moves `main`, and one-way moves. |
 | [0026: Project dock contribution](0026-project-dock-contribution.md) | Accepted; amends ADR 0001 | The `projectDock` feature contribution, its lifetime, its panel host, and the page context the shell keeps for it. |
 | [0027: Agent turn runtime and conversations](0027-agent-turn-runtime-and-conversations.md) | Accepted | Conversations as pi session entries in Postgres, the pinned prompt, the per-conversation Temporal workflow, model and tool activities, the pinned fetch, and turn limits. |
+| [0028: Project access and workload boundaries](0028-project-access-and-workload-boundaries.md) | Accepted | Projects as workload boundaries, per-connection access with generic resource kinds, the pure evaluator, repository-keyed checkout revisions, the default project, and deletion markers with `stopWork`. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the

@@ -4,6 +4,7 @@ const nonEmptyStringSchema = z.string().nonempty();
 
 export const PROJECT_CREATED = 'projects.project.created' as const;
 export const PROJECT_UPDATED = 'projects.project.updated' as const;
+export const PROJECT_ACCESS_CHANGED = 'projects.project.access_changed' as const;
 export const PROJECT_SOURCE_BOUND = 'projects.project.source_bound' as const;
 export const PROJECT_SOURCE_COMMIT_OBSERVED = 'projects.project.source_commit_observed' as const;
 
@@ -34,6 +35,28 @@ export const projectUpdatedEventSchema = z.object({
 });
 export type ProjectUpdatedEvent = z.infer<typeof projectUpdatedEventSchema>;
 
+const isoDateTimeSchema = z.string().datetime();
+
+// A summary, not the policy: a project can list up to a thousand resources, and the audit trail
+// keeps who changed what, not a copy of the lists.
+export const projectAccessChangedEventSchema = z.object({
+  actorId: nonEmptyStringSchema.max(255),
+  workspaceId: nonEmptyStringSchema,
+  projectId: nonEmptyStringSchema,
+  correlationId: nonEmptyStringSchema.max(255),
+  occurredAt: isoDateTimeSchema,
+  connections: z.union([
+    z.literal('all'),
+    z.array(
+      z.object({
+        connectionId: nonEmptyStringSchema,
+        resources: z.union([z.literal('all'), z.object({count: z.number().int().nonnegative()})]),
+      }),
+    ),
+  ]),
+});
+export type ProjectAccessChangedEvent = z.infer<typeof projectAccessChangedEventSchema>;
+
 export const projectSourceBoundEventSchema = z.object({
   actorId: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
@@ -60,6 +83,7 @@ export type ProjectSourceCommitObservedEvent = z.infer<
 export interface ProjectsEventMap {
   [PROJECT_CREATED]: ProjectCreatedEvent;
   [PROJECT_UPDATED]: ProjectUpdatedEvent;
+  [PROJECT_ACCESS_CHANGED]: ProjectAccessChangedEvent;
   [PROJECT_SOURCE_BOUND]: ProjectSourceBoundEvent;
   [PROJECT_SOURCE_COMMIT_OBSERVED]: ProjectSourceCommitObservedEvent;
 }
@@ -67,6 +91,7 @@ export interface ProjectsEventMap {
 export const projectsEventSchemas = {
   [PROJECT_CREATED]: projectCreatedEventSchema,
   [PROJECT_UPDATED]: projectUpdatedEventSchema,
+  [PROJECT_ACCESS_CHANGED]: projectAccessChangedEventSchema,
   [PROJECT_SOURCE_BOUND]: projectSourceBoundEventSchema,
   [PROJECT_SOURCE_COMMIT_OBSERVED]: projectSourceCommitObservedEventSchema,
 } satisfies Record<keyof ProjectsEventMap, z.ZodType>;

@@ -1,6 +1,7 @@
 import {slugSchema} from '@shipfox/api-common-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
+import {projectAccessPolicySchema} from './access.js';
 
 const idSchema = z.string().uuid();
 const projectSchema = z.object({
@@ -180,6 +181,25 @@ export const projectsInterModuleContract = defineInterModuleContract({
         /** Another project already owns `to`. */
         'source-already-bound': z.object({existingProjectId: idSchema}),
       },
+    },
+    /**
+     * The project's access, as the input of the evaluators in this package. A project in another
+     * workspace is indistinguishable from a missing one.
+     */
+    getProjectAccessPolicy: {
+      input: z.object({workspaceId: idSchema, projectId: idSchema}),
+      output: z.object({policy: projectAccessPolicySchema}),
+      errors: {
+        'project-not-found': z.object({projectId: idSchema}),
+      },
+    },
+    /** Missing ids, and ids of another workspace, are absent from the result. */
+    getProjectAccessPolicies: {
+      input: z.object({
+        workspaceId: idSchema,
+        projectIds: z.array(idSchema).min(1).max(100),
+      }),
+      output: z.object({policies: z.array(projectAccessPolicySchema)}),
     },
     resolveCheckoutTarget: {
       input: z.object({
