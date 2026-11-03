@@ -22,7 +22,7 @@ export function createBackfillDefaultProjectsRoute(deps: {
     path: '/default-backfill',
     auth: AUTH_USER,
     description:
-      'Give every workspace that is not deleted a default project, and fill the missing config repository owners, names, and default branches. Safe to run again.',
+      'Give every workspace that is not deleted a default project, and fill the missing config repository owners and names. Safe to run again.',
     schema: {
       response: {200: backfillDefaultProjectsResponseSchema},
     },
