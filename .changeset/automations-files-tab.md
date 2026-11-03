@@ -9,4 +9,4 @@ The Automations page gains a Files tab with file history.
 - **History:** a `Code | History` toggle, kept in the `view=history` search parameter, lists the commits that changed a file. A selected folder lists its history, so `.shipfox` shows every config change. Rows open the commit when the provider has a page for it, and History is hidden when the provider can't list commits.
 - **Links:** a file names the workflow that uses it. On the Workflows tab, `View file`, the "Updated" cell, and sync diagnostics open the file.
 - **`@shipfox/client-projects`:** adds `useProjectConfigFilesQuery`, `useProjectConfigFileQuery`, `useProjectConfigCommitsInfiniteQuery`, their query options and request functions, and the `ConfigFileEntry`, `ConfigFile`, and `ConfigCommit` models.
-- **`@shipfox/client-workflows`:** `ProjectAutomationsPage` takes an optional `tab`, and `WorkflowDefinitionsTable` an optional `projectSlug`.
+- **`@shipfox/client-workflows`:** `ProjectAutomationsPage` takes an optional `tab`.
