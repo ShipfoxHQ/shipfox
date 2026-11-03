@@ -80,8 +80,8 @@ export async function reconcileCapacityHoldsActivity(params: {
  * Runs every runner maintenance step in one activity. Temporal bills each activity, and
  * the detector fires every minute, so one activity instead of eight is most of our
  * Temporal usage. The GC steps are best effort: a failure is logged and the sweep moves
- * on. A failure in a later step fails the activity, and the default retry policy
- * re-runs the whole sweep, which is safe because every step is idempotent.
+ * on. A failure in a later step fails the activity, and the next minute's run retries
+ * the whole sweep, which is safe because every step is idempotent.
  */
 export async function runMaintenanceSweepActivity(params: {
   placement?: InstallationPlacementPolicy;

@@ -17,8 +17,9 @@ const {drainCronBatchActivity, readCronFanoutActivity, runCronTickActivity} = pr
   heartbeatTimeout: '1 minute',
   // No activity retry: the drain is not batch-idempotent across retries. A retry after a
   // committed advance would claim a fresh due batch and fire beyond the
-  // fanout * TRIGGER_CRON_CLAIM_BATCH per-tick ceiling. Whole-activity failures roll the
-  // batch back (rows stay due) and the once-per-minute cron schedule is the retry.
+  // fanout * TRIGGER_CRON_CLAIM_BATCH per-tick ceiling. A failed drain rolls back only
+  // its own batch (those rows stay due); drains that succeeded in the same tick have
+  // already committed. The once-per-minute cron schedule is the retry.
   retry: {maximumAttempts: 1},
 });
 
