@@ -1295,6 +1295,23 @@ describe('ProjectAutomationsPage', () => {
       expect(screen.getByText(MERGES_REGEX)).toBeInTheDocument();
     });
 
+    test.each([
+      'closed',
+      'unknown',
+    ] as const)('shows the plain empty Files state for a %s pull request', async (state) => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          config: jsonResponse(movedConfigDto(state)),
+          files: jsonResponse({commit: HEAD_COMMIT, files: [], next_cursor: null}),
+        }),
+      });
+
+      renderFilesPage();
+
+      expect(await screen.findByText('No config files')).toBeInTheDocument();
+      expect(screen.queryByText('Files appear after the merge')).not.toBeInTheDocument();
+    });
+
     test('says how config changes on a managed project', async () => {
       configureApiClient({
         fetchImpl: createProjectDetailFetch({config: jsonResponse(managedConfigDto())}),
