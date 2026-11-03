@@ -1,0 +1,1 @@
+ALTER TABLE "agent_conversations" ADD COLUMN "agent_content_hash" text;

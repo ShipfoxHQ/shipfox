@@ -629,6 +629,7 @@ describe('defaultModules', () => {
       secrets: expect.any(Object),
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      definitions: expect.any(Object),
       integrations: expect.any(Object),
       workspaces: expect.any(Object),
     });
@@ -667,6 +668,7 @@ describe('defaultModules', () => {
         getLeasedAgentSessionContext: expect.any(Function),
       }),
       projects: expect.objectContaining({getProjectById: expect.any(Function)}),
+      definitions: expect.any(Object),
       integrations: expect.any(Object),
       workspaces: expect.any(Object),
     });
@@ -719,6 +721,7 @@ describe('defaultModules', () => {
       secrets: expect.any(Object),
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      definitions: expect.any(Object),
       integrations: expect.any(Object),
       workspaces: expect.any(Object),
     });
@@ -733,6 +736,7 @@ describe('defaultModules', () => {
       secrets: agentSecrets,
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      definitions: expect.any(Object),
       integrations: expect.any(Object),
       workspaces: expect.any(Object),
     });
@@ -904,6 +908,7 @@ describe('defaultModules', () => {
       secrets: expect.any(Object),
       workflows: expect.any(Object),
       projects: expect.any(Object),
+      definitions: expect.any(Object),
       integrations: expect.any(Object),
       workspaces: expect.any(Object),
     });

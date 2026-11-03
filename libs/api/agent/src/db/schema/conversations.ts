@@ -16,6 +16,8 @@ export const conversations = pgTable(
     workspaceId: uuid('workspace_id').notNull(),
     projectId: uuid('project_id').notNull(),
     agentKey: text('agent_key').notNull(),
+    // The content hash of the agent file the pinned prompt came from. Null for the built-in agent alone.
+    agentContentHash: text('agent_content_hash'),
     originKind: text('origin_kind', {enum: ['web', 'integration']}).notNull(),
     ownerUserId: uuid('owner_user_id'),
     originConnectionId: uuid('origin_connection_id'),
@@ -65,6 +67,7 @@ export function toConversation(row: ConversationDb): Conversation {
     workspaceId: row.workspaceId,
     projectId: row.projectId,
     agentKey: row.agentKey,
+    agentContentHash: row.agentContentHash,
     originKind: row.originKind,
     ownerUserId: row.ownerUserId,
     originConnectionId: row.originConnectionId,

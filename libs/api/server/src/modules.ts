@@ -12,7 +12,10 @@ import {
 import {type CreateCacheModuleOptions, createCacheModule} from '@shipfox/api-cache';
 import {cacheInterModuleContract} from '@shipfox/api-cache-dto/inter-module';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
-import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import {
+  type DefinitionsInterModuleClient,
+  definitionsInterModuleContract,
+} from '@shipfox/api-definitions-dto/inter-module';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {emailChallengesModule} from '@shipfox/api-email-challenges';
 import {createIntegrationsContext, type WebhookDeliverySource} from '@shipfox/api-integration-core';
@@ -131,6 +134,8 @@ export type DefaultAgentModuleFactory = (options: {
   workflows?: WorkflowsModuleClient | undefined;
   /** Optional: a factory built without it has no conversation routes. */
   projects?: ProjectsModuleClient | undefined;
+  /** Optional: a factory built without it has no custom agents. */
+  definitions?: DefinitionsInterModuleClient | undefined;
   /** Optional: a factory built without it runs no conversation turns. */
   integrations?: IntegrationsModuleClient | undefined;
   /** Optional: a factory built without it runs no conversation turns. */
@@ -341,6 +346,7 @@ export async function defaultModules(
         secrets: createAgentSecretsClient(secretsClient),
         workflows: workflowsClient,
         projects: projectsClient,
+        definitions: definitionsClient,
         integrations: integrationsClient,
         workspaces: workspacesClient,
       })
@@ -349,6 +355,7 @@ export async function defaultModules(
         secrets: createAgentSecretsClient(secretsClient),
         workflows: workflowsClient,
         projects: projectsClient,
+        definitions: definitionsClient,
         integrations: integrationsClient,
         workspaces: workspacesClient,
       });

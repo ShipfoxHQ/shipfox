@@ -3,6 +3,7 @@ import type {
   ManagedModelProvider,
   WorkspaceProvidersPolicy,
 } from '@shipfox/api-agent-dto';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -25,7 +26,8 @@ import {
   sealConversationEntry,
 } from '../conversation-sealing.js';
 import {type Conversation, TURN_NOTICE_CUSTOM_TYPE} from '../entities/conversation.js';
-import {isAgentConfigResolutionError} from '../errors.js';
+import {isAgentConfigResolutionError, ProjectAgentNotFoundError} from '../errors.js';
+import {type ResolvedProjectAgent, resolveProjectAgent} from '../project-agents.js';
 import {builtInAgentConfigInput} from '../resolve-agent-config.js';
 import {
   type AgentAdmissionPolicy,
@@ -42,6 +44,8 @@ import {buildPinnedPrompt} from './pinned-prompt.js';
 export interface TurnLifecycleDeps {
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
+  /** Reads the project's agent files. Without it, every conversation is with the built-in agent. */
+  definitions?: DefinitionsInterModuleClient | undefined;
   managedProvider?: ManagedModelProvider | undefined;
   workspaceProviders?: WorkspaceProvidersPolicy | undefined;
   /** Reads the owner's membership and the workspace's operating state. */
@@ -61,10 +65,11 @@ async function pinConversationPrompt(
 ): Promise<void> {
   if (conversation.lastSeq > 0) return;
 
-  const [{project}, toolSet, integration] = await Promise.all([
+  const [{project}, toolSet, integration, agent] = await Promise.all([
     deps.projects.getProjectById({projectId: conversation.projectId}),
     listConversationToolSet(deps.integrations),
     integrationPromptContext(conversation, deps.integrations),
+    resolveConversationAgent(conversation, deps),
   ]);
   const itemId = await newConversationRecordId();
   await pinSystemEntry({
@@ -83,6 +88,7 @@ async function pinConversationPrompt(
         entry: systemMessageEntry({
           prompt: buildPinnedPrompt({
             agentKey: conversation.agentKey,
+            agent,
             projectId: conversation.projectId,
             projectName: project?.name ?? 'unknown',
             integration,
@@ -92,6 +98,19 @@ async function pinConversationPrompt(
       }),
       meta: {role: 'system'},
     },
+    agentContentHash: agent.kind === 'configured' ? agent.agent.contentHash : null,
+  });
+}
+
+function resolveConversationAgent(
+  conversation: Conversation,
+  deps: TurnLifecycleDeps,
+): Promise<ResolvedProjectAgent> {
+  return resolveProjectAgent({
+    definitions: deps.definitions,
+    workspaceId: conversation.workspaceId,
+    projectId: conversation.projectId,
+    key: conversation.agentKey,
   });
 }
 
@@ -114,8 +133,11 @@ async function integrationPromptContext(
 }
 
 /**
- * The model a new turn uses. Defaults that no longer resolve open the turn with no model, and its
- * first model call fails it with a recorded cause. Throwing here would retry without end.
+ * The model a new turn uses: the agent file's `provider` and `model` when it sets them, and the
+ * workspace defaults for the rest. The file is read at every turn start, because the model isn't
+ * part of the pinned prompt. A deleted custom agent falls back to the defaults, because its
+ * conversation takes no new turn. Defaults that no longer resolve open the turn with no model, and
+ * its first model call fails it with a recorded cause. Throwing here would retry without end.
  */
 async function resolveTurnModel(
   conversation: Conversation,
@@ -127,7 +149,16 @@ async function resolveTurnModel(
       deps.managedProvider,
       deps.workspaceProviders,
     );
-    const {provider, model} = resolveConfig(builtInAgentConfigInput);
+    const agent = await resolveConversationAgent(conversation, deps).catch((error: unknown) => {
+      if (error instanceof ProjectAgentNotFoundError) return {kind: 'built-in'} as const;
+      throw error;
+    });
+    const selection = agent.kind === 'configured' ? agent.agent.document : {};
+    const {provider, model} = resolveConfig({
+      ...builtInAgentConfigInput,
+      ...(selection.provider === undefined ? {} : {provider: selection.provider}),
+      ...(selection.model === undefined ? {} : {model: selection.model}),
+    });
     return {provider, model};
   } catch (error) {
     if (!isAgentConfigResolutionError(error)) throw error;
@@ -138,6 +169,12 @@ async function resolveTurnModel(
     return {provider: null, model: null};
   }
 }
+
+export const AGENT_UNAVAILABLE_NOTICE: ConversationTurnNoticeDto = {
+  code: 'agent_unavailable',
+  message: 'This agent no longer exists in the project. Start a new conversation.',
+  required_action: null,
+};
 
 export async function sealTurnNotice(
   conversation: Conversation,
@@ -191,7 +228,14 @@ export async function beginConversationTurn(params: {
   const conversation = await getConversationById(params.conversationId);
   if (!conversation) return undefined;
 
-  await pinConversationPrompt(conversation, params.deps);
+  try {
+    await pinConversationPrompt(conversation, params.deps);
+  } catch (error) {
+    if (!(error instanceof ProjectAgentNotFoundError)) throw error;
+    // The agent's file was deleted before its first turn. The conversation stays readable.
+    await settleRefusedTurn(conversation, {notice: AGENT_UNAVAILABLE_NOTICE});
+    return undefined;
+  }
 
   // A running turn keeps the model it started with, whatever the workspace defaults are now.
   const running = await getRunningTurn(conversation.id);

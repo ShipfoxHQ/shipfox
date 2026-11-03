@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {ManagedModelProvider} from '@shipfox/api-agent-dto';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
@@ -99,6 +100,8 @@ export interface CreateAgentModuleOptions {
   workflows?: WorkflowsModuleClient | undefined;
   /** Serves the conversation routes. A composition without it has no conversations. */
   projects?: ProjectsModuleClient | undefined;
+  /** Reads the project's agent files. Without it, every conversation is with the built-in agent. */
+  definitions?: DefinitionsInterModuleClient | undefined;
   /** Serves the tools of a conversation turn. Turns run only with both this and `projects`. */
   integrations?: IntegrationsModuleClient | undefined;
   /** Reads the owner's membership and the workspace state a turn start checks. Turns run only with it. */
@@ -134,6 +137,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
       // composition without workflows never constructs the store at all.
       sessionArtifactStore: params.workflows === undefined ? undefined : sessionArtifactStore(),
       projects: params.projects,
+      definitions: params.definitions,
       wakeConversation: runsTurns ? wakeConversation : undefined,
     }),
     e2eRoutes: [
@@ -200,6 +204,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
                   secrets: params.secrets,
                   integrations,
                   projects,
+                  definitions: params.definitions,
                   workspaces,
                   admission: params.admission,
                   managedProvider: params.managedProvider,

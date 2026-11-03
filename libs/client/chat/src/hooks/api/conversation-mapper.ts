@@ -23,6 +23,7 @@ import type {
 export function toConversationSummary(dto: ConversationSummaryDto): ConversationSummary {
   return {
     id: dto.id,
+    agentKey: dto.agent_key,
     title: dto.title,
     unread: dto.unread,
     lastSeq: dto.last_seq,

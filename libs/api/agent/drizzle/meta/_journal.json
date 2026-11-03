@@ -57,6 +57,13 @@
       "when": 1793719967749,
       "tag": "0007_reply_deliveries",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793740261280,
+      "tag": "0008_agent_content_hash",
+      "breakpoints": true
     }
   ]
 }

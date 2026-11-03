@@ -359,6 +359,17 @@ export class ConversationNotFoundError extends Error {
   }
 }
 
+/** A custom agent has no valid row in the project: it was never synced, or its file was deleted. */
+export class ProjectAgentNotFoundError extends Error {
+  constructor(
+    public readonly projectId: string,
+    public readonly agentKey: string,
+  ) {
+    super(`Agent not found in project ${projectId}: ${agentKey}`);
+    this.name = 'ProjectAgentNotFoundError';
+  }
+}
+
 export class ConversationTurnRunningError extends Error {
   constructor(public readonly conversationId: string) {
     super(`Conversation has a running turn: ${conversationId}`);

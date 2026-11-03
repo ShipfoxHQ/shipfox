@@ -53,7 +53,10 @@ export const postConversationMessageBodySchema = z.object({
 
 export type PostConversationMessageBodyDto = z.infer<typeof postConversationMessageBodySchema>;
 
-export const createConversationBodySchema = postConversationMessageBodySchema;
+export const createConversationBodySchema = postConversationMessageBodySchema.extend({
+  /** The agent to talk to. Without it, the conversation is with the built-in agent. */
+  agent_key: z.string().min(1).optional(),
+});
 
 export type CreateConversationBodyDto = z.infer<typeof createConversationBodySchema>;
 

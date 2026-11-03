@@ -1,6 +1,7 @@
 import type {ManagedModelProvider, WorkspaceProvidersPolicy} from '@shipfox/api-agent-dto';
 import {SESSION_TRANSCRIPT_CONTENT_TYPE} from '@shipfox/api-agent-dto';
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {createRawBodyPlugin, type RouteGroup} from '@shipfox/node-fastify';
@@ -49,6 +50,8 @@ export function createAgentRoutes(
     sessionArtifactStore?: SessionArtifactStore | undefined;
     /** Projects client behind the conversation routes. */
     projects?: ProjectsModuleClient | undefined;
+    /** Serves the project's agent files to the conversation routes. */
+    definitions?: DefinitionsInterModuleClient | undefined;
     /**
      * Wakes a conversation's turn workflow after an input commits. The conversation routes are
      * omitted without it, because a message accepted with nothing to run it would never get a reply.
@@ -126,7 +129,11 @@ export function createAgentRoutes(
     ...sessionRoutes,
     ...(options.projects === undefined || options.wakeConversation === undefined
       ? []
-      : createConversationRoutes(options.projects, options.wakeConversation)),
+      : createConversationRoutes({
+          projects: options.projects,
+          definitions: options.definitions,
+          wake: options.wakeConversation,
+        })),
   ];
 }
 

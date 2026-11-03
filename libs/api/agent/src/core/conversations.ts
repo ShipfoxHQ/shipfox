@@ -34,9 +34,8 @@ import {
   ConversationRetryUnavailableError,
   ConversationTurnRunningError,
 } from './errors.js';
+import {SHIPPY_AGENT_KEY} from './shippy.js';
 
-export const SHIPPY_AGENT_KEY = 'shippy';
-export const SHIPPY_AGENT_NAME = 'Shippy';
 const CONVERSATION_TITLE_MAX_CHARS = 80;
 const CONVERSATION_QUEUED_ITEMS_CAP = 100;
 
@@ -44,6 +43,8 @@ export interface CreateWebConversationParams {
   workspaceId: string;
   projectId: string;
   ownerUserId: string;
+  /** The caller has checked that the project has this agent. Without it, the built-in agent. */
+  agentKey?: string | undefined;
   clientMessageId: string;
   body: string;
   pageContext?: PageContextDto | undefined;
@@ -131,7 +132,7 @@ export async function createWebConversation(
     id: conversationId,
     workspaceId: params.workspaceId,
     projectId: params.projectId,
-    agentKey: SHIPPY_AGENT_KEY,
+    agentKey: params.agentKey ?? SHIPPY_AGENT_KEY,
     ownerUserId: params.ownerUserId,
     sealedTitle: sealConversationText({
       key,

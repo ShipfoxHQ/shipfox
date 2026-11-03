@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-router';
 import {type ReactNode, useState} from 'react';
 import type {ConversationSummary} from '#core/conversation.js';
+import type {ProjectAgent} from '#core/project-agents.js';
 import {buildTranscript, type TranscriptEntry} from '#core/transcript.js';
 import {type ReplyActivity, turnFailure} from '#core/turn-state.js';
 import {
@@ -23,7 +24,15 @@ import {
 } from '#test/fixtures/conversation-items.js';
 import {ChatHistory} from './chat-history.js';
 import {NoModelState, TurnFailureNotice, TurnNoticeCallout} from './chat-notices.js';
-import {ChatPanelHeader, ChatPanelLayout, ConversationDeleted, FirstUse} from './chat-panel.js';
+import {
+  AgentFileError,
+  AgentPicker,
+  AgentUnavailable,
+  ChatPanelHeader,
+  ChatPanelLayout,
+  ConversationDeleted,
+  FirstUse,
+} from './chat-panel.js';
 import {ChatTranscript} from './chat-transcript.js';
 
 const withRouter: Decorator = (Story) => {
@@ -163,6 +172,91 @@ export const FirstUseOnFailedRun: Story = {
     <Panel
       title="Shippy"
       body={<FirstUse prompts={['Why did this run fail?']} onPrompt={noop} />}
+    />
+  ),
+};
+
+const projectAgents: ProjectAgent[] = [
+  {key: 'shippy', name: 'Shippy', description: null, error: null},
+  {
+    key: 'reviewer',
+    name: 'Code reviewer',
+    description: 'Reviews pull requests against the team checklist.',
+    error: null,
+  },
+  {key: 'triage', name: null, description: null, error: null},
+];
+
+function PickerOnNewConversation({initial}: {initial: string}) {
+  const [key, setKey] = useState(initial);
+  const agent = projectAgents.find((candidate) => candidate.key === key);
+  return (
+    <Panel
+      title="Shippy"
+      body={
+        <FirstUse
+          prompts={[]}
+          onPrompt={noop}
+          agent={agent}
+          picker={<AgentPicker agents={projectAgents} value={key} onChange={setKey} />}
+        />
+      }
+    />
+  );
+}
+
+export const NewConversationWithAgents: Story = {
+  render: () => <PickerOnNewConversation initial="shippy" />,
+};
+
+export const NewConversationWithCustomAgent: Story = {
+  render: () => <PickerOnNewConversation initial="reviewer" />,
+};
+
+export const InvalidAgentFile: Story = {
+  render: () => (
+    <Panel
+      body={
+        <>
+          <AgentFileError
+            agent={{
+              key: 'reviewer',
+              name: 'Code reviewer',
+              description: null,
+              error: 'instructions: a custom agent requires "instructions".',
+            }}
+          />
+          <Transcript
+            entries={buildTranscript({
+              items: answeredItems,
+              queued: [],
+              partialText: '',
+              runningTurnId: undefined,
+            })}
+          />
+        </>
+      }
+    />
+  ),
+};
+
+export const DeletedAgent: Story = {
+  render: () => (
+    <Panel
+      disabled
+      body={
+        <>
+          <AgentUnavailable onNewConversation={noop} />
+          <Transcript
+            entries={buildTranscript({
+              items: answeredItems,
+              queued: [],
+              partialText: '',
+              runningTurnId: undefined,
+            })}
+          />
+        </>
+      }
     />
   ),
 };
@@ -416,6 +510,7 @@ export const DeletedInAnotherTab: Story = {
 const conversations: ConversationSummary[] = [
   {
     id: 'c1',
+    agentKey: 'shippy',
     title: 'Why did this run fail?',
     unread: true,
     lastSeq: 6,
@@ -424,6 +519,7 @@ const conversations: ConversationSummary[] = [
   },
   {
     id: 'c2',
+    agentKey: 'shippy',
     title: 'What failed recently?',
     unread: false,
     lastSeq: 12,
@@ -432,6 +528,7 @@ const conversations: ConversationSummary[] = [
   },
   {
     id: 'c3',
+    agentKey: 'shippy',
     title: null,
     unread: false,
     lastSeq: 2,

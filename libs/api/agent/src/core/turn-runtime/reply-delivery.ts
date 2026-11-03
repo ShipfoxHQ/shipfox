@@ -16,8 +16,8 @@ import {
   conversationDataKey,
   openConversationEntry,
 } from '../conversation-sealing.js';
-import {SHIPPY_AGENT_KEY, SHIPPY_AGENT_NAME} from '../conversations.js';
 import type {Conversation, ConversationItem} from '../entities/conversation.js';
+import {SHIPPY_AGENT_KEY, SHIPPY_AGENT_NAME} from '../shippy.js';
 import type {TurnFailureCode} from './failure-codes.js';
 import {CONTEXT_OVERFLOW_NOTICE, sealTurnNotice} from './turn-lifecycle.js';
 

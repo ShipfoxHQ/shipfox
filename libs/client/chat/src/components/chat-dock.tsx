@@ -10,6 +10,8 @@ import {
 } from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {type KeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState} from 'react';
+import type {ConversationSummary} from '#core/conversation.js';
+import {hasCustomAgents} from '#core/project-agents.js';
 import {
   CONTEXT_OVERFLOW_NOTICE_CODE,
   canSendAgain,
@@ -29,11 +31,14 @@ import {
   type ChatModelAvailability,
   useChatModelAvailability,
 } from '#hooks/api/model-availability.js';
+import {useAgentSelection} from '#hooks/use-agent-selection.js';
 import {useAnnouncement} from '#hooks/use-announcement.js';
 import {useDraft} from '#hooks/use-draft.js';
 import {ChatHistory, conversationTitle} from './chat-history.js';
 import {NoModelState, TurnFailureNotice, TurnNoticeCallout} from './chat-notices.js';
 import {
+  AgentNotice,
+  AgentPicker,
   ChatPanelHeader,
   ChatPanelLayout,
   ConversationDeleted,
@@ -91,6 +96,16 @@ function panelTitle(params: {
   return params.conversationId ? conversationTitle({title: params.title ?? null}) : 'Shippy';
 }
 
+/** The agent of the open conversation, from its own read or else from the history list. */
+function storedAgentKey(params: {
+  detail: ConversationSummary | undefined;
+  conversations: readonly ConversationSummary[];
+  conversationId: string | undefined;
+}): string | undefined {
+  const {detail, conversations, conversationId} = params;
+  return (detail ?? conversations.find((c) => c.id === conversationId))?.agentKey;
+}
+
 /** `Esc` stops a reply. Otherwise it closes the panel, when the composer is empty. */
 function escapeHandler(params: {
   panelRef: RefObject<HTMLDivElement | null>;
@@ -138,13 +153,19 @@ function ProjectChat({project}: {project: Project}) {
     onCreated: setSelection,
   });
   const models = useChatModelAvailability(workspace.id);
+  const agentSelection = useAgentSelection({
+    projectId: project.id,
+    conversationId,
+    conversationAgentKey: storedAgentKey({detail: chat.detail, conversations, conversationId}),
+  });
   const deleteMutation = useDeleteConversationMutation(project.id);
   const draft = useDraft({userId, projectId: project.id, conversationId});
 
   const replying = isReplyActive(chat.activity);
   const failure =
     chat.turn?.status === 'failed' && !replying ? turnFailure(chat.turn.failureCode) : undefined;
-  const blocked = chat.notFound || failure?.kind === 'too-long' || !models.hasModel;
+  const {reset, newAgentKey, activeAgent, agentGone} = agentSelection;
+  const blocked = chat.notFound || failure?.kind === 'too-long' || !models.hasModel || agentGone;
   const announcement = useAnnouncement({
     replying,
     transcript: chat.transcript,
@@ -155,22 +176,23 @@ function ProjectChat({project}: {project: Project}) {
     // A deleted conversation's draft carries over, so nothing the user typed is lost.
     if (chat.notFound) draft.moveTo(undefined);
     setSelection(null);
+    reset();
     setView('chat');
     composerRef.current?.focus();
-  }, [chat.notFound, draft]);
+  }, [chat.notFound, draft, reset]);
 
   const send = useCallback(
     async (text: string) => {
       // Taken before the send, because creating a conversation moves the composer to its draft.
       const sent = draft.take();
       try {
-        await chat.send(text, pageContext);
+        await chat.send({body: text, pageContext, agentKey: newAgentKey});
       } catch {
         // The composer reports the failure, and the text comes back to edit.
         draft.setValue(sent);
       }
     },
-    [chat, pageContext, draft],
+    [chat, pageContext, draft, newAgentKey],
   );
 
   // Opening moves focus to the composer. The shell returns it to the launcher on close.
@@ -179,6 +201,9 @@ function ProjectChat({project}: {project: Project}) {
     const frame = requestAnimationFrame(() => composerRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [open]);
+
+  const sendPrompt = (prompt: string) =>
+    chat.send({body: prompt, pageContext, agentKey: agentSelection.newAgentKey});
 
   const onKeyDown = escapeHandler({
     panelRef,
@@ -240,15 +265,25 @@ function ProjectChat({project}: {project: Project}) {
               onDeleteDismissed={deleteMutation.reset}
             />
           ) : (
-            <ConversationBody
-              chat={chat}
-              models={models}
-              failure={failure}
-              resolving={resolving}
-              workspaceSlug={workspace.slug}
-              pageContext={pageContext}
-              onNewConversation={startNewConversation}
-            />
+            <>
+              <AgentNotice
+                agent={activeAgent}
+                gone={agentGone}
+                onNewConversation={startNewConversation}
+              />
+              <ConversationBody
+                chat={chat}
+                models={models}
+                failure={failure}
+                resolving={resolving}
+                workspaceSlug={workspace.slug}
+                pageContext={pageContext}
+                onNewConversation={startNewConversation}
+                newConversation={conversationId === undefined}
+                agentSelection={agentSelection}
+                onPrompt={sendPrompt}
+              />
+            </>
           )
         }
         composer={
@@ -274,6 +309,32 @@ function ProjectChat({project}: {project: Project}) {
   );
 }
 
+function NewConversationIntro({
+  pageContext,
+  newConversation,
+  agentSelection,
+  onPrompt,
+}: {
+  pageContext: AgentPageContext | undefined;
+  newConversation: boolean;
+  agentSelection: ReturnType<typeof useAgentSelection>;
+  onPrompt: (prompt: string) => Promise<void>;
+}) {
+  const {agents, activeAgent, newAgentKey, pick} = agentSelection;
+  return (
+    <FirstUse
+      prompts={suggestedPrompts(pageContext)}
+      onPrompt={(prompt) => void onPrompt(prompt).catch(() => undefined)}
+      agent={newConversation ? activeAgent : undefined}
+      picker={
+        newConversation && agents && hasCustomAgents(agents) ? (
+          <AgentPicker agents={agents} value={newAgentKey} onChange={pick} />
+        ) : undefined
+      }
+    />
+  );
+}
+
 function ConversationBody({
   chat,
   models,
@@ -282,6 +343,9 @@ function ConversationBody({
   workspaceSlug,
   pageContext,
   onNewConversation,
+  newConversation,
+  agentSelection,
+  onPrompt,
 }: {
   chat: ChatConversation;
   models: ChatModelAvailability;
@@ -290,6 +354,10 @@ function ConversationBody({
   workspaceSlug: string;
   pageContext: AgentPageContext | undefined;
   onNewConversation: () => void;
+  /** True while the next message creates a conversation, so the user can pick its agent. */
+  newConversation: boolean;
+  agentSelection: ReturnType<typeof useAgentSelection>;
+  onPrompt: (prompt: string) => Promise<void>;
 }) {
   const replying = isReplyActive(chat.activity);
   if (!models.hasModel) return <NoModelState workspaceSlug={workspaceSlug} />;
@@ -298,9 +366,11 @@ function ConversationBody({
   if (chat.loadError) return <QueryLoadError query={chat.loadError} subject="conversation" />;
   if (chat.transcript.length === 0 && !replying) {
     return (
-      <FirstUse
-        prompts={suggestedPrompts(pageContext)}
-        onPrompt={(prompt) => void chat.send(prompt, pageContext).catch(() => undefined)}
+      <NewConversationIntro
+        pageContext={pageContext}
+        newConversation={newConversation}
+        agentSelection={agentSelection}
+        onPrompt={onPrompt}
       />
     );
   }
