@@ -10,7 +10,7 @@ The `@shipfox/api-integration-shipfox` package provides the built-in Shipfox wor
 - **`shipfoxAgentToolSelectionCatalog`** exposes the standalone tool selector.
 - **`createShipfoxAgentToolsProvider`** creates a provider with agent, annotations, definitions, docs, logs, projects, triggers, and workflow clients.
 
-The provider uses the caller workspace and starts the child with the caller run as its parent. It has no connection row, database, or secrets.
+The provider uses the caller workspace. A run caller starts the child with the caller run as its parent, and a conversation caller starts a root run. It has no connection row, database, or secrets.
 
 ## Installation and setup
 
@@ -25,7 +25,7 @@ Add the package to an integration composition package:
 }
 ```
 
-Pass the annotations, definitions, logs, projects, triggers, and workflows inter-module clients when creating the provider, plus a `docs` cache from `@shipfox/node-docs-client` for `search_docs`.
+Pass the agent, annotations, definitions, logs, projects, triggers, and workflows inter-module clients when creating the provider, plus a `docs` cache from `@shipfox/node-docs-client` for `search_docs`.
 
 ## Usage
 

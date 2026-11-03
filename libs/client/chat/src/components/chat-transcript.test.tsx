@@ -25,6 +25,8 @@ async function renderTranscript(props: Partial<ChatTranscriptProps> & {activity?
   const transcript = (
     <ChatTranscript
       entries={props.entries ?? []}
+      workspaceSlug="acme"
+      projectSlug="api"
       activity={props.activity ?? {kind: 'idle'}}
       renderNotice={() => null}
       olderHistory={{hasMore: false, loading: false, load: () => undefined}}
@@ -97,7 +99,7 @@ describe('ChatTranscript', () => {
     expect(screen.getByText('Run started')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Deploy #12'})).toHaveAttribute(
       'href',
-      `/runs/${runId}`,
+      `/w/acme/p/api/runs/${runId}`,
     );
   });
 

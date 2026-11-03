@@ -603,7 +603,7 @@ describe('WorkflowRunSummary', () => {
 
     const summary = await screen.findByRole('region', {name: 'deploy-web'});
 
-    expect(within(summary).getByText('Started by Shippy')).toBeInTheDocument();
+    expect(within(summary).getByText('Started via Shippy')).toBeInTheDocument();
   });
 
   test('links a dev replay run to its source event', async () => {

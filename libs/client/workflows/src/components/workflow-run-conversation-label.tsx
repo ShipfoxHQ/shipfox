@@ -34,7 +34,7 @@ export function WorkflowRunConversationLabel({
       ? 'you'
       : memberName;
   const agent = conversationAgentName(conversation.agentKey);
-  const label = author ? `Started by ${author} via ${agent}` : `Started by ${agent}`;
+  const label = author ? `Started by ${author} via ${agent}` : `Started via ${agent}`;
 
   return (
     <Text as="span" size="xs" className={cn('min-w-0 truncate', className)}>

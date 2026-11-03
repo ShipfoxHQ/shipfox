@@ -98,10 +98,18 @@ export function ChatToolRows({nodes}: {nodes: readonly ToolNode[]}) {
 }
 
 /**
- * A run Shippy started. The link is the run permalink, so the page moves and the panel stays.
- * Only the run id reaches the address, never a URL from the result.
+ * A run Shippy started. The link is the project's run route, so the page moves and the panel
+ * stays. Only the run id reaches the address, never a URL from the result.
  */
-export function ChatRunStarted({run}: {run: RunStarted}) {
+export function ChatRunStarted({
+  run,
+  workspaceSlug,
+  projectSlug,
+}: {
+  run: RunStarted;
+  workspaceSlug: string;
+  projectSlug: string;
+}) {
   const label = run.name ? `${run.name} #${run.number}` : `Run #${run.number}`;
 
   return (
@@ -110,7 +118,7 @@ export function ChatRunStarted({run}: {run: RunStarted}) {
         <TraceTitle>Run started</TraceTitle>
         <TraceDescription>
           <a
-            href={`/runs/${run.runId}`}
+            href={`/w/${workspaceSlug}/p/${projectSlug}/runs/${run.runId}`}
             className="underline underline-offset-2 hover:text-foreground-neutral-base"
           >
             {label}

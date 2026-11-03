@@ -600,6 +600,13 @@ export const triggersInterModuleContract = defineInterModuleContract({
               path: ['userId'],
             });
           }
+          if (value.conversation !== undefined && value.userId === undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'A conversation run needs the userId of its owner',
+              path: ['conversation'],
+            });
+          }
         }),
       output: z.object({id: idSchema, name: z.string(), deduplicated: z.boolean()}),
       errors: {

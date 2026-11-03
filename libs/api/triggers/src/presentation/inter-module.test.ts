@@ -202,6 +202,20 @@ describe('triggers inter-module presentation', () => {
     });
   });
 
+  it('accepts a conversation only with the userId of its owner', () => {
+    const input = {
+      workspaceId: WORKSPACE_ID,
+      definitionId: '00000000-0000-4000-8000-000000000008',
+      conversation: {id: '00000000-0000-4000-8000-000000000009', agentKey: 'shippy'},
+    };
+    const parse = (extra: Record<string, unknown>) =>
+      triggersInterModuleContract.methods.fireManualTrigger.input.safeParse({...input, ...extra});
+
+    expect(parse({userId: '00000000-0000-4000-8000-00000000000a'}).success).toBe(true);
+    expect(parse({}).success).toBe(false);
+    expect(parse({parentRun: {runId: '00000000-0000-4000-8000-00000000000b'}}).success).toBe(false);
+  });
+
   it('rejects inverted list windows and invalid decision subscription pairings', () => {
     const listInput = triggersInterModuleContract.methods.listTriggerEvents.input.safeParse({
       workspaceId: WORKSPACE_ID,

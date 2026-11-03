@@ -104,6 +104,7 @@ describe('buildTranscript', () => {
     });
 
     expect(kinds(entries)).toEqual(['tools']);
+    expect(toolStates(entries[0])).toEqual(['succeeded']);
   });
 
   test('pairs a tool call with its result across items, between the bubbles', () => {

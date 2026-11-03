@@ -155,6 +155,8 @@ function Transcript({
   return (
     <ChatTranscript
       entries={entries}
+      workspaceSlug="acme"
+      projectSlug="api"
       activity={activity}
       olderHistory={{hasMore: false, loading: false, load: () => undefined}}
       renderNotice={(entry) => (

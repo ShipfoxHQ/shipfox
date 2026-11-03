@@ -637,7 +637,7 @@ export async function deleteConversationUnlessTurnRunning(
 
 /**
  * Spends one run start from the conversation's budget. It returns false once the budget is used,
- * and when the conversation is gone.
+ * and when the conversation is gone or belongs to another workspace.
  */
 export async function claimConversationRunStart(params: {
   conversationId: string;

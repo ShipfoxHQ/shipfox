@@ -43,6 +43,7 @@ import {
   getWorkflowRunById,
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
+  workflowRunExistsForIdempotencyKey,
 } from '../workflow-runs.js';
 
 function checkoutTemplate(source: string): WorkflowFieldTemplate {
@@ -63,6 +64,27 @@ describe('workflow run queries', () => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     definitionId = crypto.randomUUID();
+  });
+
+  describe('workflowRunExistsForIdempotencyKey', () => {
+    test('finds a run by its key, within the workspace that owns it', async () => {
+      const idempotencyKey = `conversation:${crypto.randomUUID()}:item:0`;
+      await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'cron', event: 'tick'},
+        triggerIdempotencyKey: idempotencyKey,
+      });
+
+      expect(await workflowRunExistsForIdempotencyKey(idempotencyKey)).toBe(true);
+      expect(await workflowRunExistsForIdempotencyKey(idempotencyKey, workspaceId)).toBe(true);
+      expect(await workflowRunExistsForIdempotencyKey(idempotencyKey, crypto.randomUUID())).toBe(
+        false,
+      );
+      expect(await workflowRunExistsForIdempotencyKey(`${idempotencyKey}-other`)).toBe(false);
+    });
   });
 
   describe('createWorkflowRun', () => {

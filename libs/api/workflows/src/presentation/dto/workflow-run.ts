@@ -36,6 +36,13 @@ import type {
 } from '#db/index.js';
 import {toStepSourceLocationDto} from './step.js';
 
+/** The conversation is private to its author, so its id never leaves the payload at rest. */
+function toTriggerPayloadDto(payload: WorkflowRun['triggerPayload']): Record<string, unknown> {
+  if (!('conversation' in payload) || payload.conversation === undefined) return payload;
+  const {id: _conversationId, ...conversation} = payload.conversation;
+  return {...payload, conversation};
+}
+
 export function toRunDto(
   run: WorkflowRun,
   latestAttempt = run.currentAttempt,
@@ -56,7 +63,7 @@ export function toRunDto(
     trigger_provider: run.triggerProvider,
     trigger_source: run.triggerSource,
     trigger_event: run.triggerEvent,
-    trigger_payload: run.triggerPayload,
+    trigger_payload: toTriggerPayloadDto(run.triggerPayload),
     trigger_reference: toTriggerReferenceDto(run.triggerReference),
     inputs: run.inputs,
     secret_inputs: toSecretInputsDto(run.secretInputs),
