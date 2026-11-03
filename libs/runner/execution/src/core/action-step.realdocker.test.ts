@@ -229,7 +229,7 @@ describe.skipIf(!dockerAvailable()).each(USERS)(
       );
     });
 
-    it('writes a download that a later run step can edit', async () => {
+    it('writes a download that the container user can edit', async () => {
       const action = await actionStep(
         "async ({tools}) => ({path: (await tools.files.download('export', {}, {destination: 'report.txt'})).path})",
         {
