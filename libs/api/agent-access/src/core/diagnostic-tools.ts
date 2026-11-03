@@ -25,7 +25,7 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createCheckWorkflowTool} from './check-workflow-tool.js';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
-import {fitAgentAccessResponseToCeiling} from './response.js';
+import {fitAgentAccessResponseToCeiling, truncateAgentAccessUtf8} from './response.js';
 import type {AgentAccessTool} from './tools.js';
 
 export interface AgentAccessDiagnosticToolsOptions {
@@ -178,18 +178,7 @@ function projectFacets(
 }
 
 function cap(value: string, maxBytes = AGENT_ACCESS_TEXT_MAX_BYTES): string {
-  const encoder = new TextEncoder();
-  if (encoder.encode(value).byteLength <= maxBytes) return value;
-
-  let result = '';
-  let bytes = 0;
-  for (const codePoint of value) {
-    const codePointBytes = encoder.encode(codePoint).byteLength;
-    if (bytes + codePointBytes > maxBytes) break;
-    result += codePoint;
-    bytes += codePointBytes;
-  }
-  return result;
+  return truncateAgentAccessUtf8(value, maxBytes).value;
 }
 
 function capNullable(value: string | null, maxBytes = AGENT_ACCESS_TEXT_MAX_BYTES): string | null {

@@ -449,6 +449,9 @@ async function createTestApp(
       }),
     ],
     swagger: false,
+    // After an aborted call, undici redials sockets that never send a request. The server does not
+    // count them as idle, so a graceful close waits for undici's 4 s keep-alive timeout.
+    fastifyOptions: {forceCloseConnections: true},
   });
   await app.ready();
   return app;
