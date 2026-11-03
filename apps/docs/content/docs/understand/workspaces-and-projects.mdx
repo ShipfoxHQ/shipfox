@@ -1,89 +1,56 @@
 ---
 title: "Workspaces and projects"
 sidebarTitle: "Workspaces & Projects"
-description: "Understand what a team shares in a workspace and what stays with one project."
+description: "A workspace is your organization. A project is a team, a product, or a codebase inside it. Learn what each one holds."
 ---
 
-A **workspace** is the team boundary in Shipfox. It holds the members and the
-resources that several projects can use. A **project** connects one repository
-to that workspace. It owns the workflows and the run history for that
-repository.
+A **workspace** is your organization in Shipfox. It holds your members and the
+things every team uses: connected tools, runners, model providers, secrets,
+and variables.
 
-The split answers a practical question: what does a team set up once, and what
-must stay with one repository? Share what the whole team uses. Keep workflows
-and run history with their repository.
-
-## What a slug is for
-
-Each workspace has a workspace slug that is unique across the installation.
-Each project has a project slug that is unique within its workspace. Neither
-slug is optional.
-
-The client uses these slugs to build readable URLs such as
-`/w/acme/p/checkout-api/runs`. The API still identifies workspaces and projects
-by UUID. A slug is for navigation and display. It doesn't replace the identity
-of the resource.
-
-Slugs can change. A rename frees the old value and breaks links that still use
-the old URL. Shipfox warns before a rename to leave time to update shared
-links.
-
-## What the workspace shares
-
-Many resources serve more than one project: integration connections, model
-providers, runners, secrets, variables, and membership. They live in the
-workspace, so no repository needs its own copy.
+A **project** is one team, product, or codebase inside the workspace. It owns
+its own workflows and its own run history. Most organizations have one
+workspace and several projects.
 
 ```text
-Workspace
+Workspace: acme
 |-- Members
-|-- Integration connections, model providers, runners, secrets, and variables
+|-- Connected tools, runners, model providers, secrets, and variables
 `-- Projects
-    |-- Project A -> repository A -> workflows and runs
-    `-- Project B -> repository B -> workflows and runs
+    |-- checkout-api   -> workflows and runs
+    |-- mobile-app     -> workflows and runs
+    `-- platform       -> workflows and runs
 ```
 
-The benefit is reuse. The cost is that a change to a shared setting reaches
-every project that uses it. A disabled integration connection affects every
-project that uses it. A changed model provider does the same. Membership also
-grants access to every project in the workspace.
+## What the workspace holds
 
-Use separate workspaces when teams must not share members or operational
-resources. Use projects inside one workspace when the repositories can share
-that administration.
+Set up a tool once, and every project can use it. Connect GitHub, add a
+runner, or store a secret in the workspace, and any workflow in any project
+can use it.
 
-## What the project owns
+The other side of this: a change to a workspace setting reaches every project
+that uses it. If you pause a connected tool, every workflow that uses it
+stops working. A member of the workspace can see every project in it.
 
-A project records a source integration connection and one repository. Shipfox
-reads the workflow files from that repository. Jobs also check it out by
-default.
+Create a second workspace only when two groups must not see each other's
+projects or share any settings.
 
-The project also keeps run history separate. Runs for repository A never appear
-in project B, even when both projects use the same runner or model provider. A
-run keeps its repository identity while it uses shared resources.
+## What the project holds
 
-## Which scope owns what
+A project owns its [configuration](/understand/configuration): the workflows
+and actions that run for it. It also owns the runs those workflows produce.
+Runs from one project never appear in another.
 
-The four scopes answer different questions.
+A project has no settings of its own yet. Every workspace setting applies to
+all of its projects, and every member can see all of them.
 
-| Scope | Question it answers |
-| --- | --- |
-| Workspace | Which people and reusable resources share one trust boundary? |
-| Project | Which repository owns these workflows and this run history? |
-| Workflow | Which events and ordered work define this automation? |
-| Run | What happened for one event or manual start? |
+## Slugs
 
-Long-lived configuration belongs above the run. Event data, logs, and outputs
-belong inside the run that produced them. This keeps one result from becoming
-configuration for unrelated future work by accident.
+A workspace and a project each have a short name in URLs, called a slug:
+`/w/acme/p/checkout-api/runs`. You can rename a slug. Old links then stop
+working, and Shipfox warns you before the rename.
 
-The source integration connection is a special case. It belongs to the
-workspace, but the project selects one repository from it. That selection
-controls where Shipfox finds workflows and what jobs check out. Other
-integration connections can send events or provide agent tools without becoming
-the project's source.
-
-Use [Create a project](/how-to/set-up-work/create-project) for the setup task.
+Use [Create a project](/how-to/set-up-work/create-project) to add a project.
 [Integrations, integration connections, and
-tools](/understand/integrations-connections-and-tools) explains the different
-roles that an integration connection can play.
+tools](/understand/integrations-connections-and-tools) explains what a
+connected tool can do.
