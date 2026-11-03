@@ -1,8 +1,7 @@
 import {readdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {decodeActionBundle} from '@shipfox/workflow-document';
-import {buildPackage, writeBuildOutput} from '../src/build.js';
-import {discoverPackages, loadConfig} from '../src/config.js';
+import {writeBuildOutput} from '../src/build.js';
 import {TEMPLATE_FILES, TemplateRepository} from './fixtures/template-repository.js';
 import {buildFixture, TOOL_VERSION} from './helpers.js';
 
@@ -202,29 +201,5 @@ describe('buildPackage for a template', () => {
       path: built.path,
       composition: built.composition,
     });
-  });
-});
-
-describe('the first-party catalog', () => {
-  it('builds every configured package with stable digests', async () => {
-    const root = join(import.meta.dirname, '../../..');
-    const config = await loadConfig(join(root, 'tools/registry-release/registry.config.yaml'));
-    const packages = await discoverPackages({root, config});
-
-    const first = await Promise.all(
-      packages.map((configured) => buildPackage({configured, toolVersion: TOOL_VERSION})),
-    );
-    const second = await Promise.all(
-      packages.map((configured) => buildPackage({configured, toolVersion: TOOL_VERSION})),
-    );
-
-    expect(first.map(({package: name}) => name)).toContain('shipfox/ticket-to-pr');
-    expect(first.map(({package: name}) => name)).toContain('shipfox/slack-thread-digest');
-    expect(second.map(({fingerprint}) => fingerprint)).toEqual(
-      first.map(({fingerprint}) => fingerprint),
-    );
-    for (const built of first) {
-      expect(built.license, built.package).toBe('MIT');
-    }
   });
 });

@@ -12,6 +12,26 @@ describe('agent-access response bounds', () => {
     expect(result).toEqual({value: '🙂', truncated: true, totalBytes: 16});
   });
 
+  test.each([
+    {maxBytes: 1, value: 'a'},
+    {maxBytes: 2, value: 'a'},
+    {maxBytes: 3, value: 'aé'},
+    {maxBytes: 5, value: 'aé'},
+    {maxBytes: 6, value: 'aé€'},
+    {maxBytes: 9, value: 'aé€'},
+    {maxBytes: 10, value: 'aé€🙂'},
+  ])('keeps whole code points within $maxBytes bytes', ({maxBytes, value}) => {
+    const result = truncateAgentAccessUtf8('aé€🙂b', maxBytes);
+
+    expect(result).toEqual({value, truncated: true, totalBytes: 11});
+  });
+
+  test('counts a lone surrogate as its 3-byte replacement character', () => {
+    const result = truncateAgentAccessUtf8('a\uD800b', 4);
+
+    expect(result).toEqual({value: 'a\uD800', truncated: true, totalBytes: 5});
+  });
+
   test('regenerates a page cursor from the last retained item', () => {
     const items = Array.from({length: 20}, (_, index) => ({
       id: `item-${index}-${'x'.repeat(20)}`,

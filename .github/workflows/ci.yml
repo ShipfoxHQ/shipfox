@@ -458,6 +458,10 @@ jobs:
         timeout-minutes: 2
         run: pnpm exec turbo test:integration --filter=@shipfox/provisioner-docker-provider
 
+      - name: Run registry release integration tests
+        timeout-minutes: 3
+        run: pnpm exec turbo test:integration --filter=@shipfox/registry-release
+
   # The flow suite is the E2E long pole, so it runs on its own runner instead of
   # waiting behind the browser suites for a turbo slot.
   e2e-suite:
