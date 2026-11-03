@@ -14,7 +14,9 @@ export type ConversationStreamEvent<TItem extends StreamedItem> =
   | {kind: 'item'; item: TItem}
   | {kind: 'text'; text: string}
   | {kind: 'reset'}
-  | {kind: 'turn'; turnId: string; status: ConversationTurnStatus; failureCode: string | null};
+  | {kind: 'turn'; turnId: string; status: ConversationTurnStatus; failureCode: string | null}
+  /** The connection dropped. The stream reconnects on its own. */
+  | {kind: 'dropped'};
 
 export interface ConversationStreamState<TItem extends StreamedItem> {
   /** Claimed items in `seq` order, each once. */
@@ -26,12 +28,14 @@ export interface ConversationStreamState<TItem extends StreamedItem> {
   turn: {turnId: string; status: ConversationTurnStatus; failureCode: string | null} | undefined;
   /** The highest `seq` held. A reconnect asks for the items after it. */
   lastSeq: number;
+  /** The connection dropped, and no event has arrived since. */
+  reconnecting: boolean;
 }
 
 export function createConversationStreamState<TItem extends StreamedItem>(
   lastSeq = 0,
 ): ConversationStreamState<TItem> {
-  return {items: [], queued: [], partialText: '', turn: undefined, lastSeq};
+  return {items: [], queued: [], partialText: '', turn: undefined, lastSeq, reconnecting: false};
 }
 
 export function isFinalTurnStatus(status: ConversationTurnStatus): boolean {
@@ -58,9 +62,13 @@ function withItem<TItem extends StreamedItem>(
  * items after the cursor again, and the running call's text from its first chunk after a reset.
  */
 export function reduceConversationStream<TItem extends StreamedItem>(
-  state: ConversationStreamState<TItem>,
+  current: ConversationStreamState<TItem>,
   event: ConversationStreamEvent<TItem>,
 ): ConversationStreamState<TItem> {
+  if (event.kind === 'dropped') {
+    return current.reconnecting ? current : {...current, reconnecting: true};
+  }
+  const state = current.reconnecting ? {...current, reconnecting: false} : current;
   switch (event.kind) {
     case 'queued': {
       const known = [...state.items, ...state.queued].some((item) => item.id === event.item.id);

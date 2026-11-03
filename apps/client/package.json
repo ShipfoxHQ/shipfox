@@ -24,6 +24,7 @@
     "@shipfox/client-shell": "workspace:*",
     "@shipfox/client-agent": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-chat": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-invitations": "workspace:*",
     "@shipfox/client-onboarding": "workspace:*",

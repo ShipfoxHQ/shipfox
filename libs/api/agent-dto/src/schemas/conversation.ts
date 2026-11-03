@@ -124,8 +124,21 @@ export const conversationActiveTurnDtoSchema = z.object({
 
 export type ConversationActiveTurnDto = z.infer<typeof conversationActiveTurnDtoSchema>;
 
+export const conversationLatestTurnDtoSchema = conversationActiveTurnDtoSchema.extend({
+  /** Why the turn failed. Set only when `status` is `failed`. */
+  failure_code: z.string().nullable(),
+  /** The model the turn ran on, so a client can name a model that became unavailable. */
+  model: z.string().nullable(),
+  provider: z.string().nullable(),
+  finished_at: z.string().datetime().nullable(),
+});
+
+export type ConversationLatestTurnDto = z.infer<typeof conversationLatestTurnDtoSchema>;
+
 export const conversationDetailDtoSchema = conversationSummaryDtoSchema.extend({
   active_turn: conversationActiveTurnDtoSchema.nullable(),
+  /** The most recent turn, finished or not, so a reader can show why a reply failed. */
+  latest_turn: conversationLatestTurnDtoSchema.nullable(),
 });
 
 export type ConversationDetailDto = z.infer<typeof conversationDetailDtoSchema>;

@@ -1,4 +1,10 @@
-export {ActivityActionRow, type ActivityActionRowProps} from './activity-action-row.js';
+export {
+  ActionDetails,
+  type ActionDetailsProps,
+  ActivityActionRow,
+  type ActivityActionRowProps,
+  actionDisplayLabel,
+} from './activity-action-row.js';
 export {LogGroup, type LogGroupProps} from './log-group.js';
 export {
   LogView,

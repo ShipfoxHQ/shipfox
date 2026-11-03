@@ -1,3 +1,4 @@
+import {useAgentPageContext} from '@shipfox/client-shell/runtime';
 import {useNavigate} from '@tanstack/react-router';
 import {useCallback} from 'react';
 import {WorkflowRunList} from '#components/workflow-run-list/workflow-run-list.js';
@@ -27,6 +28,7 @@ export function WorkflowRunsPage({
 }: WorkflowRunsPageProps) {
   const navigate = useNavigate();
   const workflowFilterOptions = useWorkflowFilterOptions(projectId);
+  useAgentPageContext({page: 'runs'});
 
   // Filter changes replace history instead of pushing it, so Back leaves the list rather than
   // walking every keystroke of a search box.

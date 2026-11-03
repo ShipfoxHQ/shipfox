@@ -1,5 +1,9 @@
 import {ApiError} from '@shipfox/client-api';
-import {useRouteSearch} from '@shipfox/client-shell/runtime';
+import {
+  type AgentPageContext,
+  useAgentPageContext,
+  useRouteSearch,
+} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {type RunUsage, useRunUsageQuery} from '@shipfox/client-usage';
 import {Button} from '@shipfox/react-ui/button';
@@ -203,6 +207,18 @@ export function WorkflowRunView({
     enabled: activeSection === 'source',
   });
   const overviewStatus = overviewQuery.data?.runAttempt.status;
+  // The run and job pages each render one view, so it tells Shippy which page this is.
+  useAgentPageContext(
+    runViewPageContext({
+      workflowRunId,
+      runNumber: overview?.number ?? undefined,
+      attempt: overviewAttempt,
+      status: overviewStatus,
+      activeJobId,
+      jobStatus: activeJob?.status,
+      stepId: jobSearch?.stepId,
+    }),
+  );
   const annotationSummaryQuery = useWorkflowRunAnnotationSummaryQuery(
     workflowRunId,
     overviewAttempt,
@@ -325,6 +341,31 @@ function pinnedWorkflowRunAttempt(
 ): number | undefined {
   if (!pinnedAttempt || pinnedAttempt.workflowRunId !== workflowRunId) return undefined;
   return pinnedAttempt.attempt;
+}
+
+function runViewPageContext(params: {
+  workflowRunId: string | undefined;
+  runNumber: number | undefined;
+  attempt: number | undefined;
+  status: string | undefined;
+  activeJobId: string | undefined;
+  jobStatus: string | undefined;
+  stepId: string | undefined;
+}): AgentPageContext | undefined {
+  const {workflowRunId: runId, runNumber, attempt} = params;
+  if (runId === undefined) return undefined;
+  if (params.activeJobId === undefined) {
+    return {page: 'run', runId, runNumber, attempt, status: params.status};
+  }
+  return {
+    page: 'job',
+    runId,
+    runNumber,
+    attempt,
+    jobId: params.activeJobId,
+    stepId: params.stepId,
+    status: params.jobStatus,
+  };
 }
 
 function workflowRunLineageHeadSeed(listRun: ReturnType<typeof useWorkflowRunListItem>) {
