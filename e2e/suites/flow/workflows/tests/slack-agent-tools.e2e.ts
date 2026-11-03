@@ -95,7 +95,15 @@ test('starts a run from a signed Slack mention and calls Slack agent tools', asy
     expect(slackApi.endpoint.toString()).toBe(
       new URL(process.env.SLACK_API_BASE_URL ?? 'http://invalid.local').toString(),
     );
-    expect(slackApi.calls).toEqual([
+    // The signed mention is retried until a run appears, and each delivery gets an acknowledgement.
+    expect(slackApi.calls.filter((call) => call.kind === 'reactions.add')).toContainEqual({
+      kind: 'reactions.add',
+      authorization: `Bearer ${botToken}`,
+      channel,
+      timestamp: threadTs,
+      name: 'eyes',
+    });
+    expect(slackApi.calls.filter((call) => call.kind !== 'reactions.add')).toEqual([
       {
         kind: 'conversations.replies',
         authorization: `Bearer ${botToken}`,
