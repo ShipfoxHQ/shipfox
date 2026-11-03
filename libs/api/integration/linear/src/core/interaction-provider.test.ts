@@ -364,6 +364,29 @@ describe('LinearInteractionProvider', () => {
       expect(outcome.outcome).toBe('undeliverable');
     });
 
+    it('is undeliverable when the token refresh is refused', async () => {
+      const {provider, getAccessToken, createAgentActivity} = setup();
+      getAccessToken.mockRejectedValue(
+        new LinearIntegrationProviderError('access-denied', 'Linear request was rejected'),
+      );
+
+      const outcome = await provider.sendReply(reply('response', 'Done.'));
+
+      expect(outcome).toEqual({outcome: 'undeliverable', reason: 'Linear request was rejected'});
+      expect(createAgentActivity).not.toHaveBeenCalled();
+    });
+
+    it('fails when the token refresh hits an outage so the delivery is retried', async () => {
+      const {provider, getAccessToken} = setup();
+      getAccessToken.mockRejectedValue(
+        new LinearIntegrationProviderError('provider-unavailable', 'Linear request failed'),
+      );
+
+      const result = provider.sendReply(reply('response', 'Done.'));
+
+      await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
+    });
+
     it.each([
       'rate-limited',
       'timeout',

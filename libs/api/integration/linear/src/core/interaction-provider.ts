@@ -163,10 +163,11 @@ export class LinearInteractionProvider
     kind,
     text,
   }: SendInteractionReplyInput<IntegrationConnection<'linear'>>): Promise<InteractionReplyOutcome> {
-    const accessToken = await this.options.tokenStore.getAccessToken({
-      connectionId: connection.id,
-    });
     try {
+      // A refused token refresh is a lost authorization too, so it settles the reply.
+      const accessToken = await this.options.tokenStore.getAccessToken({
+        connectionId: connection.id,
+      });
       await this.options.linear.createAgentActivity({
         accessToken,
         agentSessionId: conversationKey,
