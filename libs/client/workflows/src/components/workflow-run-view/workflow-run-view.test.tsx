@@ -627,7 +627,12 @@ describe('WorkflowRunView', () => {
 
     renderView({tab: 'source'});
 
-    expect(await screen.findByText('build:')).toBeInTheDocument();
+    // Highlighting splits a line into tokens once it loads, so match the text, not a node.
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="code-block-surface"]')).toHaveTextContent(
+        'build:',
+      ),
+    );
     expect(screen.getByRole('link', {name: 'Source'})).toHaveAttribute('aria-current', 'page');
   });
 

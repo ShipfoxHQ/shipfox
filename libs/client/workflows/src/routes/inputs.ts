@@ -274,6 +274,27 @@ export function workflowRouteParams(input: Record<string, unknown>): {
   return workflowRunId ? {workspaceSlug, projectSlug, workflowRunId} : {workspaceSlug, projectSlug};
 }
 
+/** Code is the default view, so only History reaches the URL. */
+export interface AutomationsFilesSearch {
+  view?: 'history';
+}
+
+export function validateAutomationsFilesSearch(
+  input: Record<string, unknown>,
+): AutomationsFilesSearch {
+  return input.view === 'history' ? {view: 'history'} : {};
+}
+
+export function automationsFilesRouteParams(input: Record<string, unknown>): {
+  workspaceSlug: string;
+  projectSlug: string;
+  /** The selected file or folder, or `undefined` for the bare Files tab. */
+  path: string | undefined;
+} {
+  const {workspaceSlug, projectSlug} = workflowRouteParams(input);
+  return {workspaceSlug, projectSlug, path: string(input._splat)};
+}
+
 export function workflowJobRouteParams(input: Record<string, unknown>): {
   workspaceSlug: string;
   projectSlug: string;

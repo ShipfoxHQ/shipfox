@@ -1,9 +1,11 @@
 import {parseAppSearch, stringifyAppSearch} from '@shipfox/client-shell/runtime';
 import {
   applyWorkflowRunFilterPatch,
+  automationsFilesRouteParams,
   clearWorkflowRunFilters,
   countWorkflowRunFilters,
   hasWorkflowRunFilters,
+  validateAutomationsFilesSearch,
   validateWorkflowJobSearch,
   validateWorkflowRunsSearch,
   type WorkflowJobSearch,
@@ -373,5 +375,33 @@ describe('workflowRouteParams', () => {
       'Workflow route is missing required path parameters.',
     );
     expect(() => workflowRouteParams({workspaceSlug: 'workspace-1', projectSlug: null})).toThrow();
+  });
+});
+
+describe('automations files inputs', () => {
+  test('keeps only the History view in the search', () => {
+    expect(validateAutomationsFilesSearch({view: 'history'})).toEqual({view: 'history'});
+    expect(validateAutomationsFilesSearch({view: 'code'})).toEqual({});
+    expect(validateAutomationsFilesSearch({view: 'blame'})).toEqual({});
+  });
+
+  test('reads the selected path from the splat', () => {
+    const params = automationsFilesRouteParams({
+      workspaceSlug: 'acme',
+      projectSlug: 'platform',
+      _splat: '.shipfox/workflows/deploy.yml',
+    });
+
+    expect(params).toEqual({
+      workspaceSlug: 'acme',
+      projectSlug: 'platform',
+      path: '.shipfox/workflows/deploy.yml',
+    });
+  });
+
+  test('selects nothing on the bare Files tab', () => {
+    const params = automationsFilesRouteParams({workspaceSlug: 'acme', projectSlug: 'platform'});
+
+    expect(params.path).toBeUndefined();
   });
 });

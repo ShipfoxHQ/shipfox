@@ -25,22 +25,32 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {type ReactNode, useEffect, useState} from 'react';
+import {ConfigFileLink, type ConfigFileView} from '#components/automations/config-file-link.js';
+import {ConfigFilesTab} from '#components/automations/config-files-tab.js';
 import {ConfigSourceHeader} from '#components/automations/config-source-header.js';
 import {DefinitionPackagesPanel} from '#components/definition-packages-panel/definition-packages-panel.js';
 import {
   WorkflowDefinitionsTable,
   type WorkflowRunError,
 } from '#components/workflow-definitions-table.js';
+import {normalizeConfigPath} from '#core/config-files.js';
 import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {useLatestWorkflowRunsQuery} from '#hooks/api/latest-runs.js';
 import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
+export type AutomationsTab =
+  | {kind: 'workflows'}
+  | {kind: 'files'; path: string | null; view: ConfigFileView};
+
 export interface ProjectAutomationsPageProps {
   projectId: string;
   workspaceSlug: string;
   projectSlug: string;
+  tab?: AutomationsTab | undefined;
 }
+
+const WORKFLOWS_TAB: AutomationsTab = {kind: 'workflows'};
 
 export function ProjectAutomationsPage(props: ProjectAutomationsPageProps) {
   return (
@@ -55,34 +65,14 @@ function ProjectAutomationsPageInner({
   projectId,
   workspaceSlug,
   projectSlug,
+  tab = WORKFLOWS_TAB,
 }: ProjectAutomationsPageProps) {
   const projectQuery = useProjectQuery(projectId);
   const configQuery = useProjectConfigQuery(projectId);
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
-  const fireManual = useFireManualWorkflowMutation();
-  const [selectedDefinition, setSelectedDefinition] = useState<Definition | null>(null);
-  const [runError, setRunError] = useState<WorkflowRunError | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   useLoadEveryDefinitionPage(definitionsQuery);
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const sync = definitionsQuery.data?.pages[0]?.sync;
-  const latestRuns = useLatestWorkflowRunsQuery(
-    projectId,
-    definitionsQuery.data?.pages.map((page) =>
-      page.definitions.map((definition) => definition.id),
-    ) ?? [],
-  );
-
-  async function handleRun(definition: Definition) {
-    setRunError(null);
-    if (!definition.manualTrigger) return;
-    try {
-      await fireManual.mutateAsync({projectId, definitionId: definition.id});
-      toast.success('Run queued');
-    } catch (error) {
-      setRunError({definitionId: definition.id, copy: runStartErrorCopy(error)});
-    }
-  }
 
   let projectErrorContent: ReactNode = null;
   if (projectQuery.isError && projectQuery.data === undefined) {
@@ -127,62 +117,132 @@ function ProjectAutomationsPageInner({
 
             <div className="flex flex-col gap-group">
               <AutomationsTabs workspaceSlug={workspaceSlug} projectSlug={projectSlug} />
-              <WorkflowSyncDiagnostics sync={sync} />
-
-              <FirstWorkflowSlot
-                projectId={projectId}
-                definitionsLoaded={
-                  definitionsQuery.isSuccess && !definitionsQuery.isPlaceholderData
-                }
-                definitionCount={definitions.length}
-                sync={sync}
-              >
-                <WorkflowDefinitionsTable
-                  definitions={definitions}
-                  isPending={definitionsQuery.isPending}
-                  isError={definitionsQuery.isError}
-                  isRefreshing={definitionsQuery.isRefetching}
-                  sync={sync ?? null}
-                  latestRuns={latestRuns}
-                  runError={runError}
-                  runningDefinitionId={
-                    fireManual.isPending && fireManual.variables
-                      ? fireManual.variables.definitionId
-                      : null
-                  }
-                  hasNextPage={definitionsQuery.hasNextPage}
-                  isFetchingNextPage={definitionsQuery.isFetchingNextPage}
-                  isFetchNextPageError={definitionsQuery.isFetchNextPageError}
-                  onRetry={() => definitionsQuery.refetch()}
-                  onLoadMore={() => definitionsQuery.fetchNextPage()}
-                  onOpenDefinition={setSelectedDefinition}
-                  onRun={(definition) => {
-                    void handleRun(definition);
-                  }}
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  onDismissRunError={() => setRunError(null)}
-                  onRefreshDefinitions={() => {
-                    setRunError(null);
-                    void definitionsQuery.refetch();
-                  }}
-                  projectSlug={projectSlug}
+              {tab.kind === 'files' ? (
+                <ConfigFilesTab
+                  projectId={projectId}
                   workspaceSlug={workspaceSlug}
+                  projectSlug={projectSlug}
+                  config={configQuery.data}
+                  isConfigPending={configQuery.isPending}
+                  onRetryConfig={() => {
+                    void configQuery.refetch();
+                  }}
+                  definitions={definitions}
+                  path={tab.path}
+                  view={tab.view}
                 />
-              </FirstWorkflowSlot>
+              ) : (
+                <WorkflowsTab
+                  projectId={projectId}
+                  workspaceId={projectQuery.data.workspaceId}
+                  workspaceSlug={workspaceSlug}
+                  projectSlug={projectSlug}
+                  definitionsQuery={definitionsQuery}
+                  definitions={definitions}
+                  sync={sync}
+                />
+              )}
             </div>
           </>
         ) : null}
-
-        <DefinitionSheet
-          workspaceId={projectQuery.data?.workspaceId}
-          definition={selectedDefinition}
-          onOpenChange={(open) => {
-            if (!open) setSelectedDefinition(null);
-          }}
-        />
       </div>
     </div>
+  );
+}
+
+function WorkflowsTab({
+  projectId,
+  workspaceId,
+  workspaceSlug,
+  projectSlug,
+  definitionsQuery,
+  definitions,
+  sync,
+}: {
+  projectId: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  projectSlug: string;
+  definitionsQuery: ReturnType<typeof useDefinitionsInfiniteQuery>;
+  definitions: Definition[];
+  sync: DefinitionSyncSummary | null | undefined;
+}) {
+  const latestRuns = useLatestWorkflowRunsQuery(
+    projectId,
+    definitionsQuery.data?.pages.map((page) =>
+      page.definitions.map((definition) => definition.id),
+    ) ?? [],
+  );
+  const fireManual = useFireManualWorkflowMutation();
+  const [selectedDefinition, setSelectedDefinition] = useState<Definition | null>(null);
+  const [runError, setRunError] = useState<WorkflowRunError | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  async function handleRun(definition: Definition) {
+    setRunError(null);
+    if (!definition.manualTrigger) return;
+    try {
+      await fireManual.mutateAsync({projectId, definitionId: definition.id});
+      toast.success('Run queued');
+    } catch (error) {
+      setRunError({definitionId: definition.id, copy: runStartErrorCopy(error)});
+    }
+  }
+
+  return (
+    <>
+      <WorkflowSyncDiagnostics
+        sync={sync}
+        workspaceSlug={workspaceSlug}
+        projectSlug={projectSlug}
+      />
+
+      <FirstWorkflowSlot
+        projectId={projectId}
+        definitionsLoaded={definitionsQuery.isSuccess && !definitionsQuery.isPlaceholderData}
+        definitionCount={definitions.length}
+        sync={sync}
+      >
+        <WorkflowDefinitionsTable
+          definitions={definitions}
+          isPending={definitionsQuery.isPending}
+          isError={definitionsQuery.isError}
+          isRefreshing={definitionsQuery.isRefetching}
+          sync={sync ?? null}
+          latestRuns={latestRuns}
+          runError={runError}
+          runningDefinitionId={
+            fireManual.isPending && fireManual.variables ? fireManual.variables.definitionId : null
+          }
+          hasNextPage={definitionsQuery.hasNextPage}
+          isFetchingNextPage={definitionsQuery.isFetchingNextPage}
+          isFetchNextPageError={definitionsQuery.isFetchNextPageError}
+          onRetry={() => definitionsQuery.refetch()}
+          onLoadMore={() => definitionsQuery.fetchNextPage()}
+          onOpenDefinition={setSelectedDefinition}
+          onRun={(definition) => {
+            void handleRun(definition);
+          }}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onDismissRunError={() => setRunError(null)}
+          onRefreshDefinitions={() => {
+            setRunError(null);
+            void definitionsQuery.refetch();
+          }}
+          workspaceSlug={workspaceSlug}
+          projectSlug={projectSlug}
+        />
+      </FirstWorkflowSlot>
+
+      <DefinitionSheet
+        workspaceId={workspaceId}
+        definition={selectedDefinition}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDefinition(null);
+        }}
+      />
+    </>
   );
 }
 
@@ -203,7 +263,6 @@ function useLoadEveryDefinitionPage(
 const AUTOMATIONS_TAB_CLASS_NAME =
   'inline-flex h-40 items-center border-b-2 text-sm font-medium outline-none transition-colors focus-visible:shadow-border-interactive-with-active';
 
-/** Files joins Workflows here once the config file views ship. */
 function AutomationsTabs({
   workspaceSlug,
   projectSlug,
@@ -211,6 +270,13 @@ function AutomationsTabs({
   workspaceSlug: string;
   projectSlug: string;
 }) {
+  const activeProps = {
+    className: 'border-border-highlights-interactive text-foreground-neutral-base',
+  };
+  const inactiveProps = {
+    className:
+      'border-transparent text-foreground-neutral-subtle hover:text-foreground-neutral-base',
+  };
   return (
     <nav
       aria-label="Automations"
@@ -220,16 +286,20 @@ function AutomationsTabs({
         to="/w/$workspaceSlug/p/$projectSlug/automations"
         params={{workspaceSlug, projectSlug}}
         activeOptions={{exact: true}}
-        activeProps={{
-          className: 'border-border-highlights-interactive text-foreground-neutral-base',
-        }}
-        inactiveProps={{
-          className:
-            'border-transparent text-foreground-neutral-subtle hover:text-foreground-neutral-base',
-        }}
+        activeProps={activeProps}
+        inactiveProps={inactiveProps}
         className={AUTOMATIONS_TAB_CLASS_NAME}
       >
         Workflows
+      </Link>
+      <Link
+        to="/w/$workspaceSlug/p/$projectSlug/automations/files/$"
+        params={{workspaceSlug, projectSlug, _splat: ''} as never}
+        activeProps={activeProps}
+        inactiveProps={inactiveProps}
+        className={AUTOMATIONS_TAB_CLASS_NAME}
+      >
+        Files
       </Link>
     </nav>
   );
@@ -287,7 +357,15 @@ function WorkflowSyncAlert({
   );
 }
 
-function WorkflowSyncDiagnostics({sync}: {sync: DefinitionSyncSummary | null | undefined}) {
+function WorkflowSyncDiagnostics({
+  sync,
+  workspaceSlug,
+  projectSlug,
+}: {
+  sync: DefinitionSyncSummary | null | undefined;
+  workspaceSlug: string;
+  projectSlug: string;
+}) {
   if (
     (sync?.status !== 'succeeded' && sync?.status !== 'failed') ||
     sync.diagnostics.length === 0
@@ -312,7 +390,11 @@ function WorkflowSyncDiagnostics({sync}: {sync: DefinitionSyncSummary | null | u
           {groups.map((group) => (
             <li key={group.key} className="flex flex-col gap-tight">
               {group.filePath ? (
-                <Code className="break-all text-foreground-neutral-muted">{group.filePath}</Code>
+                <DiagnosticFilePath
+                  filePath={group.filePath}
+                  workspaceSlug={workspaceSlug}
+                  projectSlug={projectSlug}
+                />
               ) : null}
               <ul className="flex flex-col gap-tight">
                 {group.items.map(({key, diagnostic}) => {
@@ -344,6 +426,30 @@ function WorkflowSyncDiagnostics({sync}: {sync: DefinitionSyncSummary | null | u
         </ul>
       </div>
     </Callout>
+  );
+}
+
+/** Only paths under `.shipfox` open on the Files tab. */
+function DiagnosticFilePath({
+  filePath,
+  workspaceSlug,
+  projectSlug,
+}: {
+  filePath: string;
+  workspaceSlug: string;
+  projectSlug: string;
+}) {
+  const code = <Code className="break-all text-foreground-neutral-muted">{filePath}</Code>;
+  if (!normalizeConfigPath(filePath)) return code;
+  return (
+    <ConfigFileLink
+      workspaceSlug={workspaceSlug}
+      projectSlug={projectSlug}
+      path={filePath}
+      className="w-fit rounded-4 outline-none hover:underline focus-visible:shadow-border-interactive-with-active"
+    >
+      {code}
+    </ConfigFileLink>
   );
 }
 

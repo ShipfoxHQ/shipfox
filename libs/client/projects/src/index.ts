@@ -15,6 +15,12 @@ export {
   type UpdateProjectCommand,
 } from '#core/project.js';
 export type {
+  ConfigCommit,
+  ConfigCommitPage,
+  ConfigFile,
+  ConfigFileEntry,
+  ConfigFileList,
+  ConfigFileType,
   ConfigSourceKind,
   ProjectConfig,
   ProjectConfigSource,

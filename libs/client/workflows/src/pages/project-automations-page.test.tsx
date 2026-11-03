@@ -1,6 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import type {ChromeSlots} from '@shipfox/client-shell/runtime';
-import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, screen, waitFor, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
 import {
   jsonResponse,
@@ -15,9 +16,12 @@ const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const LATEST_RUN_ID = '99999999-9999-4999-8999-999999999999';
 const HEAD_COMMIT = '3f9a21c0d6e4b8a17c2e5f9d0b3a6c8e1f4d7a20';
+const OLD_COMMIT = 'e01b77a9c2d4f6081a3b5c7d9e1f2a4b6c8d0e1f';
 const DEPLOY_WORKFLOW_ROW_REGEX = /Deploy production/;
 const FAILED_RUN_LINK_REGEX = /Failed/;
 const PENDING_RUN_LINK_REGEX = /Pending/;
+const PIN_COMMIT_ROW_REGEX = /Pin the deploy action/;
+const FILE_HISTORY_LINK_REGEX = /File history, updated/;
 
 describe('ProjectAutomationsPage', () => {
   test('renders the config source above the workflow definitions', async () => {
@@ -131,6 +135,10 @@ describe('ProjectAutomationsPage', () => {
     expect(screen.getAllByText('Workflow definitions are invalid').length).toBeGreaterThan(0);
     expect(screen.getByText('Workflow definition errors')).toBeInTheDocument();
     expect(screen.getByText('.shipfox/workflows/invalid.yml')).toHaveClass('break-all');
+    expect(screen.getByRole('link', {name: '.shipfox/workflows/invalid.yml'})).toHaveAttribute(
+      'href',
+      `/w/${PROJECT_TEST_WSLUG}/p/project/automations/files/.shipfox/workflows/invalid.yml`,
+    );
     expect(screen.getByText('jobs.build.steps.0.gate.success')).toHaveClass('break-all');
     expect(
       screen.getByText('Step gate success must be a valid CEL boolean expression: No such key'),
@@ -441,11 +449,10 @@ describe('ProjectAutomationsPage', () => {
     const title = await screen.findByText('Workflow definition errors');
     const callout = title.closest('[data-slot="callout"]');
     if (!(callout instanceof HTMLElement)) throw new Error('Diagnostics callout was not rendered');
-    const file = within(callout).getByText('.shipfox/actions/thread/action.yml');
-    if (!(file.parentElement instanceof HTMLElement))
-      throw new Error('File group was not rendered');
-    expect(within(file.parentElement).getByText('main')).toBeInTheDocument();
-    expect(file.parentElement).toHaveTextContent(
+    const group = within(callout).getByText('.shipfox/actions/thread/action.yml').closest('li');
+    if (!(group instanceof HTMLElement)) throw new Error('File group was not rendered');
+    expect(within(group).getByText('main')).toBeInTheDocument();
+    expect(group).toHaveTextContent(
       'Error: Action main file index.ts is not in ./.shipfox/actions/thread',
     );
   });
@@ -916,6 +923,163 @@ describe('ProjectAutomationsPage', () => {
     });
   });
 
+  describe('Files tab', () => {
+    test('browses .shipfox and reads a file by keyboard, then opens its history', async () => {
+      const fetchImpl = createProjectDetailFetch();
+      configureApiClient({fetchImpl});
+      const user = userEvent.setup();
+
+      renderFilesPage();
+
+      const tree = await screen.findByRole('tree', {name: 'Config files'});
+      expect(screen.getByRole('link', {name: 'Files'})).toHaveAttribute('aria-current', 'page');
+      expect(screen.getByText('Select a file')).toBeInTheDocument();
+      // The tree is one tab stop, on its first node until something is selected.
+      const tabStops = within(tree)
+        .getAllByRole('treeitem')
+        .filter((item) => item.tabIndex === 0);
+      expect(tabStops.map((item) => item.dataset.path)).toEqual(['.shipfox']);
+      act(() => tabStops[0]?.focus());
+      await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+      expect(within(tree).getByRole('treeitem', {name: 'deploy.yml'})).toHaveFocus();
+      await user.keyboard('{Enter}');
+
+      const file = await screen.findByRole('region', {name: 'Config file'});
+      expect(await within(file).findByText('Used by workflow')).toHaveTextContent(
+        'Used by workflow Deploy production',
+      );
+      // Highlighting splits a line into tokens once it loads, so match the text, not a node.
+      await waitFor(() => expect(file).toHaveTextContent('name: Deploy production'));
+      expect(within(tree).getByRole('treeitem', {name: 'deploy.yml'})).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+      expect(commitRequests(fetchImpl)).toHaveLength(0);
+
+      await user.click(within(file).getByRole('link', {name: 'History'}));
+
+      const history = await within(file).findByRole('list', {
+        name: 'History of .shipfox/workflows/deploy.yml',
+      });
+      const row = within(history).getByRole('link', {name: PIN_COMMIT_ROW_REGEX});
+      expect(row).toHaveAttribute('href', `https://github.com/acme/platform/commit/${OLD_COMMIT}`);
+      expect(row).toHaveTextContent('e01b77a');
+      expect(row).toHaveTextContent('Mira Okafor');
+      expect(within(file).getByRole('link', {name: 'History'})).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      expect(commitRequests(fetchImpl)[0]?.searchParams.get('path')).toBe(
+        '.shipfox/workflows/deploy.yml',
+      );
+      expect(commitRequests(fetchImpl)[0]?.searchParams.get('ref')).toBe(HEAD_COMMIT);
+    });
+
+    test('lists every config change when .shipfox is selected', async () => {
+      configureApiClient({fetchImpl: createProjectDetailFetch()});
+
+      renderFilesPage('.shipfox');
+
+      const history = await screen.findByRole('list', {name: 'History of .shipfox'});
+      expect(within(history).getAllByRole('listitem')).toHaveLength(1);
+      expect(screen.queryByRole('navigation', {name: 'File view'})).not.toBeInTheDocument();
+    });
+
+    test('shows plain rows for commits with no page of their own', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          commits: jsonResponse(commitsDto({html_url: undefined})),
+        }),
+      });
+
+      renderFilesPage('.shipfox');
+
+      const history = await screen.findByRole('list', {name: 'History of .shipfox'});
+      expect(within(history).getByText('Pin the deploy action')).toBeInTheDocument();
+      expect(within(history).queryByRole('link')).not.toBeInTheDocument();
+    });
+
+    test('hides History when the provider has no commit list', async () => {
+      const fetchImpl = createProjectDetailFetch({
+        config: jsonResponse({...configDto(), history_supported: false}),
+      });
+      configureApiClient({fetchImpl});
+
+      renderFilesPage('.shipfox/workflows/deploy.yml', {view: 'history'});
+
+      const file = await screen.findByRole('region', {name: 'Config file'});
+      await waitFor(() => expect(file).toHaveTextContent('name: Deploy production'));
+      expect(screen.queryByRole('link', {name: 'History'})).not.toBeInTheDocument();
+      expect(commitRequests(fetchImpl)).toHaveLength(0);
+    });
+
+    test.each([
+      {
+        name: 'a symbolic link',
+        path: '.shipfox/prompts/shared.md',
+        title: 'Symbolic link',
+      },
+      {
+        name: 'a submodule',
+        path: '.shipfox/actions/vendor',
+        title: 'Submodule',
+      },
+    ])('shows $name without reading it', async ({path, title}) => {
+      const fetchImpl = createProjectDetailFetch();
+      configureApiClient({fetchImpl});
+
+      renderFilesPage(path);
+
+      expect(await screen.findByText(title)).toBeInTheDocument();
+      expect(fileReadRequests(fetchImpl)).toHaveLength(0);
+    });
+
+    test.each([
+      {code: 'content-too-large', status: 422, title: 'File too large to show'},
+      {code: 'binary-file-unsupported', status: 422, title: 'Not a text file'},
+      {code: 'access-denied', status: 422, title: "Couldn't read this file"},
+    ])('shows "$title" when the read answers $code', async ({code, status, title}) => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          fileRead: jsonResponse({code, message: code}, {status}),
+        }),
+      });
+
+      renderFilesPage('.shipfox/workflows/deploy.yml');
+
+      expect(await screen.findByText(title)).toBeInTheDocument();
+    });
+
+    test('keeps the source header when the files cannot be listed', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          files: jsonResponse({code: 'integration-connection-inactive'}, {status: 422}),
+        }),
+      });
+
+      renderFilesPage();
+
+      expect(await screen.findByText("Couldn't load config files")).toBeInTheDocument();
+      expect(screen.getByRole('region', {name: 'Config source'})).toBeInTheDocument();
+    });
+  });
+
+  test('links each workflow to its file and its history', async () => {
+    configureApiClient({fetchImpl: createProjectDetailFetch()});
+
+    renderAutomationsPage();
+
+    const row = await screen.findByRole('row', {name: DEPLOY_WORKFLOW_ROW_REGEX});
+    expect(within(row).getByRole('link', {name: 'View file'})).toHaveAttribute(
+      'href',
+      `/w/${PROJECT_TEST_WSLUG}/p/project/automations/files/.shipfox/workflows/deploy.yml`,
+    );
+    expect(within(row).getByRole('link', {name: FILE_HISTORY_LINK_REGEX})).toHaveAttribute(
+      'href',
+      `/w/${PROJECT_TEST_WSLUG}/p/project/automations/files/.shipfox/workflows/deploy.yml?view=history`,
+    );
+  });
+
   test('renders not found state', async () => {
     configureApiClient({
       fetchImpl: vi.fn((input) => {
@@ -947,9 +1111,81 @@ function renderAutomationsPage(chrome: Partial<ChromeSlots> = {}) {
   );
 }
 
+function renderFilesPage(path?: string, search: {view?: 'history'} = {}) {
+  const query = search.view ? `?view=${search.view}` : '';
+  return renderProjectPage(
+    `/w/${PROJECT_TEST_WSLUG}/p/project/automations/files/${path ?? ''}${query}`,
+    (params) => (
+      <ProjectAutomationsPage
+        projectId={PROJECT_ID}
+        workspaceSlug={PROJECT_TEST_WSLUG}
+        projectSlug="project"
+        tab={{
+          kind: 'files',
+          path: params.path || null,
+          view: 'view' in params.search && params.search.view === 'history' ? 'history' : 'code',
+        }}
+      />
+    ),
+  );
+}
+
+function requestsTo(fetchImpl: ReturnType<typeof createProjectDetailFetch>, prefix: string) {
+  return fetchImpl.mock.calls
+    .map(([input]) => new URL(requestInputUrl(input)))
+    .filter((url) => url.pathname.startsWith(`/projects/${PROJECT_ID}${prefix}`));
+}
+
+function commitRequests(fetchImpl: ReturnType<typeof createProjectDetailFetch>) {
+  return requestsTo(fetchImpl, '/config/commits');
+}
+
+function fileReadRequests(fetchImpl: ReturnType<typeof createProjectDetailFetch>) {
+  return requestsTo(fetchImpl, '/config/files/');
+}
+
+function filesDto() {
+  return {
+    commit: HEAD_COMMIT,
+    files: [
+      {path: '.shipfox/actions/vendor', type: 'submodule', size: 0},
+      {path: '.shipfox/prompts/shared.md', type: 'symlink', size: 9},
+      {path: '.shipfox/workflows/deploy.yml', type: 'file', size: 64},
+    ],
+    next_cursor: null,
+  };
+}
+
+function commitsDto(overrides: {html_url?: string | undefined} = {}) {
+  const htmlUrl =
+    'html_url' in overrides
+      ? overrides.html_url
+      : `https://github.com/acme/platform/commit/${OLD_COMMIT}`;
+  return {
+    commit: HEAD_COMMIT,
+    commits: [
+      {
+        oid: OLD_COMMIT,
+        message: 'Pin the deploy action\n\nThe tag moved under us.',
+        author_name: 'Mira Okafor',
+        authored_at: '2026-05-06T01:00:00.000Z',
+        ...(htmlUrl ? {html_url: htmlUrl} : {}),
+      },
+    ],
+    next_cursor: null,
+  };
+}
+
 function createProjectDetailFetch({
   project = jsonResponse(projectDto()),
   config = jsonResponse(configDto()),
+  files = jsonResponse(filesDto()),
+  fileRead = jsonResponse({
+    path: '.shipfox/workflows/deploy.yml',
+    commit: HEAD_COMMIT,
+    content: 'name: Deploy production\njobs: {}\n',
+  }),
+  commits = jsonResponse(commitsDto()),
   definitions = jsonResponse(definitionsDto()),
   definitionsAfterCursor,
   run = jsonResponse(runDto(), {status: 201}),
@@ -964,31 +1200,36 @@ function createProjectDetailFetch({
   run?: Response;
   packageUpdates?: Response;
   latestRuns?: Response;
+  files?: Response;
+  fileRead?: Response;
+  commits?: Response;
 } = {}) {
   const responsesByPath: Record<string, Response> = {
     [`/projects/${PROJECT_ID}`]: project,
     [`/projects/${PROJECT_ID}/config`]: config,
     '/workflows/runs/latest': latestRuns,
+    [`/projects/${PROJECT_ID}/config/files`]: files,
+    [`/projects/${PROJECT_ID}/config/commits`]: commits,
     [`/workspaces/${PROJECT_TEST_WID}/definitions/${DEFINITION_ID}/package-updates`]:
       packageUpdates,
   };
+  function respond(url: URL, method: string): Response {
+    const response = responsesByPath[url.pathname];
+    if (response) return response;
+    if (url.pathname.startsWith(`/projects/${PROJECT_ID}/config/files/`)) return fileRead;
+    if (url.pathname === '/definitions') {
+      return url.searchParams.has('cursor') && definitionsAfterCursor
+        ? definitionsAfterCursor
+        : definitions;
+    }
+    if (url.pathname.endsWith('/fire-manual') && method === 'POST') return run;
+    return jsonResponse({code: 'not-found'}, {status: 404});
+  }
+
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(requestInputUrl(input));
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-
-    const response = responsesByPath[url.pathname];
-    if (response) return Promise.resolve(response.clone());
-    if (url.pathname === '/definitions') {
-      const page =
-        url.searchParams.has('cursor') && definitionsAfterCursor
-          ? definitionsAfterCursor
-          : definitions;
-      return Promise.resolve(page.clone());
-    }
-    if (url.pathname.endsWith('/fire-manual') && method === 'POST') {
-      return Promise.resolve(run.clone());
-    }
-    return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
+    return Promise.resolve(respond(url, method).clone());
   });
 }
 

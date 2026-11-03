@@ -31,6 +31,11 @@ export const workflowsFeature = defineClientFeature({
       impl: '@shipfox/client-workflows/routes/automations',
     },
     {
+      path: '/w/$workspaceSlug/p/$projectSlug/automations/files/$',
+      parent: 'projectLayout',
+      impl: '@shipfox/client-workflows/routes/automations-files',
+    },
+    {
       path: '/w/$workspaceSlug/p/$projectSlug/runs',
       parent: 'projectLayout',
       impl: '@shipfox/client-workflows/routes/runs',
