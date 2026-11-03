@@ -242,6 +242,7 @@ describe('commit_config_changes', () => {
     ['path-not-allowed', {path: 'src/index.ts'}, {path: 'src/index.ts'}],
     ['content-not-text', {path: WORKFLOW}, {path: WORKFLOW}],
     ['protected-branch', {branch: 'main'}, undefined],
+    ['move-in-progress', {}, undefined],
     ['commit-too-large', {}, undefined],
   ] as const)('maps %s', async (code, details, expectedDetails) => {
     const commitConfigChanges = vi

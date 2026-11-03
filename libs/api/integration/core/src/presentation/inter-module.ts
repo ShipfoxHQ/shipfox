@@ -953,11 +953,8 @@ function mapConfigCommitError(
 
   const {details} = error;
   switch (error.refusal) {
-    case 'repository-read-only':
-      // The project row still points at the managed repository, so a move is starting or stopped.
-      return createInterModuleKnownError(method, 'repository-read-only', {
-        repository: 'the managed repository (a move to a repository is in progress)',
-      });
+    case 'move-in-progress':
+      return createInterModuleKnownError(method, 'move-in-progress', {});
     case 'protected-branch':
     case 'branch-invalid':
       return createInterModuleKnownError(method, error.refusal, {branch: details.branch ?? branch});

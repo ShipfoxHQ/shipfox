@@ -61,7 +61,7 @@ export interface CommittedManagedChanges {
 }
 
 export type ManagedCommitRefusal =
-  | 'repository-read-only'
+  | 'move-in-progress'
   | 'protected-branch'
   | 'branch-invalid'
   | 'stale-head'
@@ -161,7 +161,7 @@ export async function commitManagedChanges(
         );
       }
       // A move to a repository holds the same row exclusively while it starts, so no write slips past.
-      if (locked.status !== 'active') throw new ManagedCommitRefusedError('repository-read-only');
+      if (locked.status !== 'active') throw new ManagedCommitRefusedError('move-in-progress');
 
       await insertObjects({repositoryId: repository.id, objects: objects.bufferedObjects()}, {tx});
       const moved = await moveRef({

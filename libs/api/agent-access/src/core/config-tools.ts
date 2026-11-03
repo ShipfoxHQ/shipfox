@@ -164,6 +164,11 @@ function mapConfigError(code: string, details: Record<string, unknown>) {
         message: `The config of this project lives in ${String(details.repository)}. Change it there with the GitHub tools.`,
         details: {repository: String(details.repository)},
       });
+    case 'move-in-progress':
+      return agentAccessError(code, {
+        message:
+          'This project is being moved to a repository, so its config cannot change right now. Try again later.',
+      });
     case 'protected-branch':
       return agentAccessError(code, {
         message:

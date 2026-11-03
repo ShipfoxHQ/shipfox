@@ -460,6 +460,8 @@ export const integrationsInterModuleContract = defineInterModuleContract({
         ...configReadErrors,
         /** The config lives in a linked repository, named `owner/name`. */
         'repository-read-only': z.object({repository: z.string()}),
+        /** The managed repository is being moved to a repository, so it takes no writes for now. */
+        'move-in-progress': z.object({}),
         'protected-branch': z.object({branch: z.string()}),
         'branch-invalid': z.object({branch: z.string()}),
         /** `head` is where the branch points now, or null when it does not exist. */

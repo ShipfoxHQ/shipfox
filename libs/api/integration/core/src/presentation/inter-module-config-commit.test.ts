@@ -1,5 +1,9 @@
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
-import {ManagedSourceControlProvider} from '@shipfox/api-integration-managed-vcs';
+import {
+  beginManagedLink,
+  getManagedRepositoryByProject,
+  ManagedSourceControlProvider,
+} from '@shipfox/api-integration-managed-vcs';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
@@ -169,6 +173,23 @@ describe('integrations inter-module config commits', () => {
     expect(
       await knownError(commit(project, {changes: [{path: 'src/index.ts', content: 'x'}]})),
     ).toEqual({code: 'path-not-allowed', details: {path: 'src/index.ts'}});
+  });
+
+  it('answers move-in-progress while the repository is moving', async () => {
+    const project = await createManagedProject();
+    const repository = await getManagedRepositoryByProject({
+      projectId: project.projectId,
+      workspaceId: project.workspaceId,
+    });
+    await beginManagedLink({
+      repositoryId: repository?.id ?? '',
+      attemptId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      externalRepositoryId: 'github:1',
+      startedBy: crypto.randomUUID(),
+    });
+
+    expect(await knownError(commit(project))).toEqual({code: 'move-in-progress', details: {}});
   });
 
   it('answers repository-read-only with the repository name for a linked project', async () => {

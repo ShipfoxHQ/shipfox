@@ -317,7 +317,7 @@ describe('commitManagedChanges', () => {
 
     const result = await refusal(commit(repository));
 
-    expect(result.refusal).toBe('repository-read-only');
+    expect(result.refusal).toBe('move-in-progress');
     expect(await objectCount(repository)).toBe(before);
   });
 
