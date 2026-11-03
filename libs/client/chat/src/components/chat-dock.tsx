@@ -87,11 +87,12 @@ export default function ChatDock() {
   return <ProjectChat key={project.id} project={project} />;
 }
 
-function composerError(draft: string, sendError: unknown): string | undefined {
+function composerError(draft: string, sendError: unknown, agentGone: boolean): string | undefined {
   if (isMessageTooLong(draft)) return MESSAGE_TOO_LONG;
   if (!sendError || isConversationNotFound(sendError)) return undefined;
-  // The panel shows the deleted agent instead, once the agents are read again.
-  if (isErrorWithCode(sendError, CONVERSATION_AGENT_UNAVAILABLE_CODE)) return undefined;
+  // The panel shows the deleted agent instead, once the agents list confirms it.
+  if (agentGone && isErrorWithCode(sendError, CONVERSATION_AGENT_UNAVAILABLE_CODE))
+    return undefined;
   return SEND_FAILED;
 }
 
@@ -220,7 +221,7 @@ function ProjectChat({project}: {project: Project}) {
     close: () => setOpen(false),
   });
 
-  const sendError = composerError(draft.value, chat.sendError);
+  const sendError = composerError(draft.value, chat.sendError, agentGone);
   const title = panelTitle({
     conversationId,
     title: chat.detail?.title ?? conversations.find((c) => c.id === conversationId)?.title,

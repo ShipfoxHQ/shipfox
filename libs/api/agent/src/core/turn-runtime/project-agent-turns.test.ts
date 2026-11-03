@@ -148,9 +148,10 @@ describe('agent config in turns', () => {
       }),
     ]);
     const first = await beginConversationTurn({conversationId: conversation.id, deps});
+    if (!first) throw new Error('No turn began');
     await finishConversationTurn({
       conversationId: conversation.id,
-      turnId: first?.turnId ?? '',
+      turnId: first.turnId,
       status: 'succeeded',
     });
     definitions.agents.set(projectId, [
@@ -163,7 +164,7 @@ describe('agent config in turns', () => {
 
     const second = await beginConversationTurn({conversationId: conversation.id, deps});
 
-    expect(await getTurnById(first?.turnId ?? '')).toMatchObject({model: 'claude-haiku-4-5'});
+    expect(await getTurnById(first.turnId)).toMatchObject({model: 'claude-haiku-4-5'});
     expect(await getTurnById(second?.turnId ?? '')).toMatchObject({
       provider: 'anthropic',
       model: 'claude-opus-4-5',
@@ -178,9 +179,10 @@ describe('agent config in turns', () => {
       projectAgentSnapshot({key: 'reviewer', instructions: 'You review pull requests.'}),
     ]);
     const first = await beginConversationTurn({conversationId: conversation.id, deps});
+    if (!first) throw new Error('No turn began');
     await finishConversationTurn({
       conversationId: conversation.id,
-      turnId: first?.turnId ?? '',
+      turnId: first.turnId,
       status: 'succeeded',
     });
     await queueMessage(conversation.id, 'Another one?');

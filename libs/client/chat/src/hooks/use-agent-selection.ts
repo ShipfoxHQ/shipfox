@@ -4,6 +4,7 @@ import {isAgentUnavailable, SHIPPY_AGENT_KEY} from '#core/project-agents.js';
 import {useProjectAgentsQuery} from './api/project-agents.js';
 
 export const CONVERSATION_AGENT_UNAVAILABLE_CODE = 'conversation-agent-unavailable';
+const AGENT_NOT_FOUND_CODE = 'agent-not-found';
 
 /**
  * Which agent the panel talks to. An existing conversation keeps the agent it was created with.
@@ -14,12 +15,17 @@ export function useAgentSelection(params: {
   conversationId: string | undefined;
   /** The `agent_key` of the open conversation, once it has loaded. */
   conversationAgentKey: string | undefined;
-  /** The latest failure of a send. A refused message tells the panel that the agent is gone. */
+  /**
+   * The latest failure of a send. A message refused because its agent is gone, in an open
+   * conversation or as the first message of a new one, makes the panel read the agents again.
+   */
   sendError: unknown;
 }) {
   const {projectId, conversationId, conversationAgentKey, sendError} = params;
   const {data: agents, refetch} = useProjectAgentsQuery(projectId);
-  const agentRefused = isErrorWithCode(sendError, CONVERSATION_AGENT_UNAVAILABLE_CODE);
+  const agentRefused =
+    isErrorWithCode(sendError, CONVERSATION_AGENT_UNAVAILABLE_CODE) ||
+    isErrorWithCode(sendError, AGENT_NOT_FOUND_CODE);
   useEffect(() => {
     if (agentRefused) void refetch();
   }, [agentRefused, refetch]);
