@@ -12,5 +12,5 @@ A project can store and read its access: the connections it can use and, for eac
 
 - **Projects:** `GET` and `PUT /projects/:projectId/access`, with admin-only writes. A linked project's config connection can be saved with zero repositories, which means only the config repository. A repository rename updates the stored names of a listed repository.
 - **Projects DTO:** a browser-safe access evaluator and the policy types, and `getProjectAccessPolicy` and `getProjectAccessPolicies` on the inter-module contract.
-- **Integrations:** providers can declare resource kinds and list and resolve their resources. GitHub and Gitea do so for repositories, and `GET /integration-connections/:connectionId/scope-resources` serves the picker.
+- **Integrations:** providers can declare `resourceKinds` and implement `listScopeResources` and `resolveScopeResource`. GitHub and Gitea do so for repositories. `GET /integration-connections/:connectionId/scope-resources` serves the picker, and `getScopeConnection` and `resolveScopeResource` join the inter-module contract.
 - **Connection deletion** of every kind writes `integrations.connection.deleted`, and Projects removes the matching scopes.
