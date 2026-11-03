@@ -31,11 +31,7 @@ import {
   onProjectSourceBound,
   onProjectSourceCommitObserved,
 } from '#presentation/subscribers/index.js';
-import {
-  createDefinitionSyncActivities,
-  DEFINITION_SYNC_MAX_CONCURRENT_ACTIVITIES,
-  DEFINITIONS_TASK_QUEUE,
-} from '#temporal/index.js';
+import {createDefinitionSyncActivities, DEFINITIONS_TASK_QUEUE} from '#temporal/index.js';
 import {definitionAgentPath, definitionWorkflowPath} from './config.js';
 import {definitionsFlags} from './flags.js';
 
@@ -129,7 +125,6 @@ export function createDefinitionsModule({
             flags,
           }),
         workflows: [],
-        maxConcurrentActivityTaskExecutions: DEFINITION_SYNC_MAX_CONCURRENT_ACTIVITIES,
       },
     ],
     interModulePresentations: [
