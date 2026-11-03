@@ -16,7 +16,7 @@ import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import {PromptFileResolutionError} from './errors.js';
 import {FILE_FETCH_CONCURRENCY, isBinaryFileError} from './integrations.js';
 import {type PromptFileUse, resolvePromptFiles} from './resolve-prompt-files.js';
-import {DEFAULT_AGENT_PATH, type SyncSourceContext} from './sync-definitions.js';
+import {DEFAULT_AGENT_PATH, type SyncSourceContext, withTrailingSlash} from './sync-definitions.js';
 import type {WorkflowModelValidationIssue} from './workflow-model/invalid-workflow-model-error.js';
 import {validateAgentModelSelection} from './workflow-model/validate-agent-model-selection.js';
 
@@ -66,7 +66,7 @@ export interface FetchAndParseAgentsParams extends SyncSourceContext {
 export async function fetchAndParseAgents(
   params: FetchAndParseAgentsParams,
 ): Promise<ParsedAgents> {
-  const agentPath = params.agentPath ?? DEFAULT_AGENT_PATH;
+  const agentPath = withTrailingSlash(params.agentPath ?? DEFAULT_AGENT_PATH);
   const result: ParsedAgents = {valid: [], invalid: [], diagnostics: []};
   const seenKeys = new Map<string, string>();
 
@@ -89,6 +89,7 @@ export async function fetchAndParseAgents(
             message: `Agent file ${outcome.path} is ignored: ${first} already defines the agent "${outcome.key}".`,
             filePath: outcome.path,
           }),
+          ...outcome.diagnostics,
         );
         continue;
       }

@@ -49,7 +49,11 @@ describe('applyVcsAgentsBatch', () => {
     expect(agent).toMatchObject({
       key: 'a',
       configPath: '.shipfox/agents/a.yml',
+      name: null,
+      description: 'Agent a',
       instructions: 'Instructions for a',
+      document: {description: 'Agent a', instructions: 'Instructions for a'},
+      contentHash: 'hash-a',
       lastError: error,
     });
   });

@@ -117,8 +117,8 @@ export interface DiscoveredDefinitionFiles {
 export async function discoverDefinitionFiles(
   params: DiscoverDefinitionFilesParams,
 ): Promise<DiscoveredDefinitionFiles> {
-  const workflowPath = params.workflowPath ?? DEFAULT_WORKFLOW_PATH;
-  const agentPath = params.agentPath ?? DEFAULT_AGENT_PATH;
+  const workflowPath = withTrailingSlash(params.workflowPath ?? DEFAULT_WORKFLOW_PATH);
+  const agentPath = withTrailingSlash(params.agentPath ?? DEFAULT_AGENT_PATH);
   const workflowPaths = await listYamlFiles(params, workflowPath, 'workflow');
   const agentPaths = await listYamlFiles(params, agentPath, 'agent');
   if (workflowPaths.length === 0 && agentPaths.length === 0) {
@@ -129,6 +129,12 @@ export async function discoverDefinitionFiles(
   }
 
   return {workflowPaths, agentPaths};
+}
+
+// A listing prefix without a slash also matches sibling folders, and a key
+// is derived by slicing the prefix off the path.
+export function withTrailingSlash(path: string): string {
+  return path.endsWith('/') ? path : `${path}/`;
 }
 
 async function listYamlFiles(

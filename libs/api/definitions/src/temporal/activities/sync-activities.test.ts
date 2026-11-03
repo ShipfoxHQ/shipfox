@@ -509,16 +509,24 @@ describe('definition sync activities', () => {
     });
 
     it('changes nothing when the project points at another source', async () => {
-      const activities = createDefinitionSyncActivities(
+      const current = createDefinitionSyncActivities(
+        repositorySource({[reviewerPath]: reviewerYaml}),
+        agent,
+        projects,
+      );
+      await sync(current, [reviewerPath]);
+      const before = await listProjectAgents(projectId);
+      const superseded = createDefinitionSyncActivities(
         repositorySource({[shippyPath]: ''}),
         agent,
         projectsClient({sourceConnectionId, sourceExternalRepositoryId: 'github:acme/config'}),
       );
 
-      const result = await sync(activities, [shippyPath]);
+      const result = await sync(superseded, [shippyPath]);
 
       expect(result).toEqual({appliedCount: 0, deletedCount: 0, diagnostics: []});
-      expect(await listProjectAgents(projectId)).toEqual([]);
+      expect(await listProjectAgents(projectId)).toEqual(before);
+      expect(before.map((entry) => entry.key)).toEqual(['reviewer']);
     });
   });
 

@@ -102,8 +102,9 @@ export function agentDocumentKeyForPath(
   path: string,
   directory: string = AGENT_DOCUMENT_DIRECTORY,
 ): string | undefined {
-  if (!path.startsWith(directory)) return undefined;
-  const fileName = path.slice(directory.length);
+  const prefix = directory.endsWith('/') ? directory : `${directory}/`;
+  if (!path.startsWith(prefix)) return undefined;
+  const fileName = path.slice(prefix.length);
   if (fileName.includes('/')) return undefined;
   const extension = ['.yaml', '.yml'].find((candidate) => fileName.endsWith(candidate));
   if (extension === undefined) return undefined;

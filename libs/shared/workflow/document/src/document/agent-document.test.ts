@@ -62,6 +62,15 @@ describe('agentDocumentKeyForPath', () => {
     expect(agentDocumentKeyForPath('.shipfox/agents/code-reviewer.yml')).toBe('code-reviewer');
   });
 
+  it('accepts a directory without a trailing slash', () => {
+    expect(agentDocumentKeyForPath('.shipfox/agents/shippy.yaml', '.shipfox/agents')).toBe(
+      'shippy',
+    );
+    expect(
+      agentDocumentKeyForPath('.shipfox/agents-old/shippy.yaml', '.shipfox/agents'),
+    ).toBeUndefined();
+  });
+
   it('rejects nested files, other extensions, and invalid names', () => {
     expect(agentDocumentKeyForPath('.shipfox/agents/team/reviewer.yaml')).toBeUndefined();
     expect(agentDocumentKeyForPath('.shipfox/agents/reviewer.md')).toBeUndefined();

@@ -163,10 +163,26 @@ describe('fetchAndParseAgents', () => {
       '.shipfox/agents/shippy.yml': 'instructions: B',
     });
 
-    expect(result.valid).toHaveLength(1);
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({message: expect.stringContaining('already defines the agent')}),
+    expect(result.valid).toEqual([
+      expect.objectContaining({path: '.shipfox/agents/shippy.yaml', instructions: 'A'}),
     ]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        filePath: '.shipfox/agents/shippy.yml',
+        message: expect.stringContaining('already defines the agent'),
+      }),
+    ]);
+  });
+
+  it('keys files under an agent path without a trailing slash', async () => {
+    const result = await fetchAndParseAgents({
+      ...context,
+      agentPath: '.shipfox/agents',
+      paths: ['.shipfox/agents/shippy.yaml'],
+      sourceControl: repositorySourceControl({'.shipfox/agents/shippy.yaml': ''}),
+    });
+
+    expect(result.valid.map((agent) => agent.key)).toEqual(['shippy']);
   });
 
   it('changes the hash when only the prompt file changes', async () => {

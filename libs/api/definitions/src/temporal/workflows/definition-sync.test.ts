@@ -265,6 +265,9 @@ describe('definitionSyncWorkflow agent files', () => {
     expect(workflowMocks.fetchAndApplyDefinitionAgents).toHaveBeenCalledWith(
       expect.objectContaining({paths: ['.shipfox/agents/broken.yaml']}),
     );
+    expect(
+      workflowMocks.fetchAndApplyDefinitionWorkflowsV2.mock.invocationCallOrder[0],
+    ).toBeLessThan(workflowMocks.fetchAndApplyDefinitionAgents.mock.invocationCallOrder[0] ?? 0);
     expect(workflowMocks.markDefinitionSyncSucceededV2).toHaveBeenCalledWith(
       expect.objectContaining({diagnostics: [agentDiagnostic]}),
     );

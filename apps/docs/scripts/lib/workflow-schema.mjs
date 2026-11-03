@@ -451,7 +451,8 @@ function buildSection(definition, {schema, examples, parseYaml, validate}) {
     validate(parseYaml(example.code));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Workflow schema example "${definition.example}" is invalid: ${message}`);
+    const kind = definition.document === 'agent' ? 'Agent' : 'Workflow';
+    throw new Error(`${kind} schema example "${definition.example}" is invalid: ${message}`);
   }
 
   return {
