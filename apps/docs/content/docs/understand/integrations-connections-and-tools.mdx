@@ -5,10 +5,11 @@ description: "Connect your tools once. Events from them start workflows, and you
 ---
 
 An **integration** connects Shipfox to a tool your team already uses, such as
-GitHub, Sentry, or Slack. An **integration connection** is one account you
-connected, for example your company's GitHub organization.
+GitHub, Sentry, or Slack. An **integration connection** is one account or
+source you connected, for example your company's GitHub organization.
 
-An integration connection does two things for you:
+An integration connection can do two things for you. Most tools do both, and
+some do only one:
 
 - **It starts workflows.** When something happens in the tool, such as a new
   issue or a new pull request, a workflow can start.
@@ -60,8 +61,8 @@ A workflow can use a tool in two ways.
 <Tabs items={['Tool step', 'Agent step']}>
   <Tab value="Tool step">
 
-    You name one action and its values. The result is always the same for the
-    same input. Use it when you already know the exact action.
+    You name one action and its values. Shipfox makes exactly that call. Use
+    it when you already know the exact action.
 
     ```yaml
     steps:
@@ -98,8 +99,9 @@ is not a tool either: it comes from the job's checkout, which
 explains.
 
 This keeps the first steps of a workflow safe. In the example below, a new
-Sentry issue starts an agent that only reads your code. A later step, after
-the tests pass, gets one permission on GitHub: open a pull request.
+Sentry issue starts an agent that works on your code with no tools at all. A
+later step, after the tests pass, gets one permission on GitHub: open a pull
+request.
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json

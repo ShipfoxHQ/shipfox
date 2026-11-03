@@ -76,7 +76,7 @@ Workflow outputs use the same JSON-safe encoding as job outputs.
 | File size | 1 MB | No | One file under `.shipfox/` in a repository Shipfox hosts. A larger file fails the commit with `file-too-large`. The same cap applies when Shipfox reads a workflow file from a linked repository. |
 | Changes per commit | 100 files | No | One `commit_config_changes` call is one commit. More changes fail with `too-many-changes`. |
 | Commit size | 1 MiB | No | The content of one commit. A larger commit fails with `commit-too-large`. |
-| Content | UTF-8 text under `.shipfox/` | No | Binary content, symbolic links, and submodules are refused with `content-not-text` or `path-not-allowed`. See [Configuration](/understand/configuration#in-your-repository-or-managed-by-shipfox). |
+| Content | UTF-8 text under `.shipfox/` | No | Binary content is refused with `content-not-text`. Symbolic links and submodules are not supported. See [Configuration](/understand/configuration#in-your-repository-or-managed-by-shipfox). |
 
 ## Workflow chaining
 

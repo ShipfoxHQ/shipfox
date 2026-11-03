@@ -10,9 +10,9 @@ web
 
 The primary user is any engineer who wants to automate engineering work with AI
 agents that react to events. They write workflows as YAML in their own
-repository, or in config Shipfox hosts until they move it there, wire them to
-the tools they already use (GitHub, Sentry, Slack, Linear, generic webhooks),
-and monitor runs live in the dashboard. They are
+repository, or in config Shipfox hosts until they move it to their repository,
+wire them to the tools they already use (GitHub, Sentry, Slack, Linear, generic
+webhooks), and monitor runs live in the dashboard. They are
 comfortable reading a GitHub Actions file, live in terminals and logs, and expect
 data density, unambiguous status, and no marketing fluff.
 
@@ -57,9 +57,11 @@ and on how far a team can scale and control their factory from there.
 - **Authoring.** Workflows are YAML files under `.shipfox/workflows/`, versioned
   and reviewed like the rest of the repo. A project can also start with managed
   config: Shipfox hosts the same `.shipfox/` tree in a git repository of its
-  own, agents commit to branches, and the project can move to the user's
-  repository later through a pull request. If you can read a GitHub Actions
-  file, you can read a Shipfox workflow.
+  own, agents commit to branches, a person approves changes in Shipfox, and
+  the project can move to the user's repository later through a pull request.
+  Managed config is gated behind the `managed-config-repos` workspace flag
+  until Config proposals ships. If you can read a GitHub Actions file, you can
+  read a Shipfox workflow.
 - **Triggering.** Runs start from events on connected integrations (GitHub,
   Sentry, Slack, Linear, and a generic webhook for anything else) or on demand.
 - **Execution.** Workflows run on isolated runners. On cloud, Shipfox provides
