@@ -1,4 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {upsertModelProviderConfig} from '#db/index.js';
 import {getConversationById, getTurnById, listContextItems} from '#db/turn-runtime.js';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {
@@ -169,6 +170,46 @@ describe('agent config in turns', () => {
       provider: 'anthropic',
       model: 'claude-opus-4-5',
     });
+  });
+
+  it('reads the thinking of the agent file at the start of each turn', async () => {
+    const {conversation, projectId, definitions, deps} = await arrange();
+    definitions.agents.set(projectId, [
+      projectAgentSnapshot({key: 'shippy', document: {thinking: 'low'}}),
+    ]);
+    const first = await beginConversationTurn({conversationId: conversation.id, deps});
+    if (!first) throw new Error('No turn began');
+    definitions.agents.set(projectId, [
+      projectAgentSnapshot({key: 'shippy', document: {thinking: 'high'}}),
+    ]);
+
+    const resumed = await beginConversationTurn({conversationId: conversation.id, deps});
+    await finishConversationTurn({
+      conversationId: conversation.id,
+      turnId: first.turnId,
+      status: 'succeeded',
+    });
+    await queueMessage(conversation.id, 'And now?');
+    const second = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(resumed?.turnId).toBe(first.turnId);
+    expect(await getTurnById(first.turnId)).toMatchObject({thinking: 'low'});
+    expect(await getTurnById(second?.turnId ?? '')).toMatchObject({thinking: 'high'});
+  });
+
+  it('uses the workspace default thinking when the agent file sets none', async () => {
+    const {conversation, workspaceId, deps} = await arrange();
+    await upsertModelProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: null,
+      defaultThinking: 'medium',
+      setAsDefault: true,
+    });
+
+    const turn = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(await getTurnById(turn?.turnId ?? '')).toMatchObject({thinking: 'medium'});
   });
 
   it('refuses a message queued for a custom agent that was deleted since', async () => {

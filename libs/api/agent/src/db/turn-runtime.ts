@@ -102,6 +102,7 @@ export async function openTurn(params: {
   conversationId: string;
   model: string | null;
   provider: string | null;
+  thinking: string | null;
 }): Promise<{turn: AgentTurn; resumed: boolean} | undefined> {
   return await db().transaction(async (tx) => {
     const conversation = await lockConversation(tx, params.conversationId);
@@ -124,6 +125,7 @@ export async function openTurn(params: {
         status: 'running',
         model: params.model,
         provider: params.provider,
+        thinking: params.thinking,
       })
       .returning();
     if (!created) throw new Error('Turn insert returned no row');

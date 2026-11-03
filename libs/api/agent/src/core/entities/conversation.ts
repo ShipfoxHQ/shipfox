@@ -86,6 +86,8 @@ export interface AgentTurn {
   stopRequestedAt: Date | null;
   model: string | null;
   provider: string | null;
+  /** The reasoning level the turn started with. Null for a turn opened without a model. */
+  thinking: string | null;
   modelCallCount: number;
   startedAt: Date;
   finishedAt: Date | null;

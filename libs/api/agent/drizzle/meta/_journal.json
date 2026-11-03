@@ -64,6 +64,13 @@
       "when": 1793740261280,
       "tag": "0008_agent_content_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793747928243,
+      "tag": "0009_turn_thinking",
+      "breakpoints": true
     }
   ]
 }
