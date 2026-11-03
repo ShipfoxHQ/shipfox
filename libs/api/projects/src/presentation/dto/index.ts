@@ -1,1 +1,2 @@
-export {toAdminProjectSummaryDto, toProjectDto} from './project.js';
+export * from './project.js';
+export * from './project-access.js';

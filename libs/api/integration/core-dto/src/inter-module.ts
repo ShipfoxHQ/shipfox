@@ -313,6 +313,47 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       input: z.object({connectionId: id}),
       output: connectionById.nullable(),
     },
+    /**
+     * What a project needs to know before it lists a connection in its access: whether the
+     * connection exists in the workspace, is internal, and which resource kinds its provider
+     * declares. Null when the connection is missing, belongs to another workspace, or has a
+     * provider that is not registered.
+     */
+    getScopeConnection: {
+      input: z.object({workspaceId: id, connectionId: id}),
+      output: z
+        .object({
+          id,
+          provider,
+          slug: z.string().min(1),
+          displayName: z.string(),
+          lifecycleStatus: z.enum(['active', 'disabled', 'error']),
+          internal: z.boolean(),
+          resourceKinds: z.array(z.object({kind: z.string().min(1), label: z.string()})),
+        })
+        .nullable(),
+    },
+    /** Resolves one resource of a connection. Null when the installation can't see it. */
+    resolveScopeResource: {
+      input: z.object({
+        workspaceId: id,
+        connectionId: id,
+        kind: z.string().min(1),
+        externalId: z.string().min(1),
+      }),
+      output: z
+        .object({
+          kind: z.string().min(1),
+          externalId: z.string().min(1),
+          lookupName: z.string().min(1),
+          displayName: z.string().min(1),
+        })
+        .nullable(),
+      errors: {
+        ...sourceErrors,
+        'resource-kind-unsupported': z.object({provider, kind: z.string()}),
+      },
+    },
     resolveTriggerReference: {
       input: z.object({workspaceId: id, connectionId: id, payload: z.unknown()}),
       output: triggerReference.nullable(),

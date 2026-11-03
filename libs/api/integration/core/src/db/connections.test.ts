@@ -1,4 +1,7 @@
-import {INTEGRATION_CONNECTION_AVAILABLE} from '@shipfox/api-integration-core-dto';
+import {
+  INTEGRATION_CONNECTION_AVAILABLE,
+  INTEGRATION_CONNECTION_DELETED,
+} from '@shipfox/api-integration-core-dto';
 import {upsertGithubInstallation} from '@shipfox/api-integration-github';
 import {ConnectionSlugConflictError} from '@shipfox/api-integration-spi';
 import {sql} from 'drizzle-orm';
@@ -581,6 +584,13 @@ describe('integration connection queries', () => {
     expect(deleted).toBe(true);
     expect(deletedAgain).toBe(false);
     expect(await getIntegrationConnectionById(connection.id)).toBeUndefined();
+    const deletedEvents = await db()
+      .select()
+      .from(integrationsOutbox)
+      .where(
+        sql`${integrationsOutbox.eventType} = ${INTEGRATION_CONNECTION_DELETED} AND ${integrationsOutbox.payload}->>'connectionId' = ${connection.id}`,
+      );
+    expect(deletedEvents).toHaveLength(1);
   });
 
   it('rolls back a connection when provider-specific installation persistence fails', async () => {

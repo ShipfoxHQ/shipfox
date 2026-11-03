@@ -241,6 +241,102 @@ export interface TriggerReference {
   actor: string | null;
 }
 
+/** The kind of resource a project can be limited to inside a connection, such as a repository. */
+export interface ProviderResourceKind {
+  kind: string;
+  label: string;
+}
+
+/** A resource a project can be limited to, as a provider names it. */
+export interface ScopeResource {
+  kind: string;
+  /** The provider id. For a repository it equals `externalRepositoryId`. */
+  externalId: string;
+  /** Lowercase match key for name targets, such as `acme/app`. */
+  lookupName: string;
+  /** As the provider returns it, such as `acme/App`. */
+  displayName: string;
+}
+
+export interface ScopeResourcePage {
+  resources: ScopeResource[];
+  nextCursor: string | null;
+}
+
+export interface ListScopeResourcesInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> {
+  connection: Connection;
+  kind: string;
+  limit: number;
+  cursor?: string | undefined;
+  query?: string | undefined;
+}
+
+export interface ResolveScopeResourceInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> {
+  connection: Connection;
+  kind: string;
+  externalId: string;
+}
+
+export const REPOSITORY_RESOURCE_KIND = 'repository';
+
+export function repositoryToScopeResource(repository: RepositorySnapshot): ScopeResource {
+  return {
+    kind: REPOSITORY_RESOURCE_KIND,
+    externalId: repository.externalRepositoryId,
+    lookupName: repository.fullName.toLowerCase(),
+    displayName: repository.fullName,
+  };
+}
+
+/**
+ * The scope resources of a source-control provider whose only kind is the repository, on top of
+ * its `listRepositories` and `resolveRepository`.
+ */
+export function repositoryScopeResources<Connection extends IntegrationConnection>(
+  sourceControl: Pick<SourceControlProvider<Connection>, 'listRepositories' | 'resolveRepository'>,
+) {
+  return {
+    resourceKinds: [{kind: REPOSITORY_RESOURCE_KIND, label: 'Repositories'}] as const,
+    async listScopeResources(
+      input: ListScopeResourcesInput<Connection>,
+    ): Promise<ScopeResourcePage> {
+      if (input.kind !== REPOSITORY_RESOURCE_KIND) return {resources: [], nextCursor: null};
+      const page = await sourceControl.listRepositories({
+        connection: input.connection,
+        limit: input.limit,
+        cursor: input.cursor,
+        search: input.query,
+      });
+      return {
+        resources: page.repositories.map(repositoryToScopeResource),
+        nextCursor: page.nextCursor,
+      };
+    },
+    async resolveScopeResource(
+      input: ResolveScopeResourceInput<Connection>,
+    ): Promise<ScopeResource | null> {
+      if (input.kind !== REPOSITORY_RESOURCE_KIND) return null;
+      try {
+        return repositoryToScopeResource(
+          await sourceControl.resolveRepository({
+            connection: input.connection,
+            externalRepositoryId: input.externalId,
+          }),
+        );
+      } catch (error) {
+        if (error instanceof IntegrationProviderError && error.reason === 'repository-not-found') {
+          return null;
+        }
+        throw error;
+      }
+    },
+  };
+}
+
 export type CheckoutRepositoryAuthorizationState = 'enforced' | 'unclassified';
 
 export interface SourceControlProvider<
@@ -582,6 +678,13 @@ export interface IntegrationProvider<
    * without a documented catalog, including built-in trigger sources, omit it.
    */
   eventCatalog?: import('@shipfox/api-integration-core-dto').IntegrationEventCatalog | undefined;
+  /** The resource kinds a project can be limited to on this provider's connections. */
+  resourceKinds?: readonly ProviderResourceKind[] | undefined;
+  listScopeResources?(input: ListScopeResourcesInput<Connection>): Promise<ScopeResourcePage>;
+  /** Null when the connection can't see the resource. */
+  resolveScopeResource?(
+    input: ResolveScopeResourceInput<Connection>,
+  ): Promise<ScopeResource | null>;
   adapters?: IntegrationProviderAdapters<Connection> | undefined;
   routes?: Route[] | undefined;
   connectionExternalUrl?(connection: Connection): Promise<string | undefined>;

@@ -38,3 +38,34 @@ export class ProjectSourceChangedError extends Error {
     this.name = 'ProjectSourceChangedError';
   }
 }
+
+export type ProjectAccessInvalidReason =
+  | 'connection-invalid'
+  | 'connection-duplicate'
+  | 'resource-kind-unsupported'
+  | 'resource-not-found'
+  | 'empty-resource-scope'
+  | 'access-limit-exceeded';
+
+/** The requested access can't be stored. `reason` says which rule it breaks. */
+export class ProjectAccessInvalidError extends Error {
+  constructor(
+    public readonly reason: ProjectAccessInvalidReason,
+    message: string,
+    public readonly connectionId?: string | undefined,
+  ) {
+    super(message);
+    this.name = 'ProjectAccessInvalidError';
+  }
+}
+
+/** The integration provider could not answer while access was validated. */
+export class ProjectAccessProviderError extends Error {
+  constructor(
+    public readonly providerReason: string,
+    public readonly retryAfterSeconds?: number | undefined,
+  ) {
+    super(`Integration provider request failed: ${providerReason}`);
+    this.name = 'ProjectAccessProviderError';
+  }
+}

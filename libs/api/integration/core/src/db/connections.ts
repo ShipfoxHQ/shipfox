@@ -1,6 +1,7 @@
 import {
   CONNECTION_SLUG_MAX_LENGTH,
   INTEGRATION_CONNECTION_AVAILABLE,
+  INTEGRATION_CONNECTION_DELETED,
   type IntegrationsEventMap,
   RESERVED_CONNECTION_SLUGS,
 } from '@shipfox/api-integration-core-dto';
@@ -481,15 +482,42 @@ async function writeConnectionAvailableEvent(
   });
 }
 
+async function writeConnectionDeletedEvent(
+  connection: IntegrationConnection,
+  options: {tx: IntegrationDb | IntegrationTx},
+): Promise<void> {
+  await writeOutboxEvent<IntegrationsEventMap>(options.tx, integrationsOutbox, {
+    type: INTEGRATION_CONNECTION_DELETED,
+    orderingKey: connection.id,
+    payload: {
+      provider: connection.provider,
+      workspaceId: connection.workspaceId,
+      connectionId: connection.id,
+      slug: connection.slug,
+    },
+  });
+}
+
+/**
+ * Deletes the connection and writes `INTEGRATION_CONNECTION_DELETED` in the same transaction, so
+ * every deletion path tells consumers that key rows on the connection id.
+ */
 export async function deleteIntegrationConnection(
   params: {id: string},
   options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
 ): Promise<boolean> {
-  const executor = options.tx ?? db();
-  const result = await executor
+  if (options.tx === undefined) {
+    return await db().transaction((tx) => deleteIntegrationConnection(params, {tx}));
+  }
+
+  const [row] = await options.tx
     .delete(integrationConnections)
-    .where(eq(integrationConnections.id, params.id));
-  return (result.rowCount ?? 0) > 0;
+    .where(eq(integrationConnections.id, params.id))
+    .returning();
+  if (!row) return false;
+
+  await writeConnectionDeletedEvent(toIntegrationConnection(row), {tx: options.tx});
+  return true;
 }
 
 export type DeleteIntegrationConnectionFn = typeof deleteIntegrationConnection;

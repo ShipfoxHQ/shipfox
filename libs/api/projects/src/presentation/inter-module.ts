@@ -11,6 +11,7 @@ import {
   ProjectNotFoundError,
   ProjectSourceChangedError,
 } from '#core/errors.js';
+import {getProjectAccess, getProjectAccesses} from '#core/project-access.js';
 import {moveProjectSource} from '#core/projects.js';
 import {
   findProjectBySourceRepositoryName,
@@ -132,6 +133,23 @@ export function createProjectsInterModulePresentation(): InterModulePresentation
         throw error;
       }
     },
+    getProjectAccessPolicy: async (input) => {
+      try {
+        return {policy: (await getProjectAccess(input)).policy};
+      } catch (error) {
+        if (error instanceof ProjectNotFoundError) {
+          throw createInterModuleKnownError(
+            projectsInterModuleContract.methods.getProjectAccessPolicy,
+            'project-not-found',
+            {projectId: input.projectId},
+          );
+        }
+        throw error;
+      }
+    },
+    getProjectAccessPolicies: async (input) => ({
+      policies: (await getProjectAccesses(input)).map((view) => view.policy),
+    }),
     resolveCheckoutTarget: async (input) => {
       const target = await resolveCheckoutTarget(input);
       if (target === undefined) {

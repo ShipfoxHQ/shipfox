@@ -4,6 +4,8 @@ import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {Project} from '#core/entities/project.js';
 import {pgTable} from './common.js';
 
+export type ProjectConnectionAccess = 'all' | 'selected';
+
 export const projects = pgTable(
   'projects',
   {
@@ -16,6 +18,10 @@ export const projects = pgTable(
     sourceDefaultBranch: text('source_default_branch'),
     name: text('name').notNull(),
     slug: text('slug').notNull(),
+    connectionAccess: text('connection_access')
+      .$type<ProjectConnectionAccess>()
+      .notNull()
+      .default('all'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },

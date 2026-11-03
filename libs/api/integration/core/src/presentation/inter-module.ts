@@ -335,6 +335,50 @@ export function createIntegrationsInterModulePresentation(params: {
           }
         : null;
     },
+    getScopeConnection: async ({workspaceId, connectionId}) => {
+      const connection = await getIntegrationConnectionByWorkspaceId({workspaceId, connectionId});
+      if (!connection) return null;
+      const provider = params.registry.find(connection.provider);
+      if (!provider) return null;
+      return {
+        id: connection.id,
+        provider: connection.provider,
+        slug: connection.slug,
+        displayName: connection.displayName,
+        lifecycleStatus: connection.lifecycleStatus,
+        internal: provider.internal === true,
+        resourceKinds: (provider.resourceKinds ?? []).map(({kind, label}) => ({kind, label})),
+      };
+    },
+    resolveScopeResource: async (input) => {
+      const method = contract.methods.resolveScopeResource;
+      const connection = await known(method, input, async () => {
+        const found = await params.sourceControl.getConnection(input.connectionId);
+        if (found.workspaceId !== input.workspaceId) {
+          throw new IntegrationConnectionWorkspaceMismatchError(input.connectionId);
+        }
+        return found;
+      });
+      const provider = params.registry.get(connection.provider);
+      if (
+        !provider.resolveScopeResource ||
+        !provider.resourceKinds?.some(({kind}) => kind === input.kind)
+      ) {
+        throw createInterModuleKnownError(method, 'resource-kind-unsupported', {
+          provider: connection.provider,
+          kind: input.kind,
+        });
+      }
+      const resolveScopeResource = provider.resolveScopeResource.bind(provider);
+      return await known(method, input, async () => {
+        const resource = await resolveScopeResource({
+          connection,
+          kind: input.kind,
+          externalId: input.externalId,
+        });
+        return resource ?? null;
+      });
+    },
     resolveTriggerReference: async (input) =>
       await known(
         contract.methods.resolveTriggerReference,

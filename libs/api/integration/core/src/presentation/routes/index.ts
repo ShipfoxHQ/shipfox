@@ -24,6 +24,7 @@ import {
   createRepositoryAccessMutationRoutes,
   createRepositoryAccessReadRoute,
 } from './repository-access.js';
+import {createListScopeResourcesRoute} from './scope-resources.js';
 
 export interface CreateIntegrationRoutesOptions {
   projects?: ProjectsModuleClient | undefined;
@@ -86,6 +87,7 @@ export function createIntegrationRoutes(
         options.repositoryAuthorization?.invalidateRepositoryAuthorizationCache,
     }),
     createListRepositoriesRoute(sourceControl),
+    createListScopeResourcesRoute({registry, sourceControl}),
     ...projectConfigRoutes,
     ...agentToolsRoutes,
     ...providerRoutes,

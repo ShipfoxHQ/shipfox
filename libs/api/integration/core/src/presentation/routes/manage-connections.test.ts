@@ -1,4 +1,7 @@
-import {INTEGRATION_CONNECTION_AVAILABLE} from '@shipfox/api-integration-core-dto';
+import {
+  INTEGRATION_CONNECTION_AVAILABLE,
+  INTEGRATION_CONNECTION_DELETED,
+} from '@shipfox/api-integration-core-dto';
 import {sql} from 'drizzle-orm';
 import {createIntegrationProviderRegistry} from '#core/providers/registry.js';
 import {processIntegrationSecretCleanups} from '#core/secret-cleanup.js';
@@ -230,6 +233,38 @@ describe('DELETE /integration-connections/:connectionId', () => {
     const reloaded = await getIntegrationConnectionById(connection.id);
     expect(res.statusCode).toBe(204);
     expect(reloaded).toBeUndefined();
+  });
+
+  it('writes a connection deleted event in the deleting transaction', async () => {
+    const app = await createTestApp([sourceProvider()]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'gitea-owner',
+      slug: 'gitea_owner',
+      displayName: 'Gitea',
+      capabilities: ['source_control'],
+    });
+
+    await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    const events = await db()
+      .select()
+      .from(integrationsOutbox)
+      .where(
+        sql`${integrationsOutbox.eventType} = ${INTEGRATION_CONNECTION_DELETED} AND ${integrationsOutbox.payload}->>'connectionId' = ${connection.id}`,
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      provider: 'gitea',
+      workspaceId: context.workspaceId,
+      connectionId: connection.id,
+      slug: 'gitea_owner',
+    });
   });
 
   it('runs provider cleanup hooks while retaining ownership of the core row', async () => {

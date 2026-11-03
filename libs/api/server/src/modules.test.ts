@@ -195,6 +195,8 @@ describe('defaultModules', () => {
             resolveConnection: vi.fn(),
             resolveConnectionById: vi.fn(),
             resolveSourceControlConnection: vi.fn(),
+            getScopeConnection: vi.fn(),
+            resolveScopeResource: vi.fn(),
             resolveSourceRef: vi.fn(),
             resolveSourceRepository: vi.fn(),
             resolveTriggerReference: vi.fn(),
@@ -296,6 +298,8 @@ describe('defaultModules', () => {
             },
           }),
           moveProjectSource: () => ({moved: false}),
+          getProjectAccessPolicy: vi.fn(),
+          getProjectAccessPolicies: () => ({policies: []}),
           resolveCheckoutTarget: () => ({
             projectId: crypto.randomUUID(),
             connectionId: crypto.randomUUID(),

@@ -37,6 +37,8 @@ export function createTestProjectsClient(params: {
       requireProjectForWorkspace: vi.fn(),
       getWorkspaceProjectCounts: vi.fn(),
       moveProjectSource: vi.fn(),
+      getProjectAccessPolicy: vi.fn(),
+      getProjectAccessPolicies: vi.fn(),
       resolveCheckoutTarget: vi.fn(),
     }),
   }).projects as ProjectsModuleClient;
