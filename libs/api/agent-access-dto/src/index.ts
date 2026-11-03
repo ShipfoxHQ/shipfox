@@ -100,6 +100,28 @@ export {
   listCacheEntriesResultSchema,
 } from './schemas/cache-tools.js';
 export {
+  AGENT_ACCESS_CONFIG_COMMIT_MAX_CHANGES,
+  AGENT_ACCESS_CONFIG_COMMIT_MESSAGE_MAX_LENGTH,
+  type CommitConfigChangesInputDto,
+  type CommitConfigChangesResultDto,
+  commitConfigChangesInputJsonSchema,
+  commitConfigChangesInputSchema,
+  commitConfigChangesResultJsonSchema,
+  commitConfigChangesResultSchema,
+  type ListConfigFilesInputDto,
+  type ListConfigFilesResultDto,
+  listConfigFilesInputJsonSchema,
+  listConfigFilesInputSchema,
+  listConfigFilesResultJsonSchema,
+  listConfigFilesResultSchema,
+  type ReadConfigFileInputDto,
+  type ReadConfigFileResultDto,
+  readConfigFileInputJsonSchema,
+  readConfigFileInputSchema,
+  readConfigFileResultJsonSchema,
+  readConfigFileResultSchema,
+} from './schemas/config-tools.js';
+export {
   AGENT_ACCESS_FACET_MAX_ITEMS,
   AGENT_ACCESS_FACET_VALUE_MAX_BYTES,
   AGENT_ACCESS_SERIALIZED_JSON_MAX_BYTES,

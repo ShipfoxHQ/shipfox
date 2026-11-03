@@ -50,6 +50,8 @@ export {
   updateIntegrationConnectionRepositoryAccessResponseSchema,
 } from './integrations.js';
 export {
+  CONFIG_COMMIT_MAX_CHANGES,
+  CONFIG_COMMIT_MESSAGE_MAX_LENGTH,
   CONFIG_PATH_MAX_LENGTH,
   CONFIG_ROOT,
   configFilePathSchema,

@@ -4,6 +4,8 @@ import {z} from 'zod';
 /** Every config read stays under this directory of the project's repository. */
 export const CONFIG_ROOT = '.shipfox';
 export const CONFIG_PATH_MAX_LENGTH = 1024;
+export const CONFIG_COMMIT_MAX_CHANGES = 100;
+export const CONFIG_COMMIT_MESSAGE_MAX_LENGTH = 4096;
 
 function isConfigPath(path: string, options: {allowRoot: boolean}): boolean {
   if (path === CONFIG_ROOT) return options.allowRoot;

@@ -48,6 +48,7 @@ import {
 } from '#core/admin-tools.js';
 import {createAgentAccessAuthoringContextTools} from '#core/authoring-context.js';
 import {createAgentAccessCacheTools} from '#core/cache-tools.js';
+import {createAgentAccessConfigTools} from '#core/config-tools.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
 import {createSearchDocsTool} from '#core/docs-tools.js';
 import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
@@ -334,7 +335,11 @@ function toolsFromProducerClients(
   const withIntegrations =
     integrations === undefined
       ? withLogs
-      : [...withLogs, ...createAgentAccessIntegrationTools(integrations)];
+      : [
+          ...withLogs,
+          ...createAgentAccessIntegrationTools(integrations),
+          ...createAgentAccessConfigTools(integrations),
+        ];
   const withTemplates =
     templates === undefined || integrations === undefined || options.agent === undefined
       ? withIntegrations

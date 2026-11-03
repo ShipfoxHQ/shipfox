@@ -149,3 +149,35 @@ export class ConfigLinkUnconfirmedError extends Error {
     this.name = 'ConfigLinkUnconfirmedError';
   }
 }
+
+/** Why a managed repository refused a commit, which the caller can act on. */
+export type ConfigCommitRefusal =
+  | 'move-in-progress'
+  | 'protected-branch'
+  | 'branch-invalid'
+  | 'stale-head'
+  | 'path-not-allowed'
+  | 'content-not-text'
+  | 'file-too-large'
+  | 'file-not-found'
+  | 'too-many-changes'
+  | 'commit-too-large'
+  | 'no-changes';
+
+export class ConfigCommitRefusedError extends Error {
+  constructor(
+    public readonly refusal: ConfigCommitRefusal,
+    public readonly details: {branch?: string; path?: string; head?: string | null},
+  ) {
+    super(`The config commit was refused: ${refusal}`);
+    this.name = 'ConfigCommitRefusedError';
+  }
+}
+
+/** The project's config lives in a linked repository, which only its own tools write to. */
+export class ConfigRepositoryReadOnlyError extends Error {
+  constructor(public readonly repository: string) {
+    super(`The config of this project lives in ${repository}, which Shipfox does not write to`);
+    this.name = 'ConfigRepositoryReadOnlyError';
+  }
+}
