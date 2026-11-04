@@ -1,5 +1,5 @@
 import {deleteInBatches, recordDeletedScope} from '@shipfox/node-drizzle';
-import {and, eq, isNull, notExists, sql} from 'drizzle-orm';
+import {and, asc, eq, isNotNull, isNull, notExists, sql} from 'drizzle-orm';
 import type {AgentSession} from '#core/entities/agent-session.js';
 import {db} from './db.js';
 import {conversations} from './schema/conversations.js';
@@ -16,6 +16,24 @@ export async function recordProjectAgentDeleted(params: {
       scope: {workspaceId: params.workspaceId, projectId: params.projectId},
       reason: 'project_deleted',
     }),
+  );
+}
+
+/** Deleted projects whose purge has not finished, oldest first. */
+export async function listUnpurgedProjectScopes(
+  limit: number,
+): Promise<{workspaceId: string; projectId: string}[]> {
+  const rows = await db()
+    .select({
+      workspaceId: agentDeletedScopes.workspaceId,
+      projectId: agentDeletedScopes.projectId,
+    })
+    .from(agentDeletedScopes)
+    .where(and(isNull(agentDeletedScopes.purgedAt), isNotNull(agentDeletedScopes.projectId)))
+    .orderBy(asc(agentDeletedScopes.recordedAt))
+    .limit(limit);
+  return rows.flatMap((row) =>
+    row.projectId === null ? [] : [{workspaceId: row.workspaceId, projectId: row.projectId}],
   );
 }
 

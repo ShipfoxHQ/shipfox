@@ -33,6 +33,7 @@ export {
 export {
   deleteProjectConversations,
   listProjectSessions,
+  listUnpurgedProjectScopes,
   markProjectAgentPurged,
   recordProjectAgentDeleted,
 } from './project-purge.js';
