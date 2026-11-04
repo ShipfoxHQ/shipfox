@@ -2,10 +2,11 @@ import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definit
 import type {
   LinkProjectConfigResponseDto,
   ListProjectConfigCommitsResponseDto,
+  ListScopeResourcesResponseDto,
   ProjectConfigResponseDto,
   ReadProjectConfigFileResponseDto,
 } from '@shipfox/api-integration-core-dto';
-import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
+import type {ProjectAccessResponseDto, ProjectResponseDto} from '@shipfox/api-projects-dto';
 import type {
   Definition,
   DefinitionList,
@@ -13,6 +14,7 @@ import type {
   DefinitionTrigger,
 } from '#core/definition.js';
 import type {Project, ProjectList} from '#core/project.js';
+import type {AccessResource, ProjectAccess, ScopeResourcePage} from '#core/project-access.js';
 import type {
   ConfigCommitPage,
   ConfigFile,
@@ -36,6 +38,46 @@ export function toProject(dto: ProjectResponseDto): Project {
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   };
+}
+
+function toAccessResource(dto: {
+  kind: string;
+  external_id: string;
+  lookup_name: string;
+  display_name: string;
+}): AccessResource {
+  return {
+    kind: dto.kind,
+    externalId: dto.external_id,
+    lookupName: dto.lookup_name,
+    displayName: dto.display_name,
+  };
+}
+
+export function toProjectAccess(dto: ProjectAccessResponseDto): ProjectAccess {
+  return {
+    projectId: dto.project_id,
+    configSource: {
+      kind: dto.config_source.kind,
+      connectionId: dto.config_source.connection_id,
+      externalRepositoryId: dto.config_source.external_repository_id,
+      lookupName: dto.config_source.lookup_name,
+    },
+    connections:
+      dto.connections === 'all'
+        ? 'all'
+        : dto.connections.map((connection) => ({
+            connectionId: connection.connection_id,
+            provider: connection.provider,
+            displayName: connection.display_name,
+            resources:
+              connection.resources === 'all' ? 'all' : connection.resources.map(toAccessResource),
+          })),
+  };
+}
+
+export function toScopeResourcePage(dto: ListScopeResourcesResponseDto): ScopeResourcePage {
+  return {resources: dto.resources.map(toAccessResource), nextCursor: dto.next_cursor};
 }
 
 export function toProjectList(dto: {

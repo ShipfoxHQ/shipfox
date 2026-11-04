@@ -20,6 +20,14 @@ export const projectSettingsSections = [
     icon: 'settings3Line',
     order: 50,
   },
+  {
+    id: 'settings.project-access',
+    scope: 'project',
+    pathSegment: 'access',
+    label: 'Access',
+    icon: 'shieldKeyholeLine',
+    order: 60,
+  },
 ] as const;
 
 export const projectsFeature = defineClientFeature({
@@ -49,6 +57,11 @@ export const projectsFeature = defineClientFeature({
       path: '/w/$workspaceSlug/p/$projectSlug/settings/general',
       parent: 'projectSettings',
       impl: '@shipfox/client-projects/routes/project-settings',
+    },
+    {
+      path: '/w/$workspaceSlug/p/$projectSlug/settings/access',
+      parent: 'projectSettings',
+      impl: '@shipfox/client-projects/routes/project-access-settings',
     },
   ],
   navigation: projectsNavigation,

@@ -1,0 +1,97 @@
+---
+title: "Limit What a Project Can Use"
+sidebarTitle: "Limit Project Access"
+description: "Choose the integration connections and repositories that a project's workflows and agents can use."
+---
+
+A project's access lists the integration connections its workflows and agents
+can use. For a GitHub or Gitea integration connection, it also lists the
+repositories they can reach.
+
+Every project starts with access to every integration connection and every
+repository those integration connections can see. Limit a project when its
+workflows should only touch some of them.
+
+Access limits what the project's workflows and agents can use. It does not
+limit which members can see or edit the project.
+
+## Before you begin
+
+You need to be a workspace admin.
+
+## Limit the project
+
+<Steps>
+  <Step>
+
+    **Open the access settings**
+
+    Open the project, select **Settings**, then select **Access**.
+  </Step>
+  <Step>
+
+    **Choose the integration connections**
+
+    Select **Only these connections**, then check each integration connection
+    the project needs. An integration connection you add to the workspace later
+    is not included.
+
+    If the project's config is in one of your repositories, its integration
+    connection is checked and you cannot remove it.
+  </Step>
+  <Step>
+
+    **Choose the repositories**
+
+    A checked GitHub or Gitea integration connection offers **All
+    repositories** or **Selected**. To limit it, choose **Selected**, select
+    **Select repositories**, and check each repository the project needs.
+
+    If the project's config is in one of your repositories, that repository is
+    always included. It counts as the one repository that **Selected** needs.
+  </Step>
+  <Step>
+
+    **Save**
+
+    Select **Save changes**. If the change has side effects, Shipfox lists them
+    first. Select **Save access** to confirm.
+  </Step>
+</Steps>
+
+To remove every limit, select **All connections** and save.
+
+## Keep one repository per project
+
+To give a project only its own repository:
+
+1. Select **Only these connections**.
+2. Keep the GitHub integration connection checked, and leave the others
+   unchecked.
+3. Choose **Selected** for it. If the project's config is in that repository,
+   it is already listed. Otherwise, select it with **Select repositories**.
+4. Save.
+
+## What changes after you save
+
+Access applies to the next request, including jobs that are already running.
+
+- A checkout of a repository outside the access fails.
+- An integration tool call outside the access fails, and the agent sees why.
+- Events from an integration connection or repository outside the access do
+  not start the project's workflows or agents. Trigger history shows that
+  project access filtered them.
+
+Cron, manual, and Shipfox lifecycle triggers are not affected.
+
+## Warnings when you save
+
+Shipfox asks you to confirm two kinds of change:
+
+- **The default checkout changes.** A project whose config Shipfox stores
+  checks out a repository by default when its access names exactly one
+  repository. A change that adds or removes that repository changes what jobs
+  check out when they don't set `checkout`.
+- **The default project stops answering.** The default project answers Slack
+  and Linear requests that no other agent claims. If you remove that
+  integration connection from its access, those requests get no answer.

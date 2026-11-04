@@ -1,8 +1,10 @@
+import type {ProjectAccessResponseDto} from '@shipfox/api-projects-dto';
 import {
   toConfigCommitPage,
   toConfigMoveResult,
   toDefinitionSyncSummary,
   toDefinitionTriggers,
+  toProjectAccess,
   toProjectConfig,
 } from './mappers.js';
 
@@ -204,6 +206,74 @@ describe('toConfigMoveResult', () => {
       },
       fileCount: 3,
       pullRequest: null,
+    });
+  });
+});
+
+describe('toProjectAccess', () => {
+  test('maps a narrowed access with its connection labels and repositories', () => {
+    const dto: ProjectAccessResponseDto = {
+      project_id: '11111111-1111-4111-8111-111111111111',
+      config_source: {
+        kind: 'linked',
+        connection_id: '22222222-2222-4222-8222-222222222222',
+        external_repository_id: 'github:1',
+        lookup_name: 'acme/config',
+      },
+      connections: [
+        {
+          connection_id: '22222222-2222-4222-8222-222222222222',
+          provider: 'github',
+          display_name: 'acme',
+          resources: [
+            {
+              kind: 'repository',
+              external_id: 'github:2',
+              lookup_name: 'acme/app',
+              display_name: 'acme/App',
+            },
+          ],
+        },
+        {
+          connection_id: '33333333-3333-4333-8333-333333333333',
+          provider: null,
+          display_name: null,
+          resources: 'all',
+        },
+      ],
+    };
+
+    const result = toProjectAccess(dto);
+
+    expect(result).toEqual({
+      projectId: '11111111-1111-4111-8111-111111111111',
+      configSource: {
+        kind: 'linked',
+        connectionId: '22222222-2222-4222-8222-222222222222',
+        externalRepositoryId: 'github:1',
+        lookupName: 'acme/config',
+      },
+      connections: [
+        {
+          connectionId: '22222222-2222-4222-8222-222222222222',
+          provider: 'github',
+          displayName: 'acme',
+          resources: [
+            {
+              kind: 'repository',
+              externalId: 'github:2',
+              lookupName: 'acme/app',
+              displayName: 'acme/App',
+            },
+          ],
+        },
+        {
+          connectionId: '33333333-3333-4333-8333-333333333333',
+          provider: null,
+          displayName: null,
+          resources: 'all',
+        },
+      ],
     });
   });
 });
