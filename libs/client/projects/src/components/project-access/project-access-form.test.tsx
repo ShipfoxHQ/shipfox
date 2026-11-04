@@ -121,20 +121,30 @@ describe('ProjectAccessForm', () => {
       ...connection(SLACK_ID, 'slack', ['interaction']),
       lifecycleStatus: 'error' as const,
     };
-    const queryClient = new QueryClient();
+    const listedSlack = {
+      connectionId: SLACK_ID,
+      provider: 'slack',
+      displayName: 'acme',
+      resources: 'all' as const,
+    };
+    const renderWith = (listed: ProjectAccess['connections']) =>
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ProjectAccessForm
+            project={project()}
+            access={{...managedAccess, connections: listed}}
+            connections={[connections[0] as IntegrationConnection, errored]}
+          />
+        </QueryClientProvider>,
+      );
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ProjectAccessForm
-          project={project()}
-          access={{...managedAccess, connections: []}}
-          connections={[connections[0] as IntegrationConnection, errored]}
-        />
-      </QueryClientProvider>,
-    );
+    const unlisted = renderWith([]);
+    const hidden = screen.queryByRole('checkbox', {name: 'Slack, acme'});
+    unlisted.unmount();
+    renderWith([listedSlack]);
 
-    expect(screen.getByRole('checkbox', {name: 'GitHub, acme'})).toBeVisible();
-    expect(screen.queryByRole('checkbox', {name: 'Slack, acme'})).not.toBeInTheDocument();
+    expect(hidden).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', {name: 'Slack, acme'})).toBeChecked();
   });
 
   test('says that access limits workloads, not who sees the project', () => {

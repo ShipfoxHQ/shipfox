@@ -68,16 +68,20 @@ function providerName(provider: string): string {
 }
 
 /**
- * The workspace's active connections and the listed ones, then any listed connection the workspace
- * no longer has. The API refuses an inactive connection, so only a listed one shows, to be removed.
+ * The workspace's active connections and the listed or checked ones, then any listed connection the
+ * workspace no longer has. The API refuses an inactive connection, so one shows only to be removed.
  */
 function connectionEntries(
   connections: readonly IntegrationConnection[],
   access: ProjectAccess,
+  draft: AccessDraft,
 ): ConnectionEntry[] {
-  const listedIds = new Set(
-    access.connections === 'all' ? [] : access.connections.map(({connectionId}) => connectionId),
-  );
+  const listedIds = new Set([
+    ...(access.connections === 'all'
+      ? []
+      : access.connections.map(({connectionId}) => connectionId)),
+    ...draft.connections.map(({connectionId}) => connectionId),
+  ]);
   const shown = connections.filter(
     (connection) => isUsableConnection(connection) || listedIds.has(connection.id),
   );
@@ -122,7 +126,7 @@ export function ProjectAccessForm({
   const readOnly = readOnlyProp || forbidden;
   const modeLabelId = useId();
 
-  const entries = connectionEntries(connections, access);
+  const entries = connectionEntries(connections, access, draft);
   const emptyScopes = new Set(submitted ? findEmptyResourceScopes(draft, configSource) : []);
   const isDirty = !isSameAccess(saved, draft);
 
