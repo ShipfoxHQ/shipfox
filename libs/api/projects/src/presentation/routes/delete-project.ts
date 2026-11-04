@@ -20,7 +20,7 @@ export const deleteProjectRoute = defineRoute({
   path: '/:projectId',
   auth: AUTH_USER,
   description:
-    'Delete a project and everything it owns. The project disappears at once. Workspace admins only, and the body repeats the project name.',
+    'Delete a project. The project disappears at once, and its slug and config repository become reusable. Workspace admins only, and the body repeats the project name.',
   schema: {
     params: z.object({projectId: z.string().uuid()}),
     body: deleteProjectBodySchema,

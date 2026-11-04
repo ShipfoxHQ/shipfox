@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import type {Pool} from '@shipfox/node-postgres';
 import {and, eq, sql} from 'drizzle-orm';
 import {drizzle} from 'drizzle-orm/node-postgres';
 import {integer, pgTable, uuid} from 'drizzle-orm/pg-core';
@@ -32,6 +33,19 @@ async function createTables(database: ReturnType<typeof drizzle>): Promise<void>
       id integer primary key generated always as identity,
       project_id uuid not null
     )`);
+}
+
+// The marker is blocked once PostgreSQL lists an advisory lock request it has not granted.
+async function waitForBlockedLock(pool: Pool): Promise<void> {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const {rows} = await pool.query(
+      "select 1 from pg_locks where locktype = 'advisory' and not granted",
+    );
+    if (rows.length > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('The marker never waited for the write lock');
 }
 
 describe('deleted scope markers', () => {
@@ -162,7 +176,7 @@ describe('deleted scope markers', () => {
         await recordDeletedScope(tx, deletedScopes, {scope, reason: 'project_deleted'});
         events.push('marker recorded');
       });
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitForBlockedLock(pool);
       expect(events).toEqual([]);
 
       finishWrite();

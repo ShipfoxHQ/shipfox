@@ -129,13 +129,18 @@ export async function deleteInBatches(params: DeleteInBatchesParams): Promise<nu
 
   const rowId = sql`ctid`;
   let deleted = 0;
-  let count = 1;
-  // Stops on an empty batch, not a short one, because a concurrent update can move a row mid-batch.
-  while (count > 0) {
+  let finished = false;
+  // A concurrent update gives a row a new row id, so a batch can delete nothing while rows remain.
+  // The loop therefore ends only when a fresh select finds no match.
+  while (!finished) {
     const batch = db.select({rowId}).from(table).where(where).limit(batchSize);
     const result = await db.delete(table).where(inArray(rowId, batch));
-    count = result.rowCount ?? 0;
+    const count = result.rowCount ?? 0;
     deleted += count;
+    if (count === 0) {
+      const remaining = await db.select({rowId}).from(table).where(where).limit(1);
+      finished = remaining.length === 0;
+    }
   }
   return deleted;
 }
