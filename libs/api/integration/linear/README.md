@@ -83,7 +83,7 @@ the call, so the delivery is retried.
 
 `reportProgress` posts each tool call as an ephemeral `action` activity, which the
 next activity replaces, and adds the links it receives, such as the run link, to
-the session's external URLs, so the session keeps the link of every run. The
+the session's external URLs, so a link reported earlier stays. The
 `idle` state posts nothing, because the reply clears the action.
 
 Signed but unsupported webhook shapes are recorded and dropped with a 200
