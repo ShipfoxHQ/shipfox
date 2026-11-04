@@ -661,17 +661,17 @@ describe('createLinearApiClient.hasAgentActivity', () => {
   });
 });
 
-describe('createLinearApiClient.setAgentSessionExternalUrls', () => {
+describe('createLinearApiClient.addAgentSessionExternalUrls', () => {
   beforeEach(() => {
     mocks.post.mockReset();
     mocks.warn.mockReset();
   });
 
-  it('updates the external URLs of the agent session', async () => {
+  it('adds external URLs to the agent session', async () => {
     mocks.post.mockReturnValue(resolves({data: {agentSessionUpdate: {success: true}}}));
     const client = createLinearApiClient();
 
-    await client.setAgentSessionExternalUrls({
+    await client.addAgentSessionExternalUrls({
       accessToken: 'linear-token',
       agentSessionId: 'session-1',
       urls: [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}],
@@ -684,7 +684,7 @@ describe('createLinearApiClient.setAgentSessionExternalUrls', () => {
     expect(options.headers).toEqual({authorization: 'Bearer linear-token'});
     expect(options.json.variables).toEqual({
       id: 'session-1',
-      input: {externalUrls: [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}]},
+      input: {addedExternalUrls: [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}]},
     });
   });
 
@@ -692,7 +692,7 @@ describe('createLinearApiClient.setAgentSessionExternalUrls', () => {
     mocks.post.mockReturnValue(resolves({data: {agentSessionUpdate: {success: false}}}));
     const client = createLinearApiClient();
 
-    const result = client.setAgentSessionExternalUrls({
+    const result = client.addAgentSessionExternalUrls({
       accessToken: 'linear-token',
       agentSessionId: 'session-1',
       urls: [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}],

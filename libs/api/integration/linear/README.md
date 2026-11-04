@@ -82,9 +82,9 @@ lost authorization, is `undeliverable`. A rate limit, a timeout, or an outage fa
 the call, so the delivery is retried.
 
 `reportProgress` posts each tool call as an ephemeral `action` activity, which the
-next activity replaces, and sets the links it receives, such as the run link, as
-the session's external URLs. The `idle` state posts nothing, because the reply
-clears the action.
+next activity replaces, and adds the links it receives, such as the run link, to
+the session's external URLs, so a link reported earlier stays. The
+`idle` state posts nothing, because the reply clears the action.
 
 Signed but unsupported webhook shapes are recorded and dropped with a 200
 response so Linear does not retry or disable the webhook endpoint.

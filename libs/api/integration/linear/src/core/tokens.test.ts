@@ -41,7 +41,7 @@ function createConnectionContext() {
       revokeToken: vi.fn(),
       createAgentActivity: vi.fn(),
       hasAgentActivity: vi.fn(),
-      setAgentSessionExternalUrls: vi.fn(),
+      addAgentSessionExternalUrls: vi.fn(),
       getIssueContext: vi.fn(),
     },
   });
