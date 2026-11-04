@@ -227,6 +227,38 @@ describe('GET /trigger-events/:id', () => {
     );
   });
 
+  test('serializes the owner and ambiguous decisions of matched agent rules', async () => {
+    const event = await receivedEventFactory.create({workspaceId});
+    const ownerSubscriptionId = crypto.randomUUID();
+    const ambiguousSubscriptionId = crypto.randomUUID();
+    for (const [subscriptionId, subscriptionName, decision] of [
+      [ownerSubscriptionId, 'payments', 'owner'],
+      [ambiguousSubscriptionId, 'billing', 'ambiguous'],
+    ] as const) {
+      await decisionFactory.create({
+        receivedEventId: event.id,
+        subscriptionKind: 'agent',
+        subscriptionId,
+        subscriptionName,
+        workflowDefinitionId: null,
+        projectId: crypto.randomUUID(),
+        decision,
+        runId: null,
+        runName: null,
+      });
+    }
+
+    const res = await app.inject({method: 'GET', url: `/trigger-events/${event.id}`});
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().decisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({subscription_id: ownerSubscriptionId, decision: 'owner'}),
+        expect.objectContaining({subscription_id: ambiguousSubscriptionId, decision: 'ambiguous'}),
+      ]),
+    );
+  });
+
   test('returns replay_of_event_id on a dev event that replayed a source event', async () => {
     const source = await receivedEventFactory.create({workspaceId});
     const replay = await receivedEventFactory.create({

@@ -47,7 +47,7 @@ export function toTriggerEventListPage(
 
 type WorkflowDecisionDto = TriggerDecisionDto & {
   subscription_kind: 'trigger' | 'listener' | 'dev';
-  decision: Exclude<TriggerDecisionDto['decision'], 'owner' | 'default' | 'dropped'>;
+  decision: Exclude<TriggerDecisionDto['decision'], 'owner' | 'default' | 'dropped' | 'ambiguous'>;
 };
 
 // Agent routing decisions answer a different question than a matched workflow, and the event

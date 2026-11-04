@@ -1,3 +1,4 @@
+import type {InteractionRoutingCandidate} from '@shipfox/api-agent-dto/inter-module';
 import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
@@ -407,6 +408,142 @@ describe('routeInteraction', () => {
 
     expect(withoutAuthor).toBe(3);
     expect(withAuthor).toBe(0);
+  });
+});
+
+describe('routeInteraction with rule candidates', () => {
+  function candidate(
+    overrides: Partial<InteractionRoutingCandidate> = {},
+  ): InteractionRoutingCandidate {
+    return {
+      subscriptionId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      agentKey: 'payments',
+      boundAt: '2026-11-01T00:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  it('starts the conversation with the matching agent instead of the default one', async () => {
+    const {deps, interaction} = setup();
+    const payments = candidate();
+
+    const result = await routeInteraction({...interaction(), candidates: [payments]}, deps);
+
+    expect(result).toMatchObject({
+      outcome: 'matched',
+      projectId: payments.projectId,
+      agentKey: 'payments',
+      subscriptionId: payments.subscriptionId,
+      ambiguousSubscriptionIds: [],
+    });
+    if (result.outcome !== 'matched') throw new Error('Expected a match');
+    const [conversation] = await db()
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, result.conversationId));
+    expect(conversation).toMatchObject({projectId: payments.projectId, agentKey: 'payments'});
+    expect(deps.projects.getDefaultProject).not.toHaveBeenCalled();
+  });
+
+  it('gives the request to the earliest binding and reports the other as ambiguous', async () => {
+    const {deps, interaction} = setup();
+    const later = candidate({agentKey: 'billing', boundAt: '2026-11-02T00:00:00.000Z'});
+    const earlier = candidate({agentKey: 'payments', boundAt: '2026-11-01T00:00:00.000Z'});
+
+    const result = await routeInteraction({...interaction(), candidates: [later, earlier]}, deps);
+
+    expect(result).toMatchObject({
+      outcome: 'matched',
+      agentKey: 'payments',
+      subscriptionId: earlier.subscriptionId,
+      ambiguousSubscriptionIds: [later.subscriptionId],
+    });
+  });
+
+  it('puts a custom agent before an earlier Shippy rule', async () => {
+    const {deps, interaction} = setup();
+    const shippy = candidate({agentKey: 'shippy', boundAt: '2026-10-01T00:00:00.000Z'});
+    const custom = candidate({agentKey: 'payments', boundAt: '2026-11-01T00:00:00.000Z'});
+
+    const result = await routeInteraction({...interaction(), candidates: [shippy, custom]}, deps);
+
+    expect(result).toMatchObject({
+      outcome: 'matched',
+      agentKey: 'payments',
+      ambiguousSubscriptionIds: [shippy.subscriptionId],
+    });
+  });
+
+  it('counts an agent once when two of its rules match', async () => {
+    const {deps, interaction} = setup();
+    const projectId = crypto.randomUUID();
+    const first = candidate({projectId, boundAt: '2026-11-01T00:00:00.000Z'});
+    const second = candidate({projectId, boundAt: '2026-11-02T00:00:00.000Z'});
+
+    const result = await routeInteraction({...interaction(), candidates: [second, first]}, deps);
+
+    expect(result).toMatchObject({
+      outcome: 'matched',
+      subscriptionId: first.subscriptionId,
+      ambiguousSubscriptionIds: [],
+    });
+  });
+
+  it('skips a candidate whose project excludes the connection', async () => {
+    const {deps, interaction} = setup();
+    const excluded = candidate({agentKey: 'payments', boundAt: '2026-11-01T00:00:00.000Z'});
+    const allowed = candidate({agentKey: 'billing', boundAt: '2026-11-02T00:00:00.000Z'});
+    vi.mocked(deps.projects.getProjectAccessPolicy).mockImplementation(({projectId}) =>
+      Promise.resolve({
+        policy: accessPolicy({
+          projectId,
+          ...(projectId === excluded.projectId
+            ? {connections: [{connectionId: crypto.randomUUID(), resources: 'all' as const}]}
+            : {}),
+        }),
+      }),
+    );
+
+    const result = await routeInteraction(
+      {...interaction(), candidates: [excluded, allowed]},
+      deps,
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'matched',
+      subscriptionId: allowed.subscriptionId,
+      ambiguousSubscriptionIds: [],
+    });
+  });
+
+  it('keeps a thread with its owner when a rule matches later', async () => {
+    const {deps, interaction} = setup();
+    const started = await routeInteraction(interaction(), deps);
+    if (started.outcome === 'dropped') throw new Error('Expected a conversation');
+
+    const reply = await routeInteraction(
+      {...interaction({role: 'request'}), candidates: [candidate()]},
+      deps,
+    );
+
+    expect(reply).toMatchObject({
+      outcome: 'owner',
+      conversationId: started.conversationId,
+      agentKey: 'shippy',
+    });
+  });
+
+  it('reports the same match when the event is delivered twice', async () => {
+    const {deps, interaction} = setup();
+    const winner = candidate({boundAt: '2026-11-01T00:00:00.000Z'});
+    const other = candidate({agentKey: 'billing', boundAt: '2026-11-02T00:00:00.000Z'});
+    const params = {...interaction(), candidates: [winner, other]};
+
+    const first = await routeInteraction(params, deps);
+    const second = await routeInteraction(params, deps);
+
+    expect(second).toEqual(first);
   });
 });
 

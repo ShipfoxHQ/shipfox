@@ -182,6 +182,16 @@ const interactionRoutingInputSchema = z.object({
   author: z.object({externalId: z.string().min(1), displayName: z.string().optional()}).optional(),
 });
 
+/** An agent whose `on:` rule matched a new request. */
+const interactionRoutingCandidateSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  agentKey: z.string().min(1),
+  /** When the rule was first bound. The earliest binding wins within a group. */
+  boundAt: z.string().datetime(),
+});
+export type InteractionRoutingCandidate = z.infer<typeof interactionRoutingCandidateSchema>;
+
 export const interactionRoutingResultSchema = z.discriminatedUnion('outcome', [
   /** The conversation that already owns the key took the interaction. */
   z.object({
@@ -189,6 +199,18 @@ export const interactionRoutingResultSchema = z.discriminatedUnion('outcome', [
     conversationId: z.string().uuid(),
     projectId: z.string().uuid(),
     agentKey: z.string().min(1),
+  }),
+  /**
+   * A new request started a conversation with the agent of a matching rule. The other candidates
+   * that could have taken it are `ambiguous`.
+   */
+  z.object({
+    outcome: z.literal('matched'),
+    conversationId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    agentKey: z.string().min(1),
+    subscriptionId: z.string().uuid(),
+    ambiguousSubscriptionIds: z.array(z.string().uuid()),
   }),
   /** A new request started a conversation with the workspace's default agent. */
   z.object({
@@ -314,9 +336,10 @@ export const agentInterModuleContract = defineInterModuleContract({
       },
     },
     /**
-     * Gives an integration interaction to the agent that owns its conversation, or starts one with
-     * the default agent. A follow-up or stop with no owner is dropped. The delivery key makes a
-     * replayed event post its text once.
+     * Gives an integration interaction to the agent that owns its conversation. A new request goes
+     * to one of its candidates, custom agents before Shippys and the earliest binding first, or to
+     * the default agent when none can take it. A follow-up or stop with no owner is dropped. The
+     * delivery key makes a replayed event post its text once.
      */
     routeInteraction: {
       input: z.object({
@@ -325,6 +348,8 @@ export const agentInterModuleContract = defineInterModuleContract({
         provider: z.string().min(1),
         deliveryKey: z.string().min(1),
         interaction: interactionRoutingInputSchema,
+        /** The agents whose rules match a request. Ignored for an owned key. */
+        candidates: z.array(interactionRoutingCandidateSchema).default([]),
       }),
       output: interactionRoutingResultSchema,
     },

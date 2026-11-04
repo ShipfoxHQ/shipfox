@@ -32,6 +32,7 @@ export const triggerDecisionOutcomeSchema = z.enum([
   'owner',
   'default',
   'dropped',
+  'ambiguous',
 ]);
 export type TriggerDecisionOutcomeDto = z.infer<typeof triggerDecisionOutcomeSchema>;
 
@@ -250,7 +251,8 @@ const triggerDecisionDtoBaseSchema = z.object({
   id: z.string().uuid(),
   received_event_id: z.string().uuid(),
   subscription_kind: triggerDecisionSubscriptionKindSchema,
-  // Null for `dev` and `agent` decisions: neither has a subscription row yet.
+  // Null for `dev` decisions, which have no subscription row. An `agent` decision names the agent
+  // subscription of a matched rule, or is null for a routing result that no rule decided.
   subscription_id: z.string().uuid().nullable(),
   subscription_name: z.string(),
   workflow_definition_id: z.string().uuid().nullable(),
@@ -268,14 +270,14 @@ const triggerDecisionDtoBaseSchema = z.object({
 });
 
 export const triggerDecisionDtoSchema = triggerDecisionDtoBaseSchema.superRefine((value, ctx) => {
-  const hasNoSubscription =
-    value.subscription_kind === 'dev' || value.subscription_kind === 'agent';
+  if (value.subscription_kind === 'agent') return;
+  const hasNoSubscription = value.subscription_kind === 'dev';
   const hasNullSubscriptionId = value.subscription_id === null;
   if (hasNoSubscription !== hasNullSubscriptionId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: hasNoSubscription
-        ? 'dev and agent decisions must have a null subscription_id'
+        ? 'dev decisions must have a null subscription_id'
         : 'trigger and listener decisions must have a subscription_id',
       path: ['subscription_id'],
     });

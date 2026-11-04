@@ -1,5 +1,8 @@
 import {createHash} from 'node:crypto';
-import type {InteractionRoutingResult} from '@shipfox/api-agent-dto/inter-module';
+import type {
+  InteractionRoutingCandidate,
+  InteractionRoutingResult,
+} from '@shipfox/api-agent-dto/inter-module';
 import {evaluateConnectionAccess} from '@shipfox/api-projects-dto';
 import {
   type ProjectsModuleClient,
@@ -38,6 +41,8 @@ export interface RouteInteractionParams {
     text: string;
     author?: {externalId: string; displayName?: string | undefined} | undefined;
   };
+  /** The agents whose rules match a request. Ignored for an owned key. */
+  candidates?: readonly InteractionRoutingCandidate[] | undefined;
 }
 
 export interface RouteInteractionDeps {
@@ -47,9 +52,10 @@ export interface RouteInteractionDeps {
 }
 
 /**
- * Gives an interaction to the conversation that owns its key, or starts one with the default
- * agent for a request. A follow-up or stop with no owner is dropped, because only a request
- * starts a conversation. A stop reaches its owner without posting text.
+ * Gives an interaction to the conversation that owns its key, or starts one for a request: with
+ * the first candidate whose project takes the connection, or else with the default agent. A
+ * follow-up or stop with no owner is dropped, because only a request starts a conversation. A stop
+ * reaches its owner without posting text.
  */
 export async function routeInteraction(
   params: RouteInteractionParams,
@@ -65,9 +71,22 @@ export async function routeInteraction(
   if (owner) {
     const denial = await projectDenial({params, projectId: owner.projectId, deps});
     if (denial) return {outcome: 'dropped', reason: denial};
-    return await deliverToOwner({params, owner, messageId, wake: deps.wake});
+    return await deliverToOwner({params, owner, messageId, deps});
   }
   if (interaction.role !== 'request') return {outcome: 'dropped', reason: 'no-owner'};
+
+  const eligible = await eligibleCandidates({params, deps});
+  const [winner] = eligible;
+  if (winner) {
+    return await startConversation({
+      params,
+      messageId,
+      deps,
+      eligible,
+      projectId: winner.projectId,
+      agentKey: winner.agentKey,
+    });
+  }
 
   const {project} = await deps.projects.getDefaultProject({workspaceId: params.workspaceId});
   if (!project) return {outcome: 'dropped', reason: 'no-project'};
@@ -75,14 +94,69 @@ export async function routeInteraction(
   const denial = await projectDenial({params, projectId: project.id, deps});
   if (denial) return {outcome: 'dropped', reason: denial};
 
+  return await startConversation({
+    params,
+    messageId,
+    deps,
+    eligible,
+    projectId: project.id,
+    agentKey: SHIPPY_AGENT_KEY,
+  });
+}
+
+/**
+ * The candidates whose project takes the connection, in the order they claim a request: custom
+ * agents before Shippys, then the earliest binding. One agent appears once, with its earliest rule.
+ */
+async function eligibleCandidates(args: {
+  params: RouteInteractionParams;
+  deps: Pick<RouteInteractionDeps, 'projects'>;
+}): Promise<InteractionRoutingCandidate[]> {
+  const ordered = [...(args.params.candidates ?? [])].sort(compareCandidates);
+  const seen = new Set<string>();
+  const denials = new Map<string, Awaited<ReturnType<typeof projectDenial>>>();
+  const eligible: InteractionRoutingCandidate[] = [];
+  for (const candidate of ordered) {
+    const agent = JSON.stringify([candidate.projectId, candidate.agentKey]);
+    if (seen.has(agent)) continue;
+    seen.add(agent);
+    if (!denials.has(candidate.projectId)) {
+      denials.set(
+        candidate.projectId,
+        await projectDenial({params: args.params, projectId: candidate.projectId, deps: args.deps}),
+      );
+    }
+    if (denials.get(candidate.projectId) === undefined) eligible.push(candidate);
+  }
+  return eligible;
+}
+
+function compareCandidates(a: InteractionRoutingCandidate, b: InteractionRoutingCandidate): number {
+  const group = Number(a.agentKey === SHIPPY_AGENT_KEY) - Number(b.agentKey === SHIPPY_AGENT_KEY);
+  if (group !== 0) return group;
+  const bound = Date.parse(a.boundAt) - Date.parse(b.boundAt);
+  if (bound !== 0) return bound;
+  return a.subscriptionId.localeCompare(b.subscriptionId);
+}
+
+async function startConversation(args: {
+  params: RouteInteractionParams;
+  messageId: string;
+  deps: RouteInteractionDeps;
+  eligible: readonly InteractionRoutingCandidate[];
+  projectId: string;
+  agentKey: string;
+}): Promise<InteractionRoutingResult> {
+  const {params, messageId, deps} = args;
+  const {interaction} = params;
   const key = await conversationDataKey(params.workspaceId);
   const conversationId = await newConversationRecordId();
   const itemId = await newConversationRecordId();
   const {conversation, created} = await insertIntegrationConversation({
     id: conversationId,
     workspaceId: params.workspaceId,
-    projectId: project.id,
-    agentKey: SHIPPY_AGENT_KEY,
+    projectId: args.projectId,
+    agentKey: args.agentKey,
     origin: {
       connectionId: params.connectionId,
       provider: params.provider,
@@ -105,11 +179,10 @@ export async function routeInteraction(
     },
   });
   // Another delivery won the race for this key, so this one is a message to its owner.
-  if (!created)
-    return await deliverToOwner({params, owner: conversation, messageId, wake: deps.wake});
+  if (!created) return await deliverToOwner({params, owner: conversation, messageId, deps});
 
   await deps.wake(conversation.id);
-  return routed('default', conversation);
+  return startedResult({conversation, eligible: args.eligible});
 }
 
 /**
@@ -143,18 +216,20 @@ async function deliverToOwner(args: {
   params: RouteInteractionParams;
   owner: Conversation;
   messageId: string;
-  wake: RouteInteractionDeps['wake'];
+  deps: RouteInteractionDeps;
 }): Promise<InteractionRoutingResult> {
   const {params, owner, messageId} = args;
-  // The delivery that started the conversation is its first message, so a replay of it is not an
-  // owner hit.
-  const startedHere = owner.clientMessageId === messageId;
-  const outcome = startedHere ? 'default' : 'owner';
+  // The delivery that started the conversation is its first message, so a replay of it reports
+  // how it started, not an owner hit.
+  if (owner.clientMessageId === messageId) {
+    const eligible = await eligibleCandidates({params, deps: args.deps});
+    return startedResult({conversation: owner, eligible});
+  }
   if (params.interaction.role === 'stop') {
     // The running turn ends at its next check and sends its own final reply. A stop with no
     // running turn has nothing to end.
     await requestTurnStop(owner.id);
-    return routed(outcome, owner);
+    return routed('owner', owner);
   }
 
   const key = await conversationDataKey(owner.workspaceId);
@@ -179,8 +254,35 @@ async function deliverToOwner(args: {
   });
   // The owner was deleted after it was found, so nothing took the message.
   if (!item) return {outcome: 'dropped', reason: 'no-owner'};
-  await args.wake(owner.id);
-  return routed(outcome, owner);
+  await args.deps.wake(owner.id);
+  return routed('owner', owner);
+}
+
+/**
+ * How a conversation this delivery started was routed: by the candidate that names its agent, with
+ * the other eligible candidates as ambiguous, or by default. A replay recomputes it the same way.
+ */
+function startedResult(args: {
+  conversation: Conversation;
+  eligible: readonly InteractionRoutingCandidate[];
+}): InteractionRoutingResult {
+  const {conversation, eligible} = args;
+  const winner = eligible.find(
+    (candidate) =>
+      candidate.projectId === conversation.projectId &&
+      candidate.agentKey === conversation.agentKey,
+  );
+  if (!winner) return routed('default', conversation);
+  return {
+    outcome: 'matched',
+    conversationId: conversation.id,
+    projectId: conversation.projectId,
+    agentKey: conversation.agentKey,
+    subscriptionId: winner.subscriptionId,
+    ambiguousSubscriptionIds: eligible
+      .filter((candidate) => candidate !== winner)
+      .map((candidate) => candidate.subscriptionId),
+  };
 }
 
 function routed(

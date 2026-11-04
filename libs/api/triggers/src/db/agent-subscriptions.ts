@@ -1,4 +1,4 @@
-import {and, eq, inArray} from 'drizzle-orm';
+import {and, asc, eq, inArray} from 'drizzle-orm';
 import type {AgentSubscription} from '#core/entities/agent-subscription.js';
 import {db} from './db.js';
 import {agentSubscriptions, toAgentSubscription} from './schema/agent-subscriptions.js';
@@ -76,6 +76,24 @@ export async function listAgentSubscriptionsByProject(
     .select()
     .from(agentSubscriptions)
     .where(eq(agentSubscriptions.projectId, projectId));
+  return rows.map(toAgentSubscription);
+}
+
+/** The rules that claim requests from a source, earliest binding first. */
+export async function findAgentSubscriptionsBySource(params: {
+  workspaceId: string;
+  source: string;
+}): Promise<AgentSubscription[]> {
+  const rows = await db()
+    .select()
+    .from(agentSubscriptions)
+    .where(
+      and(
+        eq(agentSubscriptions.workspaceId, params.workspaceId),
+        eq(agentSubscriptions.source, params.source),
+      ),
+    )
+    .orderBy(asc(agentSubscriptions.createdAt), asc(agentSubscriptions.id));
   return rows.map(toAgentSubscription);
 }
 

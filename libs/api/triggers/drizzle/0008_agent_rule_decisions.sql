@@ -1,0 +1,2 @@
+ALTER TABLE "triggers_decisions" DROP CONSTRAINT "triggers_decisions_subscription_id_ck";--> statement-breakpoint
+ALTER TABLE "triggers_decisions" ADD CONSTRAINT "triggers_decisions_subscription_id_ck" CHECK (("triggers_decisions"."subscription_kind" = 'dev' AND "triggers_decisions"."subscription_id" IS NULL) OR "triggers_decisions"."subscription_kind" = 'agent' OR ("triggers_decisions"."subscription_kind" IN ('trigger', 'listener') AND "triggers_decisions"."subscription_id" IS NOT NULL));

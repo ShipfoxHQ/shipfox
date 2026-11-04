@@ -6,6 +6,7 @@ import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-mod
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {AgentSubscription} from '#core/entities/agent-subscription.js';
 import type {
   TriggerDecisionDiagnostic,
   TriggerEventProcessingDiagnostic,
@@ -20,6 +21,7 @@ import {
   markReceivedEventFailed,
   markReceivedEventRouted,
   upsertAgentDecision,
+  upsertAgentSubscriptionDecision,
   upsertDevDispatchErrorDecision,
   upsertDevFilterErrorDecision,
   upsertDevFilteredDecision,
@@ -134,6 +136,13 @@ export interface TriggerHistoryRecorder {
   ): Promise<void>;
   /** The agent module's answer for an interaction: the owner, the default agent, or no one. */
   agentRouted(result: AgentRoutingDecision): Promise<void>;
+  /** A rule's agent took a new request, and the other matching rules' agents did not. */
+  agentMatched(owner: AgentSubscription, ambiguous: readonly AgentSubscription[]): Promise<void>;
+  agentFilterErrored(
+    subscription: AgentSubscription,
+    reason: string,
+    diagnostic: TriggerDecisionDiagnostic,
+  ): Promise<void>;
   discarded(): Promise<void>;
   routed(matchedCount: number): Promise<void>;
   failed(matchedCount: number): Promise<void>;
@@ -388,6 +397,48 @@ export async function beginTriggerHistory(
           projectId: result.outcome === 'dropped' ? null : result.projectId,
           reason: result.outcome === 'dropped' ? result.reason : null,
         }),
+      ),
+    agentMatched: async (owner, ambiguous) => {
+      await record(
+        'agent-owner-decision',
+        (id) =>
+          upsertAgentSubscriptionDecision({
+            receivedEventId: id,
+            subscription: owner,
+            decision: 'owner',
+            reason: null,
+            diagnostic: null,
+          }),
+        owner.id,
+      );
+      for (const subscription of ambiguous) {
+        await record(
+          'agent-ambiguous-decision',
+          (id) =>
+            upsertAgentSubscriptionDecision({
+              receivedEventId: id,
+              subscription,
+              decision: 'ambiguous',
+              reason: null,
+              diagnostic: null,
+            }),
+          subscription.id,
+        );
+      }
+    },
+    agentFilterErrored: (subscription, reason, diagnostic) =>
+      recordDecisionDiagnostic(
+        'agent-filter-error-decision',
+        diagnostic,
+        (id, checkedDiagnostic) =>
+          upsertAgentSubscriptionDecision({
+            receivedEventId: id,
+            subscription,
+            decision: 'filter-error',
+            reason,
+            diagnostic: checkedDiagnostic,
+          }),
+        subscription.id,
       ),
     discarded: () => record('discard-event', (id) => markReceivedEventDiscarded(id)),
     routed: (matchedCount) =>
