@@ -412,6 +412,7 @@ const noDefaults: ProjectCheckoutDefaults = {
   defaultCheckout: null,
   defaultConnectionId: null,
   configuredConnectionId: null,
+  configuredCheckoutConnectionId: null,
 };
 
 async function checkoutTarget(params: {

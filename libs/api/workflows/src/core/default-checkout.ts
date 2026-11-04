@@ -22,6 +22,12 @@ export interface ProjectCheckoutDefaults {
    * is never a substitute for `defaultConnectionId`.
    */
   configuredConnectionId: string | null;
+  /**
+   * The connection of the default checkout if inactive connections counted. Like
+   * `configuredConnectionId`, only admission uses it, to name the inactive connection of a
+   * default checkout that `defaultCheckout` leaves out.
+   */
+  configuredCheckoutConnectionId: string | null;
 }
 
 type CheckoutDefaultsProject = {
@@ -52,6 +58,7 @@ export async function loadProjectCheckoutDefaults(params: {
       },
       defaultConnectionId: project.sourceConnectionId,
       configuredConnectionId: project.sourceConnectionId,
+      configuredCheckoutConnectionId: project.sourceConnectionId,
     };
   }
 
@@ -64,15 +71,18 @@ export async function loadProjectCheckoutDefaults(params: {
       params.integrations?.listSourceControlConnectionIds({workspaceId: project.workspaceId}),
     ]);
     const sourceControlConnectionIds = sourceControl?.connectionIds ?? [];
+    const configured = {
+      sourceControlConnectionIds: [
+        ...sourceControlConnectionIds,
+        ...(sourceControl?.inactiveConnectionIds ?? []),
+      ],
+    };
     return {
       defaultCheckout: defaultCheckoutRepository(policy, {sourceControlConnectionIds}),
       defaultConnectionId: defaultConnectionId(policy, {sourceControlConnectionIds}),
-      configuredConnectionId: defaultConnectionId(policy, {
-        sourceControlConnectionIds: [
-          ...sourceControlConnectionIds,
-          ...(sourceControl?.inactiveConnectionIds ?? []),
-        ],
-      }),
+      configuredConnectionId: defaultConnectionId(policy, configured),
+      configuredCheckoutConnectionId:
+        defaultCheckoutRepository(policy, configured)?.connectionId ?? null,
     };
   } catch (error) {
     if (

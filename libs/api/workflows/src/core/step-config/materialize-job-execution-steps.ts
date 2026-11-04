@@ -387,6 +387,23 @@ export function jobChecksOutBareRepository(job: WorkflowModelJob): boolean {
   );
 }
 
+/**
+ * Whether the job checks out the project's default checkout: the job-level checkout the setup
+ * step carries, or a checkout step, including inside composites, that names no `project` and no
+ * `repository`.
+ */
+export function jobUsesDefaultCheckout(job: WorkflowModelJob): boolean {
+  return (
+    setupCheckoutPolicy(job) !== null ||
+    flattenJobSteps(job).some(
+      (step) =>
+        step.kind === 'checkout' &&
+        step.checkout.project === undefined &&
+        step.checkout.repository === undefined,
+    )
+  );
+}
+
 function checkoutTargetsProject(
   checkout: Extract<WorkflowModelStep, {kind: 'checkout'}>['checkout'],
   projectId: string,
