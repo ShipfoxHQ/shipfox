@@ -7,7 +7,7 @@ import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#c
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {assembleWorkflowRunContext} from '#core/step-config/assemble-run-context.js';
 import {literalField} from '#core/step-config/fields.js';
-import {fakeResolveAgentTools} from '#test/fixtures/integrations-inter-module.js';
+import {fakeResolveAgentToolsBatch} from '#test/fixtures/integrations-inter-module.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
 import {
@@ -1073,7 +1073,7 @@ describe('workflow run queries', () => {
       const getAgentToolsContext = vi.fn().mockResolvedValue(agentToolsContext);
       const integrations = {
         getAgentToolsContext,
-        resolveAgentTools: fakeResolveAgentTools(agentToolsContext as never),
+        resolveAgentToolsBatch: fakeResolveAgentToolsBatch(agentToolsContext as never),
       } as unknown as IntegrationsModuleClient;
       const projects = {
         getProjectById: vi.fn().mockResolvedValue({
@@ -1187,7 +1187,7 @@ describe('workflow run queries', () => {
         );
       const integrations = {
         getAgentToolsContext,
-        resolveAgentTools: fakeResolveAgentTools(context([readThread]) as never),
+        resolveAgentToolsBatch: fakeResolveAgentToolsBatch(context([readThread]) as never),
       } as unknown as IntegrationsModuleClient;
       const projects = {
         getProjectById: vi.fn().mockResolvedValue({

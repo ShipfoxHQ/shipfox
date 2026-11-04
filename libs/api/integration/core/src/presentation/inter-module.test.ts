@@ -2269,6 +2269,60 @@ describe('integrations template conformance', () => {
       });
     });
 
+    it('answers each batched request on its own', async () => {
+      const resolverWorkspaceId = crypto.randomUUID();
+      const github = await integrationConnectionFactory.create({
+        workspaceId: resolverWorkspaceId,
+        provider: 'github',
+        slug: 'github_alpha',
+      });
+      const client = createResolver({
+        workspaceId: resolverWorkspaceId,
+        sourceConnectionId: github.id,
+      });
+
+      const {outcomes} = await client.resolveAgentToolsBatch({
+        workspaceId: resolverWorkspaceId,
+        projectId,
+        requests: [
+          {integrations: [{include: ['issue_read'], allowWrite: false}]},
+          {
+            integrations: [
+              {include: ['issue_read'], allowWrite: false},
+              {include: ['issue_write'], allowWrite: false},
+            ],
+          },
+          {integrations: [{include: ['issue_write'], allowWrite: true}]},
+        ],
+      });
+
+      expect(outcomes).toMatchObject([
+        {kind: 'granted', integrations: [{connectionSlug: 'github_alpha'}]},
+        {
+          kind: 'refused',
+          refusal: {
+            integrationIndex: 1,
+            reason: 'write-not-allowed',
+            connection: 'github_alpha',
+            tool: 'issue_write',
+          },
+        },
+        {kind: 'granted', integrations: [{tools: [{id: 'issue_write'}]}]},
+      ]);
+    });
+
+    it('treats a batch for a project of another workspace as missing', async () => {
+      const client = createResolver({workspaceId: crypto.randomUUID()});
+
+      await expect(
+        client.resolveAgentToolsBatch({
+          workspaceId: crypto.randomUUID(),
+          projectId,
+          requests: [{integrations: [{include: ['issue_read'], allowWrite: false}]}],
+        }),
+      ).rejects.toMatchObject({code: 'project-not-found', details: {projectId}});
+    });
+
     it('treats a project of another workspace as missing', async () => {
       const client = createResolver({workspaceId: crypto.randomUUID()});
 

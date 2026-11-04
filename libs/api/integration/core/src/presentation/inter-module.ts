@@ -65,7 +65,13 @@ import {
   type RepositoryAuthorizer,
   repositoryAuthorizationClientErrorCodes,
 } from '#core/repository-authorizer.js';
-import {AgentToolsSelectionError, resolveAgentToolsGrant} from '#core/resolve-agent-tools.js';
+import {
+  type AgentToolsSelection,
+  AgentToolsSelectionError,
+  type ResolveAgentToolsContext,
+  type ResolvedAgentToolsGrant,
+  resolveAgentToolsGrant,
+} from '#core/resolve-agent-tools.js';
 import type {
   AuthorizedCheckoutSpec,
   IntegrationSourceControlService,
@@ -179,6 +185,51 @@ export function createIntegrationsInterModulePresentation(params: {
     registry: params.registry,
     getConnection: params.sourceControl.getConnection,
   });
+  async function loadResolveAgentToolsContext(
+    method: InterModuleMethodContract,
+    input: {workspaceId: string; projectId: string},
+  ): Promise<ResolveAgentToolsContext> {
+    if (!params.projects) throw new Error('Resolving agent tools requires the Projects client');
+    // A project in another workspace is indistinguishable from a missing one.
+    const {project} = await params.projects.getProjectById({projectId: input.projectId});
+    if (project?.workspaceId !== input.workspaceId) {
+      throw createInterModuleKnownError(method, 'project-not-found', {
+        projectId: input.projectId,
+      });
+    }
+    const [catalogs, workspaceConnections, defaultConnection] = await Promise.all([
+      buildAgentToolCatalogs(params.registry),
+      createWorkspaceConnectionSnapshotLoader(
+        params.registry,
+        params.builtinConnections,
+      )(input.workspaceId),
+      resolveDefaultConnection({
+        sourceConnection: await getConnectionById(project.sourceConnectionId),
+        registry: params.registry,
+      }),
+    ]);
+    const connectionAccess = await resolveSnapshotAccess({
+      authorizer: params.repositoryAuthorizer,
+      builtinConnectionIds: new Set((params.builtinConnections ?? []).map((builtin) => builtin.id)),
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      snapshot: workspaceConnections,
+    });
+    return {
+      catalogs,
+      workspaceConnections,
+      blockedConnections: new Set(
+        [...connectionAccess].flatMap(([slug, access]) => (access === 'not-allowed' ? [slug] : [])),
+      ),
+      defaultConnection: defaultConnection
+        ? {
+            id: defaultConnection.id,
+            slug: defaultConnection.slug,
+            provider: defaultConnection.provider,
+          }
+        : null,
+    };
+  }
   // A project in another workspace is indistinguishable from a missing one.
   async function configOperation<Output>(
     method: InterModuleMethodContract,
@@ -564,64 +615,27 @@ export function createIntegrationsInterModulePresentation(params: {
         };
       }),
     resolveAgentTools: async (input) => {
-      const method = contract.methods.resolveAgentTools;
-      if (!params.projects) throw new Error('Resolving agent tools requires the Projects client');
-      // A project in another workspace is indistinguishable from a missing one.
-      const {project} = await params.projects.getProjectById({projectId: input.projectId});
-      if (project?.workspaceId !== input.workspaceId) {
-        throw createInterModuleKnownError(method, 'project-not-found', {
-          projectId: input.projectId,
-        });
+      const context = await loadResolveAgentToolsContext(contract.methods.resolveAgentTools, input);
+      const outcome = resolveSelections({selections: input.integrations, context});
+      if (outcome.kind === 'refused') {
+        throw createInterModuleKnownError(
+          contract.methods.resolveAgentTools,
+          'selection-invalid',
+          outcome.refusal,
+        );
       }
-      const [catalogs, workspaceConnections, defaultConnection] = await Promise.all([
-        buildAgentToolCatalogs(params.registry),
-        createWorkspaceConnectionSnapshotLoader(
-          params.registry,
-          params.builtinConnections,
-        )(input.workspaceId),
-        resolveDefaultConnection({
-          sourceConnection: await getConnectionById(project.sourceConnectionId),
-          registry: params.registry,
-        }),
-      ]);
-      const connectionAccess = await resolveSnapshotAccess({
-        authorizer: params.repositoryAuthorizer,
-        builtinConnectionIds: new Set(
-          (params.builtinConnections ?? []).map((builtin) => builtin.id),
+      return {integrations: outcome.integrations};
+    },
+    resolveAgentToolsBatch: async (input) => {
+      const context = await loadResolveAgentToolsContext(
+        contract.methods.resolveAgentToolsBatch,
+        input,
+      );
+      return {
+        outcomes: input.requests.map(({integrations}) =>
+          resolveSelections({selections: integrations, context}),
         ),
-        workspaceId: input.workspaceId,
-        projectId: input.projectId,
-        snapshot: workspaceConnections,
-      });
-      const context = {
-        catalogs,
-        workspaceConnections,
-        blockedConnections: new Set(
-          [...connectionAccess].flatMap(([slug, access]) =>
-            access === 'not-allowed' ? [slug] : [],
-          ),
-        ),
-        defaultConnection: defaultConnection
-          ? {
-              id: defaultConnection.id,
-              slug: defaultConnection.slug,
-              provider: defaultConnection.provider,
-            }
-          : null,
       };
-      const integrations = input.integrations.map((selection, integrationIndex) => {
-        try {
-          return resolveAgentToolsGrant({selection, context});
-        } catch (error) {
-          if (!(error instanceof AgentToolsSelectionError)) throw error;
-          throw createInterModuleKnownError(method, 'selection-invalid', {
-            integrationIndex,
-            message: error.message,
-            ...error.details,
-          });
-        }
-      });
-      return {integrations};
     },
     checkTemplateConformance: async ({workflow, bindings}) => {
       const catalog = await buildIntegrationCatalog({
@@ -1140,4 +1154,24 @@ function mapConfigCommitError(
     case 'no-changes':
       return createInterModuleKnownError(method, error.refusal, {});
   }
+}
+
+/** Grants the selections in order, or reports the first one Integrations refuses. */
+function resolveSelections(params: {
+  selections: readonly AgentToolsSelection[];
+  context: ResolveAgentToolsContext;
+}) {
+  const integrations: ResolvedAgentToolsGrant[] = [];
+  for (const [integrationIndex, selection] of params.selections.entries()) {
+    try {
+      integrations.push(resolveAgentToolsGrant({selection, context: params.context}));
+    } catch (error) {
+      if (!(error instanceof AgentToolsSelectionError)) throw error;
+      return {
+        kind: 'refused' as const,
+        refusal: {integrationIndex, message: error.message, ...error.details},
+      };
+    }
+  }
+  return {kind: 'granted' as const, integrations};
 }

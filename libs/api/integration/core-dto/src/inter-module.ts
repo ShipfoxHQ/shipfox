@@ -187,6 +187,13 @@ const resolvedAgentToolsGrant = z.object({
     }),
   ),
 });
+const resolveAgentToolsRefusal = z.object({
+  integrationIndex: z.number().int().nonnegative(),
+  reason: resolveAgentToolsFailureReason.optional(),
+  message: z.string(),
+  connection: z.string().optional(),
+  tool: z.string().optional(),
+});
 const toolCallCaller = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('agent')}),
   z.object({
@@ -703,14 +710,29 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       output: z.object({integrations: z.array(resolvedAgentToolsGrant)}),
       errors: {
         'project-not-found': z.object({projectId: id}),
-        'selection-invalid': z.object({
-          integrationIndex: z.number().int().nonnegative(),
-          reason: resolveAgentToolsFailureReason.optional(),
-          message: z.string(),
-          connection: z.string().optional(),
-          tool: z.string().optional(),
-        }),
+        'selection-invalid': resolveAgentToolsRefusal,
       },
+    },
+    /**
+     * Resolves the selections of several callers against one load of the catalogs and the
+     * connections. Each request is answered in order and on its own: a refused selection is that
+     * request's `refused` outcome and does not fail the others.
+     */
+    resolveAgentToolsBatch: {
+      input: z.object({
+        workspaceId: id,
+        projectId: id,
+        requests: z.array(z.object({integrations: z.array(resolveAgentToolsSelection)})),
+      }),
+      output: z.object({
+        outcomes: z.array(
+          z.discriminatedUnion('kind', [
+            z.object({kind: z.literal('granted'), integrations: z.array(resolvedAgentToolsGrant)}),
+            z.object({kind: z.literal('refused'), refusal: resolveAgentToolsRefusal}),
+          ]),
+        ),
+      }),
+      errors: {'project-not-found': z.object({projectId: id})},
     },
     /** Lists the tool and event references of a composed template this instance cannot serve. */
     checkTemplateConformance: {
