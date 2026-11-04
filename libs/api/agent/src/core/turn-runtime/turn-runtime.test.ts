@@ -954,12 +954,11 @@ describe('deleted project', () => {
     expect(await listConversationsToRecover(100)).not.toContain(conversation.id);
   });
 
-  it('settles quietly when Definitions refuses the agents of the deleted project', async () => {
+  it('checks the project before it asks Definitions for the agents', async () => {
     const {projectMap, projectId, deps, conversation, items} = await setup();
     projectMap.delete(projectId);
-    const definitions = {
-      listProjectAgents: vi.fn().mockRejectedValue(new Error('project-not-found')),
-    } as never;
+    const listProjectAgents = vi.fn().mockRejectedValue(new Error('project-not-found'));
+    const definitions = {listProjectAgents} as never;
 
     const turn = await beginConversationTurn({
       conversationId: conversation.id,
@@ -967,6 +966,7 @@ describe('deleted project', () => {
     });
 
     expect(turn).toBeUndefined();
+    expect(listProjectAgents).not.toHaveBeenCalled();
     expect((await items()).map((item) => item.meta.role ?? item.meta.custom_type)).toEqual([
       'user',
     ]);
