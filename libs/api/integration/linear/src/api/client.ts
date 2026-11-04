@@ -1,7 +1,7 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {config} from '#config.js';
-import {LinearIntegrationProviderError} from '#core/errors.js';
+import {isLinearNotFoundMessage, LinearIntegrationProviderError} from '#core/errors.js';
 
 const LINEAR_OAUTH_TOKEN_URL = 'https://api.linear.app/oauth/token';
 const LINEAR_OAUTH_REVOKE_URL = 'https://api.linear.app/oauth/revoke';
@@ -38,6 +38,14 @@ const AGENT_ACTIVITY_CREATE_MUTATION = `
   mutation ShipfoxAgentActivityCreate($input: AgentActivityCreateInput!) {
     agentActivityCreate(input: $input) {
       success
+    }
+  }
+`;
+
+const AGENT_ACTIVITY_QUERY = `
+  query ShipfoxAgentActivity($id: String!) {
+    agentActivity(id: $id) {
+      id
     }
   }
 `;
@@ -114,12 +122,16 @@ export interface LinearApiClient {
   getIdentity(input: {accessToken: string}): Promise<LinearIdentity>;
   createAgentActivity(input: {
     accessToken: string;
+    /** A client-chosen UUID, so the activity can be found again after a send of unknown outcome. */
+    id?: string | undefined;
     agentSessionId: string;
     content: LinearAgentActivityContent;
     /** Linear replaces an ephemeral activity with the next one. */
     ephemeral?: boolean | undefined;
     timeoutMs?: number | undefined;
   }): Promise<void>;
+  /** Whether Linear holds an activity with this id. */
+  hasAgentActivity(input: {accessToken: string; id: string}): Promise<boolean>;
   setAgentSessionExternalUrls(input: {
     accessToken: string;
     agentSessionId: string;
@@ -147,6 +159,7 @@ interface LinearGraphqlResponse<Data> {
 }
 
 interface LinearGraphqlError {
+  message?: unknown;
   extensions?: {type?: unknown} | undefined;
 }
 
@@ -157,6 +170,10 @@ interface LinearIdentityData {
 
 interface LinearAgentActivityCreateData {
   agentActivityCreate?: {success?: unknown} | null;
+}
+
+interface LinearAgentActivityData {
+  agentActivity?: {id?: unknown} | null;
 }
 
 interface LinearAgentSessionUpdateData {
@@ -278,6 +295,7 @@ export function createLinearApiClient(): LinearApiClient {
                 query: AGENT_ACTIVITY_CREATE_MUTATION,
                 variables: {
                   input: {
+                    ...(input.id === undefined ? {} : {id: input.id}),
                     agentSessionId: input.agentSessionId,
                     content: input.content,
                     ...(input.ephemeral === undefined ? {} : {ephemeral: input.ephemeral}),
@@ -296,6 +314,31 @@ export function createLinearApiClient(): LinearApiClient {
           'Linear did not create the agent activity',
         );
       }
+    },
+
+    async hasAgentActivity(input) {
+      const body = await mapLinearError(
+        'get-agent-activity',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {query: AGENT_ACTIVITY_QUERY, variables: {id: input.id}},
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearAgentActivityData>>()
+            .catch((error: unknown) => {
+              // Linear may answer an unknown id with a 400 that carries the GraphQL error.
+              if (error instanceof HTTPError && isNotFoundBody(error.data)) return error.data;
+              throw error;
+            }),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      // Only a recognized not-found answer proves the activity is absent. Any other failure
+      // throws, so the delivery is retried instead of settled on a guess.
+      if (isNotFoundBody(body)) return false;
+      const data = graphqlData('get-agent-activity', body);
+      return data.agentActivity?.id === input.id;
     },
 
     async setAgentSessionExternalUrls(input) {
@@ -419,6 +462,16 @@ function graphqlData<Data>(operation: string, body: LinearGraphqlResponse<Data>)
     );
   }
   return body.data;
+}
+
+function isNotFoundBody(body: unknown): body is LinearGraphqlResponse<never> {
+  const errors = (body as LinearGraphqlResponse<unknown> | null | undefined)?.errors;
+  return (
+    Array.isArray(errors) &&
+    errors.some(
+      (error) => typeof error.message === 'string' && isLinearNotFoundMessage(error.message),
+    )
+  );
 }
 
 function hasGraphqlErrors(body: LinearGraphqlResponse<unknown>): boolean {

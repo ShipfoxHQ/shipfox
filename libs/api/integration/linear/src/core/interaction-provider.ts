@@ -105,7 +105,7 @@ export const linearRequestContextSchema = {
 export interface LinearInteractionProviderOptions {
   linear: Pick<
     LinearApiClient,
-    'getIssueContext' | 'createAgentActivity' | 'setAgentSessionExternalUrls'
+    'getIssueContext' | 'createAgentActivity' | 'hasAgentActivity' | 'setAgentSessionExternalUrls'
   >;
   tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
 }
@@ -155,11 +155,14 @@ export class LinearInteractionProvider
 
   /**
    * Linear sets a session's state from its last activity, so a reply is a `response` or an
-   * `error` activity. The agent's name is not used: the activity belongs to the app.
+   * `error` activity. The agent's name is not used: the activity belongs to the app. The reply
+   * id is the activity id, so a repeat of a send that landed finds its activity and is delivered
+   * instead of posting the answer twice.
    */
   async sendReply({
     connection,
     conversationKey,
+    replyId,
     kind,
     text,
   }: SendInteractionReplyInput<IntegrationConnection<'linear'>>): Promise<InteractionReplyOutcome> {
@@ -177,12 +180,29 @@ export class LinearInteractionProvider
     try {
       await this.options.linear.createAgentActivity({
         accessToken,
+        id: replyId,
         agentSessionId: conversationKey,
         content: {type: kind, body: text},
       });
     } catch (error) {
-      if (isRejectedByLinear(error)) return {outcome: 'undeliverable', reason: error.message};
-      throw error;
+      if (!isRejectedByLinear(error)) throw error;
+      // Linear refuses a repeated id, which looks like any other rejection until the id is found.
+      if (error.reason === 'malformed-provider-response') {
+        const delivered = await this.options.linear
+          .hasAgentActivity({accessToken, id: replyId})
+          .catch((lookupError: unknown) => {
+            // Only a lost authorization settles without proof: retrying can't help.
+            if (
+              lookupError instanceof LinearIntegrationProviderError &&
+              lookupError.reason === 'access-denied'
+            ) {
+              return false;
+            }
+            throw lookupError;
+          });
+        if (delivered) return {outcome: 'delivered'};
+      }
+      return {outcome: 'undeliverable', reason: error.message};
     }
     return {outcome: 'delivered'};
   }

@@ -41,12 +41,15 @@ function httpError(
   status: number,
   headers: Record<string, string> = {},
   statusText = 'Rejected',
+  data?: unknown,
 ): HTTPError {
-  return new HTTPError(
+  const error = new HTTPError(
     {status, statusText, headers: new Headers(headers)} as never,
     {} as never,
     {} as never,
   );
+  if (data !== undefined) Object.assign(error, {data});
+  return error;
 }
 
 describe('createLinearApiClient.exchangeAuthorizationCode', () => {
@@ -541,6 +544,120 @@ describe('createLinearApiClient.createAgentActivity content', () => {
     });
 
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});
+
+describe('createLinearApiClient.createAgentActivity id', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('posts the client-chosen id of the activity', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentActivityCreate: {success: true}}}));
+    const client = createLinearApiClient();
+
+    await client.createAgentActivity({
+      accessToken: 'linear-token',
+      id: 'activity-1',
+      agentSessionId: 'session-1',
+      content: {type: 'response', body: 'Done.'},
+    });
+
+    const [, options] = mocks.post.mock.calls[0] as [string, {json: {variables: unknown}}];
+    expect(options.json.variables).toEqual({
+      input: {
+        id: 'activity-1',
+        agentSessionId: 'session-1',
+        content: {type: 'response', body: 'Done.'},
+      },
+    });
+  });
+});
+
+describe('createLinearApiClient.hasAgentActivity', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('finds an activity by id', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentActivity: {id: 'activity-1'}}}));
+    const client = createLinearApiClient();
+
+    const found = await client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
+
+    const [, options] = mocks.post.mock.calls[0] as [
+      string,
+      {headers: Record<string, string>; json: {variables: unknown}},
+    ];
+    expect(found).toBe(true);
+    expect(options.headers).toEqual({authorization: 'Bearer linear-token'});
+    expect(options.json.variables).toEqual({id: 'activity-1'});
+  });
+
+  it('reports an unknown id as not found', async () => {
+    mocks.post.mockReturnValue(
+      resolves({
+        data: null,
+        errors: [{message: 'Entity not found: AgentActivity', extensions: {type: 'invalid input'}}],
+      }),
+    );
+    const client = createLinearApiClient();
+
+    const found = await client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
+
+    expect(found).toBe(false);
+  });
+
+  it('reports an unknown id as not found when Linear answers with a 400', async () => {
+    const body = {errors: [{message: 'Entity not found: AgentActivity'}]};
+    mocks.post.mockReturnValue(rejects(httpError(400, {}, 'Bad Request', body)));
+    const client = createLinearApiClient();
+
+    const found = await client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
+
+    expect(found).toBe(false);
+  });
+
+  it('rejects on an error that does not say the activity is missing', async () => {
+    mocks.post.mockReturnValue(
+      resolves({data: null, errors: [{message: 'Internal resolver error'}]}),
+    );
+    const client = createLinearApiClient();
+
+    const result = client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
+  it('rejects when Linear returns no data', async () => {
+    mocks.post.mockReturnValue(resolves({data: null}));
+    const client = createLinearApiClient();
+
+    const result = client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
+  it('rejects when the authorization is lost', async () => {
+    mocks.post.mockReturnValue(
+      resolves({data: null, errors: [{extensions: {type: 'authentication'}}]}),
+    );
+    const client = createLinearApiClient();
+
+    const result = client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('rejects on an outage', async () => {
+    mocks.post.mockReturnValue(rejects(httpError(503)));
+    const client = createLinearApiClient();
+
+    const result = client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
   });
 });
 
