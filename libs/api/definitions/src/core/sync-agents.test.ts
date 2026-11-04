@@ -320,6 +320,26 @@ describe('fetchAndParseAgents', () => {
       ]);
     });
 
+    it('rejects an agent integration that exclude empties', async () => {
+      const result = await parse(
+        {
+          '.shipfox/agents/triage.yaml': agent(
+            '  - include: [issue_write]\n    exclude: [issue_write.create, issue_write.update, issue_write.list]\n    allow_write: true',
+          ),
+        },
+        undefined,
+        async () => integrationContext(),
+      );
+
+      expect(result.valid).toEqual([]);
+      expect(result.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'integration-no-tools-selected',
+          path: 'integrations.0.include',
+        }),
+      ]);
+    });
+
     it('rejects a connection that does not exist or cannot serve tools', async () => {
       const result = await parse(
         {

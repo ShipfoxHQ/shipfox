@@ -1958,6 +1958,59 @@ describe('normalizeWorkflowDocument', () => {
     expect(accepted).toBeDefined();
   });
 
+  it('rejects an integration that exclude empties, with or without allow_write', () => {
+    const document = (allowWrite: boolean): WorkflowDocument => ({
+      name: 'empty integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [
+                {
+                  include: ['check_run_write'],
+                  exclude: ['check_run_write.create', 'check_run_write.update'],
+                  allow_write: allowWrite,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    const withoutWrite = expectInvalid(document(false), {integrationValidationContext});
+    const withWrite = expectInvalid(document(true), {integrationValidationContext});
+
+    expect(withoutWrite.issues.map((issue) => issue.code)).toEqual([
+      'integration-no-tools-selected',
+    ]);
+    expect(withWrite.issues.map((issue) => issue.code)).toEqual(['integration-no-tools-selected']);
+  });
+
+  it('accepts an integration whose other include tokens survive exclude', () => {
+    const document: WorkflowDocument = {
+      name: 'partly empty integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [
+                {
+                  include: ['check_run_write', 'issue_read'],
+                  exclude: ['check_run_write'],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    expect(normalizeWorkflowDocument(document, {integrationValidationContext})).toBeDefined();
+  });
+
   it('keeps a write tool that exclude does not name', () => {
     const document: WorkflowDocument = {
       name: 'write integrations',
