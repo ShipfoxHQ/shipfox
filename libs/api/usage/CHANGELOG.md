@@ -1,5 +1,109 @@
 # @shipfox/api-usage
 
+## 34.0.0
+
+### Major Changes
+
+- 530d00f: Credentials and usage can name a conversation instead of a step attempt, so inference no longer requires a run.
+
+  - **Credentials:** `resolveRuntimeCredentials` and `ManagedModelProvider.resolveCredentials` take a `subject` in place of `runId`, `stepAttemptId`, and `jobIdentity`. `InferenceSubject` has the kinds `step_attempt` and `conversation`, and a conversation names its `agentKey`. A composing application's managed provider must read the IDs from `subject`.
+  - **Usage:** `InferenceSegmentInputDto`, `InferenceSegmentUsageDto`, and `usage.inference_segment.recorded` are unions of a step segment, with the IDs down to the step attempt, and a conversation segment, with a `conversationId` and the `agentKey` of its agent, so usage can be measured per agent. The schemas and a database check reject anything else, and a consumer must handle a segment with no run. `StepInferenceSegmentInputDto` names the step variant, and `inferenceSegmentStepIdentity` returns the run identity of a stored row. Conversation segments skip the job execution projection check, and their events order on the conversation ID. The run and job execution routes don't change.
+  - **Project ownership:** `createUsageModule` takes a `projects` client. Usage confirms that a conversation segment's project isn't in another workspace before recording it, and a mismatch fails the batch.
+  - **Agent:** `@shipfox/api-agent` exports `builtInAgentConfigInput`, which `resolveAgentConfig` takes in place of a step. `renewal` now covers any later credential for admitted work, so the model and summary calls after a turn's first model call skip the availability check.
+
+### Minor Changes
+
+- 67c51ec: Usage records the stored cache bytes of each project once an hour. The Usage contract gains `recordStorageSamples`, which returns the counts of recorded samples and duplicates, and the `listStorageSamples` replay cursor. Usage publishes `usage.storage_sample.recorded` for each new sample. A sample holds quantities only. The Cache module takes a `usage` client and samples `ready` entries at minute 5 of every hour. It records one sample per project, keyed by project and clock hour, so a repeated run records nothing twice.
+
+### Patch Changes
+
+- Updated dependencies [af0e24b]
+- Updated dependencies [46f78a0]
+- Updated dependencies [7d20d04]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [1f218c4]
+- Updated dependencies [16d18f4]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [67c51ec]
+- Updated dependencies [c4f486b]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [2339c1b]
+- Updated dependencies [b59424d]
+- Updated dependencies [dd63da9]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2d009f4]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [205afb5]
+- Updated dependencies [a73e712]
+- Updated dependencies [f432fd2]
+- Updated dependencies [530d00f]
+- Updated dependencies [b64fff6]
+- Updated dependencies [f769d90]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [61b5524]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [3869c1d]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [52969e5]
+- Updated dependencies [4aad893]
+- Updated dependencies [eca4c27]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [e6981d5]
+- Updated dependencies [2c36559]
+- Updated dependencies [0b661c9]
+- Updated dependencies [395e11d]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [d2a2168]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [a32c90c]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-usage-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-temporal@0.6.0
+
 ## 33.0.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/cloudflare-pages
 
+## 0.4.0
+
+### Minor Changes
+
+- 9734bc6: Retries the pull request lookup in `assertCurrentCommit` when the GitHub API call fails, and adds `attempts` and `retryDelayMs` options.
+
 ## 0.3.2
 
 ### Patch Changes

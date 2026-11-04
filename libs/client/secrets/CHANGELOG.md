@@ -1,5 +1,48 @@
 # @shipfox/client-secrets
 
+## 53.0.0
+
+### Minor Changes
+
+- f1cbae0: Opens the create modal on the variables and secrets settings pages when the URL carries `?create=KEY`. The name field is filled in with the key, and closing the modal removes the parameter. A key that is not a valid variable or secret name is ignored. `WorkspaceVariablesSection` and `WorkspaceSecretsSection` accept `createKey` and `onCreateKeyClear`.
+
+### Patch Changes
+
+- Updated dependencies [e99aa97]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [ac1e750]
+- Updated dependencies [0461349]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [2c89020]
+- Updated dependencies [c2f006c]
+- Updated dependencies [2b3aded]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [93b8cac]
+- Updated dependencies [7b0fafd]
+- Updated dependencies [0160be6]
+- Updated dependencies [f43cafb]
+- Updated dependencies [32a2dcc]
+- Updated dependencies [6faa1d7]
+- Updated dependencies [a328042]
+- Updated dependencies [bea7e50]
+- Updated dependencies [60ff4ba]
+- Updated dependencies [3d329a9]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [f5c364b]
+- Updated dependencies [c3768b2]
+- Updated dependencies [0b661c9]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-api@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

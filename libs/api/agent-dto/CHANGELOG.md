@@ -1,5 +1,171 @@
 # @shipfox/api-agent-dto
 
+## 34.0.0
+
+### Major Changes
+
+- 1f218c4: Treats every runner as able to renew Git and managed inference credentials. The runner capability manifest no longer has `features`, and `runnerFeaturesSchema` and `RunnerFeaturesDto` are removed. Registration still accepts a `features` key from older runner images and ignores it. `ManagedModelProvider.resolveCredentials` no longer receives `renewableInference`, and `RUNNER_CAPABILITY_REQUIRED_ERROR_CODE` with its `runner-capability-required` error is removed. A composing application must stop using both and always issue renewable credentials. The API no longer writes the "Renewable Git credentials are unavailable on this runner" annotation.
+- 530d00f: Credentials and usage can name a conversation instead of a step attempt, so inference no longer requires a run.
+
+  - **Credentials:** `resolveRuntimeCredentials` and `ManagedModelProvider.resolveCredentials` take a `subject` in place of `runId`, `stepAttemptId`, and `jobIdentity`. `InferenceSubject` has the kinds `step_attempt` and `conversation`, and a conversation names its `agentKey`. A composing application's managed provider must read the IDs from `subject`.
+  - **Usage:** `InferenceSegmentInputDto`, `InferenceSegmentUsageDto`, and `usage.inference_segment.recorded` are unions of a step segment, with the IDs down to the step attempt, and a conversation segment, with a `conversationId` and the `agentKey` of its agent, so usage can be measured per agent. The schemas and a database check reject anything else, and a consumer must handle a segment with no run. `StepInferenceSegmentInputDto` names the step variant, and `inferenceSegmentStepIdentity` returns the run identity of a stored row. Conversation segments skip the job execution projection check, and their events order on the conversation ID. The run and job execution routes don't change.
+  - **Project ownership:** `createUsageModule` takes a `projects` client. Usage confirms that a conversation segment's project isn't in another workspace before recording it, and a mismatch fails the batch.
+  - **Agent:** `@shipfox/api-agent` exports `builtInAgentConfigInput`, which `resolveAgentConfig` takes in place of a step. `renewal` now covers any later credential for admitted work, so the model and summary calls after a turn's first model call skip the availability check.
+
+### Minor Changes
+
+- 2062ec8: An agent in a Slack or Linear conversation starts workflow runs. `fireManualTrigger` accepts a conversation with a provider and no user as an agent actor, and `start_workflow_run` no longer needs a Shipfox user for such a conversation. The run budget still applies. The run page reads "Started by Shippy in Slack", and Linear shows the run link on the agent session. Web conversations still record their author.
+- 4227bda: Store private web conversations and expose their API.
+
+  - **Storage:** a conversation is an append-only timeline of pi session entries, stored unchanged, so thinking and signatures survive.
+  - **Privacy:** entries, titles, and stream chunks are encrypted with the workspace data key. System entries, page notes, and signatures never reach a client.
+  - **Routes:** list and create under `/projects/:projectId/conversations`, and get, read items, post a message, mark read, and delete under `/conversations/:conversationId`. Anyone but the owner gets a 404.
+  - **DTOs:** `@shipfox/api-agent-dto` exports the conversation schemas and a closed `pageContextSchema`. Items carry `SessionView` rows, or dedicated run result and turn notice DTOs.
+  - **Composition:** `createAgentModule` accepts an optional `projects` client. The conversation routes are mounted only when it is present, so a custom `agentModuleFactory` must forward it.
+
+- 7d20d04: Agent steps read the same repository instructions and skills as a developer's coding agent, and `repository_context` controls them.
+
+  - **Workflow schema:** an agent step accepts `repository_context`: `false` turns repository context off, and the long form sets `instructions` and `skills` separately. Each toggle accepts a `${{ }}` expression that resolves to `true` or `false` when the step is dispatched. `skills` also accepts a list of skill names. The field is registered as the `agent.repository_context` interpolation field.
+  - **Agent contract:** `@shipfox/api-agent-dto` exports `agentRepositoryContextConfigSchema`, the instruction file names for each harness (`claude` tries `CLAUDE.md` first and `pi` tries `AGENTS.md` first), the skill directories, the 64 KiB instruction limit, and `AGENT_SHIPFOX_SYSTEM_PROMPT`, the guidance that both harnesses append to their default system prompt.
+  - **Session view:** a `shipfox_repository_context` session entry renders as a "Repository context" row that lists the instruction files and skills the step loaded, or shows that they were off.
+
+- 610ab29: A new Slack or Linear request goes to the agent whose `on:` rule matches it, with one agent per conversation.
+
+  - **Matching:** for a request, Triggers evaluates the agent subscriptions on the event's source, with each filter reading `request` and `event`, and passes the matches to `routeInteraction` as `candidates`. Follow-ups and stops match no rule.
+  - **Owner:** Agent starts the conversation with the first candidate whose project takes the connection: custom agents before Shippys, and the earliest binding first within each group. Without one, the default Shippy answers, as before. A key that already has a conversation keeps it.
+  - **Contract:** `routeInteraction` takes an optional `candidates` list and can return the new outcome `matched`, with the winning `subscriptionId` and the `ambiguousSubscriptionIds` of the other candidates.
+  - **Decisions:** an `agent` decision can now name an agent subscription. The winning rule is recorded as `owner`, the others as the new outcome `ambiguous`, and a rule whose filter fails as `filter-error`. Migration `0008_agent_rule_decisions` relaxes the decisions check constraint, and the decision DTOs accept an `agent` decision with a subscription ID. The `get_trigger_event` tool schema includes `ambiguous`.
+  - **Docs:** the `on` field description and the workflow schema reference describe how requests are routed.
+
+- dc2bd62: Agent steps read the files of mainstream coding agents (Claude Code, Codex, OpenCode, Cursor, and pi) in the repository and in the runner home directory. `AGENT_REPOSITORY_SKILL_DIRECTORIES` adds `.pi/skills`, `.opencode/skills`, and `.cursor/skills`. The new `AGENT_HOME_SKILL_DIRECTORIES` lists the user skill directories, and the new `AGENT_HOME_INSTRUCTION_FILE_PATHS` lists the global instruction files for each harness, in the order the runner tries them. The `Repository context` session row now names the directory of each skill, for example `Skills: review (.agents/skills); tdd (~/.agents/skills).`
+- 3f1363c: Agent steps accept `mcp_servers`, a map of stdio MCP servers that the runner starts for the step. The agent sees each server tool as `<name>__<tool>`.
+
+  - **Document:** each entry has a literal `command` and `args`, an `env` map whose values support expressions and secrets, and an optional `include` list. Names use lowercase letters, numbers, and single underscores, with at most 20 characters.
+  - **Definitions:** `WorkflowModelAgentStep.customMcpServers` keeps each server with its env templates. A server name that matches the tool prefix of an integration connection on the step is rejected with `agent-mcp-server-name-collision`.
+  - **Expressions:** the `agent.mcp_servers.env.value` field accepts server and runner contexts.
+  - **Materialized config:** `customMcpServers` holds each server with the env values known at dispatch. An env value that reads a secret becomes a secret binding with the new `mcp_server_env` target, and the step secrets route serves agent steps.
+  - **Errors:** a server that does not start fails the step with `agent_mcp_server_unavailable`. A materialization collision with the default connection reports `mcp-server-name-collision`.
+
+- 8937e15: An `mcp_servers` entry on an agent step can give a `url` instead of a `command`, for a server that the user runs. The runner connects to it over Streamable HTTP and sends its `headers` with every request.
+
+  - **Document:** an entry sets exactly one of `command` or `url`, and the published JSON schema says so. `url` is a literal `http` or `https` URL. `headers` maps HTTP field names to values that support expressions and secrets. Header names are unique without regard to case, cannot be one the transport sets (such as `Accept` or `Mcp-Protocol-Version`), and values cannot contain line breaks or null bytes. Headers share the entry and size limits of `env`. `args` and `env` apply only to `command` servers, and `headers` only to `url` servers.
+  - **Definitions:** `WorkflowModelAgentMcpServer` is a union of `WorkflowModelAgentStdioMcpServer` and `WorkflowModelAgentHttpMcpServer`. An http server keeps its header templates under `templates.headers`. `agentMcpServerValues(server)` returns the `env` or `headers` values and templates of either kind.
+  - **Expressions:** the `agent.mcp_servers.headers.value` field accepts server and runner contexts.
+  - **Materialized config:** `materializedAgentMcpServerSchema` accepts a stdio or an http server. A header value that reads a secret becomes a secret binding with the new `mcp_server_header` target.
+  - **Regex:** `isHttpFieldName(value)` and `HTTP_FIELD_NAME_RE` check an HTTP header name.
+
+- 68d6cd6: Adds lab and display label fields to workspace model contracts while preserving strict agent-access projections.
+- c10e4c4: Streams conversation turns to the browser over server-sent events.
+
+  - **Agent:** `GET /conversations/:conversationId/stream?after_seq=<n>` sends `queued`, `item`, `delta`, `reset`, and `turn` events, with a comment heartbeat every 15 seconds. It closes when the turn ends or after 5 minutes. A reconnect gets a `reset` and the running call's text from its first chunk. Browser origins that the API allows can read it.
+  - **Agent DTO:** `conversationStreamQuerySchema` and `conversationStreamEventSchema` describe the request and the events.
+  - **Client API:** `checkedApiEventStream` opens an event stream with `fetch` and the bearer token, and validates each message.
+
+- 18678ea: A run started from a conversation now reports its result back to that conversation, even days later.
+
+  - **When:** the result arrives when the run settles, meaning its one-shot jobs finished and a listener keeps it open, or when it ends. A cancelled or timed-out run never looks settled, and a very large run reports only when it ends. Each attempt reports once, and a rerun reports its own result.
+  - **Reliability:** a result that failed to arrive is delivered once the fault clears, and a check that stayed requested for over a minute is run again by the next recovery sweep.
+  - **Shippy:** reads the finished jobs at settled to find outputs such as `pr_url`, and reports an ended run's outputs with its status.
+  - **Integration:** `@shipfox/api-agent-dto` adds the `registerConversationRun` inter-module method, which `start_workflow_run` calls for a conversation. `createAgentModule` now needs the `workflows` client to deliver results.
+
+- 2339c1b: A conversation can start workflow runs, with a limit on how many it starts without a person writing.
+
+  - **Start tool:** `start_workflow_run` is now offered to conversations. It starts a root run in the conversation's project for the conversation owner, and its idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. The conversation caller context now carries `agentKey`.
+  - **Run budget:** `claimConversationRunStart` on the agent inter-module contract spends one of five run starts. A message from a person resets the count. At the limit, the tool returns `run-budget-exhausted` and tells the agent to ask the user. A repeated call doesn't spend the budget again.
+  - **Manual trigger:** `fireManualTrigger` and the manual trigger payload take an optional `conversation` with `id`, `agentKey`, and `provider`. The workflows inter-module contract gains `hasRunForIdempotencyKey`.
+  - **Run reads:** run list items and the run overview header return `conversation` with `agent_key`, `provider`, and `author_user_id`, and never the conversation id.
+  - **Client:** the run list shows `via Shippy`, the run summary shows `Started by <author> via Shippy`, and the chat shows a `Run started` row that never joins a group of reads. The panel copy and suggested prompts say that Shippy can start work.
+  - **Shippy prompt:** a conversation pinned before this change says it can't start runs and suggests a new conversation.
+
+- 8a4f3d8: Adds the GET /__e2e/agent/sessions/:stepAttemptId route and exports the e2eSessionTranscriptResponseSchema/E2eSessionTranscriptResponseDto contract for decrypted agent session transcripts.
+- a99c11b: Show managed models that a workspace cannot run. The workspace model catalog marks them `locked`, validation warns with `model-locked` and never rejects, and the model lists mark them with a lock and explain the reason once, with the required action, while keeping them selectable.
+- e560f69: The Pi harness now runs on Pi 1.x.
+
+  - **Agent DTO:** `piModelProviderId` maps a Shipfox provider ID to the Pi provider ID. Pi 1.x renamed `azure-openai-responses` to `azure`, and stored provider configs keep the Shipfox ID. `isReservedModelProviderId` now also reserves `azure`, so new custom providers cannot take Pi's built-in ID. The catalog lists Pi's new `meta`, `radius`, and `typesafe` providers as unsupported. Fireworks now defaults to `accounts/fireworks/models/kimi-k3` and Together AI to `deepseek-ai/DeepSeek-V4-Pro-0813`, because Pi removed the previous defaults.
+  - **Agent:** Azure OpenAI model lists and credential checks use the renamed Pi provider again.
+
+- 1a50666: Project agent files now shape conversations, and a project can have custom agents.
+
+  - **Built-in agent:** the `instructions` of `shippy.yaml` append to the pinned system prompt of a new conversation. Its `provider` and `model` apply from the next turn. A running conversation keeps its prompt.
+  - **Custom agents:** a conversation can start with `agent_key` set to a custom agent, which uses its own full prompt. The conversation stores the agent file's content hash. A deleted agent leaves its conversations readable and refuses new messages and retries.
+  - **API:** `GET /projects/:projectId/agents` lists the built-in agent and the custom agents with any file error. `createAgentModule` takes an optional `definitions` client.
+  - **Chat panel:** a picker appears in a new conversation when the project has custom agents. The panel shows an invalid agent file and a deleted agent.
+
+- 3fe51c3: Events and runs stay inside their project's access.
+
+  - **Events:** the integration event envelope has an optional `resource`. GitHub and Gitea fill it with the repository of the event.
+  - **Triggers:** a workflow or listening job in a project whose access excludes the connection or the repository no longer receives the event. The trigger history records the decision as `filtered`, with the reason `project-access`, or `project-deleted` when the project is gone. Dev runs that replay an event apply the same check. The job-activated event and listener subscriptions now carry the project.
+  - **Agent:** a request or message for a project that excludes the connection is dropped with `project-access` or `project-deleted`, and no other project answers it.
+  - **Shipfox tools:** `start_workflow_run` no longer takes `project_id` and starts runs only in the caller's project.
+
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- 25fd5a8: Routes requests from integrations that support interactions to agents. An unowned request starts a conversation with the Shippy of the workspace's default project. A request on an owned key, a follow-up, or a stop reaches the conversation that owns its key, and a follow-up or stop with no owner is dropped. A replayed event creates one conversation. Triggers records each result as an `agent` decision: `owner`, `default`, or `dropped`. Agent adds `routeInteraction` and the origin columns on conversations.
+- 3d329a9: Add the Shippy chat panel beside every project page.
+
+  - **Client chat:** a new package. `chatFeature` contributes the project dock: a panel with a transcript, tool rows, a composer with the page the agent sees, history with delete, and every turn state from thinking to a deleted conversation. `Mod+.` opens or closes it.
+  - **Client features:** `defaultFeatures()` includes `chatFeature`.
+  - **Client logs:** exports `groupActivityReads`, `ActivityReadGroupNode`, `ActionDetails`, and `actionDisplayLabel`.
+  - **Client shell:** `useAgentPageContext()` accepts `undefined`, and its context gains `runNumber` and `name`, which only label the page for the reader.
+  - **Agent:** `GET /conversations/:conversationId` returns `latest_turn`, with its status, failure code, and model.
+  - **Agent DTO:** adds `conversationLatestTurnDtoSchema`, and `latest_turn` on `conversationDetailDtoSchema`.
+  - **Client workflows and projects:** the runs, run, job, automations, and project settings pages tell Shippy where the user is.
+
+- f5c364b: Shows each run result in a Shippy conversation as a card, lists the runs that have no result yet, and shows unread replies as a badge on Shippy. A settled run reads `Listening`. A reply is marked read only when its latest message is in view in a focused tab.
+- 3f1363c: Claude now names integration tools `mcp__shipfox__<connection>__<tool>`, which leaves more room under its 64-character tool-name limit.
+
+  - **Agent DTO:** `AGENT_TOOLS_MCP_SERVER_ID` names the server that harnesses see. The persisted descriptor name `shipfox_integration_tools` does not change, so older runners and stored configs keep working.
+  - **Logs:** `withoutClaudeIntegrationPrefix` strips the new prefix and the legacy `mcp__shipfox_integration_tools__` prefix, so older transcripts still show their integration tools.
+
+- d2a2168: Stops work for a deleted project and refuses new work. After a project is deleted, its open runs and listening jobs are canceled, its active turns stop with no reply in Slack or Linear, and no trigger, cron, manual fire, dev run, or rerun can start a run in it, including a job with `checkout: false`.
+
+  - **Workflows:** every start path checks that the project is live before it creates a run. A refused start fails with the new `project-deleted` error on `startRunFromTrigger`, `startDevRun`, `rerunWorkflowRun`, and `deliverEventToJobListener`. `runWorkflow`, `runDevWorkflow`, and `rerunWorkflowRun` now require a `projects` client. The module adds `stopWork({scope, reason})`, a core function and an inter-module method that cancels the open runs in a workspace or project and returns how many remain. Its `PROJECT_DELETED` subscriber calls it. The run keeps the existing canceled status, with no deletion reason yet.
+  - **Agent:** turn admission refuses a deleted project quietly, and the pinned prompt no longer falls back to an `unknown` project name. The module adds the same `stopWork` method. With `project_deleted` it marks the replies of the stopped turns `suppressed`, so nothing is posted back and the loading status is left alone. Its `PROJECT_DELETED` subscriber calls it.
+  - **Triggers:** a `project-deleted` error from Workflows shows as the `project-deleted` decision diagnostic and as `project-not-found` on the manual-fire and dev-run routes. The command contracts list the new error.
+
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- 70e6983: Adds `managed_provider_id` to the `getWorkspaceModels` inter-module result, so consumers can tell the managed provider's models apart from bring-your-own-key providers.
+
+### Patch Changes
+
+- Updated dependencies [be33fe6]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [179fa81]
+- Updated dependencies [24a18d3]
+- Updated dependencies [7d20d04]
+- Updated dependencies [610ab29]
+- Updated dependencies [dc2bd62]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [d273097]
+- Updated dependencies [e087b95]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [c0b814f]
+- Updated dependencies [0654280]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [f1f520f]
+- Updated dependencies [cfe6ce6]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [67e55ea]
+- Updated dependencies [e08530c]
+- Updated dependencies [10678ba]
+- Updated dependencies [4e3497b]
+- Updated dependencies [d657853]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [9906470]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [a429987]
+- Updated dependencies [2100749]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [0b661c9]
+- Updated dependencies [e71cded]
+  - @shipfox/workflow-document@4.0.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/policy-notice@0.1.0
+
 ## 33.0.0
 
 ### Minor Changes

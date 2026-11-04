@@ -6,7 +6,7 @@
     "directory": "e2e/screens/workflows"
   },
   "license": "MIT",
-  "version": "33.0.0",
+  "version": "34.0.0",
   "private": false,
   "files": [
     "dist",

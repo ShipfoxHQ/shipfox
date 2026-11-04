@@ -1,5 +1,28 @@
 # @shipfox/client-ui
 
+## 53.0.0
+
+### Patch Changes
+
+- Updated dependencies [8937e15]
+- Updated dependencies [ac1e750]
+- Updated dependencies [0461349]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2b3aded]
+- Updated dependencies [93b8cac]
+- Updated dependencies [7b0fafd]
+- Updated dependencies [10678ba]
+- Updated dependencies [f43cafb]
+- Updated dependencies [32a2dcc]
+- Updated dependencies [6faa1d7]
+- Updated dependencies [cc70c3b]
+  - @shipfox/regex@0.4.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-api@53.0.0
+  - @shipfox/annotations-dto@34.0.0
+
 ## 52.0.3
 
 ### Patch Changes

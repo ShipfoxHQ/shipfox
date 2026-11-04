@@ -1,5 +1,465 @@
 # @shipfox/api-workflows
 
+## 34.0.0
+
+### Minor Changes
+
+- af0e24b: Shipfox runs the `post` entry of an action at the end of the job.
+
+  - **Post rows:** a job execution gets one `post` step for each action step that declares `post`, after every authored step, in reverse step order. The row is named `Post <step name>`, has no key, and is skipped with the `main_not_started` reason when its main entry never reached the runner.
+  - **Dispatch:** a post runs with the inputs, env, secret bindings, tool grants, state, and exported environment of the last attempt of its main step that reached the runner, also after a gate restart skipped the step.
+  - **Job result:** a failed post with `post_failure: warn` leaves the job result and `execution.failed` unchanged. With `fail`, it fails the job.
+  - **API:** the step type gains `post`, the step status reason gains `main_not_started`, and a post row in a step summary carries `main_step_id` and `affects_job`. The agent access read tools return the same.
+
+- 7d20d04: Agent steps read the same repository instructions and skills as a developer's coding agent, and `repository_context` controls them.
+
+  - **Workflow schema:** an agent step accepts `repository_context`: `false` turns repository context off, and the long form sets `instructions` and `skills` separately. Each toggle accepts a `${{ }}` expression that resolves to `true` or `false` when the step is dispatched. `skills` also accepts a list of skill names. The field is registered as the `agent.repository_context` interpolation field.
+  - **Agent contract:** `@shipfox/api-agent-dto` exports `agentRepositoryContextConfigSchema`, the instruction file names for each harness (`claude` tries `CLAUDE.md` first and `pi` tries `AGENTS.md` first), the skill directories, the 64 KiB instruction limit, and `AGENT_SHIPFOX_SYSTEM_PROMPT`, the guidance that both harnesses append to their default system prompt.
+  - **Session view:** a `shipfox_repository_context` session entry renders as a "Repository context" row that lists the instruction files and skills the step loaded, or shows that they were off.
+
+- 3f1363c: Agent steps accept `mcp_servers`, a map of stdio MCP servers that the runner starts for the step. The agent sees each server tool as `<name>__<tool>`.
+
+  - **Document:** each entry has a literal `command` and `args`, an `env` map whose values support expressions and secrets, and an optional `include` list. Names use lowercase letters, numbers, and single underscores, with at most 20 characters.
+  - **Definitions:** `WorkflowModelAgentStep.customMcpServers` keeps each server with its env templates. A server name that matches the tool prefix of an integration connection on the step is rejected with `agent-mcp-server-name-collision`.
+  - **Expressions:** the `agent.mcp_servers.env.value` field accepts server and runner contexts.
+  - **Materialized config:** `customMcpServers` holds each server with the env values known at dispatch. An env value that reads a secret becomes a secret binding with the new `mcp_server_env` target, and the step secrets route serves agent steps.
+  - **Errors:** a server that does not start fails the step with `agent_mcp_server_unavailable`. A materialization collision with the default connection reports `mcp-server-name-collision`.
+
+- 8937e15: An `mcp_servers` entry on an agent step can give a `url` instead of a `command`, for a server that the user runs. The runner connects to it over Streamable HTTP and sends its `headers` with every request.
+
+  - **Document:** an entry sets exactly one of `command` or `url`, and the published JSON schema says so. `url` is a literal `http` or `https` URL. `headers` maps HTTP field names to values that support expressions and secrets. Header names are unique without regard to case, cannot be one the transport sets (such as `Accept` or `Mcp-Protocol-Version`), and values cannot contain line breaks or null bytes. Headers share the entry and size limits of `env`. `args` and `env` apply only to `command` servers, and `headers` only to `url` servers.
+  - **Definitions:** `WorkflowModelAgentMcpServer` is a union of `WorkflowModelAgentStdioMcpServer` and `WorkflowModelAgentHttpMcpServer`. An http server keeps its header templates under `templates.headers`. `agentMcpServerValues(server)` returns the `env` or `headers` values and templates of either kind.
+  - **Expressions:** the `agent.mcp_servers.headers.value` field accepts server and runner contexts.
+  - **Materialized config:** `materializedAgentMcpServerSchema` accepts a stdio or an http server. A header value that reads a secret becomes a secret binding with the new `mcp_server_header` target.
+  - **Regex:** `isHttpFieldName(value)` and `HTTP_FIELD_NAME_RE` check an HTTP header name.
+
+- 2526ccf: Adds the Cache module and the routes a runner calls to save and restore a job cache. A save reserves a key, uploads the archive straight to object storage through signed part URLs, and commits. A restore finds the entry by exact key or restore key and signs a download URL. A dev run saves into a sandbox of the user who started it. The object store gains signed multipart uploads and a `publicEndpoint` option for signed URLs. The Workflows contract gains `getWorkflowRunOrigin`. Set `CACHE_STORAGE_S3_*` to give the cache its own bucket.
+- 9d7c039: Composite actions run. A composite step becomes a parent row that the server opens and closes, and its inner steps run in the calling job.
+
+  - **Breaking:** sync always accepts composite actions, so the `compositeActionsEnabled` option of `fetchAndParseWorkflows` and `resolveDefinitionAtRef`, and the `compositeActions` option of `resolveWorkflowActions`, are gone. Inner reads of the composite's `inputs` fill when the step dispatches.
+  - **Run model:** step rows gain `parent_step_id` and the `composite` type, and a step skipped because its composite did not run has the `composite_skipped` reason. Job executions store the `actions_dir` the setup step reports.
+  - **Lifecycle:** opening a composite fills its `with` into typed inputs, and its `env` and working directory become the base of its inner steps, filled again each time it opens. Inner steps read the composite's `inputs`, their own `steps`, and `action.path`, and their `run_after` looks at earlier inner steps only. The composite closes as soon as its inner steps finish: it fails when one of them failed, and otherwise fills its outputs, keeping their types. Its gate then runs like any step's.
+  - **Restarts:** a `restart_from` target is an earlier step of the same scope. A job step can restart a whole composite, which opens again with a new attempt.
+  - **Sessions:** an agent session key inside a composite is scoped to the use, unless the key is exactly an input.
+  - **Action files:** a runner step inside composite actions carries `action_bundles`, the digests of every composite that holds it. The action bundle route takes a `digest` query parameter and serves those bundles too. `actionBundleDirectoryName` in `@shipfox/workflow-document` names the directory a runner extracts a bundle into, which `action.path` points at.
+  - **Routes:** `GET /workflows/runs/:id/action-snapshots/:digest/files/:path` returns a composite's manifest.
+  - **DTOs:** step DTOs gain `parent_step_id`, the `composite` type, and `source_location.file`. The step report gains `actions_dir`.
+
+- eb3f034: Step diagnostics name the composite actions that hold a step.
+
+  - **Step attempt detail:** the response gains `parent_step_id` and `step_path`, the step's labels from its outermost composite down to the step, such as `["setup", "lint"]`. A label is the step key, or its name when it has no key.
+  - **Stored step errors:** an `if` that cannot be evaluated and a failed background step name an inner step by its key path, such as `setup › lint`.
+  - **Failure annotations:** an inner step reads as its key path, as on the run page. Job steps read as before.
+  - **MCP:** `get_step_attempt` returns `parent_step_id` and `step_path`.
+  - **Limits:** `MAX_ACTION_NESTING_DEPTH` and `MAX_STEP_PATH_LENGTH` are exported from `@shipfox/api-definitions-dto`.
+
+- 2339c1b: A conversation can start workflow runs, with a limit on how many it starts without a person writing.
+
+  - **Start tool:** `start_workflow_run` is now offered to conversations. It starts a root run in the conversation's project for the conversation owner, and its idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. The conversation caller context now carries `agentKey`.
+  - **Run budget:** `claimConversationRunStart` on the agent inter-module contract spends one of five run starts. A message from a person resets the count. At the limit, the tool returns `run-budget-exhausted` and tells the agent to ask the user. A repeated call doesn't spend the budget again.
+  - **Manual trigger:** `fireManualTrigger` and the manual trigger payload take an optional `conversation` with `id`, `agentKey`, and `provider`. The workflows inter-module contract gains `hasRunForIdempotencyKey`.
+  - **Run reads:** run list items and the run overview header return `conversation` with `agent_key`, `provider`, and `author_user_id`, and never the conversation id.
+  - **Client:** the run list shows `via Shippy`, the run summary shows `Started by <author> via Shippy`, and the chat shows a `Run started` row that never joins a group of reads. The panel copy and suggested prompts say that Shippy can start work.
+  - **Shippy prompt:** a conversation pinned before this change says it can't start runs and suggests a new conversation.
+
+- b59424d: A managed project whose access lists one source-control connection, limited to exactly one repository, checks it out by default, at the revision of the repository itself.
+
+  - **Default checkout:** a job that sets no `checkout` on such a project checks out that repository. A repository written without a connection uses the one source-control connection the project lists, and the workspace's only one when the project has access to all connections. Run admission checks the default checkout's connection.
+  - **Revision:** a checkout uses the commit of the triggering event when the event came from the checked-out repository, matched by connection and repository, whether or not a project uses that repository as its config source. This also fixes `repository:` checkouts of a repository that isn't a config source, for every project. A change to the managed config checks out the repository's default branch.
+  - **Contract:** `listSourceControlConnectionIds` lists a workspace's active source-control connections. Run trigger references carry optional `connectionId` and `externalRepositoryId`, and runs created before this release keep the comparison by project. `@shipfox/api-projects-dto` exports `defaultConnectionId`.
+
+- b9a53b2: Adds `status_reason`, `status_reason_message`, and `outputs` to the run overview attempt. The `shipfox` provider's `get_workflow_run` tool returns them on its attempt, and the agent-access `get_workflow_run` tool returns them on the run.
+- dcd0b79: Workflows reads `gate.on_failure` as one rule or a list of rules with an optional `if`, restarts from the first rule that applies, and records the decision on the step attempt's gate result.
+- 61b5524: Adds a "Last run" column to the Workflows tab of the Automations page. It shows a status glyph and the relative time of the latest synced run of each workflow, or "No runs yet". Dev runs never count.
+
+  - **`@shipfox/api-workflows`:** adds `GET /workflows/runs/latest`, which takes a `project_id` and up to 100 comma-separated `definition_ids` and returns the newest synced run of each one. A workflow with no synced run is left out.
+  - **`@shipfox/api-workflows-dto`:** adds `workflowLatestRunsQuerySchema`, `workflowLatestRunsResponseSchema`, and their types.
+  - **`@shipfox/client-workflows`:** the table shows the latest synced run of each workflow and keeps it current while the run is going. A failed page marks only its own rows as unavailable, and starting a manual run refreshes the column.
+
+- a020cbf: Lets a managed project reach every repository the GitHub App can see. New connections start with access to all repositories, and existing connections keep their mode. A managed project has no default checkout, so a job checks out only what it names. A `checkout:` with a `repository` and tools with no `connection` use the workspace's only source-control connection, and ask for a `connection` when there is none or several.
+- 67e55ea: Models concurrent steps: the document fields, normalization, sync rules, and storage.
+
+  **Breaking:** `WorkflowDocumentJob['steps']` now holds steps and `parallel` blocks, so code that reads `job.steps` as a list of steps must use `jobSteps(job)`. `WorkflowModelStep` gains the `wait` and `cancel` kinds, so a `switch` over `kind` must handle them.
+
+  - **Document:** steps gain `background`, `wait`, `wait_all`, and `cancel`, and a job's `steps` can hold a `parallel` block of at least two steps. `jobSteps(job)` yields every step with its document path, `parallel` members included, and every walker over a job document now uses it, so a `uses:` or `prompt` file inside a block is still found. `job.steps` now also holds blocks. `workflowDocumentSchema`, `parseWorkflowDocument`, and `buildWorkflowJsonSchema` accept the five keys. `rawJobSteps(input)` walks the steps of a document that is not parsed yet.
+  - **Workflow model:** steps gain `background`, `parallelGroup`, and `joinedAt`, plus `wait` and `cancel` step kinds. Normalization expands each `parallel` block into background steps followed by a wait, resolves `wait_all` to explicit targets, adds a closing wait when background steps are still running, and checks the order rules: a background step needs a `key`, takes no gate, and cannot overlap a `checkout`, a gate cannot restart past a running background step, and concurrent steps cannot share an agent session. A step reads a background step only after the wait that joins it. A model with a concurrent step is stored as snapshot version 8.
+  - **Storage:** steps gain `background`, `parallel_group`, and `joined_at`, step attempts gain `cancel_requested_at`, and `wait` and `cancel` are step types. Dispatch context and `env_sources` skip a background step until a wait has joined it.
+  - **API:** the step type of a job detail and of the agent access read tools can be `wait` or `cancel`.
+
+- 6b01f3d: Names the missing variable and where it is read when a run cannot start. `InterpolationUnresolvableError` and the `interpolation-unresolvable` inter-module error carry optional `variableKey`, `jobKey` and `step`. Predicates report `job.if`, `job.success`, `job.listening.filter`, `step.if` and `step.gate.success` instead of `env`. The error message no longer suggests `has()` for a missing variable.
+- 900a25a: The calling project's access now decides every repository and connection check on checkout and on integration tools.
+
+  - **Checkout:** a job that checks out a repository outside its project's access fails, and a by-name checkout is pinned to the id of the repository it matches in the project's access. A running job loses access at its next credential renewal after the repository is removed.
+  - **Tools:** a tool call on a connection or repository outside the project's access is denied with `connection-not-allowed` or `repository-not-granted`. A call with no project is refused. An agent step, tool step, or action that names a connection outside access fails at materialization with `connection-not-allowed`.
+  - **Validation:** a workflow that names a connection outside the project's access gets a warning.
+  - **Contract:** `createCheckoutSpec` and `createCheckoutCredentials` require the calling `projectId`. `getAgentToolsContext` takes `projectId` and marks each connection `allowed`. Checkout renewal subjects store their `project_id`.
+  - **Removed:** the 30-second shared authorization cache, the `RepositoryAuthorizationMode` type export, and the `invalidateRepositoryAuthorizationCache` option on the provider load options and the GitHub provider options. A change to access applies on the next call.
+
+- 10678ba: Deletes a deleted project's run data for good, and keeps late events from recreating it. After a project is deleted, no run, log, annotation, or pending job remains, and a late step termination event creates nothing.
+
+  - **Workflows:** the `PROJECT_DELETED` subscriber records a deletion marker, cancels the project's open runs, and deletes its finished runs with their attempts, jobs, steps, and concurrency claims. A run that is still open waits for the next delivery. Run creation, reruns, and concurrency claims refuse a marked project with the existing `project-deleted` error.
+  - **Logs:** the subscriber deletes the project's attempt streams, which cascade to their chunks, with their job accounting and stored objects. Creating an attempt stream, including when a step attempt terminates, is refused for a marked project. The append route answers `project-not-found`, and `appendServerRecords` gains the `project-deleted` known error. A new `logs_attempt_streams_project_idx` index serves the purge.
+  - **Annotations:** the subscriber deletes the project's annotations, and annotation writes are refused for a marked project, with `project-not-found` on the annotation route. `replaceOrRemoveAnnotation` gains the `project-deleted` known error, and the failure-annotation subscriber skips it. A new `annotations_project_idx` index serves the purge.
+  - **Runners:** the subscriber deletes the project's pending jobs, and queueing a job is refused for a marked project. A running job ends through the cancellation of its run. A new `runners_pending_jobs_project_idx` index serves the purge.
+  - **Migrations:** each module adds a `deleted_scopes` table. The three indexes are built in the migration transaction, so they block writes to their table while they build.
+
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- d657853: Adds `run_after` to steps and jobs. Set it to `success`, `failure`, or `always` to choose when a step or job runs after an earlier failure. It defaults to `success`, and an `if` now adds to it instead of replacing it. Workflows stored before this change keep their current behavior until their file is next synced.
+- 4b8d8a5: Lets a tool step that reads restart its job through `gate.on_failure`, so a workflow can read again until a provider applies a change. A tool step that writes still fails its job without a restart.
+- 507915a: A required action can carry an optional `intent`, and `REQUIRED_ACTION_INTENTS` lists the known values. `intent` names a behavior a composing application may provide in place of opening `url`, such as `contact-support`. `url` stays required as the fallback, and an unknown `intent` still parses.
+
+  The admission denial contract, the HTTP 409 `required_action`, and the agent-access error details now keep `intent` when it is set.
+
+- 2c36559: The `workflows.workflow_run_attempt.created` and `workflows.workflow_run.terminated` events carry the run `origin`, `dev` or `synced`, so consumers can tell dev runs from synced runs without reading the workflows tables. A rerun reports the origin of its source run. The field is optional because events written before this change don't have it.
+- 395e11d: Schedules concurrent steps on the server and the runner.
+
+  - **Protocol:** the `next` request takes an `in_flight` list of the step attempts the runner holds. Each `next` response carries `cancel_step_ids`, and a `step` response says whether it is `background`. A `report` accepts `cancelled` for an attempt that a `cancel` step is stopping, which confirms that its process exited. The step DTO and the job detail steps gain `background` and `parallel_group`.
+  - **Scheduling:** a running background step lets later steps start, and any other running step blocks them. A `wait` step blocks until every step it names has ended, and it fails when one of them failed without `continue_on_error`. A `cancel` step stops running targets without waiting for them. A checkout, an action post, and a step whose earlier attempt is stopping wait until the stopped process is confirmed, and the job does not finish before that. A background step no longer counts for the job result.
+  - **Limit:** `WORKFLOWS_MAX_CONCURRENT_STEPS` caps the steps of one job that run at the same time. The default is 20.
+  - **Metrics:** adds the `workflows_step_cancelled` counter, labeled by `reason`.
+
+- a429987: Adds the shared policy notice contract and preserves the workflow admission type export.
+- 94e77bc: Stores an optional runner-reported `log_path` on step attempts and exposes it in dispatch context when a finalized step log is available.
+- 2100749: Adds `continue_on_error` to steps. When such a step's own work fails, the step still ends `failed`, but its failure does not count for `run_after`, `execution.failed`, or the job result. Gate restarts run first, and the flag applies to the final failure. It does not cover a step that cannot start, such as an `if` that cannot be evaluated, or a job that times out.
+
+  - **Workflow model:** a step carries `continueOnError: true` when set. A model with such a step is stored as snapshot version 7. Sync rejects the field on a step that uses a composite action.
+  - **Storage:** the steps table gains `continue_on_error`, and step attempts gain `failure_ignored`.
+  - **API:** the step status reason gains `failure_ignored`. Every step in a job detail carries `affects_job`, and an attempt that `continue_on_error` covered carries `failure_ignored: true`. The agent access read tools accept the new status reason.
+  - **Run page and annotations:** an ignored failure shows as a warning, like a post with `post_failure: warn`, and its failure card is a warning. The job page opens on the first failure that counts.
+
+- d2a2168: Stops work for a deleted project and refuses new work. After a project is deleted, its open runs and listening jobs are canceled, its active turns stop with no reply in Slack or Linear, and no trigger, cron, manual fire, dev run, or rerun can start a run in it, including a job with `checkout: false`.
+
+  - **Workflows:** every start path checks that the project is live before it creates a run. A refused start fails with the new `project-deleted` error on `startRunFromTrigger`, `startDevRun`, `rerunWorkflowRun`, and `deliverEventToJobListener`. `runWorkflow`, `runDevWorkflow`, and `rerunWorkflowRun` now require a `projects` client. The module adds `stopWork({scope, reason})`, a core function and an inter-module method that cancels the open runs in a workspace or project and returns how many remain. Its `PROJECT_DELETED` subscriber calls it. The run keeps the existing canceled status, with no deletion reason yet.
+  - **Agent:** turn admission refuses a deleted project quietly, and the pinned prompt no longer falls back to an `unknown` project name. The module adds the same `stopWork` method. With `project_deleted` it marks the replies of the stopped turns `suppressed`, so nothing is posted back and the loading status is left alone. Its `PROJECT_DELETED` subscriber calls it.
+  - **Triggers:** a `project-deleted` error from Workflows shows as the `project-deleted` decision diagnostic and as `project-not-found` on the manual-fire and dev-run routes. The command contracts list the new error.
+
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- daf0208: Names the cause of a refused start when an integration connection or tool cannot be materialized. `agent-integration-materialization-failed` carries a `reason` (`connection-missing`, `connection-provider-mismatch`, `source-connection-missing`, `tool-unknown` or `no-tools-selected`) with the `connection` and `tool` where they apply, and the job and step it came from. They reach the inter-module error, the 422 `details` (`reason`, `connection`, `tool`, `job_key`, `step`) and the trigger diagnostic. Setup failures keep no reason. Every new field is optional, so stored diagnostics still map.
+- 3c8db4c: The gate of a tool step can read `step.error`, with the `code` and optional provider `status` of a failed tool call, or null when the call did not fail. A gate can accept an expected failure and tell a missing object from an outage.
+- 6b2a308: Adds the workflow outputs runtime. `WorkflowModel` gains optional `outputs` and `outputTypes`. When a run attempt succeeds, its outputs are evaluated with the job-output limits and stored on the attempt. An output that cannot be evaluated or is too large fails the attempt with the `output_invalid` or `output_too_large` status reason. The lifecycle event context returns `run.outputs`, and run creation errors can name the `workflow.outputs` field.
+- 0b661c9: Step dispatch fills the `runner` context and turns `hashFiles()` calls into runner bindings.
+
+  - **`@shipfox/api-workflows-dto`:** adds `stepBindingSchema`, whose segments are `literal`, `secret`, or `hash_files` with its `patterns`. Step configs keep bindings under `secret_bindings`.
+  - **`@shipfox/api-secrets-dto`:** exports `secretBindingLiteralSegmentSchema`, `secretBindingSecretSegmentSchema`, `secretBindingAnyTargetSchema`, and `SecretBindingTargetDto` so the step binding schema reuses them.
+  - **`@shipfox/api-workflows`:** `nextStepForLeasedJobExecution` accepts a `runnerPlatform` loader, called once per request and only for a step that reads `runner`. An action input filled on the runner must be a string input, whether it reads a secret or calls `hashFiles()`.
+
+### Patch Changes
+
+- e99aa97: Action steps pass secrets to their inputs by reference.
+
+  - **Binding target:** a secret binding's `target` is either an environment variable name, as before, or `{kind: 'input', name}` for an action input. Run-step bindings keep their shape.
+  - **Dispatch:** a `with` input whose whole value is a secret reference becomes an input binding. The step config and the evaluation trace hold only the reference, never the value. The input must be declared as a string, or the attempt fails with `action_input_invalid`.
+  - **Step secrets:** `GET /runs/jobs/current/steps/:stepId/secrets` serves action steps as well as run steps.
+
+- 066e73c: Action steps expose their workflow job key as `context.jobKey`.
+- 2d52a6c: Action step configs mark each granted tool and method as sensitive or not, so the runner keeps sensitive tool arguments and results out of the step log.
+- 1f218c4: Treats every runner as able to renew Git and managed inference credentials. The runner capability manifest no longer has `features`, and `runnerFeaturesSchema` and `RunnerFeaturesDto` are removed. Registration still accepts a `features` key from older runner images and ignores it. `ManagedModelProvider.resolveCredentials` no longer receives `renewableInference`, and `RUNNER_CAPABILITY_REQUIRED_ERROR_CODE` with its `runner-capability-required` error is removed. A composing application must stop using both and always issue renewable credentials. The API no longer writes the "Renewable Git credentials are unavailable on this runner" annotation.
+- 0363a2c: Run admission rejects a `repository:` checkout without a connection on a managed project that has no default checkout when the project's default connection is missing or not active. `listSourceControlConnectionIds` also returns `inactiveConnectionIds`.
+- 1fa56a2: The new `resolveAgentToolsBatch` operation resolves the tool selections of several callers in one call. It loads the provider catalogs and workspace connections once and answers each request on its own, so a refused selection fails only its request. Run creation uses it in place of one `resolveAgentTools` call per agent step and action step.
+- c4f486b: Names the cause of a checkout failure. Each refusal now identifies the repository, connection or project it was about, a suspended or removed GitHub App installation has its own `installation-inactive` code, and GitHub's own explanation reaches the step error as `provider_message` and `provider_status`. A missing repository now returns a 422, and a failed token mint is cached for 60 seconds instead of 15 minutes.
+- c25c566: Shows the cause of a checkout failure and its fix. The failure annotation and the run page choose their copy from the error code of the refused checkout, and show the provider's own explanation when there is one. A refused checkout-token request now returns its cause in `details.message`, and a provider refusal names the repository and the connection.
+- 7fddfc5: A checkout-token refusal for an explicit `checkout.project` names the repository when the project has a source owner and name. `resolveCheckoutTarget` returns both as `sourceRepositoryOwner` and `sourceRepositoryName`.
+- 5d5d006: A checkout with `persist-credentials: false` can now get a fresh credential when the runner reports that the first one was rejected.
+
+  - **Replacement scope:** this now works for every initial checkout with credentials, including non-persisted ones.
+  - **After success:** a non-persisted checkout still gets no replacement once its step attempt finishes.
+  - **Response:** a replacement credential keeps the step's `persist` setting instead of always reporting `true`.
+
+- 476e3b1: An `action.yml` can set `steps` instead of `main` to declare a composite action. Sync expands it into the definition model.
+
+  - **Breaking:** `ActionManifest` is now a union of a JavaScript and a composite manifest, so `main` can be `undefined`. Narrow it with `isCompositeActionManifest`. `actionManifestSchema` is a transform, so it no longer exposes `.shape` or `.extend`.
+  - **Manifest:** a composite manifest sets `steps` instead of `main`, and has no `runtime`, `post`, or `post_failure`. Its outputs need `value`, and its inputs can set `secret: true`. Inner steps reject `checkout` and `export`, and a tool step needs `connection`. `uses:` and prompt `file:` accept a leading `${{ action.path }}/`. `safeParseActionManifest` rejects composite manifests unless `compositeActions` is set.
+  - **Expressions:** `action` is a reserved root, readable only inside a composite action. `buildCompositeScopeEnvironment` types its inner `inputs` and `action`, and `action.outputs` is the field for an output `value`.
+  - **Resolution:** composite actions are resolved recursively, at most 5 levels deep. A cycle fails with the new `action-cycle` sync error code, and deeper nesting with `action-nesting-too-deep`. The 20-action limit counts the whole tree, and the content hash covers every action and prompt file in it.
+  - **Workflow model:** a `composite` step holds its inner steps, with path ids, scoped `inputs` and `steps`, secret inputs rewritten to the caller's references, and aliases bound to the caller's connections. A nested grant must fit inside its outer alias. Source locations can name the composite file. Snapshots with a composite step use version 6, and `flattenJobSteps` lists a job's steps in run order.
+
+- 52023c5: Run admission rejects a job that sets no `checkout` on a managed project whose access names one repository when that repository's connection is missing or not active, instead of checking out nothing.
+- fb79732: Definition sync and dev runs resolve registry actions, such as `uses: shipfox/slack-thread-digest@1.4.2`. Registry actions turn on when `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set. Definitions now read `REGISTRY_URL` too, to decide whether to accept registry references.
+
+  - **Resolution:** the Registry module returns a verified version, and the definitions module checks that the bundle's `action.yml` equals the signed manifest. Sync and dev runs store the bundle as a workspace action snapshot with the new `registry` source, so the runtime bundle route and the runner stay unchanged.
+  - **Limits:** the 20-action limit per workflow file counts repository and registry actions together. Registry bundles skip the repository size limits and the relative import check, because the registry bundles them. Uploads apply to `./` paths only.
+  - **Model:** action steps gain `origin` (`local` or `registry`), and registry steps also carry `package` and `version`. Models stored before this change omit `origin` and mean `local`. The step config sent to the runner carries the same fields.
+  - **Sync errors:** a missing version is `action-not-found`. A version that fails verification, an unsupported document format, or a bundle that differs from its signed manifest is `action-invalid`. Both appear as diagnostics on the workflow file that references the action. An unavailable registry fails the sync attempt and retries.
+  - **Dev runs:** a registry failure fails the run with an `invalid-definition` message that names the action.
+
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- a02f5cf: Adds Discord to the client integrations gallery with OAuth install and callback wiring. Adds the callback DTO contract and Discord provider name to workflow failure annotations.
+- dc8065c: Fails a step or job when its `if` can't be evaluated, instead of skipping it. The step error reason is `condition_errored`, and the failure names the cause.
+- 39c5466: A failed step keeps the outputs it set, typed by their declarations. Values that do not match their declaration are dropped.
+- 01b17fd: Finishes the purge of a deleted project whose `PROJECT_DELETED` event was dead-lettered. Workflows and the Runners maintenance sweep run the purge again every minute for deletion markers with no `purged_at`, so the purge finishes without replaying the event by hand.
+- 0c9d83e: Run creation freezes the tool grants of action steps. Each integration alias resolves to its connection and to the concrete tools its selectors match, with methods, sensitivity, and result kind. The grants are stored with the run attempt, so reruns reuse them and a tool added to the catalog later does not widen them. An action step's config lists the granted tools of each alias. An unavailable or mismatched connection fails run creation.
+- 205afb5: A failed step attempt shows which `gate.on_failure` rule restarted the job, that no rule applied, or which rule could not be evaluated. The run page and the Agent Access step attempt tools return the same decision, and a step with a rule list shows the attempt limit of the rule its latest restart used. Agent Access no longer blanks the first root of an evaluation trace entry.
+- a73e712: The integration tool gateway serves action steps as well as agent steps.
+
+  - **Leased tool context:** `getLeasedAgentToolContext` keeps its name and accepts leased `action` steps. Other step types still fail with `leased-step-not-agent`. The result gains `stepType` (`agent` or `action`). For an action step, `integrations` holds the tools frozen at run creation, with one entry per connection, and each tool carries its `result` kind.
+  - **Audit:** the tool call caller adds `action`, on both the audit line and the `integrations_agent_tool_call` metric label. When the runner sends `x-shipfox-call-id`, the audit line records it as `callId`.
+
+- 9e173c3: Adds `provider_access` to a connection that lost access at the provider, either `removed` or `suspended`. Enabling such a connection now returns 409 `connection-provider-access-unavailable`, and a checkout on it tells the runner to unsuspend or reinstall the GitHub App. GitHub reports the access from the installation and no longer returns an external URL after an uninstall.
+- 530d00f: Credentials and usage can name a conversation instead of a step attempt, so inference no longer requires a run.
+
+  - **Credentials:** `resolveRuntimeCredentials` and `ManagedModelProvider.resolveCredentials` take a `subject` in place of `runId`, `stepAttemptId`, and `jobIdentity`. `InferenceSubject` has the kinds `step_attempt` and `conversation`, and a conversation names its `agentKey`. A composing application's managed provider must read the IDs from `subject`.
+  - **Usage:** `InferenceSegmentInputDto`, `InferenceSegmentUsageDto`, and `usage.inference_segment.recorded` are unions of a step segment, with the IDs down to the step attempt, and a conversation segment, with a `conversationId` and the `agentKey` of its agent, so usage can be measured per agent. The schemas and a database check reject anything else, and a consumer must handle a segment with no run. `StepInferenceSegmentInputDto` names the step variant, and `inferenceSegmentStepIdentity` returns the run identity of a stored row. Conversation segments skip the job execution projection check, and their events order on the conversation ID. The run and job execution routes don't change.
+  - **Project ownership:** `createUsageModule` takes a `projects` client. Usage confirms that a conversation segment's project isn't in another workspace before recording it, and a mismatch fails the batch.
+  - **Agent:** `@shipfox/api-agent` exports `builtInAgentConfigInput`, which `resolveAgentConfig` takes in place of a step. `renewal` now covers any later credential for admitted work, so the model and summary calls after a turn's first model call skip the availability check.
+
+- 15b4274: Adds the `interaction` capability to the integration SPI, so people can talk to agents through a provider. A provider declares `interactionEvents`, reads events into interactions, sends replies, and can report progress. Integrations exposes `readInteraction`, `sendInteractionReply`, `reportInteractionProgress`, and `listInteractionProviders` as inter-module operations. `@shipfox/api-integration-spi/testing` exports `createFakeInteractionProvider`.
+- ef7cf4a: Adds the `container_setup_failed` step error reason. The runner reports it when the setup step cannot pull or start the job container.
+- e087b95: A job keeps its project checkout at the root when its first step checks out a repository into its own `path`.
+- 8872f36: Shipfox lifecycle events now resolve their workflow context by lineage, so `source: shipfox` triggers dispatch instead of being dropped. The definitions contract adds a `getWorkflow` method for this lookup.
+- 0af8bad: Adds projects with a managed repository, behind the `managed-config-repos` workspace flag. `POST /projects` accepts a managed source, the project DTO gains `source.kind`, and the workspace's hidden connection stays out of every list. A job with a default checkout on a managed project now explains how to fix it.
+- fc455ac: Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
+
+  - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
+  - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.
+  - **Dispatch:** `with` values are completed at dispatch. Defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with the new `action_input_invalid` reason.
+  - **Error reasons:** `stepErrorReasonSchema` adds `action_input_invalid` (user) and `action_unavailable` (setup, for a runner that cannot load the action snapshot). The agent access diagnostics enum adds both.
+  - **Interpolation fields:** the workflows and triggers inter-module error schemas accept `action.with`.
+  - **Reruns** copy the attempt model, so they run the same action snapshot.
+  - **Client:** the step error reason type accepts the two new reasons.
+
+- 18a5420: A step field segment that mixes `steps` with an earlier context, such as `event`, `run`, `workflow`, `trigger`, `inputs`, `job`, `needs`, or `executions`, now resolves at step dispatch instead of failing with `config_unresolvable`. When a field reads a context that its fill site does not provide, the error no longer suggests `has(x)`.
+- ecc70c2: A step or job `if` condition that cannot be evaluated now records the error in its evaluation trace, with the missing path and the status of the step or job it reads. The run UI says which value is missing and why. A step that has not run exposes empty `outputs`, so `has(steps.x.outputs.y)` returns `false` instead of failing.
+- af3b91f: Definition validation normalizes action steps (`uses`) into the workflow model.
+
+  - **Model:** `WorkflowModelActionStep` carries the action's path, snapshot digest, name, entry file, input declarations, and integration bindings, plus `with`, `env`, and outputs from the manifest. Every output declares `required` explicitly, and the manifest default is `false`.
+  - **Validation:** `DefinitionValidationOptions.actionManifests` supplies the manifest and digest for each `uses` path. A step is checked against its manifest: known inputs, required inputs, literal input types, secrets only as whole top-level input values, one connection per integration alias, and connections that exist, match the alias provider, and serve agent tools. Manifest selectors must exist in the provider catalog, and write tools need `allow_write`. An action without a resolved manifest fails with "could not be resolved".
+  - **Integration context:** `needsIntegrationValidationContext` also returns `true` when a referenced manifest declares integrations.
+  - **Workflows:** run creation rejects action steps until they can be materialized.
+
+- e40ec8b: Adds an optional `required` flag to step output declarations. When a declaration sets `required: false`, `coerceStepOutputs` accepts a result without that output and still type-checks the value when it is present. Declarations without the flag stay required. Expressions can check an optional output with `has()`. Reading an absent output raises the existing missing-path error.
+
+  The workflows step reader now keeps `required` when it reads output declarations from step config.
+
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- 3fe51c3: Events and runs stay inside their project's access.
+
+  - **Events:** the integration event envelope has an optional `resource`. GitHub and Gitea fill it with the repository of the event.
+  - **Triggers:** a workflow or listening job in a project whose access excludes the connection or the repository no longer receives the event. The trigger history records the decision as `filtered`, with the reason `project-access`, or `project-deleted` when the project is gone. Dev runs that replay an event apply the same check. The job-activated event and listener subscriptions now carry the project.
+  - **Agent:** a request or message for a project that excludes the connection is dropped with `project-access` or `project-deleted`, and no other project answers it.
+  - **Shipfox tools:** `start_workflow_run` no longer takes `project_id` and starts runs only in the caller's project.
+
+- 6c0d6bd: Adds Shipfox run and job lifecycle events for workflow triggers.
+- eca4c27: Stops runs that check out the project's source while its connection is missing, disabled, or in error. Trigger starts and listening-job deliveries now fail with the `source-connection-unavailable` known error. Cron records an errored tick and sends no failure alerts, and the next tick after recovery starts a run. A manual fire returns 422.
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- fafbe84: `checkRunReadiness` now reports `secret-missing` for a step secret that is defined at neither workspace nor project scope. It fails the job after the run starts, and never refuses the start. Each definition also lists the `secrets.inputs.*` it reads, so a trigger can compare them with its secret mappings.
+- 737c625: Adds the `checkRunReadiness` inter-module operation, which reports the variables a workflow reads that are not defined at workspace or project scope. Each `variable-missing` issue says whether it blocks the run from starting or fails a job after the run starts, and where the variable is read.
+- ac90873: Listener executions no longer write the legacy trigger-event array, and the `WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED` setting is removed.
+- a9f19e0: Re-run failed jobs now also re-runs every succeeded job that depends on a re-run job, instead of reusing it.
+- 9110230: When a gate restarts an agent step, the agent's prompt now ends with one block that names the failed check, its exit code, the gate feedback and the path of the failed check's log. Without an authored `feedback`, the restart feedback now says "The check `<condition>` returned false." instead of "gate condition not met".
+- 97f6dab: Explains a `run_after` skip in the run UI: the copy says what did not succeed and which `run_after` value runs the step or job after a failure. A job skipped by `run_after: failure` now records the check that rejected it. The skipped-step copy is worded for a step instead of a job. The `write-a-workflow` and `debug-a-failed-run` skills now describe `run_after`.
+- b8b990d: Run and action steps can access `SHIPFOX_RUN_ID`, `SHIPFOX_RUN_NUMBER`, `SHIPFOX_RUN_ATTEMPT` and `SHIPFOX_RUN_URL` as environment variables.
+- 04680a3: Extract the run requirement collector so variable and secret references carry their job and step location.
+- 9906470: Adds `from_file` and `from_stdout` to run step output declarations. A run step can read an output from a file in the job workspace or from its standard output, up to 64 KiB, instead of writing to `$SHIPFOX_OUTPUT`. The run dispatch config carries them as `output_sources`.
+- 5276fca: Adds `GET /runs/jobs/current/steps/:stepId/action-bundle`, which returns the gzipped action bundle for the runner's currently leased action step. The step must be the lease's current step and an `action` step. The digest comes from the step config, and a missing snapshot returns 404 `action-snapshot-not-found`. Responses are sent with `cache-control: no-store`.
+- b92d2a8: Agent steps and action integrations resolve their tool selectors through the Integrations `resolveAgentTools` operation. Their frozen grants and failure reasons stay the same.
+- 8aa2d59: Names the missing value and the step or job that should have set it when a step `if` can't be evaluated. The step error and the failure annotation both carry that text.
+- 9bac67e: Run, action and agent steps dispatched to a runner carry `env_sources`: the earlier steps, in position order, whose current attempt the runner executed.
+- f6bc1f4: Adds `export` to run, agent, action, and tool steps. `export: true` promotes every declared output of the step to a job output of the same name, and `export: [names]` promotes the listed ones. A later job reads them with the usual types. Sync rejects an unknown name, a clash with the job `outputs` map, and two steps that export the same name. A job output exported from a step that did not produce it is omitted instead of failing the job.
+- d0c49b5: Step and job failure copy uses plain words and active voice, and each message names the next action.
+
+  - **Rerun or new run:** a message says "rerun the job" when a workspace setting fixes the failure, and "start a new run" when the workflow file must change. A rerun keeps the workflow file of the original run.
+  - **`@shipfox/client-workflows`:** the step failure callouts and the job empty states use the new copy. The model availability callout names the model, for example "claude-opus-4-8 is not available in this workspace". `lease_expired`, `provider_lost`, `lifecycle_violation`, and `runner_lost` share one title; the failure code still tells them apart.
+  - **`@shipfox/api-workflows`:** failure annotations give the same recovery advice as the step callouts. Annotations that already exist keep their old text until the step or job fails again.
+
+- 651153a: Run and agent step output declarations accept a `default`. When a step has no value for an output, for example because it was skipped or its run step succeeded without writing it, later steps and job outputs read the default from `steps.<key>.outputs`. A default that does not match its declared type or `schema` fails sync. `steps.<key>.outputs` now reads the step's current attempt, so a step that a gate restart skips on the rerun no longer shows the previous pass's values, and it is `{}` before the step's first attempt finishes.
+- 901e5b3: A step that fails on a missing secret now names the secret.
+
+  - **API:** `secret-not-found` and `secret-input-missing` from the step secrets route carry `details: {key, store}`.
+  - **Runner:** the step failure reads "Secret `K` is not set in this project or workspace." or "Secret input `K` was not passed to this run." When the API sends no details, the runner keeps the generic message.
+
+- 0b2af13: Tool step outputs keep JSON-looking strings as strings instead of parsing them into numbers or booleans.
+- 68e8e1d: Failed tool calls mark their trace span as an error, and the API traces outbound `fetch` requests.
+- 2b3ef4a: Tool steps accept provider input schemas that use `format` keywords such as `date-time`. A Sentry `search-issues` step failed before it reached Sentry.
+- c06262b: Each claimed tool-step call and concurrency repair gets its own span, and idle scans create none.
+- e71cded: Accepts top-level workflow `outputs`. The document schema takes a map from output names to templates, with the job-outputs entry limit. The new `workflow.outputs` expression field reads the `jobs`, `inputs`, `vars`, `workflow`, `run`, `trigger`, and `event` contexts. Definitions normalize the map into `WorkflowModel.outputs` and `outputTypes` and type-check each output against the declared job outputs, so a reference to an undeclared job output is a sync error. The workflow outputs runtime now evaluates under the `workflow.outputs` field.
+- 2ab4025: Workflows can link to their runs. `run.url` in the run context, `event.run.url` on Shipfox run and job events, and `url` on the `start_workflow_run` output hold the run permalink, built from `CLIENT_BASE_URL`. Replaying a Shipfox event stored without `run.url` fills it in. The `slack-dispatcher` and `report-failed-runs` templates use these links instead of `https://app.shipfox.io/runs/`.
+- Updated dependencies [be33fe6]
+- Updated dependencies [af0e24b]
+- Updated dependencies [e99aa97]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [af3b91f]
+- Updated dependencies [46f78a0]
+- Updated dependencies [eadd377]
+- Updated dependencies [2062ec8]
+- Updated dependencies [4227bda]
+- Updated dependencies [179fa81]
+- Updated dependencies [24a18d3]
+- Updated dependencies [7d20d04]
+- Updated dependencies [610ab29]
+- Updated dependencies [dc2bd62]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [1f218c4]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [0363a2c]
+- Updated dependencies [1fa56a2]
+- Updated dependencies [8a926dc]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [807ae57]
+- Updated dependencies [4c789ca]
+- Updated dependencies [c4f486b]
+- Updated dependencies [d273097]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [e087b95]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [c0b814f]
+- Updated dependencies [2cc76a9]
+- Updated dependencies [0654280]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [18678ea]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [b59424d]
+- Updated dependencies [dd63da9]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [027e401]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [2d009f4]
+- Updated dependencies [4273dad]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [3b63397]
+- Updated dependencies [b76c004]
+- Updated dependencies [0b661c9]
+- Updated dependencies [dc8065c]
+- Updated dependencies [39c5466]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [205afb5]
+- Updated dependencies [dcd0b79]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [9e173c3]
+- Updated dependencies [b92d2a8]
+- Updated dependencies [f432fd2]
+- Updated dependencies [530d00f]
+- Updated dependencies [b64fff6]
+- Updated dependencies [3022de6]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [cfe6ce6]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [61b5524]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [a64d96d]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [a020cbf]
+- Updated dependencies [27dc317]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [af3b91f]
+- Updated dependencies [e40ec8b]
+- Updated dependencies [c06262b]
+- Updated dependencies [e08530c]
+- Updated dependencies [e560f69]
+- Updated dependencies [21c993b]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [10678ba]
+- Updated dependencies [3869c1d]
+- Updated dependencies [1a50666]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [52969e5]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [6c0d6bd]
+- Updated dependencies [eca4c27]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [cb411b1]
+- Updated dependencies [090d6a0]
+- Updated dependencies [507915a]
+- Updated dependencies [e6981d5]
+- Updated dependencies [25fd5a8]
+- Updated dependencies [2c36559]
+- Updated dependencies [9906470]
+- Updated dependencies [0b661c9]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [395e11d]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [a429987]
+- Updated dependencies [ebe3ac1]
+- Updated dependencies [42829e8]
+- Updated dependencies [3d329a9]
+- Updated dependencies [f5c364b]
+- Updated dependencies [3f1363c]
+- Updated dependencies [107ecc7]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [96ac908]
+- Updated dependencies [651153a]
+- Updated dependencies [d2a2168]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [a32c90c]
+- Updated dependencies [82f2480]
+- Updated dependencies [0b2af13]
+- Updated dependencies [3c8db4c]
+- Updated dependencies [4c8f870]
+- Updated dependencies [0b661c9]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [70e6983]
+- Updated dependencies [89a6cc7]
+  - @shipfox/workflow-document@4.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/expression@2.12.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-shipfox-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/api-integration-managed-vcs-dto@34.0.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/annotations-dto@34.0.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-error-monitoring@0.4.1
+
 ## 33.0.0
 
 ### Patch Changes

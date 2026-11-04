@@ -1,5 +1,318 @@
 # @shipfox/client-workflows
 
+## 53.0.0
+
+### Major Changes
+
+- 1f60244: The Automations page replaces the Workflows page of every project.
+
+  - **Route:** the page lives at `/w/$workspaceSlug/p/$projectSlug/automations`, and the `nav.automations` tab replaces `nav.workflows`. The `/workflows` route is removed with no redirect.
+  - **Source header:** one line shows the config source, its default branch, the latest commit when available, and the sync state. A GitHub repository gets an **Open on GitHub** link, and a managed project shows "Managed by Shipfox". `SourceStrip` is removed.
+  - **Workflows tab:** the table adds a "Starts on" column and a search over the name, the config path, and the triggers.
+  - **`@shipfox/client-projects`:** adds `useProjectConfigQuery`, `projectConfigQueryOptions`, `getProjectConfig`, and the `ProjectConfig` model. `Definition` gains the required `triggers` field, read from the workflow model.
+  - **`@shipfox/client-workflows`:** `ProjectWorkflowsPage` becomes `ProjectAutomationsPage`, which also takes `workspaceSlug` and `projectSlug`. The runs empty state links to the Automations page.
+
+### Minor Changes
+
+- 274a5f7: The run page shows action posts as their own rows.
+
+  - **Post rows:** a post row carries the action icon. A failed post that leaves the job result unchanged shows a warning state and the line "This step failed. The job result is unchanged."
+  - **Step inspector:** the Action section shows the phase, `Main` or `Post`, and a post links to the step that declared it. A post gets the same failure guidance as an action step.
+  - **Entities:** `Step` and `WorkflowJobStepSummary` gain the optional `mainStepId` and `affectsJob` fields, set on post rows only.
+
+- 3f1363c: Agent steps accept `mcp_servers`, a map of stdio MCP servers that the runner starts for the step. The agent sees each server tool as `<name>__<tool>`.
+
+  - **Document:** each entry has a literal `command` and `args`, an `env` map whose values support expressions and secrets, and an optional `include` list. Names use lowercase letters, numbers, and single underscores, with at most 20 characters.
+  - **Definitions:** `WorkflowModelAgentStep.customMcpServers` keeps each server with its env templates. A server name that matches the tool prefix of an integration connection on the step is rejected with `agent-mcp-server-name-collision`.
+  - **Expressions:** the `agent.mcp_servers.env.value` field accepts server and runner contexts.
+  - **Materialized config:** `customMcpServers` holds each server with the env values known at dispatch. An env value that reads a secret becomes a secret binding with the new `mcp_server_env` target, and the step secrets route serves agent steps.
+  - **Errors:** a server that does not start fails the step with `agent_mcp_server_unavailable`. A materialization collision with the default connection reports `mcp-server-name-collision`.
+
+- 2e404d5: The Automations page gains a Files tab with file history.
+
+  - **Files tab:** the `.shipfox/` tree on the default branch, pinned to the head commit, beside a read-only viewer at `/w/$workspaceSlug/p/$projectSlug/automations/files/*`. Symbolic links, submodules, files over 1 MB, files that aren't text, and failed reads each show their own state.
+  - **History:** a `Code | History` toggle, kept in the `view=history` search parameter, lists the commits that changed a file. A selected folder lists its history, so `.shipfox` shows every config change. Rows open the commit when the provider has a page for it, and History is hidden when the provider can't list commits.
+  - **Links:** a file names the workflow that uses it. On the Workflows tab, `View file`, the "Updated" cell, and sync diagnostics open the file.
+  - **`@shipfox/client-projects`:** adds `useProjectConfigFilesQuery`, `useProjectConfigFileQuery`, `useProjectConfigCommitsInfiniteQuery`, their query options and request functions, and the `ConfigFileEntry`, `ConfigFile`, and `ConfigCommit` models.
+  - **`@shipfox/client-workflows`:** `ProjectAutomationsPage` takes an optional `tab`.
+
+- 0288794: The Automations page can move a managed project's config to a repository.
+
+  - **Move to your repository:** a managed project's source header offers the move. The dialog picks a connection (skipped when there is only one, with a link to Integrations when there is none) and a repository, with no default selection. Each selection runs the move checks with `dry_run`, and a refusal stays next to the selection, takes focus, and keeps **Continue** disabled. The confirm screen names the repository, its default branch, the file count, and what changes, and says when the repository is public. Progress stays in the dialog until the pull request opens.
+  - **Source header states:** while a move is underway, the header's state comes from the move and the pull request, never from a sync error. It shows who is moving the project and where, **Retry** two minutes after a move stopped, the open pull request, **Open a new pull request** after a closed one, and a neutral "Check pull request" banner when the provider doesn't answer. The sync failure alert stays hidden while a move waits for its merge.
+  - **Files:** while the pull request is open, the tab explains that files appear once it merges. A managed project says how its config changes.
+  - **`@shipfox/client-projects`:** `ProjectConfig` gains `move` and `pullRequest`. Adds `checkProjectConfigMove`, `moveProjectConfig`, `openProjectConfigPullRequest`, their mutation hooks, and `configMoveErrorCopy` with copy for each move refusal.
+  - **`@shipfox/client-integrations`:** `RepositoryPicker` takes `showDetails` to name each repository by its full name, with its default branch and visibility.
+
+- 9d7c039: The run page groups the steps of a composite action under one row.
+
+  - **Step list:** a composite row opens to show the inner steps of that attempt. When a later step restarts the composite, each composite attempt holds the inner steps of its own pass. Nested composites indent, and inner step labels show the key path, such as `setup › changed_files`.
+  - **Step inspector:** a composite step shows the inputs and the outputs of its attempt.
+  - **Source tab:** an inner step opens the `action.yml` of its composite with its lines highlighted. A path above the file leads back to each calling `uses:` step.
+  - **Entities:** `Step` and `WorkflowJobStepSummary` gain the optional `parentStepId` field, and `StepSourceLocation` gains the optional `file` field.
+
+- 851908c: Adds a Packages panel to the workflow definition sheet. It lists the registry actions and templates the definition pins and flags newer versions with "Update available", "Changes permissions", and "Needs your input". Template updates come with a copyable upgrade prompt, and both kinds show their changelog. The panel renders nothing when the definition uses no registry package.
+- 2339c1b: A conversation can start workflow runs, with a limit on how many it starts without a person writing.
+
+  - **Start tool:** `start_workflow_run` is now offered to conversations. It starts a root run in the conversation's project for the conversation owner, and its idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. The conversation caller context now carries `agentKey`.
+  - **Run budget:** `claimConversationRunStart` on the agent inter-module contract spends one of five run starts. A message from a person resets the count. At the limit, the tool returns `run-budget-exhausted` and tells the agent to ask the user. A repeated call doesn't spend the budget again.
+  - **Manual trigger:** `fireManualTrigger` and the manual trigger payload take an optional `conversation` with `id`, `agentKey`, and `provider`. The workflows inter-module contract gains `hasRunForIdempotencyKey`.
+  - **Run reads:** run list items and the run overview header return `conversation` with `agent_key`, `provider`, and `author_user_id`, and never the conversation id.
+  - **Client:** the run list shows `via Shippy`, the run summary shows `Started by <author> via Shippy`, and the chat shows a `Run started` row that never joins a group of reads. The panel copy and suggested prompts say that Shippy can start work.
+  - **Shippy prompt:** a conversation pinned before this change says it can't start runs and suggests a new conversation.
+
+- 2021ae8: The project workflows page shows the first workflow panel when the project has no workflow.
+
+  - **`@shipfox/client-shell`:** `ChromeSlots` gains an optional `FirstWorkflowPanel` slot that receives `projectId`.
+  - **`@shipfox/client-workflows`:** `ProjectWorkflowsPage` renders the slot in place of the empty definitions list once definitions have loaded, the project has none, and sync is neither pending nor running. Without the slot, the page keeps its empty list. When the project has no definitions, a sync that failed only because the repository has no workflow files no longer shows the "Workflow sync failed" callout; the empty state already says so.
+  - **`@shipfox/client-onboarding`:** exports `ProjectFirstWorkflowPanel`, also from `/feature` as a lazy component. It reads the progress of that project only, so a definition or a test run in another project never changes it, and it ignores the checklist's dismissal. It shows a skeleton while that progress loads and falls back to choose mode if the read fails. Once the project has a definition, it renders nothing and refreshes the project's definitions list.
+  - **`@shipfox/client-features`:** the default project workflows page shows the first workflow panel when the project has no workflow.
+
+- c481dab: The Get-started checklist tracks the first workflow, from a test run to the first synced definition.
+
+  - **Tracked row:** the first-workflow row now counts toward completion. It reads "Create your first workflow" and links to the workspace home. Once a dev run succeeds, it reads "A test run succeeded" and links to that run. It is done once the workspace has a definition.
+  - **Input:** `deriveSetupChecklist` takes a required `firstWorkflow` progress (`open`, `test_run_succeeded` with its `testRunId`, or `done`). `FirstWorkflowProgress` and `FirstWorkflowState` are exported. The quickstart action on this row is removed.
+  - **Refresh:** the hosts read each project's definitions and succeeded dev runs, stopping at the first definition. They reload when the window regains focus and poll every 15 seconds while the tab is visible, until the row is done. A dismissed checklist makes no request.
+  - **Celebration:** when the home panel sees the row turn done, it plays a burst and captures `first_workflow_activated`. If the same change completes the checklist, only the checklist completion plays. A workspace that already had a definition when the page loaded shows no burst.
+  - **Analytics:** `first_workflow_test_run_shown` is captured, with the host, the first time the row shows "A test run succeeded".
+  - **`@shipfox/client-workflows`:** exports `listWorkflowRuns`.
+
+- 61b5524: Adds a "Last run" column to the Workflows tab of the Automations page. It shows a status glyph and the relative time of the latest synced run of each workflow, or "No runs yet". Dev runs never count.
+
+  - **`@shipfox/api-workflows`:** adds `GET /workflows/runs/latest`, which takes a `project_id` and up to 100 comma-separated `definition_ids` and returns the newest synced run of each one. A workflow with no synced run is left out.
+  - **`@shipfox/api-workflows-dto`:** adds `workflowLatestRunsQuerySchema`, `workflowLatestRunsResponseSchema`, and their types.
+  - **`@shipfox/client-workflows`:** the table shows the latest synced run of each workflow and keeps it current while the run is going. A failed page marks only its own rows as unavailable, and starting a manual run refreshes the column.
+
+- ecc70c2: A step or job `if` condition that cannot be evaluated now records the error in its evaluation trace, with the missing path and the status of the step or job it reads. The run UI says which value is missing and why. A step that has not run exposes empty `outputs`, so `has(steps.x.outputs.y)` returns `false` instead of failing.
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- 33a6cf9: Shows concurrent steps on the run page.
+
+  - **Markers:** a member of a `parallel` block is marked "parallel", and any other background step "background", in muted text beside the step name. A block's wait row comes right after its members. Wait and cancel rows get their own icons, and a wait row's duration is how long it blocked. A cancelled step whose process has not stopped yet shows "Cancelling", and its log stays live.
+  - **Several running steps:** the page opens on, and the "Jump to it" notice points at, the latest running step the job waits on, or the earliest running background step when only background steps run. Wait rows and stopping steps are never that target. The notice stays hidden while any step it could point at is open.
+
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+- f5c364b: Shows each run result in a Shippy conversation as a card, lists the runs that have no result yet, and shows unread replies as a badge on Shippy. A settled run reads `Listening`. A reply is marked read only when its latest message is in view in a focused tab.
+- 8317a3c: The run page shows action steps (`uses`).
+
+  - **Step inspector:** an action step shows an `Action` badge and an Action section with the `uses` path, a short snapshot digest, the source commit on dev runs, and the node and `@shipfox/actions` versions from the step's first log line. It lists the resolved inputs, with secret-bound inputs shown as `*** (secrets.KEY)`, and each integration alias with its connection and granted tools marked Read or Write.
+  - **Failures:** callouts explain `action_input_invalid`, `action_unavailable`, an early exit, an out-of-memory kill, and missing, undeclared, mistyped, or oversized outputs. An invalid input also shows as "Step did not run" in the step's log area, naming the input.
+  - **Logs:** action tool calls reuse the tool-step rows, named `<alias>__<tool>` and resolved from the step's bindings, with the alias and connection in the expanded row. A download shows its file name, size, media type, and SHA-256. A failed write whose outcome is unknown reads "outcome unknown", and a call still open when the step ended reads "interrupted".
+  - **`@shipfox/client-logs`:** `IntegrationActionTool` accepts optional `alias` and `result` fields, and `ActionPresentation` accepts optional `outcome` and `meta` fields.
+
+- 2100749: Adds `continue_on_error` to steps. When such a step's own work fails, the step still ends `failed`, but its failure does not count for `run_after`, `execution.failed`, or the job result. Gate restarts run first, and the flag applies to the final failure. It does not cover a step that cannot start, such as an `if` that cannot be evaluated, or a job that times out.
+
+  - **Workflow model:** a step carries `continueOnError: true` when set. A model with such a step is stored as snapshot version 7. Sync rejects the field on a step that uses a composite action.
+  - **Storage:** the steps table gains `continue_on_error`, and step attempts gain `failure_ignored`.
+  - **API:** the step status reason gains `failure_ignored`. Every step in a job detail carries `affects_job`, and an attempt that `continue_on_error` covered carries `failure_ignored: true`. The agent access read tools accept the new status reason.
+  - **Run page and annotations:** an ignored failure shows as a warning, like a post with `post_failure: warn`, and its failure card is a warning. The job page opens on the first failure that counts.
+
+### Patch Changes
+
+- 2062ec8: An agent in a Slack or Linear conversation starts workflow runs. `fireManualTrigger` accepts a conversation with a provider and no user as an agent actor, and `start_workflow_run` no longer needs a Shipfox user for such a conversation. The run budget still applies. The run page reads "Started by Shippy in Slack", and Linear shows the run link on the agent session. Web conversations still record their author.
+- c25c566: Shows the cause of a checkout failure and its fix. The failure annotation and the run page choose their copy from the error code of the refused checkout, and show the provider's own explanation when there is one. A refused checkout-token request now returns its cause in `details.message`, and a provider refusal names the repository and the connection.
+- dc8065c: Fails a step or job when its `if` can't be evaluated, instead of skipping it. The step error reason is `condition_errored`, and the failure names the cause.
+- 205afb5: A failed step attempt shows which `gate.on_failure` rule restarted the job, that no rule applied, or which rule could not be evaluated. The run page and the Agent Access step attempt tools return the same decision, and a step with a rule list shows the attempt limit of the rule its latest restart used. Agent Access no longer blanks the first root of an evaluation trace entry.
+- ef7cf4a: Adds the `container_setup_failed` step error reason. The runner reports it when the setup step cannot pull or start the job container.
+- 0af8bad: Adds projects with a managed repository, behind the `managed-config-repos` workspace flag. `POST /projects` accepts a managed source, the project DTO gains `source.kind`, and the workspace's hidden connection stays out of every list. A job with a default checkout on a managed project now explains how to fix it.
+- a020cbf: Lets a managed project reach every repository the GitHub App can see. New connections start with access to all repositories, and existing connections keep their mode. A managed project has no default checkout, so a job checks out only what it names. A `checkout:` with a `repository` and tools with no `connection` use the workspace's only source-control connection, and ask for a `connection` when there is none or several.
+- fc455ac: Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
+
+  - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
+  - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.
+  - **Dispatch:** `with` values are completed at dispatch. Defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with the new `action_input_invalid` reason.
+  - **Error reasons:** `stepErrorReasonSchema` adds `action_input_invalid` (user) and `action_unavailable` (setup, for a runner that cannot load the action snapshot). The agent access diagnostics enum adds both.
+  - **Interpolation fields:** the workflows and triggers inter-module error schemas accept `action.with`.
+  - **Reruns** copy the attempt model, so they run the same action snapshot.
+  - **Client:** the step error reason type accepts the two new reasons.
+
+- 900a25a: The calling project's access now decides every repository and connection check on checkout and on integration tools.
+
+  - **Checkout:** a job that checks out a repository outside its project's access fails, and a by-name checkout is pinned to the id of the repository it matches in the project's access. A running job loses access at its next credential renewal after the repository is removed.
+  - **Tools:** a tool call on a connection or repository outside the project's access is denied with `connection-not-allowed` or `repository-not-granted`. A call with no project is refused. An agent step, tool step, or action that names a connection outside access fails at materialization with `connection-not-allowed`.
+  - **Validation:** a workflow that names a connection outside the project's access gets a warning.
+  - **Contract:** `createCheckoutSpec` and `createCheckoutCredentials` require the calling `projectId`. `getAgentToolsContext` takes `projectId` and marks each connection `allowed`. Checkout renewal subjects store their `project_id`.
+  - **Removed:** the 30-second shared authorization cache, the `RepositoryAuthorizationMode` type export, and the `invalidateRepositoryAuthorizationCache` option on the provider load options and the GitHub provider options. A change to access applies on the next call.
+
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- a328042: `@shipfox/client-shell` exports `RequiredActionLink`, `RequiredActionDefaultLink`, and `RequiredActionTrigger`, and `ChromeSlots` gains an optional `RequiredActionIntent` slot for actions that carry an `intent`. Every required action now renders through one URL rule: relative and same-origin URLs open in the same tab, other `http(s)` origins open in a new tab, `mailto:` URLs are plain links, and any other URL shows the message as text.
+
+  Workflow and agent surfaces render required actions through it. The duration notice's billing link now opens in the same tab.
+
+- 97f6dab: Explains a `run_after` skip in the run UI: the copy says what did not succeed and which `run_after` value runs the step or job after a failure. A job skipped by `run_after: failure` now records the check that rejected it. The skipped-step copy is worded for a step instead of a job. The `write-a-workflow` and `debug-a-failed-run` skills now describe `run_after`.
+- 710275f: The runs page lists dev runs by default until the project has a live run, with the first-workflow panel or the merged workflows still waiting for a trigger above the list. Run filters read "Live runs" and "Dev runs", and the first-workflow panel calls a passing dev run "A dev run passed".
+- 3d329a9: Add the Shippy chat panel beside every project page.
+
+  - **Client chat:** a new package. `chatFeature` contributes the project dock: a panel with a transcript, tool rows, a composer with the page the agent sees, history with delete, and every turn state from thinking to a deleted conversation. `Mod+.` opens or closes it.
+  - **Client features:** `defaultFeatures()` includes `chatFeature`.
+  - **Client logs:** exports `groupActivityReads`, `ActivityReadGroupNode`, `ActionDetails`, and `actionDisplayLabel`.
+  - **Client shell:** `useAgentPageContext()` accepts `undefined`, and its context gains `runNumber` and `name`, which only label the page for the reader.
+  - **Agent:** `GET /conversations/:conversationId` returns `latest_turn`, with its status, failure code, and model.
+  - **Agent DTO:** adds `conversationLatestTurnDtoSchema`, and `latest_turn` on `conversationDetailDtoSchema`.
+  - **Client workflows and projects:** the runs, run, job, automations, and project settings pages tell Shippy where the user is.
+
+- 3f1363c: Claude now names integration tools `mcp__shipfox__<connection>__<tool>`, which leaves more room under its 64-character tool-name limit.
+
+  - **Agent DTO:** `AGENT_TOOLS_MCP_SERVER_ID` names the server that harnesses see. The persisted descriptor name `shipfox_integration_tools` does not change, so older runners and stored configs keep working.
+  - **Logs:** `withoutClaudeIntegrationPrefix` strips the new prefix and the legacy `mcp__shipfox_integration_tools__` prefix, so older transcripts still show their integration tools.
+
+- d0c49b5: Step and job failure copy uses plain words and active voice, and each message names the next action.
+
+  - **Rerun or new run:** a message says "rerun the job" when a workspace setting fixes the failure, and "start a new run" when the workflow file must change. A rerun keeps the workflow file of the original run.
+  - **`@shipfox/client-workflows`:** the step failure callouts and the job empty states use the new copy. The model availability callout names the model, for example "claude-opus-4-8 is not available in this workspace". `lease_expired`, `provider_lost`, `lifecycle_violation`, and `runner_lost` share one title; the failure code still tells them apart.
+  - **`@shipfox/api-workflows`:** failure annotations give the same recovery advice as the step callouts. Annotations that already exist keep their old text until the step or job fails again.
+
+- c3768b2: Adds an optional, error-isolated `WorkflowRunActions` chrome slot. The workflow run summary renders it before the run's cancel or re-run action, with the run and project ids.
+- 405e69e: A refused run start on the Workflows page shows a callout on the workflow row that names the missing variable or secret and links to the fix, instead of a generic toast.
+- Updated dependencies [be33fe6]
+- Updated dependencies [af0e24b]
+- Updated dependencies [2062ec8]
+- Updated dependencies [179fa81]
+- Updated dependencies [24a18d3]
+- Updated dependencies [7d20d04]
+- Updated dependencies [72ca524]
+- Updated dependencies [610ab29]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [2e404d5]
+- Updated dependencies [0288794]
+- Updated dependencies [1f60244]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [c64d42f]
+- Updated dependencies [2526ccf]
+- Updated dependencies [ac1e750]
+- Updated dependencies [807ae57]
+- Updated dependencies [4c789ca]
+- Updated dependencies [c4f486b]
+- Updated dependencies [0461349]
+- Updated dependencies [b183992]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [2339c1b]
+- Updated dependencies [b59424d]
+- Updated dependencies [dd63da9]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [dc8065c]
+- Updated dependencies [2021ae8]
+- Updated dependencies [205afb5]
+- Updated dependencies [dcd0b79]
+- Updated dependencies [a73e712]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [593142d]
+- Updated dependencies [c2f006c]
+- Updated dependencies [2b3aded]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [61b5524]
+- Updated dependencies [8872f36]
+- Updated dependencies [93b8cac]
+- Updated dependencies [0af8bad]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [710275f]
+- Updated dependencies [af3b91f]
+- Updated dependencies [658d71f]
+- Updated dependencies [7b0fafd]
+- Updated dependencies [900a25a]
+- Updated dependencies [988b5f9]
+- Updated dependencies [0160be6]
+- Updated dependencies [bea7e50]
+- Updated dependencies [10678ba]
+- Updated dependencies [3869c1d]
+- Updated dependencies [f43cafb]
+- Updated dependencies [32a2dcc]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [560cee4]
+- Updated dependencies [a15e118]
+- Updated dependencies [96a66ed]
+- Updated dependencies [4aad893]
+- Updated dependencies [eca4c27]
+- Updated dependencies [d657853]
+- Updated dependencies [6faa1d7]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [090d6a0]
+- Updated dependencies [507915a]
+- Updated dependencies [a328042]
+- Updated dependencies [e6981d5]
+- Updated dependencies [25fd5a8]
+- Updated dependencies [2c36559]
+- Updated dependencies [395e11d]
+- Updated dependencies [a429987]
+- Updated dependencies [bea7e50]
+- Updated dependencies [7056182]
+- Updated dependencies [60ff4ba]
+- Updated dependencies [3d329a9]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [f5c364b]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8317a3c]
+- Updated dependencies [107ecc7]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [d2a2168]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [9f185e9]
+- Updated dependencies [ffffc16]
+- Updated dependencies [6b2a308]
+- Updated dependencies [c3768b2]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/client-triggers@53.0.0
+  - @shipfox/regex@0.4.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-projects@53.0.0
+  - @shipfox/client-integrations@53.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-logs@53.0.0
+  - @shipfox/client-api@53.0.0
+  - @shipfox/annotations-dto@34.0.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/client-workspace-settings@53.0.0
+  - @shipfox/client-ui@53.0.0
+  - @shipfox/client-usage@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

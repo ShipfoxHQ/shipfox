@@ -1,5 +1,142 @@
 # @shipfox/client-integrations
 
+## 53.0.0
+
+### Major Changes
+
+- 5e12647: Lets a member choose among several linkable GitHub installations. `POST /integrations/github/link/complete` now returns up to 20 candidates with a five-minute signed selection token, and `POST /integrations/github/link/select` connects the chosen installation. More candidates return `github-too-many-linkable-installations`, which replaces `github-multiple-linkable-installations` and `GithubMultipleLinkableInstallationsError`. `GithubApiClient.listUserInstallations` now returns installation details instead of IDs. The GitHub callback page shows the installation picker, and `completeGithubLink` can now return a selection instead of a connection.
+- e6981d5: An integration connection no longer has a repository access mode. Every connection reaches all repositories its installation can see, and projects narrow access instead.
+
+  - **Release note:** a connection that was set to **Only your projects' repositories** now reaches every repository its installation sees. A project with full access can use all of them. This migration sets every connection to the open behavior and removes the setting. To narrow a project, limit its access.
+  - **Integration SPI:** `IntegrationConnection` no longer has `repositoryAccessMode`, and `IntegrationConnectionRepositoryAccessMode` is gone.
+  - **Integration core DTOs:** the `CONNECTION_REPOSITORY_ACCESS_CHANGED` event and the repository access schemas are gone.
+  - **Projects DTOs:** the inter-module method `listProjectsBySourceConnection` is gone.
+  - **API:** `GET` and `PUT /integration-connections/:connectionId/repository-access` are removed. The `repository_access` column is dropped from connections and secret cleanups.
+  - **Integration core:** `IntegrationConnectionRepositoryAccessMode` is no longer exported from the package root.
+  - **Client:** the connection page no longer has a repository access section, and the connection menu no longer offers **Manage repository access**. Use **Open in GitHub** to change the repositories on GitHub. `RepositoryAccess`, `RepositoryAccessMode`, `RepositoryAccessRepository`, `listIntegrationConnectionRepositoryAccess`, `updateIntegrationConnectionRepositoryAccess`, and the matching query hooks are no longer exported.
+
+### Minor Changes
+
+- 0288794: The Automations page can move a managed project's config to a repository.
+
+  - **Move to your repository:** a managed project's source header offers the move. The dialog picks a connection (skipped when there is only one, with a link to Integrations when there is none) and a repository, with no default selection. Each selection runs the move checks with `dry_run`, and a refusal stays next to the selection, takes focus, and keeps **Continue** disabled. The confirm screen names the repository, its default branch, the file count, and what changes, and says when the repository is public. Progress stays in the dialog until the pull request opens.
+  - **Source header states:** while a move is underway, the header's state comes from the move and the pull request, never from a sync error. It shows who is moving the project and where, **Retry** two minutes after a move stopped, the open pull request, **Open a new pull request** after a closed one, and a neutral "Check pull request" banner when the provider doesn't answer. The sync failure alert stays hidden while a move waits for its merge.
+  - **Files:** while the pull request is open, the tab explains that files appear once it merges. A managed project says how its config changes.
+  - **`@shipfox/client-projects`:** `ProjectConfig` gains `move` and `pullRequest`. Adds `checkProjectConfigMove`, `moveProjectConfig`, `openProjectConfigPullRequest`, their mutation hooks, and `configMoveErrorCopy` with copy for each move refusal.
+  - **`@shipfox/client-integrations`:** `RepositoryPicker` takes `showDetails` to name each repository by its full name, with its default branch and visibility.
+
+- c64d42f: Adds actor-bound GitHub link OAuth routes, DTOs, and client adapters for reconnecting accessible installations.
+- 0461349: Adds Claap connection setup and API key replacement to integrations, with the Claap logo.
+- a02f5cf: Adds Discord to the client integrations gallery with OAuth install and callback wiring. Adds the callback DTO contract and Discord provider name to workflow failure annotations.
+- 15b4274: Adds the `interaction` capability to the integration SPI, so people can talk to agents through a provider. A provider declares `interactionEvents`, reads events into interactions, sends replies, and can report progress. Integrations exposes `readInteraction`, `sendInteractionReply`, `reportInteractionProgress`, and `listInteractionProviders` as inter-module operations. `@shipfox/api-integration-spi/testing` exports `createFakeInteractionProvider`.
+- 2b3aded: Adds Jam to integrations: connect a Jam workspace with a personal access token, see which Jam user the connection acts as, and replace its token. Integrations connected with a pasted credential now link to their settings page from the integration menu. Replacing the credential of an already connected integration now works when the page has not loaded that connection yet.
+- bea7e50: Exports `ProviderGrid` and the `InstallReturnTarget` type. The grid takes an `embedded` prop that drops its panel frame, for a host that is itself a panel.
+- 560cee4: Adds an opt-in connected state to the provider grid and a return target for installs. With `showConnectionState` and `connections`, the grid shows a provider with an active connection as connected, with an "Add another" action. With `returnTo: 'home'`, an install started from the grid sends the user to the workspace home when the callback succeeds. `returnTo: 'settings'`, the default, returns to the integrations settings page. Without either prop, the grid and the callbacks behave as before.
+- 96a66ed: Recovers orphaned GitHub installations by starting the link flow from incomplete callback landings and from an unlisted `/w/$workspaceSlug/integrations/github/link` support route, and handles link callbacks.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+- 107ecc7: Prepares Slack for agents. The Slack app now requests `chat:write.customize` and `assistant:write`, and Slack publishes the agent view events `assistant_thread_started`, `app_context_changed`, and `agent_session_stopped` without adding them to the workflow event catalog. A provider can implement `connectionReconnectRequired` to report an active connection that lacks a newer permission. The connections list then returns `reconnect_required`, the connection page asks the user to reconnect, and agents ignore the connection's events until it reconnects. Slack reports this for an installation that lacks a required scope.
+
+### Patch Changes
+
+- 658d71f: Reports incomplete GitHub callbacks to analytics and Sentry.
+- Updated dependencies [2062ec8]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [0363a2c]
+- Updated dependencies [1fa56a2]
+- Updated dependencies [c64d42f]
+- Updated dependencies [ac1e750]
+- Updated dependencies [c4f486b]
+- Updated dependencies [0461349]
+- Updated dependencies [b183992]
+- Updated dependencies [23a6b3a]
+- Updated dependencies [23a6b3a]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [2cc76a9]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [9e7dd0e]
+- Updated dependencies [b59424d]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [eec818d]
+- Updated dependencies [2c9838a]
+- Updated dependencies [4273dad]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [474e21f]
+- Updated dependencies [5e12647]
+- Updated dependencies [9e173c3]
+- Updated dependencies [8736f2d]
+- Updated dependencies [b92d2a8]
+- Updated dependencies [2c89020]
+- Updated dependencies [3022de6]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [c2f006c]
+- Updated dependencies [2b3aded]
+- Updated dependencies [2b3aded]
+- Updated dependencies [f769d90]
+- Updated dependencies [b4c1fa2]
+- Updated dependencies [3726d36]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a64d96d]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [a020cbf]
+- Updated dependencies [7b0fafd]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [0160be6]
+- Updated dependencies [f43cafb]
+- Updated dependencies [32a2dcc]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [6faa1d7]
+- Updated dependencies [a328042]
+- Updated dependencies [e6981d5]
+- Updated dependencies [9f27c98]
+- Updated dependencies [bea7e50]
+- Updated dependencies [7056182]
+- Updated dependencies [60ff4ba]
+- Updated dependencies [3d329a9]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [f5c364b]
+- Updated dependencies [107ecc7]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+- Updated dependencies [c3768b2]
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/api-integration-github-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/integration-icons@0.6.0
+  - @shipfox/api-integration-claap-dto@34.0.0
+  - @shipfox/api-integration-clickup-dto@34.0.0
+  - @shipfox/client-api@53.0.0
+  - @shipfox/api-integration-discord-dto@34.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/api-integration-jam-dto@34.0.0
+  - @shipfox/api-integration-jira-dto@34.0.0
+  - @shipfox/api-integration-sentry-dto@34.0.0
+  - @shipfox/api-integration-slack-dto@34.0.0
+  - @shipfox/api-integration-gitea-dto@34.0.0
+  - @shipfox/api-integration-linear-dto@34.0.0
+  - @shipfox/api-integration-notion-dto@34.0.0
+  - @shipfox/api-integration-posthog-dto@34.0.0
+  - @shipfox/api-integration-webhook-dto@34.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes
