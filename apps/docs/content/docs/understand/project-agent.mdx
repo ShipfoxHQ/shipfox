@@ -1,0 +1,137 @@
+---
+title: "The project agent"
+sidebarTitle: "Project Agent"
+description: "Understand what the project agent can see and do when you chat with it from a project page, how it knows which run you mean, and who can read the conversation."
+---
+
+The **project agent** is a chat assistant built into every project. Its default
+name is Shippy. You open it from any project page and ask about the project's
+runs and workflows. It answers from what it reads, with links to the evidence.
+It can also start a workflow for you, and it reports back when the run has done
+its work.
+
+The agent runs on the Shipfox API. It needs no runner, no file, and no setup.
+A new project has it from the start, and a conversation starts in seconds.
+
+## Why a chat, and not another page
+
+A run page shows what happened. It doesn't say why a step failed, which of the
+twelve jobs matters, or which workflow fits the change you have in mind. Those
+answers take reading: the logs of the failed step, the job's inputs, the
+workflow's source. The agent does that reading for you, in the project you are
+looking at. The page stays in view while you discuss it.
+
+The agent is also the shortest path from an idea to a run. Instead of writing a
+ticket or opening the Runs page, you describe the work, and the agent picks the
+workflow, fills its inputs, and starts it.
+
+## How it fits
+
+An [agent step](/understand/agents) runs inside a job, on a runner, with a
+checkout of the repository. It does the work of a workflow. The project agent
+sits outside every run. It reads runs and starts workflows, but it has no shell,
+no checkout, and no code. When a request needs the code, the agent passes it to
+a workflow. That workflow may implement a change or answer a question about the
+codebase.
+
+A conversation with the project agent is not an
+[agent session](/understand/agent-sessions). A session belongs to a run and
+carries one agent's reasoning between steps. A conversation belongs to you and
+to the project, and it lasts until you delete it.
+
+The agent resolves its provider and model the way an agent step does. An agent
+file that sets them wins. Otherwise the workspace's default provider applies,
+with the model that provider is configured to use by default.
+[Model providers](/reference/model-providers) lists the providers and models.
+The tokens the agent uses count like every other agent's.
+
+## How it works
+
+### It knows the page you are on
+
+Each message carries the page you are viewing: a run, a job, a workflow, or
+the Runs list. A chip above the message field shows it, as `Viewing run #214`.
+That is how "Why did this fail?" works on a failed run with no other detail.
+The agent uses the page to resolve words like "this", then reads the run with
+its tools. When the page doesn't settle the question, it offers the likely runs
+instead of guessing.
+
+The panel stays open as you move between the project's pages. Links in a reply
+move the page, and the conversation stays where it is.
+
+### It reads before it answers
+
+The agent has read tools for the project: runs, jobs, steps, step logs,
+annotations, workflow definitions and their source, and the Shipfox
+documentation. It reads live on every turn. It keeps no memory between
+conversations, so it reads a fact again in each new conversation.
+
+Logs, payloads, and annotations are data it reports on. The agent treats
+instructions it finds inside them as text, not as orders, even when they claim
+to come from Shipfox or from you.
+
+### Its built-in tools change one thing: they start workflows
+
+When you ask for work that needs a sandbox, the agent chooses one of the
+project's workflows, fills its inputs from your message, and starts it. Its
+reply carries the run link. The run appears on the Runs page like any other,
+attributed to you. The agent asks back when a required input is missing or the
+request is ambiguous. It names the workflow before it starts it, unless you
+asked for exactly that.
+
+A run the agent started reports back in the conversation once for each
+attempt, when that attempt has done its work. That is when the run ended, or
+when it settled because a listening job holds it open, as a workflow that waits
+for review comments does.
+The report can arrive hours or days later. The agent then says what the run
+produced, such as a pull request link.
+
+The agent starts only a few runs for one of your messages. When it reaches that
+limit, it stops and asks before it starts more. With its built-in tools, it
+never reruns or cancels a run, never merges a pull request, and never changes a
+workflow. Integration tools that an agent file grants with `allow_write` can
+make the writes those tools allow. See [Teams can add to it](#teams-can-add-to-it).
+
+### The conversation is yours
+
+A conversation you start from the web is private to you. Other members of the
+workspace can't read it or post in it, whatever their role. Delete it whenever
+you want, except while the agent is replying. The runs it started stay visible
+to everyone on the Runs page, named after you and the agent.
+
+Replies stream as the agent writes them. Stop a reply, and the partial reply
+stays in the conversation. A reply that failed shows why, and a Retry button
+runs it again. The agent summarizes a long conversation so it can continue, and
+you keep the full history.
+
+### Teams can add to it
+
+A `shippy.yaml` file in `.shipfox/agents/` adds instructions, a model, or
+integration tools to the built-in agent, and other files in that folder define
+custom agents you pick when you start a conversation. See
+[Agent file](/reference/workflow-schema#agent-file-fields) for the fields.
+
+## Consequences and tradeoffs
+
+**Answers rest on evidence, and they take a moment.** The agent reads the run
+before it answers, so a reply about a failed job waits for the logs. A question
+about the page you are on gets the quickest answer.
+
+**The agent can't see your code.** It reads what Shipfox recorded about a run.
+To work on the code, it starts a workflow, which brings the runner, the
+checkout, and the review of that workflow's results. That keeps the agent from
+making changes nobody checks.
+
+**Late results need you to come back.** A run can take days to settle. The
+panel marks the conversation as unread when a result arrives, and the agent
+sends no email. Open the project to read it.
+
+**Privacy means no handover.** Because a conversation belongs to one person,
+a teammate can't pick it up. Share the run link instead. The run holds the work;
+the conversation holds only the discussion.
+
+<Cards>
+  <Card title="Agents" href="/understand/agents">
+    When a workflow needs an agent step, and what that agent can see and do.
+  </Card>
+</Cards>

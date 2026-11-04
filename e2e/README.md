@@ -37,7 +37,7 @@ Suite levels are independent from layers:
 | `suites/client/*` | Browser tests that drive the UI or assert user-visible page state. |
 | `suites/api/*` | HTTP-only tests that assert API contracts without a browser. |
 | `suites/flow/*` | Full platform loops that need VCS push, webhook delivery, definition sync, Temporal, runner capacity, step execution, and logs. |
-| `suites/eval/*` | Repeatable workflow-template and onboarding evaluations that run through the E2E stack and write scored results. |
+| `suites/eval/*` | Repeatable workflow-template, project-agent, and onboarding evaluations that run through the E2E stack and write scored results. |
 | `suites/contracts/*` | Integration tool contracts checked in-process against the provider fakes, with no stack. They are the only suites that may import the integration server packages, to call the provider tool adapters. Their cases also run against real sandboxes on staging. |
 
 Driver-specific docs live with their drivers:
@@ -497,6 +497,28 @@ The contract cases that list `fake` in their `modes` do not run here. They run
 in-process in `@shipfox/e2e-contracts-integrations`, with its unit tests, and
 its [cases README](suites/contracts/integrations/cases/README.md) explains how.
 
+The Shippy suite drives the project agent through web conversations, the way
+the chat panel does. Each case in `cases/shippy/` arranges a workspace and a
+project of its own, fires the runs it seeds through a local runner, then sends
+its `turns` one at a time through the conversation API and waits for each
+reply. A turn's `page` names the page the user is on, such as a seeded run, and
+the harness sends the page context the client would. The case's `expect` is
+checked without a judge: the `tools` the conversation must have called, with an
+optional subset of their arguments, the `tools_absent` it must not have called,
+and `includes` and `excludes` patterns on the last reply, as substrings or
+`/regular expressions/i`. `$runs.<key>.id` resolves to a seeded run anywhere in
+`expect` and in `scripted.yaml`. Scripted mode registers the case's
+`scripted.yaml` as the project's model replies, which proves the harness and the
+graders, and `test:e2e` runs it. Live mode sends the same turns to OpenRouter;
+`live.model` picks the catalog model, and a conversation runs on the workspace
+default, so the harness registers that model to serve it. The result carries
+the conversation, turn by turn, and each check.
+
+```sh
+mise run evals -- --suite shippy --mode scripted
+E2E_OPENROUTER_API_KEY=<key> mise run evals -- --suite shippy --mode live --repeat 3
+```
+
 The onboarding suite drives a real Claude Agent SDK session against the stack.
 Each case in `cases/onboarding/` sets up a workspace, a fixture repository, and
 a recording MCP proxy, then answers the agent's questions with a simulated user
@@ -592,12 +614,13 @@ only: the run's outputs, the recorded writes, and the hidden tests. The
 `summary.md` of a run lists each case's passes out of its repeats under
 "Passes per case".
 
-`.github/workflows/evals.yml` runs the live templates suite and the onboarding
-suite every night, and on dispatch. A dispatch takes the suite (`templates`,
-`onboarding`, or `both`), a case filter, a repeat count, the onboarding models,
-and `max_cost_usd`, which defaults to 10 and goes to `--max-cost-usd` on every
-suite, so a run of both suites can spend twice that. Without a repeat count, templates run 3 times and each onboarding case
-runs its own `k`. A pull request from this repository that gets the
+`.github/workflows/evals.yml` runs the live templates suite, the live Shippy
+suite, and the onboarding suite every night, and on dispatch. A dispatch takes
+the suite (`templates`, `shippy`, `onboarding`, or `all`), a case filter, a
+repeat count, the onboarding models, and `max_cost_usd`, which defaults to 10
+and goes to `--max-cost-usd` on every suite, so a run of all suites can spend
+three times that. Without a repeat count, templates and Shippy cases run 3
+times and each onboarding case runs its own `k`. A pull request from this repository that gets the
 `onboarding-evals` label runs the onboarding suite, and a new label event
 replaces the previous run for that pull request. Each run posts every
 `summary.md` to the job summary and uploads `results/` as the
@@ -606,7 +629,7 @@ replaces the previous run for that pull request. Each run posts every
 | Secret | Used for |
 | --- | --- |
 | `EVALS_ANTHROPIC_API_KEY` | The onboarding agent and simulated user |
-| `EVALS_OPENROUTER_API_KEY` | Live template runs, passed to the stack as `E2E_OPENROUTER_API_KEY` |
+| `EVALS_OPENROUTER_API_KEY` | Live template and Shippy runs, passed to the stack as `E2E_OPENROUTER_API_KEY` |
 | `EVALS_LANGFUSE_PUBLIC_KEY`, `EVALS_LANGFUSE_SECRET_KEY` | The Langfuse export. Without them, only local results are written. |
 | `EVALS_LANGFUSE_BASE_URL` | The Langfuse region. Optional, defaults to the EU cloud. |
 

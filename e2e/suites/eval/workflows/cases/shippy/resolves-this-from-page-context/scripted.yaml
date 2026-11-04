@@ -1,0 +1,7 @@
+- match: {prompt_contains: "Why did this fail?"}
+  replies:
+    - tool: get_workflow_run
+      args: {run_id: $runs.lint.id}
+    - tool: get_step_logs
+      args: {run_id: $runs.lint.id, failed_only: true}
+    - text: "The `eslint` step of **Lint** failed on one rule: `src/report.ts:12:7` assigns `total` but never uses it (`no-unused-vars`). Remove the variable or use it."

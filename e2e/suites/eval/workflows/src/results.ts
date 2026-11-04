@@ -6,6 +6,7 @@ import type {ScriptedManagedProviderRequest} from '@shipfox/e2e-setup-agent';
 import type {HiddenTestsResult} from './hidden-tests.js';
 import type {RunMeasures} from './measures.js';
 import type {ScenarioStepRecord} from './scenario.js';
+import type {ConversationTurnRecord, ShippyCheck} from './shippy-checks.js';
 
 /** `compile` only creates each variant's definition, and runs nothing. */
 export type EvalMode = 'scripted' | 'live' | 'compile';
@@ -45,6 +46,10 @@ export interface CaseResult {
   model_requests?: ScriptedManagedProviderRequest[];
   /** On failure, the last lines of the case runner's log. */
   runner_log_tail?: string;
+  /** Shippy cases: the conversation the case drove, turn by turn. */
+  conversation?: {id: string; turns: ConversationTurnRecord[]};
+  /** Shippy cases: each expectation and whether it held. */
+  checks?: ShippyCheck[];
 }
 
 export interface ResultsRun {

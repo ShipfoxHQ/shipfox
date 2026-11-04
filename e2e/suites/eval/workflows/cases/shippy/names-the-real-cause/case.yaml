@@ -1,0 +1,16 @@
+modes: [scripted, live]
+seed:
+  runs:
+    - key: deploy
+      workflow: deploy.yml
+      status: failed
+turns:
+  - message: Why did this run fail?
+    page: {page: run, run: deploy}
+expect:
+  tools:
+    - name: get_step_logs
+  reply:
+    includes: ["/no space left on device|ENOSPC/i"]
+covers:
+  - names the real cause of a seeded failure

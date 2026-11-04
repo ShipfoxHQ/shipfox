@@ -1,8 +1,8 @@
 name: Evals
 
-# Live template evals and onboarding evals. They spend real money, so they run only on a
-# schedule, on dispatch, and on pull requests from this repository that carry the label. The
-# wiring evals that block pull requests run in ci.yml.
+# Live template evals, Shippy evals, and onboarding evals. They spend real money, so they run
+# only on a schedule, on dispatch, and on pull requests from this repository that carry the
+# label. The wiring evals that block pull requests run in ci.yml.
 on:
   schedule:
     - cron: "17 2 * * *"
@@ -15,15 +15,16 @@ on:
         type: choice
         options:
           - templates
+          - shippy
           - onboarding
-          - both
+          - all
       case:
         description: Case path or glob. Empty runs every case.
         required: false
         default: ""
         type: string
       repeat:
-        description: Repeats per case. Empty runs 3 for templates and each onboarding case's own k.
+        description: Repeats per case. Empty runs 3 for templates and shippy, and each onboarding case's own k.
         required: false
         default: ""
         type: string
@@ -83,8 +84,9 @@ jobs:
           ${{ fromJSON(
           github.event_name == 'pull_request' && '["onboarding"]' ||
           inputs.suite == 'templates' && '["templates"]' ||
+          inputs.suite == 'shippy' && '["shippy"]' ||
           inputs.suite == 'onboarding' && '["onboarding"]' ||
-          '["templates","onboarding"]') }}
+          '["templates","shippy","onboarding"]') }}
 
     steps:
       - name: Check out repository
@@ -140,7 +142,7 @@ jobs:
           if [[ -z "$LANGFUSE_BASE_URL" ]]; then unset LANGFUSE_BASE_URL; fi
 
           args=(--suite "$SUITE" --max-cost-usd "$MAX_COST_USD")
-          if [[ "$SUITE" == "templates" ]]; then
+          if [[ "$SUITE" == "templates" || "$SUITE" == "shippy" ]]; then
             args+=(--mode live --repeat "${REPEAT:-3}")
           elif [[ -n "$REPEAT" ]]; then
             args+=(--repeat "$REPEAT")

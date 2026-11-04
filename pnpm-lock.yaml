@@ -1819,6 +1819,31 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/screens/chat:
+    dependencies:
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../kit
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/screens/integrations:
     dependencies:
       '@shipfox/e2e-kit':
@@ -2340,6 +2365,60 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/typescript
 
+  e2e/suites/client/chat:
+    devDependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/agent-dto
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/client-chat':
+        specifier: workspace:*
+        version: link:../../../../libs/client/chat
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../../core
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../../kit
+      '@shipfox/e2e-screens-chat':
+        specifier: workspace:*
+        version: link:../../../screens/chat
+      '@shipfox/e2e-setup-agent':
+        specifier: workspace:*
+        version: link:../../../setup/agent
+      '@shipfox/e2e-setup-auth':
+        specifier: workspace:*
+        version: link:../../../setup/auth
+      '@shipfox/e2e-setup-projects':
+        specifier: workspace:*
+        version: link:../../../setup/projects
+      '@shipfox/e2e-setup-workspaces':
+        specifier: workspace:*
+        version: link:../../../setup/workspaces
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../../tools/playwright
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+
   e2e/suites/client/integrations:
     devDependencies:
       '@shipfox/api-integration-core-dto':
@@ -2742,6 +2821,9 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: 'catalog:'
         version: 2.8.0(@opentelemetry/api@1.9.1)
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/agent-dto
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/auth-dto

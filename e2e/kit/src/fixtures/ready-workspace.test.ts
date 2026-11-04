@@ -9,7 +9,7 @@ describe('createReadyWorkspace fixture', () => {
   it('creates a user, workspace, project, session, and browser login with the setup checklist dismissed', async () => {
     const user = {user: {id: 'user-1'}};
     const workspace = {id: 'workspace-1', slug: 'ready-workspace'};
-    const project = {id: 'project-1'};
+    const project = {id: 'project-1', slug: 'ready-project'};
     const session = {token: 'session-token'};
     const page = {addInitScript: vi.fn().mockResolvedValue(undefined)};
     const auth = {
@@ -51,6 +51,7 @@ describe('createReadyWorkspace fixture', () => {
       workspaceId: 'workspace-1',
       workspaceSlug: 'ready-workspace',
       projectId: 'project-1',
+      projectSlug: 'ready-project',
       sessionToken: 'session-token',
     });
   });

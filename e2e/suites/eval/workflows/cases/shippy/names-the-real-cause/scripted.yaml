@@ -1,0 +1,7 @@
+- match: {prompt_contains: "Why did this run fail?"}
+  replies:
+    - tool: get_workflow_run
+      args: {run_id: $runs.deploy.id}
+    - tool: get_step_logs
+      args: {run_id: $runs.deploy.id, failed_only: true}
+    - text: "The `upload` step ran out of disk: `ENOSPC: no space left on device` while writing `/tmp/artifacts/bundle.js`. The deprecated-package warning above it is unrelated. Free space on the runner, or write the bundle somewhere with room."

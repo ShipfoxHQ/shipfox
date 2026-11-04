@@ -1,0 +1,21 @@
+modes: [scripted, live]
+seed:
+  runs:
+    - key: deploy
+      workflow: deploy.yml
+      status: failed
+    - key: lint
+      workflow: lint.yml
+      status: failed
+turns:
+  - message: Why did this fail?
+    page: {page: run, run: lint}
+expect:
+  tools:
+    - name: get_workflow_run
+      args: {run_id: $runs.lint.id}
+  reply:
+    includes: ["/never used|unused/i"]
+    excludes: ["/no space left on device|ENOSPC/i"]
+covers:
+  - resolves "this" from page context

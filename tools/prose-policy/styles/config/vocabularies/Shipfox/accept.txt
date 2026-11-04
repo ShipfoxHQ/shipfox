@@ -1,4 +1,5 @@
 Shipfox
+Shippy
 Vite
 Zod
 Jotai
