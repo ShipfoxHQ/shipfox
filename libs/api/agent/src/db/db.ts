@@ -2,6 +2,7 @@ import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
 import {conversationItems} from './schema/conversation-items.js';
+import {conversationRunLinks} from './schema/conversation-run-links.js';
 import {conversations} from './schema/conversations.js';
 import {sessionDataKeys} from './schema/data-keys.js';
 import {modelProviderConfigs} from './schema/model-provider-configs.js';
@@ -18,6 +19,7 @@ export const schema = {
   sessionDataKeys,
   conversations,
   conversationItems,
+  conversationRunLinks,
   turns,
   toolCallStarts,
   turnStreamChunks,

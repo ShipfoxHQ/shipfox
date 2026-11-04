@@ -115,6 +115,7 @@ export function createTestAgentClient(params: {
       carryOverSessions: vi.fn(),
       routeInteraction: vi.fn(),
       claimConversationRunStart: vi.fn(),
+      registerConversationRun: vi.fn(),
     }),
   }).agent;
 }

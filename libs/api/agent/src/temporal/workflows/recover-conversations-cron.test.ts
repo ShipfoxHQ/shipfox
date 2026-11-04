@@ -18,7 +18,7 @@ describe('recoverConversationsCron', () => {
   beforeEach(() => {
     mocks.recoverConversations.mockReset();
     mocks.logInfo.mockReset();
-    mocks.recoverConversations.mockResolvedValue({woken: 0});
+    mocks.recoverConversations.mockResolvedValue({woken: 0, checked: 0});
   });
 
   it('runs the sweep once per firing, because the next firing is the retry', () => {
@@ -26,13 +26,23 @@ describe('recoverConversationsCron', () => {
   });
 
   it('logs when the tick woke conversations', async () => {
-    mocks.recoverConversations.mockResolvedValue({woken: 3});
+    mocks.recoverConversations.mockResolvedValue({woken: 3, checked: 0});
 
     await recoverConversationsCron();
 
     expect(mocks.recoverConversations).toHaveBeenCalledOnce();
     expect(mocks.logInfo).toHaveBeenCalledWith('Woke agent conversations with pending work', {
       woken: 3,
+    });
+  });
+
+  it('logs when the tick checked runs for undelivered results', async () => {
+    mocks.recoverConversations.mockResolvedValue({woken: 0, checked: 2});
+
+    await recoverConversationsCron();
+
+    expect(mocks.logInfo).toHaveBeenCalledWith('Checked workflow runs for undelivered results', {
+      checked: 2,
     });
   });
 

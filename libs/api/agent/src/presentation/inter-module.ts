@@ -40,6 +40,7 @@ import {
 import {getWorkspaceModels} from '#core/workspace-models.js';
 import {claimConversationRunStart} from '#db/conversations.js';
 import {carryOverSessions, releaseSession} from '#db/index.js';
+import {registerConversationRun} from '#db/run-links.js';
 
 export function createAgentInterModulePresentation(params: {
   secrets: AgentSecretsClient;
@@ -114,6 +115,9 @@ export function createAgentInterModulePresentation(params: {
         : await routeInteraction(input, params.routing),
     claimConversationRunStart: async (input) => ({
       claimed: await claimConversationRunStart({...input, limit: CONVERSATION_RUN_START_LIMIT}),
+    }),
+    registerConversationRun: async (input) => ({
+      registered: await registerConversationRun(input),
     }),
     releaseSession: async (input) => ({
       released: await releaseSession(input),

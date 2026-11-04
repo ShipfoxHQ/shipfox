@@ -10,10 +10,11 @@ import {
 } from '@shipfox/api-agent-dto';
 import {isRecord, parseConversationEntry} from '#core/conversation-entries.js';
 import {isConversationUnread} from '#core/conversations.js';
-import type {
-  AgentTurn,
-  OpenConversation,
-  OpenConversationItem,
+import {
+  type AgentTurn,
+  type OpenConversation,
+  type OpenConversationItem,
+  RUN_RESULT_CUSTOM_TYPE,
 } from '#core/entities/conversation.js';
 
 export function toConversationSummaryDto(conversation: OpenConversation): ConversationSummaryDto {
@@ -72,7 +73,7 @@ function toConversationItemContent(item: OpenConversationItem): ConversationItem
   if (item.entry === null) return null;
 
   const parsed = parseConversationEntry(item.entry);
-  if (parsed?.type === 'custom_message' && parsed.customType === 'run_result') {
+  if (parsed?.type === 'custom_message' && parsed.customType === RUN_RESULT_CUSTOM_TYPE) {
     const runResult = conversationRunResultDtoSchema.safeParse(parsed.details);
     if (runResult.success) return {type: 'run_result', run_result: runResult.data};
   }

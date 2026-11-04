@@ -116,7 +116,10 @@ function createProvider() {
       deduplicated: false,
     }),
   };
-  const agent = {claimConversationRunStart: vi.fn().mockResolvedValue({claimed: true})};
+  const agent = {
+    claimConversationRunStart: vi.fn().mockResolvedValue({claimed: true}),
+    registerConversationRun: vi.fn().mockResolvedValue({registered: true}),
+  };
   const workflows = {
     hasRunForIdempotencyKey: vi.fn().mockResolvedValue({exists: false}),
     listWorkflowRuns: vi.fn(),
@@ -1466,6 +1469,34 @@ describe('Shipfox tools for a conversation', () => {
         idempotencyKey: conversationKey,
       });
       expect(triggers.fireManualTrigger.mock.calls[0]?.[0]).not.toHaveProperty('parentRun');
+    });
+
+    it('links the started run to the conversation so its result is delivered', async () => {
+      const {agent, provider} = createProvider();
+      const session = await openConversationSession(provider);
+
+      await session.call({toolId: 'start_workflow_run', arguments: {workflow: 'child.yml'}});
+
+      expect(agent.registerConversationRun).toHaveBeenCalledWith({
+        workspaceId,
+        conversationId: '00000000-0000-4000-8000-000000000020',
+        workflowRunId: childRunId,
+      });
+    });
+
+    it('links the run again on a repeated call, which changes nothing', async () => {
+      const {agent, triggers, workflows, provider} = createProvider();
+      workflows.hasRunForIdempotencyKey.mockResolvedValue({exists: true});
+      triggers.fireManualTrigger.mockResolvedValue({
+        id: childRunId,
+        name: 'Deploy',
+        deduplicated: true,
+      });
+      const session = await openConversationSession(provider);
+
+      await session.call({toolId: 'start_workflow_run', arguments: {workflow: 'child.yml'}});
+
+      expect(agent.registerConversationRun).toHaveBeenCalledOnce();
     });
 
     it('returns the same run for a repeated call without spending the budget again', async () => {

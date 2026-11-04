@@ -2,6 +2,7 @@ import type {ManagedModelProvider, WorkspaceProvidersPolicy} from '@shipfox/api-
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
 import {AgentSessionUnavailableError, ConversationEntryUnreadableError} from '#core/errors.js';
@@ -31,6 +32,8 @@ export interface ConversationActivityDeps {
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
   definitions?: DefinitionsInterModuleClient | undefined;
+  /** Reads runs for the delivery checks the sweep runs. Without it, the sweep only wakes. */
+  workflows?: Pick<WorkflowsModuleClient, 'getWorkflowRunOverview'> | undefined;
   managedProvider?: ManagedModelProvider | undefined;
   workspaceProviders?: WorkspaceProvidersPolicy | undefined;
   workspaces: TurnAdmissionWorkspaces;
@@ -162,8 +165,8 @@ export function createConversationActivities(deps: ConversationActivityDeps) {
     }): Promise<void> =>
       await deliverConversationReply({...input, integrations: deps.integrations}),
 
-    recoverConversations: async (): Promise<{woken: number}> =>
-      await recoverConversations({wake: deps.wake ?? wakeConversation}),
+    recoverConversations: async (): Promise<{woken: number; checked: number}> =>
+      await recoverConversations({wake: deps.wake ?? wakeConversation, workflows: deps.workflows}),
   };
 }
 

@@ -7,8 +7,12 @@ const {recoverConversations} = proxyActivities<ConversationActivities>({
   retry: {maximumAttempts: 1},
 });
 
-/** Wakes the conversations a lost signal or a Temporal outage left with work. */
+/**
+ * Wakes the conversations a lost signal or a Temporal outage left with work, and runs the
+ * run-result checks that events left requested.
+ */
 export async function recoverConversationsCron(): Promise<void> {
-  const {woken} = await recoverConversations();
+  const {woken, checked} = await recoverConversations();
   if (woken > 0) log.info('Woke agent conversations with pending work', {woken});
+  if (checked > 0) log.info('Checked workflow runs for undelivered results', {checked});
 }

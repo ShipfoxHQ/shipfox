@@ -1549,7 +1549,7 @@ describe('integrations inter-module callTool', () => {
         .fn()
         .mockResolvedValue({annotations: [], nextCursor: null});
       const provider = createShipfoxAgentToolsProvider({
-        agent: {claimConversationRunStart: vi.fn()},
+        agent: {claimConversationRunStart: vi.fn(), registerConversationRun: vi.fn()},
         clientBaseUrl: 'https://app.example.test',
         annotations: {listAnnotationsForRunAttempt},
         definitions: {
@@ -1732,7 +1732,7 @@ describe('integrations inter-module callTool', () => {
       deduplicated: false,
     });
     const provider = createShipfoxAgentToolsProvider({
-      agent: {claimConversationRunStart: vi.fn()},
+      agent: {claimConversationRunStart: vi.fn(), registerConversationRun: vi.fn()},
       clientBaseUrl: 'https://app.example.test',
       annotations: {
         listAnnotationsForRunAttempt: vi.fn(),

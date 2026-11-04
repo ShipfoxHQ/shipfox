@@ -94,6 +94,7 @@ describe('runWorkflow', () => {
     carryOverSessions: vi.fn(),
     routeInteraction: vi.fn(),
     claimConversationRunStart: vi.fn(),
+    registerConversationRun: vi.fn(),
   };
 
   beforeEach(() => {
@@ -391,6 +392,7 @@ describe('runDevWorkflow', () => {
     carryOverSessions: vi.fn(),
     routeInteraction: vi.fn(),
     claimConversationRunStart: vi.fn(),
+    registerConversationRun: vi.fn(),
   };
 
   beforeEach(() => {
