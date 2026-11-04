@@ -726,6 +726,16 @@ describe('createLinearApiClient.hasIssueComment', () => {
 
     expect(found).toBe(false);
   });
+
+  it('reports an unknown id as not found when Linear answers with a 400', async () => {
+    const body = {errors: [{message: 'Entity not found: Comment'}]};
+    mocks.post.mockReturnValue(rejects(httpError(400, {}, 'Bad Request', body)));
+    const client = createLinearApiClient();
+
+    const found = await client.hasIssueComment({accessToken: 'linear-token', id: 'comment-1'});
+
+    expect(found).toBe(false);
+  });
 });
 
 describe('createLinearApiClient.createIssueComment', () => {
