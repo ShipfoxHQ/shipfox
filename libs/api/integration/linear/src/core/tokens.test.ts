@@ -42,6 +42,8 @@ function createConnectionContext() {
       createAgentActivity: vi.fn(),
       hasAgentActivity: vi.fn(),
       addAgentSessionExternalUrls: vi.fn(),
+      getAgentSessionIssueId: vi.fn(),
+      createIssueComment: vi.fn(),
       getIssueContext: vi.fn(),
     },
   });

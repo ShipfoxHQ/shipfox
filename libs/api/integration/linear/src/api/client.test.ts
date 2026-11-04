@@ -661,6 +661,85 @@ describe('createLinearApiClient.hasAgentActivity', () => {
   });
 });
 
+describe('createLinearApiClient.getAgentSessionIssueId', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('reads the issue of the session', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentSession: {issue: {id: 'issue-1'}}}}));
+    const client = createLinearApiClient();
+
+    const issueId = await client.getAgentSessionIssueId({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+    });
+
+    const [, options] = mocks.post.mock.calls[0] as [
+      string,
+      {headers: Record<string, string>; json: {variables: unknown}},
+    ];
+    expect(issueId).toBe('issue-1');
+    expect(options.headers).toEqual({authorization: 'Bearer linear-token'});
+    expect(options.json.variables).toEqual({id: 'session-1'});
+  });
+
+  it('returns null for a session with no issue', async () => {
+    mocks.post.mockReturnValue(resolves({data: {agentSession: {issue: null}}}));
+    const client = createLinearApiClient();
+
+    const issueId = await client.getAgentSessionIssueId({
+      accessToken: 'linear-token',
+      agentSessionId: 'session-1',
+    });
+
+    expect(issueId).toBeNull();
+  });
+});
+
+describe('createLinearApiClient.createIssueComment', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('posts a comment as the agent', async () => {
+    mocks.post.mockReturnValue(resolves({data: {commentCreate: {success: true}}}));
+    const client = createLinearApiClient();
+
+    await client.createIssueComment({
+      accessToken: 'linear-token',
+      issueId: 'issue-1',
+      body: 'The pull request is open.',
+      createAsUser: 'Shippy',
+    });
+
+    const [, options] = mocks.post.mock.calls[0] as [
+      string,
+      {headers: Record<string, string>; json: {variables: unknown}},
+    ];
+    expect(options.headers).toEqual({authorization: 'Bearer linear-token'});
+    expect(options.json.variables).toEqual({
+      input: {issueId: 'issue-1', body: 'The pull request is open.', createAsUser: 'Shippy'},
+    });
+  });
+
+  it('rejects when Linear does not report success', async () => {
+    mocks.post.mockReturnValue(resolves({data: {commentCreate: {success: false}}}));
+    const client = createLinearApiClient();
+
+    const result = client.createIssueComment({
+      accessToken: 'linear-token',
+      issueId: 'issue-1',
+      body: 'Done.',
+      createAsUser: 'Shippy',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});
+
 describe('createLinearApiClient.addAgentSessionExternalUrls', () => {
   beforeEach(() => {
     mocks.post.mockReset();

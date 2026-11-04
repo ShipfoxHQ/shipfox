@@ -33,8 +33,19 @@ function setup() {
   const createAgentActivity = vi.fn((_input: unknown) => Promise.resolve());
   const hasAgentActivity = vi.fn((_input: unknown) => Promise.resolve(false));
   const addAgentSessionExternalUrls = vi.fn((_input: unknown) => Promise.resolve());
+  const getAgentSessionIssueId = vi.fn((_input: unknown) =>
+    Promise.resolve<string | null>('issue-1'),
+  );
+  const createIssueComment = vi.fn((_input: unknown) => Promise.resolve());
   const provider = new LinearInteractionProvider({
-    linear: {getIssueContext, createAgentActivity, hasAgentActivity, addAgentSessionExternalUrls},
+    linear: {
+      getIssueContext,
+      createAgentActivity,
+      hasAgentActivity,
+      addAgentSessionExternalUrls,
+      getAgentSessionIssueId,
+      createIssueComment,
+    },
     tokenStore: {getAccessToken},
   });
   return {
@@ -44,6 +55,8 @@ function setup() {
     createAgentActivity,
     hasAgentActivity,
     addAgentSessionExternalUrls,
+    getAgentSessionIssueId,
+    createIssueComment,
   };
 }
 
@@ -347,15 +360,79 @@ describe('LinearInteractionProvider', () => {
       });
     });
 
-    it('is undeliverable when Linear rejects the activity', async () => {
-      const {provider, createAgentActivity} = setup();
+    it('comments on the issue as the agent when Linear rejects the activity', async () => {
+      const {provider, createAgentActivity, createIssueComment, getAgentSessionIssueId} = setup();
       createAgentActivity.mockRejectedValue(
         new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+
+      const outcome = await provider.sendReply(reply('response', 'The pull request is open.'));
+
+      expect(outcome).toEqual({outcome: 'delivered'});
+      expect(getAgentSessionIssueId).toHaveBeenCalledWith({
+        accessToken: 'linear-token',
+        agentSessionId: 'session-1',
+      });
+      expect(createIssueComment).toHaveBeenCalledWith({
+        accessToken: 'linear-token',
+        issueId: 'issue-1',
+        body: 'The pull request is open.',
+        createAsUser: 'Shippy',
+      });
+    });
+
+    it('comments on the issue when the app lost access to the session', async () => {
+      const {provider, createAgentActivity, hasAgentActivity, createIssueComment} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('access-denied', 'Linear request was rejected'),
+      );
+
+      const outcome = await provider.sendReply(reply('response', 'Done.'));
+
+      expect(outcome).toEqual({outcome: 'delivered'});
+      expect(hasAgentActivity).not.toHaveBeenCalled();
+      expect(createIssueComment).toHaveBeenCalledOnce();
+    });
+
+    it('is undeliverable when Linear rejects the activity and the comment', async () => {
+      const {provider, createAgentActivity, createIssueComment} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+      createIssueComment.mockRejectedValue(
+        new LinearIntegrationProviderError('access-denied', 'Linear request was rejected'),
       );
 
       const outcome = await provider.sendReply(reply('response', 'Done.'));
 
       expect(outcome).toEqual({outcome: 'undeliverable', reason: 'Linear rejected it'});
+    });
+
+    it('is undeliverable when the session has no issue to comment on', async () => {
+      const {provider, createAgentActivity, getAgentSessionIssueId, createIssueComment} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+      getAgentSessionIssueId.mockResolvedValue(null);
+
+      const outcome = await provider.sendReply(reply('response', 'Done.'));
+
+      expect(outcome).toEqual({outcome: 'undeliverable', reason: 'Linear rejected it'});
+      expect(createIssueComment).not.toHaveBeenCalled();
+    });
+
+    it('fails when the comment hits an outage so the delivery is retried', async () => {
+      const {provider, createAgentActivity, createIssueComment} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+      createIssueComment.mockRejectedValue(
+        new LinearIntegrationProviderError('provider-unavailable', 'Linear request failed'),
+      );
+
+      const result = provider.sendReply(reply('response', 'Done.'));
+
+      await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
     });
 
     it('is delivered when a repeat is refused because the activity already exists', async () => {
@@ -411,28 +488,6 @@ describe('LinearInteractionProvider', () => {
       const result = provider.sendReply(reply('response', 'Done.'));
 
       await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
-    });
-
-    it('does not look the activity up when the app lost access to the session', async () => {
-      const {provider, createAgentActivity, hasAgentActivity} = setup();
-      createAgentActivity.mockRejectedValue(
-        new LinearIntegrationProviderError('access-denied', 'Linear request was rejected'),
-      );
-
-      await provider.sendReply(reply('response', 'Done.'));
-
-      expect(hasAgentActivity).not.toHaveBeenCalled();
-    });
-
-    it('is undeliverable when the app lost access to the session', async () => {
-      const {provider, createAgentActivity} = setup();
-      createAgentActivity.mockRejectedValue(
-        new LinearIntegrationProviderError('access-denied', 'Linear request was rejected'),
-      );
-
-      const outcome = await provider.sendReply(reply('response', 'Done.'));
-
-      expect(outcome.outcome).toBe('undeliverable');
     });
 
     it('is undeliverable when the token refresh is refused', async () => {
