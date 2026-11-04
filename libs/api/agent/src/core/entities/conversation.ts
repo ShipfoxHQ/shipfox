@@ -51,7 +51,7 @@ export interface ConversationItemMeta {
   tool_call_id?: string;
   tool_name?: string;
   is_error?: boolean;
-  /** `unknown` on a write that an earlier attempt began, so no attempt knows if it took effect. */
+  /** `unknown` on a write that may have taken effect: a retry found it begun, it timed out, or it threw on the last attempt. */
   outcome?: 'unknown';
 }
 
