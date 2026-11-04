@@ -191,14 +191,6 @@ export class ConnectionDetailsScreen {
     );
   }
 
-  heading(): Locator {
-    return this.page.getByRole('heading', {name: 'Integration connection'});
-  }
-
-  providerNotice(): Locator {
-    return this.page.getByRole('link', {name: 'Change repositories on GitHub'});
-  }
-
   posthogReplaceButton(): Locator {
     return this.page.getByRole('button', {name: 'Replace API key'});
   }

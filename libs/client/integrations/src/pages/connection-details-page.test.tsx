@@ -7,7 +7,6 @@ import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test
 import {ConnectionDetailsPage} from './connection-details-page.js';
 
 const CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
-const GITHUB_NOTICE_RE = /add or remove repositories the GitHub App can access/u;
 
 const githubConnection = {
   id: CONNECTION_ID,
@@ -49,25 +48,6 @@ function renderDetails(connection: IntegrationConnectionDto) {
 }
 
 describe('ConnectionDetailsPage', () => {
-  test('points a GitHub connection at the installation on GitHub', async () => {
-    renderDetails(githubConnection);
-
-    expect(await screen.findByRole('heading', {name: 'Integration connection'})).toBeVisible();
-    expect(await screen.findByText(GITHUB_NOTICE_RE)).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Change repositories on GitHub'})).toHaveAttribute(
-      'href',
-      githubConnection.external_url,
-    );
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', {name: 'Save changes'})).not.toBeInTheDocument();
-  });
-
-  test('has no settings for a source control connection whose provider has no notice', async () => {
-    renderDetails({...githubConnection, provider: 'gitea', external_url: undefined});
-
-    expect(await screen.findByText('No settings to change')).toBeVisible();
-  });
-
   test('asks a connection missing new permissions to reconnect', async () => {
     renderDetails({...slackConnection, reconnect_required: true});
 

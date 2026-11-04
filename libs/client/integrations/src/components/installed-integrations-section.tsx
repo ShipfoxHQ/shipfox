@@ -171,16 +171,6 @@ function InstalledRow({
             </DropdownMenuItem>
             {workspaceSlug ? (
               <>
-                {connection.provider === 'github' ? (
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to="/w/$workspaceSlug/settings/integrations/$connectionSlug"
-                      params={{workspaceSlug, connectionSlug: connection.slug}}
-                    >
-                      Manage repository access
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
                 {hasCredentialSettings(connection.provider) ? (
                   <DropdownMenuItem asChild>
                     <Link

@@ -72,10 +72,6 @@ function ConnectionSettings({connection}: {connection: IntegrationConnection}) {
     return <JamConnectionSettings connection={connection} workspaceId={connection.workspaceId} />;
   if (connection.provider === 'claap')
     return <ClaapConnectionSettings connection={connection} workspaceId={connection.workspaceId} />;
-  const accessNotice = connection.capabilities.includes('source_control')
-    ? PROVIDER_ACCESS_NOTICES[connection.provider]
-    : undefined;
-  if (accessNotice) return <ProviderAccessNotice connection={connection} copy={accessNotice} />;
   // The reconnect notice is this connection's only action.
   if (connection.reconnectRequired) return null;
   return (
@@ -201,49 +197,5 @@ export function PosthogConnectionSettings({
         onOpenChange={setReplaceOpen}
       />
     </>
-  );
-}
-
-interface ProviderAccessNoticeCopy {
-  title: string;
-  description: string;
-  linkLabel: string;
-  fallbackUrl: string;
-}
-
-// Where the outer repository list is managed is provider-specific. Providers without an entry
-// get no notice.
-const PROVIDER_ACCESS_NOTICES: Record<string, ProviderAccessNoticeCopy> = {
-  github: {
-    title: 'Repository access is set on GitHub',
-    description: 'To add or remove repositories the GitHub App can access, change it on GitHub.',
-    linkLabel: 'Change repositories on GitHub',
-    fallbackUrl: 'https://github.com/settings/installations',
-  },
-};
-
-function ProviderAccessNotice({
-  connection,
-  copy,
-}: {
-  connection: IntegrationConnection;
-  copy: ProviderAccessNoticeCopy;
-}) {
-  return (
-    <Callout type="info">
-      <CalloutContent>
-        <CalloutTitle>{copy.title}</CalloutTitle>
-        <CalloutDescription>
-          {copy.description}{' '}
-          <a
-            href={connection.externalUrl ?? copy.fallbackUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            {copy.linkLabel}
-          </a>
-        </CalloutDescription>
-      </CalloutContent>
-    </Callout>
   );
 }
