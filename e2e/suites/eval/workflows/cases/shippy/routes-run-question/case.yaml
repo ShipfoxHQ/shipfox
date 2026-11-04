@@ -1,0 +1,13 @@
+description: A question about recent runs goes to the run tools and names the failed workflow.
+workflows:
+  nightly: nightly-build.yml
+  lint: lint.yml
+runs:
+  - {name: lint, workflow: lint, status: succeeded}
+  - {name: nightly, workflow: nightly, status: failed}
+messages:
+  - body: Did any of my runs fail recently?
+expect:
+  tools_called: [list_workflow_runs]
+  tools_not_called: [start_workflow_run]
+  reply_matches: [nightly build]

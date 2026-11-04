@@ -1,0 +1,11 @@
+name: Deploy production
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+jobs:
+  deploy:
+    checkout: false
+    steps:
+      - name: Deploy
+        run: echo "Deploying to production"

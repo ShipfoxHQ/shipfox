@@ -134,6 +134,106 @@ describe('E2E managed inference fixture', () => {
     ]);
   });
 
+  it('fails one scripted request with its error, then serves the next reply', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+    const projectId = '00000000-0000-7000-8000-000000000021';
+    await app.inject({
+      method: 'POST',
+      url: '/managed-inference/scripts',
+      payload: {
+        project_id: projectId,
+        entries: [
+          {
+            match: {prompt_contains: 'hello'},
+            replies: [{error: {status: 400, message: 'scripted failure'}}, {text: 'hi'}],
+          },
+        ],
+      },
+    });
+    const runtimeConfig = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject: {kind: 'conversation', projectId, conversationId: 'retry', agentKey: 'shippy'},
+      model: 'gpt-6-sol',
+    });
+    const send = () =>
+      app.inject({
+        method: 'POST',
+        url: '/__e2e-managed-inference/v1/chat/completions',
+        headers: {authorization: `Bearer ${runtimeConfig.credentials.api_key}`},
+        payload: {model: 'gpt-6-sol', messages: [{role: 'user', content: 'hello'}]},
+      });
+
+    const failed = await send();
+    const served = await send();
+
+    expect(failed.statusCode).toBe(400);
+    expect(failed.json()).toEqual({error: {message: 'scripted failure', type: 'scripted_error'}});
+    expect(served.json().choices[0].message.content).toBe('hi');
+  });
+
+  it('holds a streamed scripted reply open after its text', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+    const projectId = '00000000-0000-7000-8000-000000000022';
+    await app.inject({
+      method: 'POST',
+      url: '/managed-inference/scripts',
+      payload: {
+        project_id: projectId,
+        entries: [{match: {prompt_contains: 'hello'}, replies: [{text: 'partial', hold_ms: 300}]}],
+      },
+    });
+    const runtimeConfig = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject: {kind: 'conversation', projectId, conversationId: 'stop', agentKey: 'shippy'},
+      model: 'gpt-6-sol',
+    });
+    const startedAt = performance.now();
+
+    const result = await app.inject({
+      method: 'POST',
+      url: '/__e2e-managed-inference/v1/chat/completions',
+      headers: {authorization: `Bearer ${runtimeConfig.credentials.api_key}`},
+      payload: {model: 'gpt-6-sol', stream: true, messages: [{role: 'user', content: 'hello'}]},
+    });
+
+    expect(performance.now() - startedAt).toBeGreaterThanOrEqual(250);
+    expect(result.body).toContain('"content":"partial"');
+    expect(result.body).toContain('data: [DONE]');
+  });
+
+  it('rejects a scripted hold beyond its cap', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/managed-inference/scripts',
+      payload: {
+        project_id: '00000000-0000-7000-8000-000000000023',
+        entries: [{match: {prompt_contains: 'x'}, replies: [{text: 'x', hold_ms: 120_001}]}],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it('accepts generation one for a model without forced renewal', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');

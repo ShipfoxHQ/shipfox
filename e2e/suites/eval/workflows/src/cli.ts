@@ -18,33 +18,37 @@ import {
   writeResults,
 } from './results.js';
 import type {EventSenders} from './senders.js';
+import {runShippySuite} from './shippy-run.js';
 
 const usage = `Usage: shipfox-eval-workflows [options]
 
 Options:
-  --suite <templates|onboarding|contracts>
+  --suite <templates|onboarding|contracts|shippy>
                             Suite to run (default: templates). contracts runs in
-                            compile mode only.
+                            compile mode only, and shippy in live mode only.
   --mode <scripted|live|compile>
-                            Evaluation mode (default: scripted, compile for contracts).
+                            Evaluation mode (default: scripted, compile for contracts,
+                            live for shippy).
                             compile creates a definition for every template variant, or
                             for every contract workflow file, and runs nothing.
   --case <pattern>          Case path or glob to run, a template id in compile mode, or a
                             workflow file name for the contracts suite
   --catalog <directory>     Compile the templates of a catalog directory instead of the
                             shipped ones (templates compile mode only)
-  --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
+  --repeat <count>          Number of repeats (default: 1; the case's k for onboarding
+                            and shippy)
   --workers <count>         Case repeats to run at once (default: 4; scripted and live
                             template runs only)
   --max-cost-usd <amount>   Stop starting cases once the runs so far have cost this much
-                            (live and onboarding runs)
-  --agent-model <model>     Model of the onboarding agent (onboarding suite only)
+                            (live, onboarding, and shippy runs)
+  --agent-model <model>     Model of the onboarding agent, or the catalog model that
+                            answers Shippy (onboarding and shippy suites only)
   --simulator-model <model> Model of the simulated user (onboarding suite only)
   --help                    Show this help
 `;
 
 export interface EvalCliOptions {
-  suite: 'templates' | 'onboarding' | 'contracts';
+  suite: 'templates' | 'onboarding' | 'contracts' | 'shippy';
   mode: EvalMode;
   caseFilter?: string;
   catalog?: string;
@@ -98,7 +102,7 @@ function parseWorkers({
   return positiveInteger(workers, '--workers');
 }
 
-// Template cases run each template's own anchor models, so only onboarding takes a model.
+// Template cases run each template's own anchor models, so only onboarding and Shippy take a model.
 function applyModelOptions({
   options,
   agentModel,
@@ -109,11 +113,20 @@ function applyModelOptions({
   simulatorModel: string | undefined;
 }): void {
   if (agentModel === undefined && simulatorModel === undefined) return;
-  if (options.suite !== 'onboarding') {
-    throw new Error('--agent-model and --simulator-model apply to --suite onboarding only');
+  if (simulatorModel !== undefined && options.suite !== 'onboarding') {
+    throw new Error('--simulator-model applies to --suite onboarding only');
+  }
+  if (options.suite !== 'onboarding' && options.suite !== 'shippy') {
+    throw new Error('--agent-model applies to --suite onboarding and shippy only');
   }
   if (agentModel !== undefined) options.agentModel = agentModel;
   if (simulatorModel !== undefined) options.simulatorModel = simulatorModel;
+}
+
+function defaultMode(suite: EvalCliOptions['suite']): EvalMode {
+  if (suite === 'contracts') return 'compile';
+  if (suite === 'shippy') return 'live';
+  return 'scripted';
 }
 
 function assertCompatible({
@@ -130,6 +143,9 @@ function assertCompatible({
   }
   if (suite === 'contracts' && mode !== 'compile') {
     throw new Error('--suite contracts runs with --mode compile only');
+  }
+  if (suite === 'shippy' && mode !== 'live') {
+    throw new Error('--suite shippy runs with --mode live only');
   }
   if (catalog !== undefined && (mode !== 'compile' || suite !== 'templates')) {
     throw new Error('--catalog applies to --suite templates --mode compile only');
@@ -155,10 +171,17 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   });
 
   const suite = values.suite;
-  if (suite !== 'templates' && suite !== 'onboarding' && suite !== 'contracts') {
-    throw new Error(`--suite must be templates, onboarding, or contracts, received "${suite}"`);
+  if (
+    suite !== 'templates' &&
+    suite !== 'onboarding' &&
+    suite !== 'contracts' &&
+    suite !== 'shippy'
+  ) {
+    throw new Error(
+      `--suite must be templates, onboarding, contracts, or shippy, received "${suite}"`,
+    );
   }
-  const mode = values.mode ?? (suite === 'contracts' ? 'compile' : 'scripted');
+  const mode = values.mode ?? defaultMode(suite);
   if (mode !== 'scripted' && mode !== 'live' && mode !== 'compile') {
     throw new Error(`--mode must be scripted, live, or compile, received "${mode}"`);
   }
@@ -206,6 +229,7 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   if (options.suite === 'contracts') {
     throw new Error('The contracts suite runs through runContractsCompile.');
   }
+  if (options.suite === 'shippy') throw new Error('The shippy suite runs through runShippySuite.');
   const {mode} = options;
   if (mode === 'compile') throw new Error('Compile mode runs through runCompile.');
   const found = await discoverCases(
@@ -300,6 +324,38 @@ async function runOnboardingCli({
     ...(options.simulatorModel === undefined ? {} : {simulatorModel: options.simulatorModel}),
   });
   stdout(`Ran ${run.results.length} onboarding sessions. Results: ${run.directory}\n`);
+  const failed = run.results.filter((result) => result.status === 'error');
+  for (const result of failed) {
+    stderr(`${result.case} #${result.repeat}: ${result.error ?? 'failed'}\n`);
+  }
+  return failed.length === 0 ? 0 : 1;
+}
+
+// Like onboarding, scores never fail a run: only cases that could not be run at all do.
+async function runShippyCli({
+  options,
+  stdout,
+  stderr,
+  cwd,
+}: {
+  options: EvalCliOptions;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+  cwd: string | undefined;
+}): Promise<number> {
+  const root = cwd ?? process.cwd();
+  const run = await runShippySuite({
+    casesRoot: join(root, 'cases', 'shippy'),
+    resultsDirectory: join(root, 'results'),
+    ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
+    ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
+    ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
+    ...(options.agentModel === undefined ? {} : {model: options.agentModel}),
+  });
+  const graded = run.results.filter((result) => result.passed !== undefined);
+  stdout(
+    `Ran ${run.results.length} Shippy conversations, ${graded.filter((result) => result.passed).length} of ${graded.length} passed. Results: ${run.directory}\n`,
+  );
   const failed = run.results.filter((result) => result.status === 'error');
   for (const result of failed) {
     stderr(`${result.case} #${result.repeat}: ${result.error ?? 'failed'}\n`);
@@ -445,6 +501,9 @@ export async function runCli(
       return 0;
     }
     if (options.suite === 'onboarding') return await runOnboardingCli({options, stdout, stderr});
+    if (options.suite === 'shippy') {
+      return await runShippyCli({options, stdout, stderr, cwd: environment.cwd});
+    }
     if (options.suite === 'contracts') {
       return await runContractsCompileCli({options, stdout, stderr, cwd: environment.cwd});
     }

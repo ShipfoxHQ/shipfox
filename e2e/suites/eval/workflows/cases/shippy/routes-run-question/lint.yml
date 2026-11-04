@@ -1,0 +1,11 @@
+name: Lint
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+jobs:
+  lint:
+    checkout: false
+    steps:
+      - name: Lint
+        run: echo "0 problems"
