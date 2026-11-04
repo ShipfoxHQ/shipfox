@@ -106,6 +106,16 @@ interface ToolOutput {
 export const UNKNOWN_WRITE_OUTCOME_TEXT =
   'unknown: An earlier attempt of this call began, and Shipfox cannot tell whether it changed anything. It was not run again. Read the current state with a read tool before you try again.';
 
+export const UNFINISHED_WRITE_OUTCOME_TEXT =
+  'unknown: This call did not finish, and Shipfox cannot tell whether it changed anything. Read the current state with a read tool before you try again.';
+
+const UNFINISHED_WRITE_OUTPUT: ToolOutput = {
+  text: UNFINISHED_WRITE_OUTCOME_TEXT,
+  isError: false,
+  sensitivity: 'write',
+  outcome: 'unknown',
+};
+
 /**
  * Whether a call can change something outside Shipfox. A family tool is a write when the method
  * it names is one, and any other call to a tool that has a write method counts as one.
@@ -155,6 +165,7 @@ async function executeTool(params: {
   callIndex: number;
   integrations: IntegrationsModuleClient;
   definitions: DefinitionsInterModuleClient | undefined;
+  lastAttempt: boolean;
 }): Promise<ToolOutput> {
   const {call, conversation} = params;
   const agent = await readConversationAgent({conversation, definitions: params.definitions});
@@ -184,8 +195,9 @@ async function executeTool(params: {
 
   // The start is committed before the call, so a crash or retry after it began never repeats a
   // write. The model learns the outcome is unknown and reads the state itself.
+  const isWrite = isWriteCall(entry.tool, call.arguments);
   if (
-    isWriteCall(entry.tool, call.arguments) &&
+    isWrite &&
     !(await claimToolCallStart({
       turnId: params.turnId,
       modelCallIndex: params.modelCallIndex,
@@ -217,21 +229,29 @@ async function executeTool(params: {
         ...(entry.grantedByAgent ? {grantedByAgent: true} : {}),
       },
     });
-    return outcome.outcome === 'success'
-      ? {
-          text: contentText(outcome.content, outcome.result),
-          isError: false,
-          sensitivity: entry.tool.sensitivity,
-        }
-      : {
-          text: `${outcome.code}: ${outcome.message}`,
-          isError: true,
-          sensitivity: entry.tool.sensitivity,
-        };
+    if (outcome.outcome === 'success') {
+      return {
+        text: contentText(outcome.content, outcome.result),
+        isError: false,
+        sensitivity: entry.tool.sensitivity,
+      };
+    }
+    // The provider may have applied a write before it timed out.
+    if (isWrite && outcome.code === 'provider-timeout') return UNFINISHED_WRITE_OUTPUT;
+    return {
+      text: `${outcome.code}: ${outcome.message}`,
+      isError: true,
+      sensitivity: entry.tool.sensitivity,
+    };
   } catch (error) {
     // A known error is the same however often the call repeats, so the model gets to read it.
     if (isInterModuleKnownError(integrationsInterModuleContract.methods.callTool, error)) {
       return {text: error.message, isError: true, sensitivity: entry.tool.sensitivity};
+    }
+    if (isWrite && params.lastAttempt) {
+      // No retry is left to find the recorded start, and the write may have gone through.
+      reportError(error, {boundary: 'agent.conversation.tool_call'});
+      return UNFINISHED_WRITE_OUTPUT;
     }
     throw error;
   }
@@ -365,6 +385,7 @@ export async function runToolCall(params: ToolCallParams): Promise<ToolCallResul
       callIndex: params.callIndex,
       integrations: params.integrations,
       definitions: params.definitions,
+      lastAttempt: params.lastAttempt,
     });
   } catch (error) {
     if (!params.lastAttempt) throw error;

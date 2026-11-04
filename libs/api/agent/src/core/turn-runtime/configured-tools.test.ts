@@ -20,7 +20,11 @@ import {
 } from '../conversation-sealing.js';
 import type {ConversationItem} from '../entities/conversation.js';
 import {runModelCall} from './model-call.js';
-import {runToolCall, UNKNOWN_WRITE_OUTCOME_TEXT} from './tool-call.js';
+import {
+  runToolCall,
+  UNFINISHED_WRITE_OUTCOME_TEXT,
+  UNKNOWN_WRITE_OUTCOME_TEXT,
+} from './tool-call.js';
 import {beginConversationTurn} from './turn-lifecycle.js';
 
 const connectionId = crypto.randomUUID();
@@ -306,6 +310,73 @@ describe('tools granted by an agent file', () => {
     expect(entry.message.details).toEqual({outcome: 'unknown'});
     expect(entry.message.isError).toBe(false);
     expect(entry.message.content[0].text).toContain(UNKNOWN_WRITE_OUTCOME_TEXT);
+  });
+
+  it('stores a write that timed out as unknown, and a read that timed out as an error', async () => {
+    const timeout = {outcome: 'error', code: 'provider-timeout', message: 'Provider timed out'};
+    const writes = await setup();
+    await writes.callTools('github_main__issue_comment', {body: 'Looks good'});
+    writes.callTool.mockResolvedValueOnce(timeout);
+
+    await writes.run();
+
+    const stored = (await writes.items()).at(-1) as ConversationItem;
+    expect(stored.meta).toMatchObject({role: 'toolResult', outcome: 'unknown'});
+    const entry = await writes.readEntry(stored);
+    expect(entry.message.isError).toBe(false);
+    expect(entry.message.content[0].text).toContain(UNFINISHED_WRITE_OUTCOME_TEXT);
+
+    const reads = await setup();
+    await reads.callTools('github_main__issue_read', {number: 7});
+    reads.callTool.mockResolvedValueOnce(timeout);
+
+    await reads.run();
+
+    const readStored = (await reads.items()).at(-1) as ConversationItem;
+    expect(readStored.meta).toMatchObject({role: 'toolResult', is_error: true});
+    expect(readStored.meta).not.toHaveProperty('outcome');
+  });
+
+  it('keeps any other failed write result an error', async () => {
+    const {callTools, run, callTool, items} = await setup();
+    await callTools('github_main__issue_comment', {body: 'Looks good'});
+    callTool.mockResolvedValueOnce({outcome: 'error', code: 'not-found', message: 'No issue'});
+
+    await run();
+
+    const stored = (await items()).at(-1) as ConversationItem;
+    expect(stored.meta).toMatchObject({role: 'toolResult', is_error: true});
+    expect(stored.meta).not.toHaveProperty('outcome');
+  });
+
+  it('stores a write that fails on the last attempt as unknown', async () => {
+    const {callTools, run, callTool, starts, items, readEntry} = await setup();
+    await callTools('github_main__issue_comment', {body: 'Looks good'});
+    callTool.mockRejectedValueOnce(new Error('connection reset'));
+
+    const result = await run({lastAttempt: true});
+
+    expect(result).toEqual({status: 'success'});
+    expect(callTool).toHaveBeenCalledOnce();
+    expect(await starts()).toHaveLength(1);
+    const stored = (await items()).at(-1) as ConversationItem;
+    expect(stored.meta).toMatchObject({role: 'toolResult', outcome: 'unknown'});
+    const entry = await readEntry(stored);
+    expect(entry.message.content[0].text).toContain(UNFINISHED_WRITE_OUTCOME_TEXT);
+  });
+
+  it('keeps a read that fails on the last attempt an error', async () => {
+    const {callTools, run, callTool, items, readEntry} = await setup();
+    await callTools('github_main__issue_read', {number: 7});
+    callTool.mockRejectedValueOnce(new Error('connection reset'));
+
+    const result = await run({lastAttempt: true});
+
+    expect(result).toEqual({status: 'error'});
+    const stored = (await items()).at(-1) as ConversationItem;
+    expect(stored.meta).not.toHaveProperty('outcome');
+    const entry = await readEntry(stored);
+    expect(entry.message.content[0].text).toContain('The tool failed to run');
   });
 
   it('runs a write once when nothing goes wrong', async () => {
