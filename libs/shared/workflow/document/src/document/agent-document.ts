@@ -20,7 +20,7 @@ export const AGENT_DOCUMENT_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 export const agentRuleSchema = z.strictObject({
   source: z.string().min(1).meta({
     description:
-      'Selects the slug of the integration connection whose requests the agent answers, such as `slack_acme` or `linear_acme`. Use the slug of your own connection. The integration must let people talk to agents.',
+      'Selects the slug of the integration connection whose requests this rule covers, such as `slack_acme` or `linear_acme`. Use the slug of your own connection. The integration must let people talk to agents.',
   }),
   filter: z.string().min(1).optional().meta({
     description:

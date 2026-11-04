@@ -222,8 +222,9 @@ connection. A rule has no `event`, `with`,
 `secrets`, or `config`, because only requests can match. `filter` is a
 condition like a workflow trigger filter. It reads `request`, where the
 request was made, and `event`, the raw payload. Sync rejects a filter on a
-field that the provider does not set for `request`. A rule that sync rejects
-leaves the agent on its last valid version.
+field that the provider does not set for `request`, and a filter longer than
+2,000 bytes. See [Limits](/reference/limits#workflow-document). A rule that
+sync rejects leaves the agent on its last valid version.
 
 <AgentRuleFields />
 

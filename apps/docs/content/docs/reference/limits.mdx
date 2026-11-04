@@ -62,6 +62,7 @@ Workflow outputs use the same JSON-safe encoding as job outputs.
 | `env` entries per map | 128 | No | Applies to each of the workflow, job, and step `env` maps. See [Environment variables](/reference/workflow-schema#environment-variables). |
 | `env` serialized size | 32 KiB | No | The JSON-serialized size of one `env` map. |
 | Parts per agent prompt | 64 | No | The items of one `prompt` list, counting strings and `file` references. See [Split a prompt into parts](/how-to/author-workflows/add-agent-steps#split-a-prompt-into-parts). |
+| Agent rule `filter` size | 2,000 bytes | No | The UTF-8 length of one `filter` in an agent file `on` rule. Sync rejects a longer filter with `invalid-agent-rule-filter`, and the agent keeps its last valid version. See [Agent rules](/reference/workflow-schema#agent-rule-fields). |
 
 ## Workspace settings
 
