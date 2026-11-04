@@ -307,15 +307,23 @@ is for filtering, the payload is for inspection.
 An event from a connection whose provider has the `interaction` capability also
 goes to an agent. After the workflow fan-out, dispatch asks Integrations to
 read the event as an interaction. A provider that does not list the event, or
-returns nothing for it, leaves the event to workflows. Dispatch then calls the
-Agent module's `routeInteraction` with the interaction and the event ID. Agent
+returns nothing for it, leaves the event to workflows. For a request, dispatch
+evaluates the agent subscriptions on the event's source: each filter reads
+`request`, the interaction's context, and `event`, the raw payload. Dispatch then
+calls the Agent module's `routeInteraction` with the interaction, the event ID,
+and the matching rules as candidates. A follow-up or stop matches no rule. Agent
 picks the conversation: the one that owns the interaction's key, or a new one
-with the default agent for a request.
+for a request. A new conversation goes to the first candidate whose project takes
+the connection, custom agents before Shippys and the earliest binding first
+within each group, or else to the default agent.
 
-Dispatch records the result as a decision with the subscription kind `agent`
-and no subscription ID. The decision is `owner`, `default`, or `dropped`, and a
-`dropped` decision carries its reason. A follow-up or stop with no owner is
-dropped. An `owner` or `default` decision makes the event `routed`, but agents stay out of
+Dispatch records the result as a decision with the subscription kind `agent`.
+When a rule's agent took a new request, its subscription has an `owner`
+decision, and each other candidate Agent could have chosen has an `ambiguous`
+one. Otherwise the result has no subscription ID: `owner` for an owned key,
+`default`, or `dropped` with its reason. A rule whose filter fails has a
+`filter-error` decision, unless the key already had an owner. A follow-up or
+stop with no owner is dropped. An `owner` or `default` decision makes the event `routed`, but agents stay out of
 `matched_count`, which counts workflows. Routing uses the event ID as its
 delivery key, so a replay of the same event creates one conversation and one
 message. Without both the `integrations` and `agent` clients, no event reaches
@@ -332,7 +340,7 @@ agent the project stores. Triggers replaces the project's rows in
 `triggers_agent_subscriptions` to match: one row per project, agent key, source,
 and filter, and the rows of a removed rule or agent are deleted. A rule that stays
 keeps its row and its `created_at`, because the earliest binding wins when rules
-overlap. Dispatch does not read these rows yet.
+overlap. Dispatch reads them for each new request, as described in Agent routing.
 
 ## Events
 

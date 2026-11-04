@@ -32,6 +32,7 @@ export const triggerDecisionOutcomeSchema = z.enum([
   'owner',
   'default',
   'dropped',
+  'ambiguous',
 ]);
 export type TriggerDecisionOutcomeDto = z.infer<typeof triggerDecisionOutcomeSchema>;
 

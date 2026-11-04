@@ -10,6 +10,7 @@ import {
   markReceivedEventFailed,
   markReceivedEventRouted,
   upsertAgentDecision,
+  upsertAgentSubscriptionDecision,
   upsertDevDispatchErrorDecision,
   upsertDevFilterErrorDecision,
   upsertDevFilteredDecision,
@@ -544,16 +545,53 @@ describe('agent decision upserts', () => {
     expect(rows.map(({subscriptionKind}) => subscriptionKind).sort()).toEqual(['agent', 'trigger']);
   });
 
-  it('refuses an agent decision that names a subscription', async () => {
+  it('keeps one decision per matched rule next to the routing result', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const owner = {id: crypto.randomUUID(), agentKey: 'payments', projectId: crypto.randomUUID()};
+    const other = {id: crypto.randomUUID(), agentKey: 'billing', projectId: crypto.randomUUID()};
+
+    await upsertAgentSubscriptionDecision({
+      receivedEventId,
+      subscription: owner,
+      decision: 'owner',
+      reason: null,
+      diagnostic: null,
+    });
+    await upsertAgentSubscriptionDecision({
+      receivedEventId,
+      subscription: other,
+      decision: 'ambiguous',
+      reason: null,
+      diagnostic: null,
+    });
+    await upsertAgentSubscriptionDecision({
+      receivedEventId,
+      subscription: other,
+      decision: 'ambiguous',
+      reason: null,
+      diagnostic: null,
+    });
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows.map(({subscriptionId, decision}) => ({subscriptionId, decision}))).toEqual(
+      expect.arrayContaining([
+        {subscriptionId: owner.id, decision: 'owner'},
+        {subscriptionId: other.id, decision: 'ambiguous'},
+      ]),
+    );
+    expect(rows).toHaveLength(2);
+  });
+
+  it('refuses a dev decision that names a subscription', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
 
     await expect(
       db().insert(triggersDecisions).values({
         receivedEventId,
-        subscriptionKind: 'agent',
+        subscriptionKind: 'dev',
         subscriptionId: crypto.randomUUID(),
-        subscriptionName: 'shippy',
-        decision: 'owner',
+        subscriptionName: 'push',
+        decision: 'triggered',
       }),
     ).rejects.toThrow();
   });

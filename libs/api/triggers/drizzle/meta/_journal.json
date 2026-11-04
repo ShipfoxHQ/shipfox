@@ -57,6 +57,13 @@
       "when": 1793771051909,
       "tag": "0007_agent_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793772051909,
+      "tag": "0008_agent_rule_decisions",
+      "breakpoints": true
     }
   ]
 }

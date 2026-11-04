@@ -213,8 +213,11 @@ before it tries again.
 
 An `on` rule declares which requests the agent claims. A request is a
 message that starts a conversation, such as a mention in a Slack channel or
-a Linear agent session. Sync checks and stores the rules, but Shipfox does
-not route requests by them yet.
+a Linear agent session. One agent answers each conversation. When several
+rules match a new request, a custom agent wins over a Shippy, and within each
+group the rule that was added first wins. A request that no rule matches goes
+to the Shippy of the workspace's oldest project. Replies in a thread stay with
+the agent that answered first, even after a rule changes.
 
 `source` is the slug of an integration connection that lets people talk to
 agents, such as `slack_acme` or `linear_acme`. Use the slug of your own

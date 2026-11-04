@@ -214,6 +214,7 @@ async function routeToAgent(
     workspaceId: params.workspaceId,
     connectionId: params.connectionId,
     provider: params.provider,
+    source: params.source,
     event: params.event,
     payload: params.payload,
   });

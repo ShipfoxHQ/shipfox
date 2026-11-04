@@ -26,8 +26,8 @@ export const triggersDecisions = pgTable(
       .notNull()
       .references(() => triggersReceivedEvents.id, {onDelete: 'cascade'}),
     subscriptionKind: text('subscription_kind', {enum: triggerDecisionSubscriptionKinds}).notNull(),
-    // Null for `dev` and `agent` decisions: a partial index on each enforces one decision
-    // per received event.
+    // Null for `dev` decisions, and for an `agent` routing result that no rule decided: a partial
+    // index on each enforces one such decision per received event.
     subscriptionId: uuid('subscription_id'),
     subscriptionName: text('subscription_name').notNull(),
     workflowDefinitionId: uuid('workflow_definition_id'),
@@ -62,7 +62,7 @@ export const triggersDecisions = pgTable(
     ),
     check(
       'triggers_decisions_subscription_id_ck',
-      sql`(${table.subscriptionKind} IN ('dev', 'agent') AND ${table.subscriptionId} IS NULL) OR (${table.subscriptionKind} IN ('trigger', 'listener') AND ${table.subscriptionId} IS NOT NULL)`,
+      sql`(${table.subscriptionKind} = 'dev' AND ${table.subscriptionId} IS NULL) OR ${table.subscriptionKind} = 'agent' OR (${table.subscriptionKind} IN ('trigger', 'listener') AND ${table.subscriptionId} IS NOT NULL)`,
     ),
   ],
 );
@@ -102,7 +102,8 @@ function toTriggerDecisionOutcome(decision: string): TriggerDecision['decision']
     decision === 'rejected' ||
     decision === 'owner' ||
     decision === 'default' ||
-    decision === 'dropped'
+    decision === 'dropped' ||
+    decision === 'ambiguous'
   ) {
     return decision;
   }

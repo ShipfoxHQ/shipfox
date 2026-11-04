@@ -6,7 +6,7 @@ import type {AgentRoutingClient, AgentRoutingIntegrations} from '#core/route-eve
 import {db} from '#db/db.js';
 import {triggersDecisions} from '#db/schema/decisions.js';
 import {triggersReceivedEvents} from '#db/schema/received-events.js';
-import {triggerSubscriptionFactory} from '#test/index.js';
+import {agentSubscriptionFactory, triggerSubscriptionFactory} from '#test/index.js';
 import {dispatchIntegrationEvent} from './dispatch-integration-event.js';
 
 const startRun = vi.fn();
@@ -132,6 +132,7 @@ describe('dispatchIntegrationEvent with agent routing', () => {
         text: 'why did run 7 fail?',
         author: {externalId: 'U1'},
       },
+      candidates: [],
     });
     expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed', matchedCount: 0});
     expect(await agentDecisions(eventRef)).toEqual([
@@ -395,5 +396,194 @@ describe('dispatchIntegrationEvent with agent routing', () => {
     expect(startRun).toHaveBeenCalledTimes(1);
     expect(routeInteraction).not.toHaveBeenCalled();
     expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed'});
+  });
+});
+
+describe('dispatchIntegrationEvent with agent rules', () => {
+  const PAYMENTS_FILTER = 'request.channel_id == "C04PAYMENTS"';
+
+  beforeEach(() => {
+    listInteractionProviders.mockReset();
+    readInteraction.mockReset();
+    reportInteractionProgress.mockReset();
+    routeInteraction.mockReset();
+    listInteractionProviders.mockResolvedValue({
+      providers: [
+        {
+          provider: 'slack',
+          interactionEvents: {app_mention: 'request', message: 'follow_up'},
+          requestContextSchema: {},
+          replyGuidance: 'Keep it short.',
+        },
+      ],
+    });
+    routeInteraction.mockResolvedValue({
+      outcome: 'default',
+      conversationId: crypto.randomUUID(),
+      projectId: PROJECT_ID,
+      agentKey: 'shippy',
+    });
+  });
+
+  function candidateOf(subscription: {
+    id: string;
+    projectId: string;
+    agentKey: string;
+    createdAt: Date;
+  }) {
+    return {
+      subscriptionId: subscription.id,
+      projectId: subscription.projectId,
+      agentKey: subscription.agentKey,
+      boundAt: subscription.createdAt.toISOString(),
+    };
+  }
+
+  test('offers a rule on a channel only the mentions made in that channel', async () => {
+    const workspaceId = crypto.randomUUID();
+    const payments = await agentSubscriptionFactory.create({
+      workspaceId,
+      agentKey: 'payments',
+      filter: PAYMENTS_FILTER,
+    });
+
+    readInteraction.mockResolvedValue(request({context: {channel_id: 'C04PAYMENTS'}}));
+    await dispatch({workspaceId});
+    readInteraction.mockResolvedValue(request({context: {channel_id: 'C1'}}));
+    await dispatch({workspaceId});
+
+    expect(routeInteraction.mock.calls.map(([input]) => input.candidates)).toEqual([
+      [candidateOf(payments)],
+      [],
+    ]);
+  });
+
+  test('matches a filter on the raw event, and only the rules of the event source', async () => {
+    const workspaceId = crypto.randomUUID();
+    const onEvent = await agentSubscriptionFactory.create({
+      workspaceId,
+      filter: 'event.text.contains("refund")',
+    });
+    await agentSubscriptionFactory.create({workspaceId, source: 'other-slack'});
+    await agentSubscriptionFactory.create({source: 'slack'});
+    readInteraction.mockResolvedValue(request());
+
+    await dispatch({workspaceId, payload: {text: '<@U1> refund order 12'}});
+
+    expect(routeInteraction).toHaveBeenCalledWith(
+      expect.objectContaining({candidates: [candidateOf(onEvent)]}),
+    );
+  });
+
+  test('records the winning rule as owner and the other match as ambiguous', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const payments = await agentSubscriptionFactory.create({workspaceId, agentKey: 'payments'});
+    const billing = await agentSubscriptionFactory.create({workspaceId, agentKey: 'billing'});
+    readInteraction.mockResolvedValue(request());
+    routeInteraction.mockResolvedValue({
+      outcome: 'matched',
+      conversationId: crypto.randomUUID(),
+      projectId: payments.projectId,
+      agentKey: 'payments',
+      subscriptionId: payments.id,
+      ambiguousSubscriptionIds: [billing.id],
+    });
+
+    await dispatch({eventRef, workspaceId});
+
+    const decisions = await agentDecisions(eventRef);
+    expect(decisions).toHaveLength(2);
+    expect(decisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subscriptionKind: 'agent',
+          subscriptionId: payments.id,
+          subscriptionName: 'payments',
+          projectId: payments.projectId,
+          decision: 'owner',
+        }),
+        expect.objectContaining({
+          subscriptionKind: 'agent',
+          subscriptionId: billing.id,
+          subscriptionName: 'billing',
+          projectId: billing.projectId,
+          decision: 'ambiguous',
+        }),
+      ]),
+    );
+    expect(await receivedEvent(eventRef)).toMatchObject({outcome: 'routed'});
+  });
+
+  test('records the same decisions when a matched event is delivered twice', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const payments = await agentSubscriptionFactory.create({workspaceId});
+    readInteraction.mockResolvedValue(request());
+    routeInteraction.mockResolvedValue({
+      outcome: 'matched',
+      conversationId: crypto.randomUUID(),
+      projectId: payments.projectId,
+      agentKey: payments.agentKey,
+      subscriptionId: payments.id,
+      ambiguousSubscriptionIds: [],
+    });
+
+    await dispatch({eventRef, workspaceId});
+    await dispatch({eventRef, workspaceId});
+
+    expect(await agentDecisions(eventRef)).toEqual([
+      expect.objectContaining({subscriptionId: payments.id, decision: 'owner'}),
+    ]);
+  });
+
+  test('records a rule whose filter fails, and still routes the request', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const broken = await agentSubscriptionFactory.create({
+      workspaceId,
+      filter: 'request.channel_id ==',
+    });
+    readInteraction.mockResolvedValue(request());
+
+    await dispatch({eventRef, workspaceId});
+
+    expect(routeInteraction).toHaveBeenCalledWith(expect.objectContaining({candidates: []}));
+    expect(await agentDecisions(eventRef)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({subscriptionId: null, decision: 'default'}),
+        expect.objectContaining({subscriptionId: broken.id, decision: 'filter-error'}),
+      ]),
+    );
+  });
+
+  test('matches no rule for a follow-up', async () => {
+    const workspaceId = crypto.randomUUID();
+    await agentSubscriptionFactory.create({workspaceId});
+    readInteraction.mockResolvedValue(request({role: 'follow_up'}));
+
+    await dispatch({workspaceId, event: 'message'});
+
+    expect(routeInteraction).toHaveBeenCalledWith(expect.objectContaining({candidates: []}));
+  });
+
+  test('records only the owner for a request on an owned key', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await agentSubscriptionFactory.create({workspaceId});
+    await agentSubscriptionFactory.create({workspaceId, filter: 'request.channel_id =='});
+    readInteraction.mockResolvedValue(request());
+    routeInteraction.mockResolvedValue({
+      outcome: 'owner',
+      conversationId: crypto.randomUUID(),
+      projectId: PROJECT_ID,
+      agentKey: 'shippy',
+    });
+
+    await dispatch({eventRef, workspaceId});
+
+    expect(await agentDecisions(eventRef)).toEqual([
+      expect.objectContaining({subscriptionId: null, decision: 'owner'}),
+    ]);
   });
 });

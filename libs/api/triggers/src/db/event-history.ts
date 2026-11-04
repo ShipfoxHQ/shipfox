@@ -1,4 +1,5 @@
 import {and, eq, ne, notInArray, sql} from 'drizzle-orm';
+import type {AgentSubscription} from '#core/entities/agent-subscription.js';
 import type {
   TriggerDecisionDiagnostic,
   TriggerEventProcessingDiagnostic,
@@ -601,6 +602,43 @@ export async function upsertAgentDecision(params: UpsertAgentDecisionParams): Pr
     .onConflictDoUpdate({
       target: triggersDecisions.receivedEventId,
       targetWhere: sql`"subscription_kind" = 'agent' AND "subscription_id" IS NULL`,
+      set: values,
+    });
+}
+
+export interface UpsertAgentSubscriptionDecisionParams {
+  receivedEventId: string;
+  subscription: Pick<AgentSubscription, 'id' | 'agentKey' | 'projectId'>;
+  decision: 'owner' | 'ambiguous' | 'filter-error';
+  reason: string | null;
+  diagnostic: TriggerDecisionDiagnostic | null;
+}
+
+// One decision per matched rule, so a replay overwrites its own row.
+export async function upsertAgentSubscriptionDecision(
+  params: UpsertAgentSubscriptionDecisionParams,
+): Promise<void> {
+  const values = {
+    decision: params.decision,
+    reason: params.reason,
+    diagnostic: params.diagnostic,
+  };
+  await db()
+    .insert(triggersDecisions)
+    .values({
+      receivedEventId: params.receivedEventId,
+      subscriptionKind: 'agent',
+      subscriptionId: params.subscription.id,
+      subscriptionName: params.subscription.agentKey,
+      projectId: params.subscription.projectId,
+      ...values,
+    })
+    .onConflictDoUpdate({
+      target: [
+        triggersDecisions.receivedEventId,
+        triggersDecisions.subscriptionKind,
+        triggersDecisions.subscriptionId,
+      ],
       set: values,
     });
 }

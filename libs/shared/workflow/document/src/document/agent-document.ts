@@ -67,7 +67,7 @@ export const agentDocumentSchema = z.strictObject({
   }),
   on: z.array(agentRuleSchema).optional().meta({
     description:
-      'Declares the requests from Slack or Linear that the agent claims. Sync checks and stores these rules. Requests are not routed by them yet.',
+      'Declares the requests from Slack or Linear that the agent claims. When several rules match, a custom agent wins over a Shippy, and the rule added first wins within each.',
   }),
 });
 
