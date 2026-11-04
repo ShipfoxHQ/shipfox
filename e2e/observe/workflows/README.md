@@ -5,9 +5,10 @@ E2E observations of workflow runs, jobs, executions, and steps, read through the
 ## What it does
 
 - **`waitForRunByCommit` and `waitForRunByDeliveryId`** wait for the run that a commit or a webhook delivery created.
+- **`waitForTriggerEventByDeliveryId`** waits for the trigger event of a webhook delivery and returns it with its decisions, once routing has finished or `until` holds. Agent routing writes `agent` decisions and starts no run, so this is how a conversation's routing is observed.
 - **`observeRun`** reads one run attempt as a `WorkflowRunObservation`, with jobs, executions, steps, and context only when the caller selects them.
 - **`waitForRunTerminal`** polls a run until its attempt is `succeeded`, `failed`, or `cancelled`, then returns the observation.
-- **`createWorkflowsHelper`** binds a token and API URL to the four functions.
+- **`createWorkflowsHelper`** binds a token and API URL to the five functions.
 
 Reads use the public routes, so an observation shows what a user of the API sees.
 

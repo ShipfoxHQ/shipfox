@@ -3,9 +3,10 @@ import ky, {HTTPError, TimeoutError} from 'ky';
 import {config} from '#config.js';
 import {isLinearNotFoundMessage, LinearIntegrationProviderError} from '#core/errors.js';
 
-const LINEAR_OAUTH_TOKEN_URL = 'https://api.linear.app/oauth/token';
-const LINEAR_OAUTH_REVOKE_URL = 'https://api.linear.app/oauth/revoke';
-const LINEAR_GRAPHQL_URL = 'https://api.linear.app/graphql';
+const TRAILING_SLASHES = /\/+$/u;
+const LINEAR_OAUTH_TOKEN_URL = linearApiUrl('/oauth/token');
+const LINEAR_OAUTH_REVOKE_URL = linearApiUrl('/oauth/revoke');
+const LINEAR_GRAPHQL_URL = linearApiUrl('/graphql');
 const LINEAR_API_TIMEOUT_MS = 10_000;
 const OAUTH_ERROR_CODES = new Set([
   'invalid_request',
@@ -531,6 +532,10 @@ export function createLinearApiClient(): LinearApiClient {
       };
     },
   };
+}
+
+function linearApiUrl(path: string): string {
+  return `${config.LINEAR_API_BASE_URL.replace(TRAILING_SLASHES, '')}${path}`;
 }
 
 function parseTokenResponse(body: LinearTokenResponse): LinearAuthorization {

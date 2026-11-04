@@ -1,14 +1,14 @@
 # @shipfox/e2e-driver-slack
 
-A fake Slack Web API and Events sender for E2E suites. The fake stands in for `slack.com/api` at the address the API reads from `SLACK_API_BASE_URL`. The event helpers post signed `app_mention` deliveries to the API's Slack webhook. Faking Slack is on purpose: it is the external system under integration.
+A fake Slack Web API and Events sender for E2E suites. The fake stands in for `slack.com/api` at the address the API reads from `SLACK_API_BASE_URL`. The event helpers post signed `app_mention`, `message`, and `agent_session_stopped` deliveries to the API's Slack webhook. Faking Slack is on purpose: it is the external system under integration.
 
 ## Public API
 
 - `startSlackApiMock(options?)`: start the fake and return a `SlackApiMock`. It serves
   `conversations.replies`, `conversations.history`, `conversations.info`, `conversations.members`,
   `conversations.list`, `users.info`, `chat.getPermalink`, `chat.postMessage`, `chat.update`,
-  `reactions.add`, `chat.scheduleMessage`, `chat.scheduledMessages.list`, `canvases.create`, and
-  `canvases.sections.lookup`. `options.botToken` is the
+  `reactions.add`, `agents.sessions.setStatus`, `chat.scheduleMessage`,
+  `chat.scheduledMessages.list`, `canvases.create`, and `canvases.sections.lookup`. `options.botToken` is the
   token of the connection the spec creates: the stack router sends the fake the requests that
   carry it, so specs in other workers share the address. The token is required unless
   `options.endpoint` is set, which listens directly instead. `options.botUserId` is the user of the
@@ -16,7 +16,9 @@ A fake Slack Web API and Events sender for E2E suites. The fake stands in for `s
 - `SlackApiMock.seedChannel`, `seedUser`, and `seedThread`: load the channels, users, and threads
   the read methods serve. Channel methods answer `channel_not_found` for a channel that is not
   seeded, and page by cursor like Slack does. `SlackChannelSeed` describes a channel.
-- `SlackApiMock.calls`: every request the fake handled, as `SlackApiMockCall` entries.
+- `SlackApiMock.calls`: every request the fake handled, as `SlackApiMockCall` entries. A post
+  carries the `username` an agent replies under, and `agents.sessions.setStatus` the agent view
+  status a session was set to.
 - Writes change the fake's state, so reads return them: a top-level post to a seeded channel is in
   its history and thread, a thread reply is in its thread only, an update replaces the text, a
   reaction is in `reactions`, a scheduled message is in `chat.scheduledMessages.list` within its
@@ -30,6 +32,12 @@ A fake Slack Web API and Events sender for E2E suites. The fake stands in for `s
 - `signSlackHeaders`, `buildAppMentionEnvelope`, and `postSlackAppMention`: sign
   and send an `app_mention` event. `threadTs` makes it a mention inside a thread. The suite
   waits for the run it starts.
+- `buildMessageEnvelope` and `postSlackMessage`: a `message` event. `threadTs` makes it a thread
+  reply, `channelType: 'im'` a message to the app from the agent view or a direct message, and
+  `botId` or `subtype: 'bot_message'` a post made by an app, which agents ignore.
+  `viewingChannelId` is the channel the person was viewing in the agent view.
+- `buildAgentSessionStoppedEnvelope` and `postSlackAgentSessionStopped`: the agent view's stop
+  control, named by its channel and thread.
 
 ## Local Checks
 

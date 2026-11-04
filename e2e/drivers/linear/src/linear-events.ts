@@ -83,6 +83,11 @@ export function buildIssueUpdateEnvelope(
   };
 }
 
+export interface LinearSessionUserFixtureData {
+  id: string;
+  name?: string | undefined;
+}
+
 export function buildAgentSessionEnvelope(
   params: LinearEventTarget & {
     action: 'created' | 'prompted';
@@ -91,9 +96,18 @@ export function buildAgentSessionEnvelope(
     issue: LinearIssueFixtureData;
     /** The user's prompt. Linear sends it as an agent activity on `prompted` deliveries. */
     prompt?: string | undefined;
+    /** Marks a `prompted` delivery as a stop, which carries no prompt. */
+    signal?: 'stop' | undefined;
+    /** The person who created the session, or wrote the prompt. */
+    creator?: LinearSessionUserFixtureData | undefined;
+    /** The comment that mentioned the app. Without it the session is a delegation. */
+    commentId?: string | undefined;
+    /** The project of the issue, sent with the session so routing needs no API read. */
+    project?: {id: string; name: string} | undefined;
   },
 ) {
   const webhookId = randomUUID();
+  const user = params.creator === undefined ? {} : {user: sessionUser(params.creator)};
   return {
     action: params.action,
     type: 'AgentSessionEvent' as const,
@@ -112,17 +126,37 @@ export function buildAgentSessionEnvelope(
         teamId: params.issue.teamId,
         ...issueTeam(params.issue),
         ...(params.issue.description === undefined ? {} : {description: params.issue.description}),
+        ...(params.issue.labels === undefined ? {} : {labels: params.issue.labels}),
+        ...(params.project === undefined ? {} : {project: params.project}),
         url: issueUrl(params.issue),
       },
+      ...(params.creator === undefined ? {} : {creator: sessionUser(params.creator)}),
+      ...(params.commentId === undefined
+        ? {}
+        : {commentId: params.commentId, comment: {id: params.commentId}}),
       status: 'pending',
     },
-    ...(params.action === 'prompted' && params.prompt !== undefined
-      ? {agentActivity: {id: randomUUID(), content: {type: 'prompt', body: params.prompt}}}
+    ...(params.action === 'prompted' && params.signal === 'stop'
+      ? {agentActivity: {id: randomUUID(), signal: 'stop', content: {type: 'prompt'}, ...user}}
+      : {}),
+    ...(params.action === 'prompted' && params.signal === undefined && params.prompt !== undefined
+      ? {
+          agentActivity: {
+            id: randomUUID(),
+            body: params.prompt,
+            content: {type: 'prompt', body: params.prompt},
+            ...user,
+          },
+        }
       : {}),
     promptContext: `<issue identifier="${params.issue.identifier}"><title>${params.issue.title}</title></issue>`,
     webhookTimestamp: Date.now(),
     webhookId,
   };
+}
+
+function sessionUser(user: LinearSessionUserFixtureData) {
+  return {id: user.id, ...(user.name === undefined ? {} : {name: user.name})};
 }
 
 /** Posts a signed `Issue` update delivery and returns its delivery ID, the run's delivery ID. */

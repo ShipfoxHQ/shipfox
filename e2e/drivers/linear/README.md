@@ -1,6 +1,6 @@
 # @shipfox/e2e-driver-linear
 
-A fake Linear hosted MCP server and signed webhook sender for E2E suites. The server stands in for the Linear MCP endpoint the API reads from `LINEAR_MCP_ENDPOINT`, so suites exercise the real Linear integration and tool bridge against deterministic responses. Faking Linear is on purpose: it is the external system under integration.
+A fake Linear hosted MCP server, a fake Linear GraphQL API, and a signed webhook sender for E2E suites. The MCP server stands in for the endpoint the API reads from `LINEAR_MCP_ENDPOINT`, so suites exercise the real Linear integration and tool bridge against deterministic responses. The GraphQL fake stands in for `api.linear.app` at `LINEAR_API_BASE_URL`, for agent sessions. Faking Linear is on purpose: it is the external system under integration.
 
 ## Public API
 
@@ -35,11 +35,22 @@ A fake Linear hosted MCP server and signed webhook sender for E2E suites. The se
   targeted at their issue. A `save_issue` without an `id` creates an issue, numbered from `ENG-101`
   for team `ENG`, and its write targets the team. With them, every write tool the state applies
   is recorded, targeted at the object it names, and a write the state refuses is left out.
+- `startLinearApiMock(options?)`: start the GraphQL fake and return a `LinearApiMock`. It answers
+  the operations the Linear provider sends for agent sessions: `agentActivityCreate` stores the
+  activity on its session and refuses a repeated id, `agentActivity` finds one by id,
+  `agentSessionUpdate` adds the session's external URLs, the issue query serves
+  `options.issues`, and the identity query serves `options.identity`. `options.accessToken` is the
+  token of the connection the spec creates, as for the MCP fake. `calls` lists every request,
+  `activities()` and `sessionActivities(id)` the accepted activities, `sessionExternalUrls(id)`
+  a session's links, and `writes()` the accepted activities and session updates targeted at their
+  session.
 - `postLinearIssueUpdate(params)` and `postLinearAgentSession(params)`: post a signed `Issue`
   update or `AgentSessionEvent` (`created` or `prompted`) delivery to the API's Linear webhook
   route and return its `Linear-Delivery` ID, for correlating a run when a matching trigger starts
   one. Signing reads `LINEAR_WEBHOOK_SIGNING_SECRET`, which the E2E harness sets.
   `organizationId` must be the organization of a connection made with `createLinearConnection`.
+  An agent session can carry its `creator`, the `commentId` that mentioned the app, the issue's
+  `project` and `labels`, and `signal: 'stop'` on a `prompted` delivery.
 - `buildIssueUpdateEnvelope` and `buildAgentSessionEnvelope`: the payloads, in the shape of
   Linear's webhooks, for suites that post them another way. An issue fixture can carry `teamKey`,
   `description`, and `labels`, and an update can carry `previousLabelIds`, so triggers that filter
