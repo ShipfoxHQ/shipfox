@@ -17,8 +17,9 @@ export interface ProjectCheckoutDefaults {
   /** The connection a checkout of a bare `repository` uses. Null when the project has none. */
   defaultConnectionId: string | null;
   /**
-   * The connection the project would default to if inactive ones counted. It differs from
-   * `defaultConnectionId` only when the project's one connection is not active.
+   * The connection the project would default to if inactive ones counted. Only admission uses
+   * it, to name an inactive connection. Counting them can also make a default ambiguous, so it
+   * is never a substitute for `defaultConnectionId`.
    */
   configuredConnectionId: string | null;
 }
