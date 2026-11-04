@@ -28,7 +28,7 @@ describe('buildAppMentionEnvelope', () => {
 });
 
 describe('buildMessageEnvelope', () => {
-  it('carries the thread, the app, and the viewed channel when given', () => {
+  it('carries the app and the viewed channel, and omits the thread of a top-level message', () => {
     const envelope = buildMessageEnvelope({
       teamId: 'T1',
       channel: 'D1',

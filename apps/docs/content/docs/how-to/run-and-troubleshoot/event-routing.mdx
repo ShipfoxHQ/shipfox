@@ -58,6 +58,7 @@ workflow decisions:
 | **Owner** | The conversation already had an agent, or an agent's `on:` rule claimed the request. |
 | **Ambiguous** | The rule matched, but another agent's rule claimed the request first. |
 | **Dropped** | No agent took the message. The reason says why. |
+| **Filter error** | The agent's `on:` rule could not be evaluated, so that agent did not take the request. The reason says why. |
 
 A dropped message has one of these reasons:
 
@@ -67,9 +68,11 @@ A dropped message has one of these reasons:
 - `project-access`: the project's access excludes the integration connection.
 - `project-deleted`: the project is gone.
 
-A message with no `agent` decision was not a request. Posts made by an app,
-including Shippy's own replies, and messages from Slack Connect users never
-reach an agent.
+A message with no `agent` decision never reached an agent. Either it was not
+a request, or Shipfox could not read it, for example because the integration
+connection is inactive. Check the connection's status and the event's error.
+Posts made by an app, including Shippy's own replies, and messages from Slack
+Connect users never reach an agent.
 
 Workflows are unaffected. A trigger on the same event still starts its run.
 

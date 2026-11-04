@@ -142,7 +142,7 @@ export interface SlackApiMock {
   endpoint: URL;
   /**
    * Writes the fake accepted, in arrival order: `chat.postMessage`, `chat.update`, `reactions.add`,
-   * `chat.scheduleMessage`, and `canvases.create`.
+   * `agents.sessions.setStatus`, `chat.scheduleMessage`, and `canvases.create`.
    */
   writes(): RecordedWrite[];
   /** Makes later chat.postMessage calls fail with this Slack error, or succeed again with null. */
