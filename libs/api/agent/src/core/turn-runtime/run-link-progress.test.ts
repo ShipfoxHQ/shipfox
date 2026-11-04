@@ -79,7 +79,7 @@ describe('reportConversationRunLink', () => {
     expect(integrations.reportInteractionProgress).not.toHaveBeenCalled();
   });
 
-  it('logs and goes on when the provider fails', async () => {
+  it('goes on when the provider fails', async () => {
     const {conversationId} = await routeSlackRequest();
     const integrations = fakeIntegrations();
     integrations.reportInteractionProgress.mockRejectedValue(new Error('Linear is down'));

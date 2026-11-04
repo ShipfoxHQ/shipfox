@@ -49,7 +49,7 @@ describe('agent inter-module presentation', () => {
     ).resolves.toEqual({registered: false});
   });
 
-  test('shows the run link on the conversation only when one is registered', async () => {
+  test('registers the run of a web conversation without reporting a link', async () => {
     const {conversation} = await conversationFactory.create();
     const reportInteractionProgress = vi.fn().mockResolvedValue({reported: true});
     const presentation = createAgentInterModulePresentation({
