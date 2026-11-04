@@ -8,7 +8,7 @@ describe('createSecretsConnectionCredentials', () => {
     await secrets.setSecrets({
       workspaceId: connection.workspaceId,
       namespace: connection.id,
-      values: {credential_kind: 'pat', credential_token: 'stored-pat'},
+      values: {CREDENTIAL_KIND: 'pat', CREDENTIAL_TOKEN: 'stored-pat'},
     });
 
     const credential = await createSecretsConnectionCredentials(secrets).resolve(connection);
@@ -22,7 +22,7 @@ describe('createSecretsConnectionCredentials', () => {
     await secrets.setSecrets({
       workspaceId: crypto.randomUUID(),
       namespace: connection.id,
-      values: {credential_kind: 'pat', credential_token: 'other'},
+      values: {CREDENTIAL_KIND: 'pat', CREDENTIAL_TOKEN: 'other'},
     });
 
     await expect(
@@ -36,7 +36,7 @@ describe('createSecretsConnectionCredentials', () => {
     await secrets.setSecrets({
       workspaceId: connection.workspaceId,
       namespace: connection.id,
-      values: {credential_kind: 'password', credential_token: 'x'},
+      values: {CREDENTIAL_KIND: 'password', CREDENTIAL_TOKEN: 'x'},
     });
 
     await expect(

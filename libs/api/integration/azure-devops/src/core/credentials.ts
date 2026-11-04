@@ -33,9 +33,9 @@ export interface AzureDevOpsSecretsStore {
   deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }
 
-export const CREDENTIAL_KIND_KEY = 'credential_kind';
-export const CREDENTIAL_TOKEN_KEY = 'credential_token';
-export const WEBHOOK_PASSWORD_KEY = 'webhook_password';
+export const CREDENTIAL_KIND_KEY = 'CREDENTIAL_KIND';
+export const CREDENTIAL_TOKEN_KEY = 'CREDENTIAL_TOKEN';
+export const WEBHOOK_PASSWORD_KEY = 'WEBHOOK_PASSWORD';
 
 /** One secret namespace per connection, so deleting a connection deletes exactly its secrets. */
 export function azureDevOpsSecretsNamespace(connectionId: string): string {

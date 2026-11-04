@@ -31,7 +31,7 @@ async function createTestApp() {
     await secrets.setSecrets({
       workspaceId: connection.workspaceId,
       namespace: connection.id,
-      values: {webhook_password: hooks.get(connection.id)?.password ?? ''},
+      values: {WEBHOOK_PASSWORD: hooks.get(connection.id)?.password ?? ''},
     });
   }
   const publishSourcePush = vi.fn(() => Promise.resolve({published: true}));

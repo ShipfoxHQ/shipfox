@@ -104,9 +104,9 @@ describe('handleAzureDevOpsConnect', () => {
     const namespace = connection.id;
     const stored = (key: string) =>
       secrets.store.get(`${connection.workspaceId}/${namespace}/${key}`);
-    expect(stored('credential_kind')).toBe('pat');
-    expect(stored('credential_token')).toBe('the-pat');
-    expect(stored('webhook_password')).toBe(result.serviceHook.password);
+    expect(stored('CREDENTIAL_KIND')).toBe('pat');
+    expect(stored('CREDENTIAL_TOKEN')).toBe('the-pat');
+    expect(stored('WEBHOOK_PASSWORD')).toBe(result.serviceHook.password);
     expect(result.serviceHook.password.length).toBeGreaterThanOrEqual(40);
     expect(result.serviceHook.url).toBe(
       `https://hooks.shipfox.example.com/webhooks/integrations/azure-devops/${connection.id}`,

@@ -1,4 +1,5 @@
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 
 export function azureDevOpsConnection(
   overrides: Partial<IntegrationConnection<'azure-devops'>> = {},
@@ -29,6 +30,12 @@ export function memorySecrets() {
     ),
     setSecrets: vi.fn(
       (params: {workspaceId: string; namespace: string; values: Record<string, string>}) => {
+        // Apply the real secrets module's key rule, so a key it would reject fails here too.
+        for (const name of Object.keys(params.values)) {
+          if (!secretKeySchema.safeParse(name).success) {
+            return Promise.reject(new Error(`Invalid secret key: ${name}`));
+          }
+        }
         for (const [name, value] of Object.entries(params.values)) {
           store.set(key(params.workspaceId, params.namespace, name), value);
         }
