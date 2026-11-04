@@ -8,6 +8,7 @@ import {config} from '#config.js';
 import {AzureDevOpsIntegrationProviderError} from '#core/errors.js';
 
 const API_VERSION = '7.1';
+const CONNECTION_DATA_API_VERSION = '7.1-preview';
 const TRAILING_SLASHES_RE = /\/+$/;
 const COMMIT_SHA_RE = /^[0-9a-f]{40}$/i;
 // Azure DevOps organization names: letters, digits and hyphens, not starting or ending with a hyphen.
@@ -136,6 +137,7 @@ interface RequestOptions {
   accept?: string;
   notFoundReason?: NotFoundReason;
   notFoundMessage?: string;
+  apiVersion?: string;
 }
 
 class HttpAzureDevOpsApiClient implements AzureDevOpsApiClient {
@@ -152,7 +154,8 @@ class HttpAzureDevOpsApiClient implements AzureDevOpsApiClient {
   }
 
   async getConnectionData(): Promise<AzureDevOpsConnectionData> {
-    const data = await this.json('_apis/connectionData');
+    // connectionData is only served as a preview resource; a plain 7.1 request is rejected with 400.
+    const data = await this.json('_apis/connectionData', {apiVersion: CONNECTION_DATA_API_VERSION});
     const user = isRecord(data) ? data.authenticatedUser : undefined;
     if (!isRecord(user) || typeof user.id !== 'string') {
       throw malformed('Azure DevOps connection data is missing the authenticated user');
@@ -401,7 +404,7 @@ class HttpAzureDevOpsApiClient implements AzureDevOpsApiClient {
     for (const [key, value] of Object.entries(options.searchParams ?? {})) {
       url.searchParams.set(key, value);
     }
-    url.searchParams.set('api-version', API_VERSION);
+    url.searchParams.set('api-version', options.apiVersion ?? API_VERSION);
 
     const response = await sendRequest(url, this.requestInit(options));
     // Azure DevOps answers some requests with an invalid or expired credential with a 203 HTML

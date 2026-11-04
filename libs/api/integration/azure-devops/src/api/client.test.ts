@@ -132,6 +132,8 @@ describe('HttpAzureDevOpsApiClient', () => {
 
       expect(result).toEqual({authenticatedUserId: 'user-1', displayName: 'Factory Bot'});
       expect(requestedUrl().pathname).toBe('/contoso/_apis/connectionData');
+      // Azure DevOps rejects connectionData without the preview flag (found against the real API).
+      expect(requestedUrl().searchParams.get('api-version')).toBe('7.1-preview');
     });
   });
 
