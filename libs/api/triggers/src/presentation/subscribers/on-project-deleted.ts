@@ -9,7 +9,8 @@ import {
 /**
  * Blocks later writes for the deleted project, then deletes its subscriptions, agent
  * subscriptions, listener subscriptions, and decisions. Every step is safe to repeat, because the
- * outbox redelivers. It throws while a row remains, so the event is redelivered until none does.
+ * outbox redelivers. It throws while a row remains, so the outbox retries it until none does or
+ * its retry limit ends.
  */
 export async function onProjectDeleted(payload: ProjectDeletedEvent): Promise<void> {
   const scope = {workspaceId: payload.workspaceId, projectId: payload.projectId};

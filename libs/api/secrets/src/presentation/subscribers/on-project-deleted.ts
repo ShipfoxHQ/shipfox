@@ -9,7 +9,7 @@ import {
 /**
  * Blocks later writes for the deleted project, then deletes its secrets and variables.
  * Workspace-level rows stay. Every step is safe to repeat, because the outbox redelivers.
- * It throws while a row remains, so the event is redelivered until none does.
+ * It throws while a row remains, so the outbox retries it until none does or its retry limit ends.
  */
 export async function onProjectDeleted(event: ProjectDeletedEvent): Promise<void> {
   const {workspaceId, projectId} = event;
