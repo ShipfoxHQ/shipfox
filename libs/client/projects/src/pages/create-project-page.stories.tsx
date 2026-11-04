@@ -197,6 +197,7 @@ function createdProjectResponse() {
       workspace_id: WORKSPACE_ID,
       name: 'Platform',
       slug: 'platform',
+      is_default: false,
       source: {
         kind: 'linked',
         connection_id: GITHUB_CONNECTION_ID,

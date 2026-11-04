@@ -34,7 +34,13 @@ function projectsClient(
         project:
           source === null
             ? null
-            : {id: projectId, workspaceId: crypto.randomUUID(), name: 'Project', ...source},
+            : {
+                id: projectId,
+                workspaceId: crypto.randomUUID(),
+                name: 'Project',
+                isDefault: false,
+                ...source,
+              },
       }),
     ),
   };

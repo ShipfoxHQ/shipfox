@@ -6,7 +6,7 @@ import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {createAdminProjectsRoute} from './admin-projects.js';
 import {createProjectRoute} from './create-project.js';
 import {getProjectRoute} from './get-project.js';
-import {listProjectsRoute} from './list-projects.js';
+import {createListProjectsRoute} from './list-projects.js';
 import {createGetProjectAccessRoute, createUpdateProjectAccessRoute} from './project-access.js';
 import {updateProjectRoute} from './update-project.js';
 
@@ -20,7 +20,7 @@ export function createProjectRoutes(
       prefix: '/projects',
       routes: [
         createProjectRoute(integrations, flags),
-        listProjectsRoute,
+        createListProjectsRoute(integrations),
         getProjectRoute,
         updateProjectRoute,
         createGetProjectAccessRoute(integrations),

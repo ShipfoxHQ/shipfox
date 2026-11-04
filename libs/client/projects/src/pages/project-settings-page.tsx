@@ -16,11 +16,12 @@ import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-fiel
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {Panel, PanelBody} from '@shipfox/react-ui/panel';
 import {toast} from '@shipfox/react-ui/toast';
-import {Header} from '@shipfox/react-ui/typography';
+import {Header, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useNavigate} from '@tanstack/react-router';
 import {useState} from 'react';
 import {useMaybeActiveProjectQuery} from '#chrome.js';
+import {DefaultProjectBadge} from '#components/default-project-badge.js';
 import type {Project} from '#core/project.js';
 import {useProjectSlugAvailability, useUpdateProjectMutation} from '#hooks/api/projects.js';
 import {projectSettingsErrorToFormError} from './project-settings-form-errors.js';
@@ -127,7 +128,10 @@ function ProjectSettingsForm({project}: {project: Project}) {
   return (
     <>
       <div className="flex min-w-0 flex-col gap-section">
-        <Header variant="h1">General</Header>
+        <div className="flex flex-wrap items-center gap-inline">
+          <Header variant="h1">General</Header>
+          {project.isDefault ? <DefaultProjectBadge /> : null}
+        </div>
 
         <Panel>
           <PanelBody className="gap-group p-panel">
@@ -146,6 +150,12 @@ function ProjectSettingsForm({project}: {project: Project}) {
                 void form.handleSubmit();
               }}
             >
+              {project.isDefault ? (
+                <Text size="sm" className="text-foreground-neutral-muted">
+                  Shippy in this project answers Slack and Linear requests that no other agent
+                  claims.
+                </Text>
+              ) : null}
               <form.Field
                 name="name"
                 validators={{

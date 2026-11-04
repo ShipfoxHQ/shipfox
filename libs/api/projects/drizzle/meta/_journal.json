@@ -15,6 +15,13 @@
       "when": 1793742723224,
       "tag": "0001_project_access",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793747719495,
+      "tag": "0002_default_project",
+      "breakpoints": true
     }
   ]
 }

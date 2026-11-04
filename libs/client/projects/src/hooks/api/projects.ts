@@ -18,11 +18,12 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import {useCallback} from 'react';
-import type {
-  CreateProjectCommand,
-  Project,
-  ProjectList,
-  UpdateProjectCommand,
+import {
+  type CreateProjectCommand,
+  hasUserProject,
+  type Project,
+  type ProjectList,
+  type UpdateProjectCommand,
 } from '#core/project.js';
 import {toProject, toProjectList} from './mappers.js';
 
@@ -300,7 +301,8 @@ export function projectExistenceQueryOptions(
       ? projectsQueryKeys.exists(workspaceId)
       : ([...projectsQueryKeys.all, 'exists'] as const),
     enabled: Boolean(workspaceId),
-    queryFn: ({signal}) => listProjects({workspaceId: workspaceId ?? '', limit: 1, signal}),
+    // Two, because the default project can be the newest and a user project the second.
+    queryFn: ({signal}) => listProjects({workspaceId: workspaceId ?? '', limit: 2, signal}),
     staleTime: 30_000,
   });
 }
@@ -313,13 +315,13 @@ export async function readWorkspaceHasNoProject({
   workspaceId: string;
 }): Promise<boolean> {
   const options = projectExistenceQueryOptions(workspaceId);
-  // A cached non-empty list already rules out the first-project landing, so
-  // skip the fresh read entirely: the snapshot only steers navigation for the
+  // A cached list with a user project already rules out the first-project landing, since a
+  // default project alone does not, so skip the fresh read entirely: the snapshot only steers navigation for the
   // empty-workspace case, and a failed fresh read here would otherwise report
   // a global error on every create in an established workspace without
   // changing the landing.
   const cached = queryClient.getQueryData<ProjectList>(options.queryKey);
-  if (cached !== undefined && cached.projects.length > 0) return false;
+  if (cached !== undefined && hasUserProject(cached)) return false;
   try {
     // The landing decision must not trust fresh-but-stale existence data
     // (e.g. a project created in another tab inside the 30s staleTime window),
@@ -327,11 +329,11 @@ export async function readWorkspaceHasNoProject({
     // retry so a slow or failing existence endpoint cannot stall the submit
     // handler on the app-default retry backoff; the catch falls back to cache.
     const data = await queryClient.fetchQuery({...options, staleTime: 0, retry: false});
-    return data.projects.length === 0;
+    return !hasUserProject(data);
   } catch (error) {
     reportExistenceReadFailure(error);
     const fallback = queryClient.getQueryData<ProjectList>(options.queryKey);
-    if (fallback !== undefined) return fallback.projects.length === 0;
+    if (fallback !== undefined) return !hasUserProject(fallback);
     // Unknown existence keeps the existing project navigation.
     return false;
   }

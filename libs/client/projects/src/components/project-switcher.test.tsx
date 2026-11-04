@@ -7,13 +7,14 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import {fireEvent, render, screen} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import {toProject} from '#hooks/api/mappers.js';
 import {projectsQueryKeys} from '#hooks/api/projects.js';
 import {PROJECT_TEST_WID} from '#test/pages.js';
 import {ProjectSwitcher} from './project-switcher.js';
 
 const CREATE_PROJECT_LABEL_RE = /Create project/u;
+const PLATFORM_DEFAULT_RE = /^Platform\s*Default$/u;
 
 describe('ProjectSwitcher', () => {
   test('keeps Create project pinned and keyboard-selectable under empty search', async () => {
@@ -37,6 +38,20 @@ describe('ProjectSwitcher', () => {
 
     expect(await screen.findByTestId('create-project-route')).toBeInTheDocument();
     expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  test('marks the default project, whatever its name', async () => {
+    const projects = [
+      projectDto({id: 'project-1', name: 'Platform', isDefault: true}),
+      projectDto({id: 'project-2', name: 'Default'}),
+    ];
+
+    renderProjectSwitcher({onSelect: vi.fn(), projects});
+
+    const platform = await screen.findByRole('option', {name: PLATFORM_DEFAULT_RE});
+    expect(within(platform).getByText('Default')).toBeVisible();
+    // A project that is only named Default has no badge, so its name is all it reads.
+    expect(screen.getByRole('option', {name: 'Default'})).toBeVisible();
   });
 });
 
@@ -79,12 +94,21 @@ function renderProjectSwitcher({
   );
 }
 
-function projectDto({id, name}: {id: string; name: string}) {
+function projectDto({
+  id,
+  name,
+  isDefault = false,
+}: {
+  id: string;
+  name: string;
+  isDefault?: boolean;
+}) {
   return {
     id,
     workspace_id: PROJECT_TEST_WID,
     name,
     slug: name.toLowerCase(),
+    is_default: isDefault,
     source: {
       kind: 'linked' as const,
       connection_id: '33333333-3333-4333-8333-333333333333',

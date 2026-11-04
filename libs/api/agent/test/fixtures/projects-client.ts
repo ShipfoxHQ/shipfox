@@ -24,6 +24,7 @@ export function createTestProjectsClient(params: {
                 sourceConnectionId: crypto.randomUUID(),
                 sourceExternalRepositoryId: 'repository',
                 name: 'Project',
+                isDefault: false,
               }
             : null,
         });
@@ -33,6 +34,7 @@ export function createTestProjectsClient(params: {
       listProjectsBySourceConnection: vi.fn(),
       listProjectsByWorkspace: vi.fn(),
       listProjectCatalogByWorkspace: vi.fn(),
+      getDefaultProject: vi.fn(),
       listAdminProjects: vi.fn(),
       requireProjectForWorkspace: vi.fn(),
       getWorkspaceProjectCounts: vi.fn(),

@@ -427,6 +427,7 @@ describe('repository authorization', () => {
           sourceConnectionId: input.sourceConnectionId,
           sourceExternalRepositoryId: input.sourceExternalRepositoryId,
           name: input.sourceExternalRepositoryId,
+          isDefault: false,
         },
       }),
     );

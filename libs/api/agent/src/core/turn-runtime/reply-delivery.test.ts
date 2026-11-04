@@ -94,10 +94,7 @@ async function setup(options: Parameters<typeof createFakeIntegrations>[0] = {})
     },
     {
       projects: {
-        listProjectsByWorkspace: vi.fn().mockResolvedValue({
-          projects: [{id: projectId}],
-          nextCursor: null,
-        }),
+        getDefaultProject: vi.fn().mockResolvedValue({project: {id: projectId}}),
       } as never,
       wake: async () => undefined,
     },

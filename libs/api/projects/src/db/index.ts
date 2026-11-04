@@ -23,6 +23,7 @@ export type {
 export {
   createProject,
   findProjectBySourceRepositoryName,
+  getDefaultProject,
   getProjectById,
   getProjectBySource,
   getProjectCount,

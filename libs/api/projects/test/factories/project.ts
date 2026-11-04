@@ -24,6 +24,7 @@ export const projectFactory = Factory.define<Project>(({sequence, onCreate}) => 
     sourceDefaultBranch: null,
     name: `Project ${sequence}`,
     slug: withSlugSuffix('project', sequence + 1),
+    isDefault: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

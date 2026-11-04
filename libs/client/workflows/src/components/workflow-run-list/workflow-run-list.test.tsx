@@ -61,6 +61,7 @@ describe('WorkflowRunList', () => {
           workspace_id: '88888888-8888-4888-8888-888888888888',
           name: 'Platform',
           slug: 'platform',
+          is_default: false,
           source: {
             kind: 'linked',
             connection_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',

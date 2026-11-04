@@ -22,6 +22,7 @@ import type {Project} from '#core/entities/project.js';
 import {db} from '#db/db.js';
 import {createProject} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
+import {encodeProjectCursor} from './cursor.js';
 import {createProjectRoutes} from './index.js';
 
 let authenticatedMemberships: UserContextMembership[] = [];
@@ -895,5 +896,81 @@ describe('project routes', () => {
       workspace_id: workspaceId,
     });
     expect(res.json().projects[0]).not.toHaveProperty('source');
+  });
+
+  describe('default project', () => {
+    function arrangeManagedRepository() {
+      vi.mocked(integrations.createManagedRepository).mockImplementation(({projectId}) =>
+        Promise.resolve({
+          connectionId: sourceConnectionId,
+          externalRepositoryId: `managed-vcs:${projectId}`,
+        }),
+      );
+      vi.mocked(integrations.resolveSourceRepository).mockImplementation(
+        ({connectionId, externalRepositoryId}) =>
+          Promise.resolve({
+            connection: {id: connectionId, provider: 'managed-vcs', slug: 'shipfox-managed'},
+            repository: {
+              externalRepositoryId,
+              owner: 'shipfox',
+              name: externalRepositoryId,
+              fullName: `shipfox/${externalRepositoryId}`,
+              defaultBranch: 'main',
+              visibility: 'private',
+              cloneUrl: '',
+              htmlUrl: '',
+            },
+          }),
+      );
+    }
+
+    function list(query = '') {
+      return app.inject({
+        method: 'GET',
+        url: `/projects?workspace_id=${workspaceId}${query}`,
+        headers: {authorization: 'Bearer user'},
+      });
+    }
+
+    test('is created the first time a workspace without one lists its projects', async () => {
+      arrangeManagedRepository();
+
+      const first = await list();
+      const second = await list();
+
+      expect(first.statusCode).toBe(200);
+      expect(first.json().projects).toEqual([
+        expect.objectContaining({name: 'Default', slug: 'default', is_default: true}),
+      ]);
+      expect(second.json().projects).toHaveLength(1);
+      expect(integrations.createManagedRepository).toHaveBeenCalledTimes(1);
+    });
+
+    test('is not created by a search or a later page', async () => {
+      arrangeManagedRepository();
+
+      await list('&search=platform');
+      await list(
+        `&cursor=${encodeProjectCursor({createdAt: new Date(), id: crypto.randomUUID()})}`,
+      );
+
+      expect(integrations.createManagedRepository).not.toHaveBeenCalled();
+    });
+
+    test('does not stop the list when it can not be created', async () => {
+      vi.mocked(integrations.createManagedRepository).mockRejectedValue(new Error('storage down'));
+      await createProject({
+        workspaceId,
+        sourceConnectionId,
+        sourceExternalRepositoryId: 'gitea:platform',
+        name: 'Platform',
+        slug: 'platform',
+      });
+
+      const res = await list();
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().projects).toEqual([expect.objectContaining({slug: 'platform'})]);
+    });
   });
 });

@@ -257,6 +257,7 @@ function projectStub() {
     workspace_id: WORKSPACE_ID,
     name: 'Platform',
     slug: 'platform',
+    is_default: false,
     source: {
       kind: 'linked',
       connection_id: '33333333-3333-4333-8333-333333333333',
@@ -470,6 +471,40 @@ describe('workspace setup route hook', () => {
 
     expect(await screen.findByText('Create project')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('treats a workspace with only its default project as having no project', async () => {
+    renderSetupRoute(
+      `/w/${WORKSPACE_SLUG}/integrations`,
+      setupFetch({
+        connections: [sourceConnection()],
+        projects: [{...projectStub(), is_default: true}],
+      }),
+    );
+
+    expect(await screen.findByText('Create project')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('lets a workspace with a project of its own through next to the default one', async () => {
+    renderSetupRoute(
+      `/w/${WORKSPACE_SLUG}`,
+      setupFetch({
+        projects: [
+          {
+            ...projectStub(),
+            id: '44444444-4444-4444-8444-444444444444',
+            name: 'Default',
+            slug: 'default',
+            is_default: true,
+          },
+          projectStub(),
+        ],
+      }),
+    );
+
+    expect(await screen.findByText('Workspace home')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('visible');
   });
 
   test('sends a source-connected workspace with no provider config to provider onboarding', async () => {

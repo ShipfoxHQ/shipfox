@@ -3,6 +3,8 @@ import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {jsonResponse, renderProjectPage} from '#test/pages.js';
 import {ProjectSettingsPage} from './project-settings-page.js';
 
+const NO_OTHER_AGENT_CLAIMS_RE = /no other agent claims/u;
+
 describe('ProjectSettingsPage', () => {
   test('saves a name change without opening the slug warning', async () => {
     let patchBody: unknown;
@@ -33,6 +35,36 @@ describe('ProjectSettingsPage', () => {
 
     await waitFor(() => expect(patchBody).toEqual({name: 'Platform API'}));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('explains what the default project is for, and not for another project', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({projects: [projectDto({isDefault: true})], next_cursor: null}),
+      ),
+    });
+
+    renderProjectPage('/w/acme/p/platform/settings/general', <ProjectSettingsPage />);
+
+    expect(await screen.findByLabelText('Project name')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Shippy in this project answers Slack and Linear requests that no other agent claims.',
+      ),
+    ).toBeVisible();
+  });
+
+  test('says nothing about the default on another project', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse({projects: [projectDto()], next_cursor: null})),
+    });
+
+    renderProjectPage('/w/acme/p/platform/settings/general', <ProjectSettingsPage />);
+
+    expect(await screen.findByLabelText('Project name')).toBeInTheDocument();
+    expect(screen.queryByText(NO_OTHER_AGENT_CLAIMS_RE)).not.toBeInTheDocument();
   });
 
   test('requires confirmation before saving a slug change', async () => {
@@ -67,12 +99,21 @@ describe('ProjectSettingsPage', () => {
   });
 });
 
-function projectDto({name = 'Platform', slug = 'platform'}: {name?: string; slug?: string} = {}) {
+function projectDto({
+  name = 'Platform',
+  slug = 'platform',
+  isDefault = false,
+}: {
+  name?: string;
+  slug?: string;
+  isDefault?: boolean;
+} = {}) {
   return {
     id: '44444444-4444-4444-8444-444444444444',
     workspace_id: '11111111-1111-4111-8111-111111111111',
     name,
     slug,
+    is_default: isDefault,
     source: {
       kind: 'linked',
       connection_id: '33333333-3333-4333-8333-333333333333',

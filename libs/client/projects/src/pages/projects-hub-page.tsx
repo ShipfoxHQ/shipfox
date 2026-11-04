@@ -24,6 +24,7 @@ import {
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Text} from '@shipfox/react-ui/typography';
 import {Link, useNavigate} from '@tanstack/react-router';
+import {DefaultProjectBadge} from '#components/default-project-badge.js';
 import type {Project} from '#core/project.js';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 
@@ -294,6 +295,7 @@ function ProjectCell({
             <Text as="span" size="md" bold className="truncate">
               {project.name}
             </Text>
+            {project.isDefault ? <DefaultProjectBadge className="shrink-0" /> : null}
             {status ? <ConnectionStatusBadge status={status} className="shrink-0" /> : null}
           </span>
         </Link>

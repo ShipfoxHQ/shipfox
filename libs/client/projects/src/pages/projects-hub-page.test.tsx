@@ -78,6 +78,30 @@ describe('ProjectsHubPage', () => {
     ).toBe(WORKSPACE_PROJECTS_NEW_HREF);
   });
 
+  test('badges the default project, whatever its name', async () => {
+    configureApiClient({
+      fetchImpl: createHubFetch({
+        projects: jsonResponse({
+          projects: [
+            projectDto({
+              id: '11111111-1111-4111-8111-111111111112',
+              name: 'Platform',
+              isDefault: true,
+            }),
+            projectDto({id: '11111111-1111-4111-8111-111111111113', name: 'Default'}),
+          ],
+          next_cursor: null,
+        }),
+      }),
+    });
+
+    renderProjectPage(`/w/${PROJECT_TEST_WSLUG}`, <ProjectsHubPage />);
+
+    const list = await screen.findByRole('list', {name: 'Projects list'});
+    const links = within(list).getAllByRole('link');
+    expect(links.map((link) => link.textContent)).toEqual(['PlatformDefault', 'Default']);
+  });
+
   test('renders projects and loads the next cursor page', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const url = new URL(requestInputUrl(input));
@@ -381,9 +405,11 @@ function projectDto({
   connectionId = CONNECTION_ID,
   externalRepositoryId = 'github:octo/platform',
   kind = 'linked',
+  isDefault = false,
 }: {
   id: string;
   name: string;
+  isDefault?: boolean;
   connectionId?: string;
   externalRepositoryId?: string;
   kind?: 'managed' | 'linked';
@@ -393,6 +419,7 @@ function projectDto({
     workspace_id: PROJECT_TEST_WID,
     name,
     slug: name.toLowerCase(),
+    is_default: isDefault,
     source: {
       kind,
       connection_id: connectionId,

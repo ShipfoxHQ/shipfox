@@ -11,6 +11,7 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {useNavigate} from '@tanstack/react-router';
 import {type KeyboardEvent, useEffect, useState} from 'react';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
+import {DefaultProjectBadge} from './default-project-badge.js';
 
 export interface ProjectSwitcherProps {
   workspaceId: string;
@@ -118,6 +119,7 @@ export function ProjectSwitcher({
                   }`}
                 />
                 {project.name}
+                {project.isDefault ? <DefaultProjectBadge className="ml-auto" /> : null}
               </CommandItem>
             ))}
           </CommandGroup>

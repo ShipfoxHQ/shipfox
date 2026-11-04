@@ -1,3 +1,4 @@
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {
   createInterModuleKnownError,
@@ -5,6 +6,7 @@ import {
   type InterModulePresentation,
 } from '@shipfox/inter-module';
 import {createTimestampIdCursor, timestampIdCursorTimestamp} from '@shipfox/node-drizzle';
+import {SYSTEM_ACTOR_ID, tryEnsureDefaultProject} from '#core/default-project.js';
 import type {Project} from '#core/entities/project.js';
 import {
   ProjectAlreadyExistsError,
@@ -15,6 +17,7 @@ import {getProjectAccess, getProjectAccesses} from '#core/project-access.js';
 import {moveProjectSource} from '#core/projects.js';
 import {
   findProjectBySourceRepositoryName,
+  getDefaultProject,
   getProjectById,
   getProjectBySource,
   getWorkspaceProjectCounts,
@@ -26,9 +29,9 @@ import {
   resolveCheckoutTarget,
 } from '#db/projects.js';
 
-export function createProjectsInterModulePresentation(): InterModulePresentation<
-  typeof projectsInterModuleContract
-> {
+export function createProjectsInterModulePresentation(deps: {
+  integrations: IntegrationsModuleClient;
+}): InterModulePresentation<typeof projectsInterModuleContract> {
   return defineInterModulePresentation(projectsInterModuleContract, {
     getProjectById: async ({projectId}) => ({project: (await getProjectById(projectId)) ?? null}),
     getProjectBySource: async (input) => ({
@@ -88,6 +91,17 @@ export function createProjectsInterModulePresentation(): InterModulePresentation
         })),
         nextCursor: toProjectCursor(result.nextCursor),
       };
+    },
+    getDefaultProject: async ({workspaceId}) => {
+      const existing = await getDefaultProject(workspaceId);
+      if (existing) return {project: existing};
+      // A workspace made before default projects has none until the first read creates it.
+      const created = await tryEnsureDefaultProject({
+        actorId: SYSTEM_ACTOR_ID,
+        workspaceId,
+        integrations: deps.integrations,
+      });
+      return {project: created ?? null};
     },
     requireProjectForWorkspace: async ({projectId, workspaceId}) => {
       const project = await getProjectById(projectId);
@@ -221,5 +235,6 @@ function toProjectInterModule(project: Project) {
     sourceRepositoryName: project.sourceRepositoryName,
     sourceDefaultBranch: project.sourceDefaultBranch,
     name: project.name,
+    isDefault: project.isDefault,
   };
 }

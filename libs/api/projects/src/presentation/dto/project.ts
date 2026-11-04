@@ -8,6 +8,7 @@ export function toProjectDto(project: Project) {
     workspace_id: project.workspaceId,
     name: project.name,
     slug: project.slug,
+    is_default: project.isDefault,
     source: {
       kind: isManagedRepositoryId(project.sourceExternalRepositoryId)
         ? ('managed' as const)

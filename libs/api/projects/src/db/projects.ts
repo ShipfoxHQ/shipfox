@@ -225,6 +225,15 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
   return toProject(row);
 }
 
+export async function getDefaultProject(workspaceId: string): Promise<Project | undefined> {
+  const [row] = await db()
+    .select()
+    .from(projects)
+    .where(and(eq(projects.workspaceId, workspaceId), eq(projects.isDefault, true)))
+    .limit(1);
+  return row ? toProject(row) : undefined;
+}
+
 export interface GetProjectBySourceParams {
   workspaceId: string;
   sourceConnectionId: string;

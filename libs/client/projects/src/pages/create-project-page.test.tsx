@@ -36,7 +36,7 @@ function firstProjectFetch(state: {createProjectBody: unknown}) {
 
 function firstProjectListResponse(requestUrl: string) {
   const url = new URL(requestUrl);
-  if (url.searchParams.get('search') || url.searchParams.get('limit') === '1') {
+  if (url.searchParams.get('search') || url.searchParams.get('limit') === '2') {
     return jsonResponse({projects: [], next_cursor: null});
   }
   return jsonResponse({
@@ -69,7 +69,7 @@ async function doubleSubmitProjectListResponse(
   existenceReadGate: Promise<void>,
 ) {
   const url = new URL(requestUrl);
-  if (url.searchParams.get('limit') === '1') {
+  if (url.searchParams.get('limit') === '2') {
     await existenceReadGate;
     return jsonResponse({projects: [], next_cursor: null});
   }
@@ -307,6 +307,7 @@ describe('CreateProjectPage', () => {
               workspaceId: PROJECT_TEST_WID,
               name: 'Custom project',
               slug: 'custom-project',
+              isDefault: false,
               source: {connectionId: CONNECTION_ID, externalRepositoryId: 'custom-project'},
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
@@ -441,6 +442,7 @@ describe('CreateProjectPage', () => {
           workspaceId: PROJECT_TEST_WID,
           name: 'Platform',
           slug: 'platform',
+          isDefault: false,
           source: {connectionId: CONNECTION_ID, externalRepositoryId: 'platform'},
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -664,6 +666,7 @@ function projectDto({id, slug = 'project-detail'}: {id: string; slug?: string}) 
     workspace_id: '11111111-1111-4111-8111-111111111111',
     name: 'Project Detail',
     slug,
+    is_default: false,
     source: {
       kind: 'linked',
       connection_id: CONNECTION_ID,

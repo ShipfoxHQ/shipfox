@@ -6084,6 +6084,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../workspaces-dto
       '@shipfox/feature-flags':
         specifier: workspace:*
         version: link:../../shared/common/feature-flags

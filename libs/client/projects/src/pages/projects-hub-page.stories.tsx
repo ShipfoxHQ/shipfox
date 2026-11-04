@@ -187,6 +187,7 @@ function projectForStory(name: string, id: string) {
     workspace_id: WORKSPACE_ID,
     name,
     slug: name.toLowerCase(),
+    is_default: false,
     source: {
       kind: 'linked',
       connection_id: CONNECTION_ID,
