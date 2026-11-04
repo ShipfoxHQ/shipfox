@@ -75,6 +75,7 @@ export {
   WorkflowRunOverviewJob,
   workflowRunTriggerLabel,
 } from '#core/workflow-run.js';
+export {WorkflowStatusIcon} from './components/workflow-status/workflow-status-icon.js';
 export {
   type DefinitionsAtRefErrorCopy,
   definitionsAtRefErrorCopy,
@@ -159,4 +160,3 @@ export {
 export {WorkflowJobDetailPage} from './pages/workflow-job-detail-page.js';
 export {WorkflowRunDetailPage} from './pages/workflow-run-detail-page.js';
 export {WorkflowRunsPage} from './pages/workflow-run-list-page.js';
-export {WorkflowStatusIcon} from './components/workflow-status/workflow-status-icon.js';
