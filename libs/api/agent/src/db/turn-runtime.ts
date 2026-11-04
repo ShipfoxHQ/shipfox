@@ -243,6 +243,53 @@ export async function requestTurnStop(conversationId: string): Promise<boolean> 
   return rows.length > 0;
 }
 
+/**
+ * Asks every running turn in the scope to stop, and returns how many still run. With `suppress`,
+ * each turn's reply is marked handled first, so nothing is posted back to the provider.
+ */
+export async function requestScopeTurnStops(params: {
+  scope: {workspaceId: string; projectId?: string | undefined};
+  suppressReplies: boolean;
+}): Promise<{remaining: number}> {
+  const {scope} = params;
+  const inScope = and(
+    eq(conversations.workspaceId, scope.workspaceId),
+    scope.projectId === undefined ? undefined : eq(conversations.projectId, scope.projectId),
+    eq(turns.status, 'running'),
+  );
+  return await db().transaction(async (tx) => {
+    const running = await tx
+      .select({id: turns.id, conversationId: turns.conversationId})
+      .from(turns)
+      .innerJoin(conversations, eq(conversations.id, turns.conversationId))
+      .where(inScope);
+    if (running.length === 0) return {remaining: 0};
+
+    if (params.suppressReplies) {
+      await tx
+        .insert(replyDeliveries)
+        .values(
+          running.map(({id, conversationId}) => ({
+            replyId: id,
+            conversationId,
+            outcome: 'suppressed' as const,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+    await tx
+      .update(turns)
+      .set({stopRequestedAt: sql`COALESCE(${turns.stopRequestedAt}, NOW())`})
+      .where(
+        inArray(
+          turns.id,
+          running.map(({id}) => id),
+        ),
+      );
+    return {remaining: running.length};
+  });
+}
+
 export async function isTurnStopRequested(turnId: string): Promise<boolean> {
   const rows = await db()
     .select({stopRequestedAt: turns.stopRequestedAt})

@@ -4,6 +4,7 @@ export {
   onJobEventDelivered,
   onJobStepsSettled,
   onJobTerminatedFailureAnnotation,
+  onProjectDeleted,
   onRunnerJobClaimed,
   onRunnerJobExecutionPlacementDenied,
   onRunnerJobLeaseExpired,

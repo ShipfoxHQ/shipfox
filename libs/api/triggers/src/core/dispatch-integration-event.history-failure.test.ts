@@ -28,6 +28,7 @@ const workflows = {
   startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args),
   startDevRun: vi.fn(),
   cancelWorkflowRun: vi.fn(),
+  stopWork: vi.fn(),
   rerunWorkflowRun: vi.fn(),
   deliverEventToJobListener: (...args: unknown[]) => deliverEventToListener(...args),
   resolveWorkflowRunTriggerReference: (...args: unknown[]) =>

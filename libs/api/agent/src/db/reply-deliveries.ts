@@ -16,6 +16,17 @@ export async function hasReplyDelivery(replyId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+export async function getReplyDeliveryOutcome(
+  replyId: string,
+): Promise<ReplyDeliveryOutcome | undefined> {
+  const rows = await db()
+    .select({outcome: replyDeliveries.outcome})
+    .from(replyDeliveries)
+    .where(eq(replyDeliveries.replyId, replyId))
+    .limit(1);
+  return rows[0]?.outcome;
+}
+
 /** Notes that a reply is handled. A repeat leaves the first outcome in place. */
 export async function recordReplyDelivery(params: {
   replyId: string;

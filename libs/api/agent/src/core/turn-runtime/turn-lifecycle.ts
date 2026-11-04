@@ -26,7 +26,11 @@ import {
   sealConversationEntry,
 } from '../conversation-sealing.js';
 import {type Conversation, TURN_NOTICE_CUSTOM_TYPE} from '../entities/conversation.js';
-import {isAgentConfigResolutionError, ProjectAgentNotFoundError} from '../errors.js';
+import {
+  ConversationProjectDeletedError,
+  isAgentConfigResolutionError,
+  ProjectAgentNotFoundError,
+} from '../errors.js';
 import {type ResolvedProjectAgent, resolveProjectAgent} from '../project-agents.js';
 import {builtInAgentConfigInput} from '../resolve-agent-config.js';
 import {
@@ -76,6 +80,7 @@ async function pinConversationPrompt(
     projectId: conversation.projectId,
     agent,
   });
+  if (!project) throw new ConversationProjectDeletedError(conversation.projectId);
   const itemId = await newConversationRecordId();
   await pinSystemEntry({
     conversationId: conversation.id,
@@ -95,7 +100,7 @@ async function pinConversationPrompt(
             agentKey: conversation.agentKey,
             agent,
             projectId: conversation.projectId,
-            projectName: project?.name ?? 'unknown',
+            projectName: project.name,
             integration,
           }),
           tools: toolSet.definitions,
@@ -241,6 +246,10 @@ export async function beginConversationTurn(params: {
   try {
     await pinConversationPrompt(conversation, params.deps);
   } catch (error) {
+    if (error instanceof ConversationProjectDeletedError) {
+      await settleRefusedTurn(conversation, {});
+      return undefined;
+    }
     if (!(error instanceof ProjectAgentNotFoundError)) throw error;
     // The agent's file was deleted before its first turn. The conversation stays readable.
     await settleRefusedTurn(conversation, {notice: AGENT_UNAVAILABLE_NOTICE});
@@ -257,6 +266,7 @@ export async function beginConversationTurn(params: {
   const refusal = await refuseTurn({
     conversation,
     workspaces: params.deps.workspaces,
+    projects: params.deps.projects,
     policy: params.deps.admission?.policy,
   });
   if (refusal) {

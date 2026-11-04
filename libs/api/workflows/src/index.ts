@@ -6,6 +6,7 @@ import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   RUNNER_JOB_CLAIMED,
@@ -44,6 +45,7 @@ import {
   onJobEventDelivered,
   onJobStepsSettled,
   onJobTerminatedFailureAnnotation,
+  onProjectDeleted,
   onRunnerJobClaimed,
   onRunnerJobExecutionPlacementDenied,
   onRunnerJobLeaseExpired,
@@ -135,7 +137,9 @@ export {loadRunningLeasedStep} from '#presentation/routes/leased-step.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
+const subscriber = subscriberFactory<
+  WorkflowsEventMapDto & RunnersEventMap & Pick<ProjectsEventMap, typeof PROJECT_DELETED>
+>();
 
 export interface CreateWorkflowsModuleOptions {
   admission?: {policy: WorkflowAdmissionPolicy} | undefined;
@@ -217,6 +221,7 @@ export function createWorkflowsModule({
         onStepAttemptTerminatedFailureAnnotation(annotations),
       ),
       subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminatedFailureAnnotation(annotations)),
+      subscriber(PROJECT_DELETED, onProjectDeleted),
       subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),
       subscriber(RUNNER_JOB_EXECUTION_PLACEMENT_DENIED, onRunnerJobExecutionPlacementDenied),
       subscriber(RUNNER_JOB_CLAIMED, onRunnerJobClaimed),

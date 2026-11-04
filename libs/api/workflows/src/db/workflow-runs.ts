@@ -96,6 +96,7 @@ export {
 } from './workflow-runs/jobs.js';
 export type {LatestSyncedWorkflowRun} from './workflow-runs/latest-runs.js';
 export {listLatestSyncedWorkflowRuns} from './workflow-runs/latest-runs.js';
+export {countOpenWorkflowRuns, listOpenWorkflowRunIds} from './workflow-runs/open-runs.js';
 export {
   writeJobExecutionQueuedOutbox,
   writeJobExecutionTerminatedOutbox,

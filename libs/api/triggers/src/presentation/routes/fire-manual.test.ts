@@ -254,6 +254,27 @@ describe('POST /:definitionId/fire-manual', () => {
     expect(res.json().code).toBe(code);
   });
 
+  test('answers a deleted project with project-not-found', async () => {
+    const definitionId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'project-deleted',
+        {projectId: crypto.randomUUID()},
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('project-not-found');
+  });
+
   test('maps an oversized execution payload to 422 with field and byte details', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});

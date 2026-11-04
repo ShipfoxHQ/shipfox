@@ -5,6 +5,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {
   findUndeliveredDenialNotice,
   getLastTurnAssistantItem,
+  getReplyDeliveryOutcome,
   hasReplyDelivery,
   recordReplyDelivery,
 } from '#db/reply-deliveries.js';
@@ -211,8 +212,9 @@ async function clearProgress(params: {
  * Sends what a turn produced back through the provider that started the conversation, then
  * clears its progress. With a `turnId` it sends that finished turn's answer, or its failure or
  * stop. Without one it tells the person about a denial, which opened no turn. A turn with no
- * text sends a short confirmation, and a reply already handled is not sent again. An undeliverable reply is
- * recorded and never retried. Web conversations are read by the client, so they do nothing.
+ * text sends a short confirmation, and a reply already handled is not sent again. An undeliverable
+ * reply is recorded and never retried. A suppressed reply sends nothing and touches no progress.
+ * Web conversations are read by the client, so they do nothing.
  */
 export async function deliverConversationReply(params: {
   conversationId: string;
@@ -239,6 +241,8 @@ export async function deliverConversationReply(params: {
       ? await denialReply(conversation)
       : await turnReply(conversation, params.turnId);
   if (!reply) return;
+  // A turn stopped for a deleted project posts nothing, not even the loading status clearing.
+  if ((await getReplyDeliveryOutcome(reply.replyId)) === 'suppressed') return;
 
   try {
     if (!(await hasReplyDelivery(reply.replyId))) {

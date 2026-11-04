@@ -407,6 +407,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'admission-denied': admissionDeniedDetailsSchema,
         'definition-not-found': z.object({definitionId: idSchema}),
         'project-mismatch': z.object({}),
+        'project-deleted': z.object({projectId: idSchema}),
         'source-connection-unavailable': sourceConnectionUnavailableDetailsSchema,
         'parent-run-not-found': z.object({}),
         'run-depth-exceeded': z.object({}),
@@ -450,6 +451,18 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'run-already-finished': z.object({status: workflowRunStatusSchema}),
       },
     },
+    /**
+     * Cancels every non-terminal run in the scope. A repeat call is safe. `remaining` counts the
+     * runs still open, so a caller repeats until it reads 0.
+     */
+    stopWork: {
+      input: z.object({
+        scope: z.object({workspaceId: idSchema, projectId: idSchema.optional()}),
+        reason: z.enum(['project_deleted', 'workspace_suspended', 'limit_reached']),
+      }),
+      output: z.object({remaining: z.number().int().nonnegative()}),
+      errors: {},
+    },
     rerunWorkflowRun: {
       input: z.object({
         workspaceId: idSchema,
@@ -468,6 +481,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'workspace-suspended': z.object({workspaceId: idSchema}),
         'workspace-deleted': z.object({workspaceId: idSchema}),
         'admission-denied': admissionDeniedDetailsSchema,
+        'project-deleted': z.object({projectId: idSchema}),
       },
     },
     startDevRun: {
@@ -498,6 +512,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'workspace-suspended': z.object({workspaceId: idSchema}),
         'workspace-deleted': z.object({workspaceId: idSchema}),
         'admission-denied': admissionDeniedDetailsSchema,
+        'project-deleted': z.object({projectId: idSchema}),
         'agent-config-unresolvable': agentConfigUnresolvableDetailsSchema,
         'agent-integration-materialization-failed':
           agentIntegrationMaterializationFailedDetailsSchema,
@@ -559,6 +574,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'workspace-suspended': z.object({workspaceId: idSchema}),
         'workspace-deleted': z.object({workspaceId: idSchema}),
         'admission-denied': admissionDeniedDetailsSchema,
+        'project-deleted': z.object({projectId: idSchema}),
         'source-connection-unavailable': sourceConnectionUnavailableDetailsSchema,
       },
     },

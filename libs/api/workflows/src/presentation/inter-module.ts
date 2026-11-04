@@ -55,6 +55,7 @@ import {
   type InterpolationUnresolvableStep,
   InvalidJobRunnerLabelsError,
   NoFailedJobsError,
+  ProjectDeletedError,
   RunNotTerminalError,
   SourceConnectionUnavailableError,
   SourceRunNotFoundError,
@@ -81,6 +82,7 @@ import {
   runDevWorkflow,
   runWorkflow,
 } from '#core/index.js';
+import {assertProjectAdmitsNewRuns} from '#core/project-admission.js';
 import {assertProjectSourceAdmits} from '#core/project-source-admission.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
 import {cancelWorkflowRun, rerunWorkflowRun} from '#core/run-actions.js';
@@ -90,6 +92,7 @@ import {
   collectSecretInputReferences,
 } from '#core/run-readiness.js';
 import {readPostStepConfig} from '#core/step-config/post-step.js';
+import {stopWork} from '#core/stop-work.js';
 import {
   assertWorkspaceAdmitsNewJobs,
   type WorkflowAdmissionPolicy,
@@ -440,6 +443,7 @@ export function createWorkflowsInterModulePresentation(params: {
         throw toStartRunKnownError(error, input.definitionId);
       }
     },
+    stopWork: async (input) => await stopWork(input),
     cancelWorkflowRun: async (input) => {
       try {
         const run = await cancelWorkflowRun(input);
@@ -453,6 +457,7 @@ export function createWorkflowsInterModulePresentation(params: {
         const run = await rerunWorkflowRun({
           ...input,
           workspaces: params.workspaces,
+          projects: params.projects,
           admission: params.admission,
         });
         return {id: run.id, attempt: run.currentAttempt, status: run.status};
@@ -511,6 +516,10 @@ export function createWorkflowsInterModulePresentation(params: {
             policy: params.admission?.policy,
             source: input.source,
             definitionId: scope.definitionId,
+          });
+          await assertProjectAdmitsNewRuns(params.projects, {
+            workspaceId: scope.workspaceId,
+            projectId: scope.projectId,
           });
           if (!(await isListenerDeliveryRedundant(input))) {
             await assertListenerSourceAdmits(params, input.jobId, scope.projectId);
@@ -1386,6 +1395,9 @@ function toWorkspaceAdmissionKnownError(
     return createInterModuleKnownError(method, 'workspace-not-found', {
       workspaceId: error.workspaceId,
     });
+  }
+  if (error instanceof ProjectDeletedError) {
+    return createInterModuleKnownError(method, 'project-deleted', {projectId: error.projectId});
   }
   if (error instanceof WorkflowAdmissionDeniedError) {
     return createInterModuleKnownError(method, 'admission-denied', {

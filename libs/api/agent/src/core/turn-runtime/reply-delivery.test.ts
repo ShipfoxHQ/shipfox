@@ -21,6 +21,7 @@ import {
   openConversationEntry,
 } from '../conversation-sealing.js';
 import {routeInteraction} from '../interaction-routing.js';
+import {stopWork} from '../stop-work.js';
 import {runModelCall} from './model-call.js';
 import type {CreateModelRuntime, ModelCallRuntime} from './model-runtime.js';
 import {deliverConversationReply, REPLY_UNDELIVERABLE_NOTICE_CODE} from './reply-delivery.js';
@@ -136,6 +137,7 @@ async function setup(options: Parameters<typeof createFakeIntegrations>[0] = {})
   return {
     conversationId,
     workspaceId,
+    projectId,
     connectionId,
     conversationKey,
     integrations,
@@ -311,6 +313,73 @@ describe('reply delivery', () => {
 
     expect(integrations.sendInteractionReply).not.toHaveBeenCalled();
     expect(integrations.reportInteractionProgress).not.toHaveBeenCalled();
+  });
+
+  describe('stop work', () => {
+    async function stopped(reason: 'project_deleted' | 'workspace_suspended') {
+      const context = await setupWithBase();
+      const turn = await context.begin();
+      if (!turn) throw new Error('No turn began');
+      const scope = {workspaceId: context.workspaceId, projectId: context.projectId};
+      const result = await stopWork({scope, reason});
+      await finishConversationTurn({
+        conversationId: context.conversationId,
+        turnId: turn.turnId,
+        status: 'stopped',
+      });
+      return {...context, turn, scope, result};
+    }
+
+    it('asks the running turn to stop and counts it as remaining', async () => {
+      const {turn, result} = await stopped('project_deleted');
+
+      expect(result).toEqual({remaining: 1});
+      expect((await getTurnById(turn.turnId))?.stopRequestedAt).toBeInstanceOf(Date);
+    });
+
+    it('counts nothing remaining once the turn has finished, and a repeat changes nothing', async () => {
+      const {scope} = await stopped('project_deleted');
+
+      expect(await stopWork({scope, reason: 'project_deleted'})).toEqual({remaining: 0});
+    });
+
+    it('posts nothing for a deleted project, not even the progress status', async () => {
+      const {turn, deliver, integrations} = await stopped('project_deleted');
+
+      await deliver(turn.turnId);
+
+      expect(integrations.sendInteractionReply).not.toHaveBeenCalled();
+      expect(integrations.reportInteractionProgress).not.toHaveBeenCalled();
+    });
+
+    it('still replies "Stopped." for other reasons', async () => {
+      const {turn, deliver, integrations} = await stopped('workspace_suspended');
+
+      await deliver(turn.turnId);
+
+      expect(integrations.replies[0]).toMatchObject({kind: 'response', text: 'Stopped.'});
+    });
+
+    it('leaves the turns of other projects running', async () => {
+      const {scope} = await stopped('project_deleted');
+      const other = await setupWithBase();
+      const otherTurn = await other.begin();
+      if (!otherTurn) throw new Error('No turn began');
+
+      await stopWork({scope, reason: 'project_deleted'});
+
+      expect((await getTurnById(otherTurn.turnId))?.stopRequestedAt).toBeNull();
+    });
+
+    it('stops every turn of a workspace when the scope has no project', async () => {
+      const context = await setupWithBase();
+      const turn = await context.begin();
+      if (!turn) throw new Error('No turn began');
+
+      await stopWork({scope: {workspaceId: context.workspaceId}, reason: 'workspace_suspended'});
+
+      expect((await getTurnById(turn.turnId))?.stopRequestedAt).toBeInstanceOf(Date);
+    });
   });
 
   describe('stop', () => {

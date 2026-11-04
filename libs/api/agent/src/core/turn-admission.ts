@@ -1,5 +1,9 @@
 import type {ConversationTurnNoticeDto} from '@shipfox/api-agent-dto';
 import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
+import {
   type WorkspacesInterModuleClient,
   workspacesInterModuleContract,
 } from '@shipfox/api-workspaces-dto/inter-module';
@@ -26,6 +30,8 @@ export interface AgentAdmissionPolicy {
   admit(input: AgentAdmissionInput): Promise<AgentAdmissionDecision>;
 }
 
+export type TurnAdmissionProjects = Pick<ProjectsModuleClient, 'requireProjectForWorkspace'>;
+
 export type TurnAdmissionWorkspaces = Pick<
   WorkspacesInterModuleClient,
   'getWorkspaceOperatingState' | 'listMembershipsForTokenClaims'
@@ -46,9 +52,10 @@ export type TurnRefusal = {notice?: ConversationTurnNoticeDto | undefined};
 export async function refuseTurn(params: {
   conversation: Conversation;
   workspaces: TurnAdmissionWorkspaces;
+  projects: TurnAdmissionProjects;
   policy?: AgentAdmissionPolicy | undefined;
 }): Promise<TurnRefusal | undefined> {
-  const {conversation, workspaces, policy} = params;
+  const {conversation, workspaces, projects, policy} = params;
 
   if (conversation.originKind === 'web' && conversation.ownerUserId !== null) {
     const {memberships} = await workspaces.listMembershipsForTokenClaims({
@@ -69,6 +76,8 @@ export async function refuseTurn(params: {
       },
     };
   }
+  // A deleted project has nobody to tell, so its inputs are settled quietly.
+  if (!(await projectAdmitsTurns(projects, conversation))) return {};
   if (policy === undefined) return undefined;
 
   const decision = await admitWithTimeout(policy, {
@@ -83,6 +92,26 @@ export async function refuseTurn(params: {
       required_action: decision.requiredAction ?? null,
     },
   };
+}
+
+async function projectAdmitsTurns(
+  projects: TurnAdmissionProjects,
+  conversation: Conversation,
+): Promise<boolean> {
+  try {
+    await projects.requireProjectForWorkspace({
+      workspaceId: conversation.workspaceId,
+      projectId: conversation.projectId,
+    });
+    return true;
+  } catch (error) {
+    if (
+      isInterModuleKnownError(projectsInterModuleContract.methods.requireProjectForWorkspace, error)
+    ) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function getOperatingState(

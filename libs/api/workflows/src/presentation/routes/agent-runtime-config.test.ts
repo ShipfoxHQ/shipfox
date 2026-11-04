@@ -58,6 +58,7 @@ const agentTestClient: AgentInterModuleClient = {
   getWorkspaceModels: vi.fn(),
   resolveAgentConfig: vi.fn(),
   resolveRuntimeCredentials,
+  stopWork: vi.fn(),
   claimSession: vi.fn(),
   releaseSession: vi.fn(),
   carryOverSessions: vi.fn(),

@@ -1,3 +1,4 @@
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {
   getWorkflowRunById,
@@ -10,6 +11,7 @@ import {
   WorkflowRunAttemptMismatchError,
   WorkflowRunNotFoundError,
 } from './errors.js';
+import {assertProjectAdmitsNewRuns} from './project-admission.js';
 import type {WorkflowAdmissionPolicy} from './workspace-admission.js';
 import {assertWorkspaceAdmitsNewJobs} from './workspace-admission.js';
 
@@ -26,6 +28,7 @@ export interface RerunWorkflowRunParams {
   mode: 'all' | 'failed';
   actorUserId: string;
   workspaces: Pick<WorkspacesInterModuleClient, 'getWorkspaceOperatingState'>;
+  projects: Pick<ProjectsModuleClient, 'requireProjectForWorkspace'>;
   admission?: {policy: WorkflowAdmissionPolicy} | undefined;
 }
 
@@ -62,6 +65,11 @@ export async function rerunWorkflowRun(params: RerunWorkflowRunParams): Promise<
     policy: params.admission?.policy,
     source: run.triggerSource,
     definitionId: run.definitionId,
+  });
+
+  await assertProjectAdmitsNewRuns(params.projects, {
+    workspaceId: params.workspaceId,
+    projectId: run.projectId,
   });
 
   return persistRerunWorkflowRun({

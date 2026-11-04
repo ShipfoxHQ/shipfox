@@ -44,6 +44,11 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
   if (!isInterModuleKnownError(method, error)) return undefined;
 
   switch (error.code) {
+    case 'project-deleted':
+      return new ClientError('Project not found', 'project-not-found', {
+        status: 404,
+        cause: error,
+      });
     case 'workspace-suspended':
       return new ClientError('Workspace is suspended', 'workspace-suspended', {
         status: 409,

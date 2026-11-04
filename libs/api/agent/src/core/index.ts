@@ -134,6 +134,7 @@ export {
   runSessionRetentionSweep,
   type SessionRetentionSweepResult,
 } from './session-retention.js';
+export {type StopWorkReason, type StopWorkScope, stopWork} from './stop-work.js';
 export {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';
 export {
   assertWorkspaceProviderConfigurationEnabled,

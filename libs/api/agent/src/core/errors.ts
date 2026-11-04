@@ -370,6 +370,14 @@ export class ProjectAgentNotFoundError extends Error {
   }
 }
 
+/** The project of a conversation was deleted, so its turns can't start. */
+export class ConversationProjectDeletedError extends Error {
+  constructor(public readonly projectId: string) {
+    super(`Project was deleted: ${projectId}`);
+    this.name = 'ConversationProjectDeletedError';
+  }
+}
+
 export class ConversationTurnRunningError extends Error {
   constructor(public readonly conversationId: string) {
     super(`Conversation has a running turn: ${conversationId}`);

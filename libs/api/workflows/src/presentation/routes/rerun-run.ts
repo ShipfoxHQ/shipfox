@@ -8,6 +8,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {
   NoFailedJobsError,
+  ProjectDeletedError,
   RunNotTerminalError,
   SourceRunNotFoundError,
   WorkflowAdmissionDeniedError,
@@ -71,6 +72,7 @@ export function rerunRunRoute(
         mode: request.body.mode,
         actorUserId: actor.userId,
         workspaces,
+        projects,
         admission,
       });
 
@@ -90,6 +92,9 @@ export function rerunRunRoute(
 }
 
 function toWorkspaceRerunError(error: unknown): ClientError | undefined {
+  if (error instanceof ProjectDeletedError) {
+    return new ClientError('Project not found', 'project-not-found', {status: 404, cause: error});
+  }
   if (error instanceof WorkspaceSuspendedError) {
     return new ClientError('Workspace is suspended', 'workspace-suspended', {
       status: 409,

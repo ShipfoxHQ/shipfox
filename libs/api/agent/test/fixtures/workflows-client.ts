@@ -24,6 +24,7 @@ export function createTestWorkflowsClient(
       startRunFromTrigger: vi.fn(),
       startDevRun: vi.fn(),
       cancelWorkflowRun: vi.fn(),
+      stopWork: vi.fn(),
       rerunWorkflowRun: vi.fn(),
       resolveWorkflowRunTriggerReference: vi.fn(),
       deliverEventToJobListener: vi.fn(),

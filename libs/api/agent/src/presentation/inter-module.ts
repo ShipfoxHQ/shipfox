@@ -33,6 +33,7 @@ import {routeInteraction} from '#core/interaction-routing.js';
 import {resolveAgentConfig} from '#core/resolve-agent-config.js';
 import {resolveRuntimeCredentials} from '#core/resolve-runtime-credentials.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
+import {stopWork} from '#core/stop-work.js';
 import {reportConversationRunLink} from '#core/turn-runtime/run-link-progress.js';
 import {getAgentValidationCatalog, getAgentValidationCatalogV2} from '#core/validation-catalog.js';
 import {
@@ -59,6 +60,7 @@ export function createAgentInterModulePresentation(params: {
     | undefined;
 }): InterModulePresentation<typeof agentInterModuleContract> {
   return defineInterModulePresentation(agentInterModuleContract, {
+    stopWork: async (input) => await stopWork(input),
     getValidationCatalog: () =>
       getAgentValidationCatalog(params.managedProvider, params.workspaceProviders),
     getValidationCatalogV2: async ({workspaceId}) =>
