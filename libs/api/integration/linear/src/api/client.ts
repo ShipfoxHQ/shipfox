@@ -19,6 +19,21 @@ const OAUTH_ERROR_CODES = new Set([
   'temporarily_unavailable',
 ]);
 
+// Linear words the same error type differently across endpoints, so these are matched loosely.
+const AUTH_ERROR_TYPES = new Set([
+  'authentication',
+  'authorization',
+  'authentication error',
+  'authorization error',
+]);
+const RATE_LIMIT_ERROR_TYPES = new Set(['ratelimited', 'rate limited', 'usage limit exceeded']);
+const REFUSAL_ERROR_TYPES = new Set([
+  'invalid input',
+  'feature not accessible',
+  'forbidden',
+  'user error',
+]);
+
 const SCOPE_SEPARATOR_RE = /[,\s]+/;
 
 const IDENTITY_QUERY = `
@@ -203,7 +218,7 @@ interface LinearGraphqlResponse<Data> {
 
 interface LinearGraphqlError {
   message?: unknown;
-  extensions?: {type?: unknown} | undefined;
+  extensions?: {type?: unknown; code?: unknown; userError?: unknown} | undefined;
 }
 
 interface LinearIdentityData {
@@ -575,11 +590,11 @@ function parseExpiresAt(expiresIn: unknown): Date | undefined {
 
 function graphqlData<Data>(operation: string, body: LinearGraphqlResponse<Data>): Data {
   if (hasGraphqlErrors(body)) {
-    const reason = hasAuthGraphqlError(body.errors)
-      ? 'access-denied'
-      : 'malformed-provider-response';
     logger().warn({operation}, 'Linear GraphQL request returned errors');
-    throw new LinearIntegrationProviderError(reason, 'Linear GraphQL request failed');
+    throw new LinearIntegrationProviderError(
+      classifyGraphqlErrors(body.errors ?? []),
+      'Linear GraphQL request failed',
+    );
   }
   if (!body.data) {
     throw new LinearIntegrationProviderError(
@@ -604,14 +619,26 @@ function hasGraphqlErrors(body: LinearGraphqlResponse<unknown>): boolean {
   return Array.isArray(body.errors) && body.errors.length > 0;
 }
 
-function hasAuthGraphqlError(errors: LinearGraphqlError[] | undefined): boolean {
-  return (
-    errors?.some((error) => {
-      const type = error.extensions?.type;
-      return (
-        typeof type === 'string' && ['authentication', 'authorization'].includes(type.toLowerCase())
-      );
-    }) ?? false
+/**
+ * Only an error Linear says it refused is a rejection. Any other execution error, even one
+ * returned with HTTP 200, may pass on a retry, so it is reported as an outage.
+ */
+function classifyGraphqlErrors(
+  errors: LinearGraphqlError[],
+): 'access-denied' | 'rate-limited' | 'malformed-provider-response' | 'provider-unavailable' {
+  if (errors.some((error) => hasErrorType(error, AUTH_ERROR_TYPES))) return 'access-denied';
+  if (errors.some((error) => hasErrorType(error, RATE_LIMIT_ERROR_TYPES))) return 'rate-limited';
+  if (errors.some(isExplicitGraphqlRefusal)) return 'malformed-provider-response';
+  return 'provider-unavailable';
+}
+
+function isExplicitGraphqlRefusal(error: LinearGraphqlError): boolean {
+  return error.extensions?.userError === true || hasErrorType(error, REFUSAL_ERROR_TYPES);
+}
+
+function hasErrorType(error: LinearGraphqlError, types: Set<string>): boolean {
+  return [error.extensions?.type, error.extensions?.code].some(
+    (value) => typeof value === 'string' && types.has(value.toLowerCase()),
   );
 }
 

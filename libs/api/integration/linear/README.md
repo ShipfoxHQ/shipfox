@@ -83,7 +83,9 @@ rejected request or a lost authorization, the reply becomes a comment on the
 session's issue, created as the agent's name so it shows as "via" the app, with the
 reply id as the comment id so a repeat is delivered. It is
 `undeliverable` when Linear refuses the comment too, or the session has no issue. A
-rate limit, a timeout, or an outage fails the call, so the delivery is retried.
+rate limit, a timeout, or an outage fails the call, so the delivery is retried. So does a
+GraphQL execution error that Linear does not mark as a refusal, even when it comes back
+with HTTP 200.
 
 `reportProgress` posts each tool call as an ephemeral `action` activity, which the
 next activity replaces, and adds the links it receives, such as the run link, to
