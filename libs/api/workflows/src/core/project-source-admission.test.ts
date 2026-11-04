@@ -222,7 +222,10 @@ describe('assertProjectSourceAdmits', () => {
         sourceExternalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
       };
       lifecycleStatus = 'error';
-      listSourceControlConnectionIds.mockResolvedValue({connectionIds: [codeConnectionId]});
+      listSourceControlConnectionIds.mockResolvedValue({
+        connectionIds: [codeConnectionId],
+        inactiveConnectionIds: [],
+      });
       resolveConnectionById.mockImplementation(async ({connectionId: requested}) => ({
         id: requested,
         lifecycleStatus,
@@ -266,6 +269,10 @@ describe('assertProjectSourceAdmits', () => {
     });
 
     test('rejects a repository checkout whose default connection is inactive', async () => {
+      listSourceControlConnectionIds.mockResolvedValue({
+        connectionIds: [],
+        inactiveConnectionIds: [codeConnectionId],
+      });
       const model = workflowModel({
         jobs: {
           build: {
@@ -281,7 +288,10 @@ describe('assertProjectSourceAdmits', () => {
     });
 
     test('leaves a repository checkout to checkout time when there is no default connection', async () => {
-      listSourceControlConnectionIds.mockResolvedValue({connectionIds: []});
+      listSourceControlConnectionIds.mockResolvedValue({
+        connectionIds: [],
+        inactiveConnectionIds: [],
+      });
       const model = workflowModel({
         jobs: {
           build: {

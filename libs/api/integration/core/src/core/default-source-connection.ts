@@ -4,18 +4,25 @@ import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {listIntegrationConnections} from '#db/connections.js';
 
 /**
- * The workspace's active source-control connections. Internal providers are left out, so a
- * managed project's hidden connection never counts.
+ * The workspace's source-control connections. Internal providers are left out, so a managed
+ * project's hidden connection never counts.
  */
-export async function listActiveSourceControlConnections(params: {
+export async function listSourceControlConnections(params: {
   workspaceId: string;
   registry: IntegrationProviderRegistry;
 }): Promise<IntegrationConnection[]> {
   const providers = new Set(params.registry.list('source_control').map(({provider}) => provider));
   const connections = await listIntegrationConnections({workspaceId: params.workspaceId});
-  return connections.filter(
-    (connection) => connection.lifecycleStatus === 'active' && providers.has(connection.provider),
-  );
+  return connections.filter((connection) => providers.has(connection.provider));
+}
+
+/** The workspace's active source-control connections. */
+export async function listActiveSourceControlConnections(params: {
+  workspaceId: string;
+  registry: IntegrationProviderRegistry;
+}): Promise<IntegrationConnection[]> {
+  const connections = await listSourceControlConnections(params);
+  return connections.filter((connection) => connection.lifecycleStatus === 'active');
 }
 
 /** The workspace's only active source-control connection. With none or several there is no answer. */

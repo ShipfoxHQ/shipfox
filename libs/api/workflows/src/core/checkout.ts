@@ -408,7 +408,11 @@ type CheckoutTargetSelection =
   | {defaultCheckout: NonNullable<ProjectCheckoutDefaults['defaultCheckout']>}
   | {connection?: string | undefined; repository: string};
 
-const noDefaults: ProjectCheckoutDefaults = {defaultCheckout: null, defaultConnectionId: null};
+const noDefaults: ProjectCheckoutDefaults = {
+  defaultCheckout: null,
+  defaultConnectionId: null,
+  configuredConnectionId: null,
+};
 
 async function checkoutTarget(params: {
   checkout: CheckoutConfig;

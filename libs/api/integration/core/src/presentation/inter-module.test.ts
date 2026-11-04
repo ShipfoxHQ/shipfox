@@ -883,7 +883,7 @@ describe('integrations inter-module presentation', () => {
       });
     });
 
-    it('lists the active source-control connections, without the hidden managed one', async () => {
+    it('lists the source-control connections by status, without the hidden managed one', async () => {
       const client = createManagedClient();
       const {workspaceId: managedWorkspaceId} = await createManagedWorkspace();
       const github = await integrationConnectionFactory.create({
@@ -892,7 +892,7 @@ describe('integrations inter-module presentation', () => {
         externalAccountId: 'acme',
         slug: 'github',
       });
-      await integrationConnectionFactory.create({
+      const gitea = await integrationConnectionFactory.create({
         workspaceId: managedWorkspaceId,
         provider: 'gitea',
         externalAccountId: 'acme',
@@ -902,7 +902,7 @@ describe('integrations inter-module presentation', () => {
 
       await expect(
         client.listSourceControlConnectionIds({workspaceId: managedWorkspaceId}),
-      ).resolves.toEqual({connectionIds: [github.id]});
+      ).resolves.toEqual({connectionIds: [github.id], inactiveConnectionIds: [gitea.id]});
     });
 
     it('defaults to the one source-control connection the project lists', async () => {

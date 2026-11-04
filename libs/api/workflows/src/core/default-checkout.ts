@@ -16,6 +16,11 @@ export interface ProjectCheckoutDefaults {
   } | null;
   /** The connection a checkout of a bare `repository` uses. Null when the project has none. */
   defaultConnectionId: string | null;
+  /**
+   * The connection the project would default to if inactive ones counted. It differs from
+   * `defaultConnectionId` only when the project's one connection is not active.
+   */
+  configuredConnectionId: string | null;
 }
 
 type CheckoutDefaultsProject = {
@@ -45,6 +50,7 @@ export async function loadProjectCheckoutDefaults(params: {
         externalRepositoryId: project.sourceExternalRepositoryId,
       },
       defaultConnectionId: project.sourceConnectionId,
+      configuredConnectionId: project.sourceConnectionId,
     };
   }
 
@@ -60,6 +66,12 @@ export async function loadProjectCheckoutDefaults(params: {
     return {
       defaultCheckout: defaultCheckoutRepository(policy, {sourceControlConnectionIds}),
       defaultConnectionId: defaultConnectionId(policy, {sourceControlConnectionIds}),
+      configuredConnectionId: defaultConnectionId(policy, {
+        sourceControlConnectionIds: [
+          ...sourceControlConnectionIds,
+          ...(sourceControl?.inactiveConnectionIds ?? []),
+        ],
+      }),
     };
   } catch (error) {
     if (

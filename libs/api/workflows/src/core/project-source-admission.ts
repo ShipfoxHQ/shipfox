@@ -46,12 +46,13 @@ export async function assertProjectSourceAdmits(
     connectionIds.add(defaults?.defaultCheckout?.connectionId ?? project.sourceConnectionId);
   }
   // Without a default checkout, a bare `repository` still resolves on the default connection.
+  // The configured one counts inactive connections, which the default itself leaves out.
   if (
     noDefaultCheckout &&
-    defaults?.defaultConnectionId != null &&
+    defaults?.configuredConnectionId != null &&
     jobs.some(jobChecksOutBareRepository)
   ) {
-    connectionIds.add(defaults.defaultConnectionId);
+    connectionIds.add(defaults.configuredConnectionId);
   }
   for (const connectionId of connectionIds) {
     const connection = await params.integrations.resolveConnectionById({connectionId});
