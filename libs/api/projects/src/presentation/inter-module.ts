@@ -20,6 +20,7 @@ import {
   getDefaultProject,
   getProjectById,
   getProjectBySource,
+  getProjectLabelsByIds,
   getWorkspaceProjectCounts,
   listAdminProjects,
   listProjects,
@@ -88,8 +89,18 @@ export function createProjectsInterModulePresentation(deps: {
           slug: project.slug,
           createdAt: project.createdAt.toISOString(),
           updatedAt: project.updatedAt.toISOString(),
+          deletedAt: project.deletedAt?.toISOString() ?? null,
         })),
         nextCursor: toProjectCursor(result.nextCursor),
+      };
+    },
+    getProjectsByIds: async (input) => {
+      const labels = await getProjectLabelsByIds(input);
+      return {
+        projects: labels.map((label) => ({
+          ...label,
+          deletedAt: label.deletedAt?.toISOString() ?? null,
+        })),
       };
     },
     getDefaultProject: async ({workspaceId}) => {

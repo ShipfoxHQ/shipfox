@@ -288,6 +288,7 @@ describe('defaultModules', () => {
           listProjectsByWorkspace: () => ({projects: [], nextCursor: null}),
           listProjectCatalogByWorkspace: () => ({projects: [], nextCursor: null}),
           listAdminProjects: () => ({projects: [], nextCursor: null}),
+          getProjectsByIds: () => ({projects: []}),
           getDefaultProject: () => ({project: null}),
           getWorkspaceProjectCounts: () => ({counts: []}),
           requireProjectForWorkspace: () => ({

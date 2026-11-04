@@ -25,9 +25,10 @@ export function toAdminProjectSummaryDto(project: AdminProjectSummary) {
   return {
     id: project.id,
     name: project.name,
-    status: 'active' as const,
+    status: project.deletedAt === null ? ('active' as const) : ('deleted' as const),
     workspace_id: project.workspaceId,
     created_at: project.createdAt.toISOString(),
     updated_at: project.updatedAt.toISOString(),
+    deleted_at: project.deletedAt?.toISOString() ?? null,
   };
 }

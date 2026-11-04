@@ -7,7 +7,7 @@ import type {
 import {db, type Executor, type Tx} from './db.js';
 import {projectsConnectionResources} from './schema/connection-resources.js';
 import {projectsConnectionScopes} from './schema/connection-scopes.js';
-import {projects} from './schema/projects.js';
+import {liveProject, projects} from './schema/projects.js';
 
 export const REPOSITORY_RESOURCE_KIND = 'repository';
 
@@ -35,7 +35,7 @@ async function readProjectAccess(
     executor
       .select({id: projects.id, connectionAccess: projects.connectionAccess})
       .from(projects)
-      .where(inArray(projects.id, [...projectIds])),
+      .where(and(inArray(projects.id, [...projectIds]), liveProject)),
     executor
       .select()
       .from(projectsConnectionScopes)
@@ -128,6 +128,14 @@ export async function replaceProjectAccess(params: {
         })),
   );
   if (resources.length > 0) await tx.insert(projectsConnectionResources).values(resources);
+}
+
+/** Removes the access rows of a project. Its resources go with its scopes through the cascade. */
+export async function deleteProjectAccess(projectId: string): Promise<number> {
+  const result = await db()
+    .delete(projectsConnectionScopes)
+    .where(eq(projectsConnectionScopes.projectId, projectId));
+  return result.rowCount ?? 0;
 }
 
 /** Removes the connection from every project's access. Returns how many projects listed it. */

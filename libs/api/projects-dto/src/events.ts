@@ -4,6 +4,7 @@ const nonEmptyStringSchema = z.string().nonempty();
 
 export const PROJECT_CREATED = 'projects.project.created' as const;
 export const PROJECT_UPDATED = 'projects.project.updated' as const;
+export const PROJECT_DELETED = 'projects.project.deleted' as const;
 export const PROJECT_ACCESS_CHANGED = 'projects.project.access_changed' as const;
 export const PROJECT_SOURCE_BOUND = 'projects.project.source_bound' as const;
 export const PROJECT_SOURCE_COMMIT_OBSERVED = 'projects.project.source_commit_observed' as const;
@@ -57,6 +58,15 @@ export const projectAccessChangedEventSchema = z.object({
 });
 export type ProjectAccessChangedEvent = z.infer<typeof projectAccessChangedEventSchema>;
 
+// Every module that owns project rows reacts to it, so it carries what a purge needs and nothing else.
+export const projectDeletedEventSchema = z.object({
+  workspaceId: nonEmptyStringSchema,
+  projectId: nonEmptyStringSchema,
+  deletedBy: nonEmptyStringSchema.max(255),
+  deletedAt: isoDateTimeSchema,
+});
+export type ProjectDeletedEvent = z.infer<typeof projectDeletedEventSchema>;
+
 export const projectSourceBoundEventSchema = z.object({
   actorId: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
@@ -83,6 +93,7 @@ export type ProjectSourceCommitObservedEvent = z.infer<
 export interface ProjectsEventMap {
   [PROJECT_CREATED]: ProjectCreatedEvent;
   [PROJECT_UPDATED]: ProjectUpdatedEvent;
+  [PROJECT_DELETED]: ProjectDeletedEvent;
   [PROJECT_ACCESS_CHANGED]: ProjectAccessChangedEvent;
   [PROJECT_SOURCE_BOUND]: ProjectSourceBoundEvent;
   [PROJECT_SOURCE_COMMIT_OBSERVED]: ProjectSourceCommitObservedEvent;
@@ -91,6 +102,7 @@ export interface ProjectsEventMap {
 export const projectsEventSchemas = {
   [PROJECT_CREATED]: projectCreatedEventSchema,
   [PROJECT_UPDATED]: projectUpdatedEventSchema,
+  [PROJECT_DELETED]: projectDeletedEventSchema,
   [PROJECT_ACCESS_CHANGED]: projectAccessChangedEventSchema,
   [PROJECT_SOURCE_BOUND]: projectSourceBoundEventSchema,
   [PROJECT_SOURCE_COMMIT_OBSERVED]: projectSourceCommitObservedEventSchema,

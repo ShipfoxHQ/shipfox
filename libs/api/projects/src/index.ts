@@ -8,7 +8,11 @@ import {
   type IntegrationsEventMap,
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
-import {projectsEventSchemas} from '@shipfox/api-projects-dto';
+import {
+  PROJECT_DELETED,
+  type ProjectsEventMap,
+  projectsEventSchemas,
+} from '@shipfox/api-projects-dto';
 import {WORKSPACES_WORKSPACE_CREATED, type WorkspacesEventMap} from '@shipfox/api-workspaces-dto';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
@@ -19,6 +23,7 @@ import {createProjectRoutes} from '#presentation/index.js';
 import {createProjectsInterModulePresentation} from '#presentation/inter-module.js';
 import {
   onConnectionDeleted,
+  onProjectDeleted,
   onSourceCommitPushed,
   onSourceRepositoryUpdated,
   onWorkspaceCreated,
@@ -30,15 +35,20 @@ import {projectsFlags} from './flags.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<IntegrationsEventMap & WorkspacesEventMap>();
+const subscriber = subscriberFactory<
+  IntegrationsEventMap & ProjectsEventMap & WorkspacesEventMap
+>();
 
 export type {Project} from '#core/index.js';
 export {
   createManagedProject,
   createProjectFromSource,
+  DefaultProjectUndeletableError,
+  deleteProject,
   ensureDefaultProject,
   ProjectAccessDeniedError,
   ProjectAlreadyExistsError,
+  ProjectNameMismatchError,
   ProjectNotFoundError,
   ProjectSlugConflictError,
   updateProjectDetails,
@@ -84,6 +94,7 @@ export function createProjectsModule({
     interModulePresentations: [createProjectsInterModulePresentation({integrations})],
     subscribers: [
       subscriber(INTEGRATION_CONNECTION_DELETED, onConnectionDeleted),
+      subscriber(PROJECT_DELETED, onProjectDeleted),
       subscriber(INTEGRATION_SOURCE_COMMIT_PUSHED, onSourceCommitPushed),
       subscriber(INTEGRATION_SOURCE_REPOSITORY_UPDATED, onSourceRepositoryUpdated),
       subscriber(WORKSPACES_WORKSPACE_CREATED, (payload) =>

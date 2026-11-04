@@ -76,3 +76,18 @@ export class DefaultProjectExistsError extends Error {
     this.name = 'DefaultProjectExistsError';
   }
 }
+
+/** The confirmation name of a delete doesn't match the project's current name. */
+export class ProjectNameMismatchError extends Error {
+  constructor(public readonly projectId: string) {
+    super(`Project name does not match: ${projectId}`);
+    this.name = 'ProjectNameMismatchError';
+  }
+}
+
+export class DefaultProjectUndeletableError extends Error {
+  constructor(public readonly projectId: string) {
+    super(`The default project cannot be deleted: ${projectId}`);
+    this.name = 'DefaultProjectUndeletableError';
+  }
+}

@@ -215,6 +215,7 @@ function createProjectsClient() {
             slug: 'checkout-api',
             createdAt: STARTED_AT,
             updatedAt: DEADLINE_AT,
+            deletedAt: null,
           },
           {
             id: USER_ID,
@@ -223,6 +224,7 @@ function createProjectsClient() {
             slug: 'checkout-web',
             createdAt: STARTED_AT,
             updatedAt: DEADLINE_AT,
+            deletedAt: DEADLINE_AT,
           },
         ],
         nextCursor: {createdAt: STARTED_AT, id: USER_ID},
@@ -547,6 +549,7 @@ describe('admin MCP endpoint', () => {
             workspace_id: WORKSPACE_ID,
             workspace_slug: 'acme',
             created_at: STARTED_AT,
+            deleted_at: null,
           },
           {
             id: USER_ID,
@@ -555,6 +558,7 @@ describe('admin MCP endpoint', () => {
             workspace_id: OTHER_WORKSPACE_ID,
             workspace_slug: null,
             created_at: STARTED_AT,
+            deleted_at: DEADLINE_AT,
           },
         ],
         next_cursor: expect.any(String),

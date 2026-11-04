@@ -138,6 +138,8 @@ const foundProjectSchema = z
     workspace_id: idSchema,
     workspace_slug: z.string().min(1).nullable(),
     created_at: dateTimeSchema,
+    /** Set for a deleted project, which the admin list still returns. */
+    deleted_at: dateTimeSchema.nullable(),
   })
   .strict();
 
@@ -176,6 +178,7 @@ export type StopImpersonationResultDto = z.infer<typeof stopImpersonationResultS
 
 const uuid = {type: 'string', format: 'uuid'} as const;
 const dateTime = {type: 'string', format: 'date-time'} as const;
+const nullableDateTime = {anyOf: [dateTime, {type: 'null'}]} as const;
 const nullableString = {anyOf: [{type: 'string', minLength: 1}, {type: 'null'}]} as const;
 
 export const findUsersInputJsonSchema = {
@@ -309,8 +312,17 @@ export const findProjectsResultJsonSchema = {
           workspace_id: uuid,
           workspace_slug: nullableString,
           created_at: dateTime,
+          deleted_at: nullableDateTime,
         },
-        required: ['id', 'name', 'slug', 'workspace_id', 'workspace_slug', 'created_at'],
+        required: [
+          'id',
+          'name',
+          'slug',
+          'workspace_id',
+          'workspace_slug',
+          'created_at',
+          'deleted_at',
+        ],
         additionalProperties: false,
       },
     },

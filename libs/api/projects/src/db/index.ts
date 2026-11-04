@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
 export {
+  deleteIntegrationEventDedupForProject,
   pruneIntegrationEventDedup,
   recordIntegrationEventForProject,
 } from './integration-event-dedup.js';
@@ -15,6 +16,7 @@ export type {
   ListAdminProjectsResult,
   ListProjectsParams,
   ListProjectsResult,
+  ProjectLabel,
   ResolveCheckoutTargetParams,
   ResolvedCheckoutTarget,
   UpdateProjectParams,
@@ -27,6 +29,7 @@ export {
   getProjectById,
   getProjectBySource,
   getProjectCount,
+  getProjectLabelsByIds,
   getWorkspaceProjectCounts,
   listAdminProjects,
   listProjects,

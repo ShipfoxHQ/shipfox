@@ -7,8 +7,10 @@ export {
 export type * from './entities/index.js';
 export {
   DefaultProjectExistsError,
+  DefaultProjectUndeletableError,
   ProjectAccessDeniedError,
   ProjectAlreadyExistsError,
+  ProjectNameMismatchError,
   ProjectNotFoundError,
   ProjectSlugConflictError,
   ProjectSourceChangedError,
@@ -16,12 +18,14 @@ export {
 export type {
   CreateManagedProjectParams,
   CreateProjectFromSourceParams,
+  DeleteProjectParams,
   MoveProjectSourceParams,
   UpdateProjectDetailsParams,
 } from './projects.js';
 export {
   createManagedProject,
   createProjectFromSource,
+  deleteProject,
   moveProjectSource,
   updateProjectDetails,
 } from './projects.js';

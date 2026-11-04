@@ -7,6 +7,7 @@ Shipfox API Projects manages project resources and their source repository bindi
 - **`createProjectFromSource`**: Creates a project from a repository in an integration connection.
 - **`createManagedProject`**: Creates a project whose config lives in a repository Shipfox hosts, with optional seed files.
 - **`updateProjectDetails`**: Changes a project's name or slug and writes the update event.
+- **`deleteProject`**: Tombstones a project and writes `PROJECT_DELETED`.
 - **`createProjectRoutes`**: Mounts project and administrator HTTP routes.
 - **`Project`**: Represents the project identity, URL slug, source repository, and timestamps.
 
@@ -46,6 +47,7 @@ Routes mount under `/projects` and use UUIDs for resource identity:
 | `GET` | `/projects?workspace_id=<workspaceId>` | List projects in a workspace. |
 | `GET` | `/projects/<projectId>` | Read one project. |
 | `PATCH` | `/projects/<projectId>` | Update a project's name or slug. |
+| `DELETE` | `/projects/<projectId>` | Delete a project. Workspace admins only, never an impersonated session. The body is `{name}`. |
 | `GET` | `/projects/<projectId>/access` | Read the project's access. Members can read it. |
 | `PUT` | `/projects/<projectId>/access` | Replace the project's access. Workspace admins only, and never an impersonated session. |
 
@@ -95,6 +97,26 @@ resources they can reach. Nothing enforces it yet; this module stores and serves
   `integrations.connection.deleted` and deletes the matching scopes, which cascades to their
   resources. A repository rename updates the stored `lookup_name` and `display_name` of a listed
   repository through `integrations.source_control.repository_updated`.
+
+## Deleting a project
+
+`DELETE /projects/<projectId>` takes `{name}`, which must equal the project's current name. It
+answers `204`. Other answers are `422 project-name-mismatch`, `409 default-project-undeletable`,
+`403 forbidden` for a member who is not an admin, and `404 project-not-found`.
+
+Deletion sets `deleted_at` and `deleted_by` on the row and writes `PROJECT_DELETED` in one
+transaction. The row stays, because usage reads a deleted project's name and slug from it.
+
+- **Every read filters on live rows**, so a deleted project is missing from the commit on. Two reads
+  are the exception: the admin list shows the project with `status: deleted` and `deleted_at`, and
+  `getProjectsByIds` shows it with `includeDeleted`.
+- **The slug and the config repository can be reused.** `projects_workspace_slug_unique` and
+  `projects_source_unique` are partial on `deleted_at is null`.
+- **`getProjectsByIds`** on the inter-module contract returns the name, slug, and `deletedAt` of up
+  to 100 projects. A deleted project appears only with `includeDeleted`.
+- **The module purges its own rows** when it consumes `PROJECT_DELETED`: the access rows and the
+  `integration_event_dedup` rows, the latter in batches. Purges by other modules from the same event
+  are separate work.
 
 ## Behavior Notes
 

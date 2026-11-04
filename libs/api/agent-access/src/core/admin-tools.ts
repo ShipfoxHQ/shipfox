@@ -211,6 +211,7 @@ function createFindProjectsTool({
           workspace_id: project.workspaceId,
           workspace_slug: workspaceSlugById.get(project.workspaceId) ?? null,
           created_at: project.createdAt,
+          deleted_at: project.deletedAt,
         })),
         next_cursor: page.nextCursor
           ? encodeTimestampCursor(page.nextCursor.createdAt, page.nextCursor.id)

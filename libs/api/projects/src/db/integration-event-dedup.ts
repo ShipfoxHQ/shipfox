@@ -1,4 +1,5 @@
-import {lt} from 'drizzle-orm';
+import {deleteInBatches} from '@shipfox/node-drizzle';
+import {eq, lt} from 'drizzle-orm';
 import {db} from './db.js';
 import {projectsIntegrationEventDedup} from './schema/integration-event-dedup.js';
 
@@ -29,6 +30,15 @@ export async function recordIntegrationEventForProject(
     .returning({projectId: projectsIntegrationEventDedup.projectId});
 
   return {firstSeen: inserted.length > 0};
+}
+
+/** Deletes the dedup rows of a project, in batches. Returns how many it deleted. */
+export async function deleteIntegrationEventDedupForProject(projectId: string): Promise<number> {
+  return await deleteInBatches({
+    db: db(),
+    table: projectsIntegrationEventDedup,
+    where: eq(projectsIntegrationEventDedup.projectId, projectId),
+  });
 }
 
 export interface PruneIntegrationEventDedupParams {

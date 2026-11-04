@@ -1,5 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {sql} from 'drizzle-orm';
+import {isNull, sql} from 'drizzle-orm';
 import {boolean, index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {Project} from '#core/entities/project.js';
 import {pgTable} from './common.js';
@@ -23,15 +23,19 @@ export const projects = pgTable(
       .notNull()
       .default('all'),
     isDefault: boolean('is_default').notNull().default(false),
+    deletedAt: timestamp('deleted_at', {withTimezone: true}),
+    deletedBy: text('deleted_by'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('projects_source_unique').on(
-      table.sourceConnectionId,
-      table.sourceExternalRepositoryId,
-    ),
-    uniqueIndex('projects_workspace_slug_unique').on(table.workspaceId, table.slug),
+    // Partial on live rows, so a deleted project frees its slug and its config repository.
+    uniqueIndex('projects_source_unique')
+      .on(table.sourceConnectionId, table.sourceExternalRepositoryId)
+      .where(sql`${table.deletedAt} is null`),
+    uniqueIndex('projects_workspace_slug_unique')
+      .on(table.workspaceId, table.slug)
+      .where(sql`${table.deletedAt} is null`),
     uniqueIndex('projects_workspace_default_unique')
       .on(table.workspaceId)
       .where(sql`${table.isDefault}`),
@@ -44,6 +48,9 @@ export const projects = pgTable(
     ),
   ],
 );
+
+/** The condition every projects read adds, except the admin list. */
+export const liveProject = isNull(projects.deletedAt);
 
 export type ProjectDb = typeof projects.$inferSelect;
 export type ProjectCreateDb = typeof projects.$inferInsert;
