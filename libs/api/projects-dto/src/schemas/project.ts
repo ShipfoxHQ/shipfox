@@ -49,6 +49,13 @@ export const updateProjectBodySchema = z
 
 export type UpdateProjectBodyDto = z.infer<typeof updateProjectBodySchema>;
 
+export const deleteProjectBodySchema = z.object({
+  /** The project's current name, typed by the admin to confirm. */
+  name: z.string().min(1),
+});
+
+export type DeleteProjectBodyDto = z.infer<typeof deleteProjectBodySchema>;
+
 export const projectDtoSchema = z.object({
   id: z.string().uuid(),
   workspace_id: z.string().uuid(),
@@ -86,10 +93,12 @@ export type ListProjectsResponseDto = z.infer<typeof listProjectsResponseSchema>
 export const adminProjectSummaryDtoSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
-  status: z.literal('active'),
+  status: z.enum(['active', 'deleted']),
   workspace_id: z.string().uuid(),
   created_at: z.string(),
   updated_at: z.string(),
+  /** Set for a deleted project. The admin list is the one read that still shows it. */
+  deleted_at: z.string().nullable(),
 });
 
 export type AdminProjectSummaryDto = z.infer<typeof adminProjectSummaryDtoSchema>;

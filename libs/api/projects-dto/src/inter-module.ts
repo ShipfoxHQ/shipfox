@@ -24,13 +24,22 @@ const workspaceProjectCountSchema = z.object({
   workspaceId: idSchema,
   count: z.number().int().nonnegative(),
 });
-const adminProjectSchema = projectCatalogSchema.pick({
-  id: true,
-  workspaceId: true,
-  name: true,
-  slug: true,
-  createdAt: true,
-  updatedAt: true,
+const adminProjectSchema = projectCatalogSchema
+  .pick({
+    id: true,
+    workspaceId: true,
+    name: true,
+    slug: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({deletedAt: z.string().datetime().nullable()});
+const projectLabelSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  slug: slugSchema,
+  /** Set for a deleted project, which keeps its name and slug. */
+  deletedAt: z.string().datetime().nullable(),
 });
 const projectCursorSchema = z.object({
   createdAt: z.string().datetime(),
@@ -127,8 +136,21 @@ export const projectsInterModuleContract = defineInterModuleContract({
       }),
     },
     /**
+     * The name, slug, and deletion time of each project, for readers that hold project ids with no
+     * live project behind them, such as usage. A deleted project is present only with
+     * `includeDeleted`. Missing ids, and ids of another workspace, are absent from the result.
+     */
+    getProjectsByIds: {
+      input: z.object({
+        workspaceId: idSchema,
+        projectIds: z.array(idSchema).min(1).max(100),
+        includeDeleted: z.boolean().default(false),
+      }),
+      output: z.object({projects: z.array(projectLabelSchema)}),
+    },
+    /**
      * Lists projects across every workspace for administrator surfaces, newest
-     * first. Callers check the administrator role before calling.
+     * first, deleted projects included. Callers check the administrator role before calling.
      */
     listAdminProjects: {
       input: z.object({

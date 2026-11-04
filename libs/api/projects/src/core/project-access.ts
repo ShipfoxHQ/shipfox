@@ -11,7 +11,7 @@ import {
 } from '@shipfox/api-projects-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {eq} from 'drizzle-orm';
+import {and, eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {
   loadProjectAccessByIds,
@@ -20,7 +20,7 @@ import {
 } from '#db/project-access.js';
 import {getProjectById} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
-import {projects} from '#db/schema/projects.js';
+import {liveProject, projects} from '#db/schema/projects.js';
 import type {Project} from './entities/project.js';
 import type {
   StoredAccessResource,
@@ -142,7 +142,7 @@ export async function setProjectAccess(params: SetProjectAccessParams): Promise<
         sourceExternalRepositoryId: projects.sourceExternalRepositoryId,
       })
       .from(projects)
-      .where(eq(projects.id, project.id))
+      .where(and(eq(projects.id, project.id), liveProject))
       .for('update');
     if (!locked) throw new ProjectNotFoundError(project.id);
     // The config source counts toward the resource minimum, so a move during validation voids it.

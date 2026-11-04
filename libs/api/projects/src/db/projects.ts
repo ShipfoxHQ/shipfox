@@ -27,7 +27,7 @@ import {
 } from '#core/errors.js';
 import {recordProjectCreated} from '#metrics/instance.js';
 import {db, type Executor} from './db.js';
-import {projects, toProject} from './schema/projects.js';
+import {liveProject, projects, toProject} from './schema/projects.js';
 
 type ProjectDatabase = ReturnType<typeof db>;
 type ProjectTransaction = Parameters<Parameters<ProjectDatabase['transaction']>[0]>[0];
@@ -82,7 +82,7 @@ export interface ListProjectsResult {
 export type AdminProjectSummary = Pick<
   Project,
   'id' | 'workspaceId' | 'name' | 'slug' | 'createdAt' | 'updatedAt'
->;
+> & {deletedAt: Date | null};
 
 export interface ListAdminProjectsParams {
   limit: number;
@@ -129,6 +129,7 @@ export async function createProject(params: CreateProjectParams): Promise<Projec
           })
           .onConflictDoNothing({
             target: [projects.sourceConnectionId, projects.sourceExternalRepositoryId],
+            where: liveProject,
           })
           .returning();
       } catch (error) {
@@ -166,6 +167,7 @@ async function assertSourceProjectDoesNotExist(
       and(
         eq(projects.sourceConnectionId, params.sourceConnectionId),
         eq(projects.sourceExternalRepositoryId, params.sourceExternalRepositoryId),
+        liveProject,
       ),
     )
     .limit(1);
@@ -187,7 +189,7 @@ export async function updateProject(
   const [existingRow] = await executor
     .select()
     .from(projects)
-    .where(eq(projects.id, params.projectId))
+    .where(and(eq(projects.id, params.projectId), liveProject))
     .limit(1);
   if (!existingRow) return undefined;
 
@@ -205,7 +207,7 @@ export async function updateProject(
         ...(params.slug !== undefined ? {slug: params.slug} : {}),
         updatedAt: new Date(),
       })
-      .where(eq(projects.id, params.projectId))
+      .where(and(eq(projects.id, params.projectId), liveProject))
       .returning();
 
     return row ? {project: toProject(row), changed: true} : undefined;
@@ -218,7 +220,11 @@ export async function updateProject(
 }
 
 export async function getProjectById(id: string): Promise<Project | undefined> {
-  const rows = await db().select().from(projects).where(eq(projects.id, id)).limit(1);
+  const rows = await db()
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, id), liveProject))
+    .limit(1);
 
   const row = rows[0];
   if (!row) return undefined;
@@ -229,7 +235,7 @@ export async function getDefaultProject(workspaceId: string): Promise<Project | 
   const [row] = await db()
     .select()
     .from(projects)
-    .where(and(eq(projects.workspaceId, workspaceId), eq(projects.isDefault, true)))
+    .where(and(eq(projects.workspaceId, workspaceId), eq(projects.isDefault, true), liveProject))
     .limit(1);
   return row ? toProject(row) : undefined;
 }
@@ -251,6 +257,7 @@ export async function getProjectBySource(
         eq(projects.workspaceId, params.workspaceId),
         eq(projects.sourceConnectionId, params.sourceConnectionId),
         eq(projects.sourceExternalRepositoryId, params.sourceExternalRepositoryId),
+        liveProject,
       ),
     )
     .limit(1);
@@ -269,6 +276,7 @@ function whereSourceRepositoryMatches(params: {
   return and(
     eq(projects.workspaceId, params.workspaceId),
     eq(projects.sourceConnectionId, params.sourceConnectionId),
+    liveProject,
     sql`lower(${projects.sourceRepositoryOwner}) = lower(${params.sourceRepositoryOwner})`,
     sql`lower(${projects.sourceRepositoryName}) = lower(${params.sourceRepositoryName})`,
   );
@@ -345,6 +353,7 @@ export async function listProjectsBySourceConnection(
   const conditions = [
     eq(projects.workspaceId, params.workspaceId),
     eq(projects.sourceConnectionId, params.sourceConnectionId),
+    liveProject,
     and(isNotNull(projects.sourceRepositoryOwner), sql`${projects.sourceRepositoryOwner} <> ''`),
     and(isNotNull(projects.sourceRepositoryName), sql`${projects.sourceRepositoryName} <> ''`),
   ];
@@ -433,6 +442,7 @@ export async function updateProjectSourceRepository(
         eq(projects.workspaceId, params.workspaceId),
         eq(projects.sourceConnectionId, params.sourceConnectionId),
         eq(projects.sourceExternalRepositoryId, params.sourceExternalRepositoryId),
+        liveProject,
       ),
     )
     .returning();
@@ -478,7 +488,11 @@ export async function resolveCheckoutTarget(
     })
     .from(projects)
     .where(
-      and(eq(projects.workspaceId, params.workspaceId), eq(projects.id, params.target.project)),
+      and(
+        eq(projects.workspaceId, params.workspaceId),
+        eq(projects.id, params.target.project),
+        liveProject,
+      ),
     )
     .limit(1);
   return project === undefined
@@ -493,7 +507,7 @@ export async function resolveCheckoutTarget(
 }
 
 export async function listProjects(params: ListProjectsParams): Promise<ListProjectsResult> {
-  const conditions = [eq(projects.workspaceId, params.workspaceId)];
+  const conditions = [eq(projects.workspaceId, params.workspaceId), liveProject];
   const cursorCondition = cursorWhere(params.cursor);
   if (cursorCondition) conditions.push(cursorCondition);
   if (params.search) {
@@ -549,6 +563,7 @@ export async function listAdminProjects(
       createdAt: projects.createdAt,
       cursorCreatedAt: timestampIdCursorColumn(projects.createdAt),
       updatedAt: projects.updatedAt,
+      deletedAt: projects.deletedAt,
     })
     .from(projects)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -568,8 +583,39 @@ export async function listAdminProjects(
   };
 }
 
+export interface ProjectLabel {
+  id: string;
+  name: string;
+  slug: string;
+  deletedAt: Date | null;
+}
+
+/** A deleted project is present only with `includeDeleted`. */
+export async function getProjectLabelsByIds(params: {
+  workspaceId: string;
+  projectIds: readonly string[];
+  includeDeleted: boolean;
+}): Promise<ProjectLabel[]> {
+  return await db()
+    .select({
+      id: projects.id,
+      name: projects.name,
+      slug: projects.slug,
+      deletedAt: projects.deletedAt,
+    })
+    .from(projects)
+    .where(
+      and(
+        eq(projects.workspaceId, params.workspaceId),
+        inArray(projects.id, [...params.projectIds]),
+        params.includeDeleted ? undefined : liveProject,
+      ),
+    )
+    .orderBy(projects.createdAt, projects.id);
+}
+
 export async function getProjectCount(): Promise<number> {
-  const [row] = await db().select({value: count()}).from(projects);
+  const [row] = await db().select({value: count()}).from(projects).where(liveProject);
   return row?.value ?? 0;
 }
 
@@ -579,7 +625,7 @@ export async function getWorkspaceProjectCounts(params: {
   const rows = await db()
     .select({workspaceId: projects.workspaceId, count: count()})
     .from(projects)
-    .where(inArray(projects.workspaceId, params.workspaceIds))
+    .where(and(inArray(projects.workspaceId, params.workspaceIds), liveProject))
     .groupBy(projects.workspaceId);
 
   const countsByWorkspace = new Map(rows.map((row) => [row.workspaceId, Number(row.count)]));

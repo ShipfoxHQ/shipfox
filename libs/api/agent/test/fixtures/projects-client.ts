@@ -36,6 +36,7 @@ export function createTestProjectsClient(params: {
       listProjectCatalogByWorkspace: vi.fn(),
       getDefaultProject: vi.fn(),
       listAdminProjects: vi.fn(),
+      getProjectsByIds: vi.fn(),
       requireProjectForWorkspace: vi.fn(),
       getWorkspaceProjectCounts: vi.fn(),
       moveProjectSource: vi.fn(),

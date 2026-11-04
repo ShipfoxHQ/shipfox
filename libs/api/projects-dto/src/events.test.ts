@@ -1,4 +1,4 @@
-import {projectCreatedEventSchema} from './events.js';
+import {projectCreatedEventSchema, projectDeletedEventSchema} from './events.js';
 
 const legacyProjectCreatedEvent = {
   actorId: 'actor-1',
@@ -19,5 +19,24 @@ describe('project created event schema', () => {
     expect(
       projectCreatedEventSchema.parse({...legacyProjectCreatedEvent, slug: 'project'}),
     ).toMatchObject({slug: 'project'});
+  });
+});
+
+describe('project deleted event schema', () => {
+  const deleted = {
+    workspaceId: 'workspace-1',
+    projectId: 'project-1',
+    deletedBy: 'user-1',
+    deletedAt: '2026-11-03T10:00:00.000Z',
+  };
+
+  test('accepts the payload a purge needs', () => {
+    expect(projectDeletedEventSchema.parse(deleted)).toEqual(deleted);
+  });
+
+  test('rejects a payload with no deletion time', () => {
+    const {deletedAt: _deletedAt, ...withoutTime} = deleted;
+
+    expect(projectDeletedEventSchema.safeParse(withoutTime).success).toBe(false);
   });
 });

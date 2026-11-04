@@ -3,6 +3,7 @@ import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-modul
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import {eq} from 'drizzle-orm';
+import {deleteProject} from '#core/projects.js';
 import {db} from '#db/index.js';
 import {replaceProjectAccess} from '#db/project-access.js';
 import {projects} from '#db/schema/projects.js';
@@ -209,7 +210,76 @@ describe('Projects checkout target inter-module presentation', () => {
         slug: first.projectSlug,
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
+        deletedAt: null,
       },
+    ]);
+  });
+
+  test('lists a deleted project for administrators with its deletion time', async () => {
+    const client = createClient();
+    const workspaceId = crypto.randomUUID();
+    const project = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'gone',
+    });
+    await deleteProject({
+      actorId: 'user-1',
+      workspaceId,
+      projectId: project.projectId,
+      name: 'gone',
+    });
+
+    const result = await client.listAdminProjects({projectId: project.projectId, limit: 10});
+
+    expect(result.projects).toEqual([
+      expect.objectContaining({id: project.projectId, deletedAt: expect.any(String)}),
+    ]);
+  });
+
+  test('labels projects by id, and shows deleted ones only when asked', async () => {
+    const client = createClient();
+    const workspaceId = crypto.randomUUID();
+    const live = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'live',
+    });
+    const gone = await insertProject({
+      workspaceId,
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'gone',
+    });
+    const elsewhere = await insertProject({
+      workspaceId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      owner: 'acme',
+      name: 'elsewhere',
+    });
+    await deleteProject({
+      actorId: 'user-1',
+      workspaceId,
+      projectId: gone.projectId,
+      name: 'gone',
+    });
+    const projectIds = [live.projectId, gone.projectId, elsewhere.projectId];
+
+    const withoutDeleted = await client.getProjectsByIds({workspaceId, projectIds});
+    const withDeleted = await client.getProjectsByIds({
+      workspaceId,
+      projectIds,
+      includeDeleted: true,
+    });
+
+    expect(withoutDeleted.projects).toEqual([
+      {id: live.projectId, name: 'live', slug: live.projectSlug, deletedAt: null},
+    ]);
+    expect(withDeleted.projects).toEqual([
+      {id: live.projectId, name: 'live', slug: live.projectSlug, deletedAt: null},
+      {id: gone.projectId, name: 'gone', slug: gone.projectSlug, deletedAt: expect.any(String)},
     ]);
   });
 

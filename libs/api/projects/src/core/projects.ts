@@ -1,6 +1,7 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {
   PROJECT_CREATED,
+  PROJECT_DELETED,
   PROJECT_SOURCE_BOUND,
   PROJECT_UPDATED,
   type ProjectsEventMap,
@@ -12,12 +13,14 @@ import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {updateProject} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
-import {projects, toProject} from '#db/schema/projects.js';
+import {liveProject, projects, toProject} from '#db/schema/projects.js';
 import {recordProjectCreated} from '#metrics/instance.js';
 import type {Project} from './entities/project.js';
 import {
   DefaultProjectExistsError,
+  DefaultProjectUndeletableError,
   ProjectAlreadyExistsError,
+  ProjectNameMismatchError,
   ProjectNotFoundError,
   ProjectSlugConflictError,
   ProjectSourceChangedError,
@@ -135,6 +138,7 @@ async function insertProject(params: {
           })
           .onConflictDoNothing({
             target: [projects.sourceConnectionId, projects.sourceExternalRepositoryId],
+            where: liveProject,
           })
           .returning();
       } catch (error) {
@@ -208,6 +212,7 @@ async function assertSourceProjectDoesNotExist(
       and(
         eq(projects.sourceConnectionId, sourceConnectionId),
         eq(projects.sourceExternalRepositoryId, sourceExternalRepositoryId),
+        liveProject,
       ),
     )
     .limit(1);
@@ -280,7 +285,7 @@ export async function moveProjectSource(
     const [current] = await tx
       .select()
       .from(projects)
-      .where(eq(projects.id, params.projectId))
+      .where(and(eq(projects.id, params.projectId), liveProject))
       .for('update');
     if (!current || current.workspaceId !== params.workspaceId) {
       throw new ProjectNotFoundError(params.projectId);
@@ -311,7 +316,7 @@ export async function moveProjectSource(
             sourceDefaultBranch: to.defaultBranch,
             updatedAt: new Date(),
           })
-          .where(eq(projects.id, params.projectId));
+          .where(and(eq(projects.id, params.projectId), liveProject));
       });
     } catch (error) {
       if (isUniqueViolation(error, PROJECTS_SOURCE_UNIQUE_CONSTRAINT)) {
@@ -333,5 +338,49 @@ export async function moveProjectSource(
       },
     });
     return {moved: true};
+  });
+}
+
+export interface DeleteProjectParams {
+  actorId: string;
+  workspaceId: string;
+  projectId: string;
+  /** The name the admin typed. It must equal the project's current name. */
+  name: string;
+}
+
+/**
+ * Tombstones a project. From the commit on, every read treats it as missing, and its slug and
+ * config repository can be reused. `PROJECT_DELETED` is written in the same transaction, and each
+ * module cleans up after it.
+ */
+export async function deleteProject(params: DeleteProjectParams): Promise<void> {
+  await db().transaction(async (tx) => {
+    const [project] = await tx
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, params.projectId), liveProject))
+      .for('update');
+    if (!project || project.workspaceId !== params.workspaceId) {
+      throw new ProjectNotFoundError(params.projectId);
+    }
+    if (project.isDefault) throw new DefaultProjectUndeletableError(project.id);
+    if (project.name !== params.name) throw new ProjectNameMismatchError(project.id);
+
+    const deletedAt = new Date();
+    await tx
+      .update(projects)
+      .set({deletedAt, deletedBy: params.actorId, updatedAt: deletedAt})
+      .where(eq(projects.id, project.id));
+    await writeOutboxEvent<ProjectsEventMap>(tx, projectsOutbox, {
+      type: PROJECT_DELETED,
+      orderingKey: project.id,
+      payload: {
+        workspaceId: project.workspaceId,
+        projectId: project.id,
+        deletedBy: params.actorId,
+        deletedAt: deletedAt.toISOString(),
+      },
+    });
   });
 }

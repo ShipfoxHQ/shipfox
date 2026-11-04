@@ -9,6 +9,43 @@ Helpers for using Drizzle with PostgreSQL in Node.js services.
 - **`runMigrations()`**: Runs migrations in a transaction. It uses a PostgreSQL advisory lock.
 - **`uuidv7PrimaryKey()`**: Makes a UUID primary key with a `uuidv7()` default.
 - **Cursor helpers**: Encode, decode, filter, and page through keyset cursors.
+- **Deletion markers**: `deletedScopeColumns()`, `recordDeletedScope()`, `assertScopeWritable()`, and
+  `ScopeDeletedError` block writes to a deleted workspace or project.
+- **`deleteInBatches()`**: Deletes matching rows one committed batch at a time.
+
+## Deletion markers
+
+A module that owns rows for a project keeps its own `<module>_deleted_scopes` table. Declare it
+with `deletedScopeColumns()`, and make it unique on `(workspace_id, project_id)` with nulls not
+distinct. A marker with no `project_id` covers the whole workspace.
+
+```ts
+export const workflowsDeletedScopes = pgTable('deleted_scopes', deletedScopeColumns());
+
+// On deletion:
+await db.transaction((tx) =>
+  recordDeletedScope(tx, workflowsDeletedScopes, {
+    scope: {workspaceId, projectId},
+    reason: 'project_deleted',
+  }),
+);
+
+// In every write to a row that carries project_id:
+await db.transaction(async (tx) => {
+  await assertScopeWritable(tx, workflowsDeletedScopes, {workspaceId, projectId});
+  await tx.insert(runs).values(run);
+});
+```
+
+`recordDeletedScope()` takes an exclusive advisory lock on the scope, so it waits for guarded writes
+in progress. `assertScopeWritable()` takes a shared lock on the workspace and the project, then
+throws `ScopeDeletedError` when a marker exists. Every write that starts after the marker commits
+sees it. Event consumers treat the error as handled, and routes answer not-found. Run the guarded
+transaction at READ COMMITTED, the PostgreSQL default.
+
+`deleteInBatches({db, table, where, batchSize})` deletes in statements that each commit on their
+own, and returns how many rows it deleted. It picks rows by physical row id, so it works for tables
+with a composite key.
 
 ## Installation
 

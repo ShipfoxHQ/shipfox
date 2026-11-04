@@ -20,3 +20,15 @@ export {
 } from './cursor.js';
 export {isUniqueViolation} from './errors.js';
 export {uuidv7PrimaryKey} from './schema.js';
+export {
+  assertScopeWritable,
+  type BatchDeleteDatabase,
+  type DeletedScopesTable,
+  type DeleteInBatchesParams,
+  deletedScopeColumns,
+  deleteInBatches,
+  recordDeletedScope,
+  ScopeDeletedError,
+  type ScopeTransaction,
+  type WorkScope,
+} from './scope.js';

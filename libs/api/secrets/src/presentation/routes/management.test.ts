@@ -31,6 +31,7 @@ const projects = createFakeInterModuleClients({
     listProjectsByWorkspace: () => ({projects: [], nextCursor: null}),
     listProjectCatalogByWorkspace: () => ({projects: [], nextCursor: null}),
     listAdminProjects: () => ({projects: [], nextCursor: null}),
+    getProjectsByIds: () => ({projects: []}),
     getDefaultProject: () => ({project: null}),
     getWorkspaceProjectCounts: () => ({counts: []}),
     requireProjectForWorkspace: async (input) => await requireProjectForWorkspace(input),

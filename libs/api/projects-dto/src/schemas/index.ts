@@ -17,6 +17,8 @@ export {
   adminProjectSummaryDtoSchema,
   type CreateProjectBodyDto,
   createProjectBodySchema,
+  type DeleteProjectBodyDto,
+  deleteProjectBodySchema,
   type ListAdminProjectsQueryDto,
   type ListAdminProjectsResponseDto,
   type ListProjectsQueryDto,
