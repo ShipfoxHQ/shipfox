@@ -1,6 +1,11 @@
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {eq} from 'drizzle-orm';
-import {agentDeletedScopes, db, recordProjectAgentDeleted} from '#db/index.js';
+import {
+  agentDeletedScopes,
+  db,
+  listUnpurgedProjectScopes,
+  recordProjectAgentDeleted,
+} from '#db/index.js';
 import {conversations} from '#db/schema/conversations.js';
 import {turns} from '#db/schema/turns.js';
 import {conversationFactory} from '#test/factories/conversation.js';
@@ -73,9 +78,24 @@ describe('purgeUnfinishedDeletedProjects', () => {
     await purgeUnfinishedDeletedProjects();
     const first = await purgedAt(projectId);
     expect(first).toBeInstanceOf(Date);
+    expect(await listUnpurgedProjectScopes(1000)).not.toContainEqual({workspaceId, projectId});
 
     await purgeUnfinishedDeletedProjects();
 
     expect(await purgedAt(projectId)).toEqual(first);
+  });
+
+  it('stops before the next project once the signal is aborted', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const {conversation} = await conversationFactory.create({workspaceId, projectId});
+    await recordProjectAgentDeleted({workspaceId, projectId});
+
+    await purgeUnfinishedDeletedProjects(AbortSignal.abort());
+
+    expect(
+      await db().select().from(conversations).where(eq(conversations.id, conversation.id)),
+    ).toHaveLength(1);
+    expect(await purgedAt(projectId)).toBeNull();
   });
 });

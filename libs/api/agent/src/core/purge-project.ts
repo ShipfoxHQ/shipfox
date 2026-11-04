@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import type {ModuleService} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
@@ -55,7 +56,12 @@ export async function purgeUnfinishedDeletedProjects(
       const result = await purgeProject(scope);
       if (result.purged) purged += 1;
     } catch (error) {
-      logger().warn({err: error, ...scope}, 'Failed to purge a deleted project');
+      logger().error({err: error, ...scope}, 'Failed to purge a deleted project');
+      reportError(error, {
+        boundary: 'agent.maintenance',
+        operation: 'purge-deleted-project',
+        extra: scope,
+      });
     }
   }
   return {purged};
@@ -87,6 +93,10 @@ export function createDeletedProjectPurgeSweeper(
             if (purged > 0) logger().info({purged}, 'Finished purges of deleted projects');
           } catch (error) {
             logger().error({err: error}, 'Deleted project purge sweep failed');
+            reportError(error, {
+              boundary: 'agent.maintenance',
+              operation: 'purge-deleted-projects',
+            });
           }
         }
       })();
