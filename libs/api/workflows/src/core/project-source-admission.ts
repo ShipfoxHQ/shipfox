@@ -3,7 +3,7 @@ import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/i
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {loadProjectCheckoutDefaults} from './default-checkout.js';
 import {SourceConnectionUnavailableError} from './errors.js';
-import {jobChecksOutProjectSource} from './step-config/index.js';
+import {jobChecksOutBareRepository, jobChecksOutProjectSource} from './step-config/index.js';
 
 export interface AssertProjectSourceAdmitsParams {
   model: WorkflowModel;
@@ -18,8 +18,9 @@ export interface AssertProjectSourceAdmitsParams {
 }
 
 /**
- * Work that checks out the project's default repository cannot start while that connection is
- * gone or not active. It holds for any provider, so a disabled connection blocks the same way.
+ * Work that checks out the project's default repository, or a bare `repository` on its default
+ * connection, cannot start while that connection is gone or not active. It holds for any
+ * provider, so a disabled connection blocks the same way.
  */
 export async function assertProjectSourceAdmits(
   params: AssertProjectSourceAdmitsParams,
@@ -39,14 +40,31 @@ export async function assertProjectSourceAdmits(
     integrations: params.integrations,
   });
   const noDefaultCheckout = defaults === null || defaults.defaultCheckout === null;
-  if (!jobs.some((job) => jobChecksOutProjectSource({job, projectId, noDefaultCheckout}))) return;
-  // A job that checks out the project by id on a managed project has no default repository.
-  const connectionId = defaults?.defaultCheckout?.connectionId ?? project.sourceConnectionId;
-  const connection = await params.integrations.resolveConnectionById({connectionId});
-  if (connection === null || connection === undefined) {
-    throw new SourceConnectionUnavailableError(projectId, connectionId, 'missing');
+  const connectionIds = new Set<string>();
+  if (jobs.some((job) => jobChecksOutProjectSource({job, projectId, noDefaultCheckout}))) {
+    // A job that checks out the project by id on a managed project has no default repository.
+    connectionIds.add(defaults?.defaultCheckout?.connectionId ?? project.sourceConnectionId);
   }
-  if (connection.lifecycleStatus !== 'active') {
-    throw new SourceConnectionUnavailableError(projectId, connectionId, connection.lifecycleStatus);
+  // Without a default checkout, a bare `repository` still resolves on the default connection.
+  // The configured one counts inactive connections, which the default itself leaves out.
+  if (
+    noDefaultCheckout &&
+    defaults?.configuredConnectionId != null &&
+    jobs.some(jobChecksOutBareRepository)
+  ) {
+    connectionIds.add(defaults.configuredConnectionId);
+  }
+  for (const connectionId of connectionIds) {
+    const connection = await params.integrations.resolveConnectionById({connectionId});
+    if (connection === null || connection === undefined) {
+      throw new SourceConnectionUnavailableError(projectId, connectionId, 'missing');
+    }
+    if (connection.lifecycleStatus !== 'active') {
+      throw new SourceConnectionUnavailableError(
+        projectId,
+        connectionId,
+        connection.lifecycleStatus,
+      );
+    }
   }
 }

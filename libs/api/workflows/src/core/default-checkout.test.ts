@@ -45,7 +45,7 @@ function clients(project: ReturnType<typeof managedProject>, policy?: ProjectAcc
     integrations: {
       listSourceControlConnectionIds: vi
         .fn()
-        .mockResolvedValue({connectionIds: [codeConnectionId]}),
+        .mockResolvedValue({connectionIds: [codeConnectionId], inactiveConnectionIds: []}),
     },
   };
 }
@@ -63,6 +63,7 @@ describe('loadProjectCheckoutDefaults', () => {
         externalRepositoryId: project.sourceExternalRepositoryId,
       },
       defaultConnectionId: project.sourceConnectionId,
+      configuredConnectionId: project.sourceConnectionId,
     });
     expect(projects.getProjectAccessPolicy).not.toHaveBeenCalled();
   });
@@ -81,6 +82,7 @@ describe('loadProjectCheckoutDefaults', () => {
         lookupName: app.lookupName,
       },
       defaultConnectionId: codeConnectionId,
+      configuredConnectionId: codeConnectionId,
     });
   });
 
@@ -94,6 +96,25 @@ describe('loadProjectCheckoutDefaults', () => {
     await expect(loadProjectCheckoutDefaults({project, projects, integrations})).resolves.toEqual({
       defaultCheckout: null,
       defaultConnectionId: codeConnectionId,
+      configuredConnectionId: codeConnectionId,
+    });
+  });
+
+  it('keeps the one connection a project lists as configured when it is inactive', async () => {
+    const project = managedProject();
+    const {projects, integrations} = clients(
+      project,
+      policyFor(project, [{connectionId: codeConnectionId, resources: [app]}]),
+    );
+    integrations.listSourceControlConnectionIds.mockResolvedValue({
+      connectionIds: [],
+      inactiveConnectionIds: [codeConnectionId],
+    });
+
+    await expect(loadProjectCheckoutDefaults({project, projects, integrations})).resolves.toEqual({
+      defaultCheckout: null,
+      defaultConnectionId: null,
+      configuredConnectionId: codeConnectionId,
     });
   });
 

@@ -373,6 +373,20 @@ export function jobChecksOutProjectSource(params: {
   );
 }
 
+/**
+ * Whether the job has a checkout step, including inside composites, that names a `repository`
+ * without a `connection`. It resolves on the project's default connection.
+ */
+export function jobChecksOutBareRepository(job: WorkflowModelJob): boolean {
+  return flattenJobSteps(job).some(
+    (step) =>
+      step.kind === 'checkout' &&
+      step.checkout.project === undefined &&
+      step.checkout.repository !== undefined &&
+      step.checkout.connection === undefined,
+  );
+}
+
 function checkoutTargetsProject(
   checkout: Extract<WorkflowModelStep, {kind: 'checkout'}>['checkout'],
   projectId: string,

@@ -30,7 +30,7 @@ import {
 } from '#core/agent-tool-selection.js';
 import {
   findSoleSourceControlConnection,
-  listActiveSourceControlConnections,
+  listSourceControlConnections,
   resolveDefaultConnection,
 } from '#core/default-source-connection.js';
 import {
@@ -420,11 +420,16 @@ export function createIntegrationsInterModulePresentation(params: {
       return resolved ? {id: resolved.id, provider: resolved.provider, slug: resolved.slug} : null;
     },
     listSourceControlConnectionIds: async ({workspaceId}) => {
-      const connections = await listActiveSourceControlConnections({
+      const connections = await listSourceControlConnections({
         workspaceId,
         registry: params.registry,
       });
-      return {connectionIds: connections.map(({id}) => id)};
+      const active = connections.filter(({lifecycleStatus}) => lifecycleStatus === 'active');
+      const inactive = connections.filter(({lifecycleStatus}) => lifecycleStatus !== 'active');
+      return {
+        connectionIds: active.map(({id}) => id),
+        inactiveConnectionIds: inactive.map(({id}) => id),
+      };
     },
     resolveConnectionById: async ({connectionId}) => {
       const resolved = await getConnectionById(connectionId);
