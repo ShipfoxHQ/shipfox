@@ -228,14 +228,16 @@ describe('dispatchIntegrationEvent project access', () => {
   test('loads policies in batches of 100 distinct projects', async () => {
     const workspaceId = crypto.randomUUID();
     const projectIds = Array.from({length: 250}, () => crypto.randomUUID());
-    for (const projectId of projectIds) {
-      await triggerSubscriptionFactory.create({
-        workspaceId,
-        projectId,
-        source: 'github',
-        event: 'push',
-      });
-    }
+    await Promise.all(
+      projectIds.map((projectId) =>
+        triggerSubscriptionFactory.create({
+          workspaceId,
+          projectId,
+          source: 'github',
+          event: 'push',
+        }),
+      ),
+    );
     // A second subscription in a loaded project does not add a second request.
     await triggerSubscriptionFactory.create({
       workspaceId,
@@ -251,7 +253,7 @@ describe('dispatchIntegrationEvent project access', () => {
       projects.getProjectAccessPolicies.mock.calls.map(([input]) => input.projectIds.length),
     ).toEqual([100, 100, 50]);
     expect(startRunFromTrigger).toHaveBeenCalledTimes(251);
-  });
+  }, 30_000);
 
   test('replays the event when the policies cannot be read, and starts nothing', async () => {
     const workspaceId = crypto.randomUUID();
