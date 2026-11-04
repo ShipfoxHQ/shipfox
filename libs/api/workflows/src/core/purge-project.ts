@@ -1,10 +1,17 @@
+import type {ModuleService} from '@shipfox/node-module';
+import {logger} from '@shipfox/node-opentelemetry';
 import {
   countProjectWorkflowRuns,
   deleteTerminalWorkflowRuns,
+  listUnpurgedProjectScopes,
   markProjectPurged,
   recordProjectDeleted,
 } from '#db/deleted-scopes.js';
 import {stopWork} from './stop-work.js';
+
+const UNPURGED_PROJECTS_PER_SWEEP = 100;
+const SWEEP_INTERVAL_MS = 60_000;
+const SHUTDOWN_TIMEOUT_MS = 5_000;
 
 /**
  * Blocks later writes for a deleted project, stops its open runs, then deletes its finished runs
@@ -23,4 +30,64 @@ export async function purgeDeletedProject(params: {
   const remaining = await countProjectWorkflowRuns(scope);
   if (remaining === 0) await markProjectPurged(scope);
   return {remaining};
+}
+
+/**
+ * Runs the purge again for every deleted project that never finished it, such as one whose event
+ * was dead-lettered while a run was still stopping. A failure in one project does not stop the
+ * others. Returns how many projects it finished.
+ */
+export async function purgeUnfinishedDeletedProjects(): Promise<{purged: number}> {
+  const scopes = await listUnpurgedProjectScopes(UNPURGED_PROJECTS_PER_SWEEP);
+  let purged = 0;
+  for (const scope of scopes) {
+    try {
+      const {remaining} = await purgeDeletedProject(scope);
+      if (remaining === 0) purged += 1;
+    } catch (error) {
+      logger().warn({err: error, ...scope}, 'Failed to purge a deleted project');
+    }
+  }
+  return {purged};
+}
+
+/** Finishes the purges the `PROJECT_DELETED` event left behind, once a minute. */
+export function createDeletedProjectPurgeSweeper(
+  options: {intervalMs?: number} = {},
+): ModuleService {
+  const intervalMs = options.intervalMs ?? SWEEP_INTERVAL_MS;
+  return {
+    name: 'deleted-project-purge-sweeper',
+    shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
+    start: () => {
+      let stopped = false;
+      let wake: (() => void) | undefined;
+      const finished = (async () => {
+        while (!stopped) {
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, intervalMs);
+            wake = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+          });
+          if (stopped) return;
+          try {
+            const {purged} = await purgeUnfinishedDeletedProjects();
+            if (purged > 0) logger().info({purged}, 'Finished purges of deleted projects');
+          } catch (error) {
+            logger().error({err: error}, 'Deleted project purge sweep failed');
+          }
+        }
+      })();
+      return Promise.resolve({
+        stop: async () => {
+          stopped = true;
+          wake?.();
+          await finished;
+        },
+        finished,
+      });
+    },
+  };
 }

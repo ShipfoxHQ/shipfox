@@ -1,12 +1,13 @@
 import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
+import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {claimPendingJobExecution, enqueueJobExecution} from '#db/job-executions.js';
 import {runnersDeletedScopes} from '#db/schema/deleted-scopes.js';
 import {pendingJobExecutions} from '#db/schema/pending-job-executions.js';
 import {pendingJobFactory} from '#test/factories/pending-job.js';
 import {runnerSessionFactory} from '#test/factories/runner-session.js';
-import {purgeDeletedProject} from './purge-project.js';
+import {purgeDeletedProject, purgeUnfinishedDeletedProjects} from './purge-project.js';
 
 async function pendingJobsOf(projectId: string) {
   return await db()
@@ -91,5 +92,51 @@ describe('purgeDeletedProject', () => {
 
     expect(await pendingJobsOf(projectId)).toEqual([]);
     expect(await pendingJobsOf(otherProjectId)).toHaveLength(1);
+  });
+});
+
+describe('purgeUnfinishedDeletedProjects', () => {
+  let workspaceId: string;
+  let projectId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    projectId = crypto.randomUUID();
+  });
+
+  async function purgedAtOf(scopeProjectId: string) {
+    const [marker] = await db()
+      .select()
+      .from(runnersDeletedScopes)
+      .where(eq(runnersDeletedScopes.projectId, scopeProjectId));
+    return marker?.purgedAt;
+  }
+
+  it('finishes the purge of a marked project that still has pending jobs', async () => {
+    await pendingJobFactory.create({workspaceId, projectId});
+    await recordProjectDeleted({workspaceId, projectId}, 'project_deleted');
+
+    const result = await purgeUnfinishedDeletedProjects();
+
+    expect(result.purged).toBeGreaterThanOrEqual(1);
+    expect(await pendingJobsOf(projectId)).toEqual([]);
+    expect(await purgedAtOf(projectId)).toBeInstanceOf(Date);
+  });
+
+  it('leaves the pending jobs of a project that was never marked', async () => {
+    await pendingJobFactory.create({workspaceId, projectId});
+
+    await purgeUnfinishedDeletedProjects();
+
+    expect(await pendingJobsOf(projectId)).toHaveLength(1);
+  });
+
+  it('does not purge a project again once it is purged', async () => {
+    await purgeDeletedProject({workspaceId, projectId});
+    const purgedAt = await purgedAtOf(projectId);
+
+    await purgeUnfinishedDeletedProjects();
+
+    expect(await purgedAtOf(projectId)).toEqual(purgedAt);
   });
 });

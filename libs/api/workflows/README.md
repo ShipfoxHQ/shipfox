@@ -11,7 +11,8 @@ Shipfox API Workflows creates and runs workflow definitions, jobs, executions, s
 - **Project deletion**: The `PROJECT_DELETED` subscriber records a deletion marker, which refuses
   later run creation, reruns, and concurrency claims for the project. It cancels the project's open
   runs and deletes its finished runs with their children. A run that is still open waits for the
-  next delivery, which the outbox retries up to its attempt limit.
+  next delivery, which the outbox retries up to its attempt limit. A sweep then runs the purge
+  again every minute for each marker with no `purged_at`, until no run remains.
 
 ## Installation / Setup
 

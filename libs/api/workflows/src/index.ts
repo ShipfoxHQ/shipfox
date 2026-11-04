@@ -34,6 +34,7 @@ import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inte
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {config} from '#config.js';
 import type {JobExecutionLimitsPolicy} from '#core/execution-limits.js';
+import {createDeletedProjectPurgeSweeper} from '#core/purge-project.js';
 import {createToolStepExecutor} from '#core/tool-step/tool-step-executor.js';
 import {createWorkflowConcurrencyReconciler} from '#core/workflow-concurrency-reconciler.js';
 import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
@@ -197,6 +198,7 @@ export function createWorkflowsModule({
     services: [
       ...(config.WORKFLOWS_TOOL_STEP_EXECUTOR_ENABLED ? [toolStepExecutor.service] : []),
       concurrencyReconciler.service,
+      createDeletedProjectPurgeSweeper(),
     ],
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},

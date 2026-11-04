@@ -13,7 +13,7 @@ import {
 import {buildModel} from '#test/helpers/workflow-runs.js';
 import {workflowRunFactory} from '#test/index.js';
 import {ProjectDeletedError} from './errors.js';
-import {purgeDeletedProject} from './purge-project.js';
+import {purgeDeletedProject, purgeUnfinishedDeletedProjects} from './purge-project.js';
 
 async function deletedScope(scope: {workspaceId: string; projectId: string}) {
   const [row] = await db()
@@ -138,5 +138,48 @@ describe('purgeDeletedProject', () => {
     });
 
     expect(run.status).toBe('pending');
+  });
+});
+
+describe('purgeUnfinishedDeletedProjects', () => {
+  let workspaceId: string;
+  let projectId: string;
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    projectId = crypto.randomUUID();
+  });
+
+  test('finishes the purge of a marked project that still has runs', async () => {
+    const run = await workflowRunFactory.create({workspaceId, projectId});
+    await updateWorkflowRunStatus({
+      workflowRunId: run.id,
+      status: 'failed',
+      expectedVersion: run.version,
+    });
+    await recordProjectDeleted({workspaceId, projectId}, 'project_deleted');
+
+    const result = await purgeUnfinishedDeletedProjects();
+
+    expect(result.purged).toBeGreaterThanOrEqual(1);
+    expect(await getWorkflowRunById(run.id)).toBeUndefined();
+    expect((await deletedScope({workspaceId, projectId}))?.purgedAt).toBeInstanceOf(Date);
+  });
+
+  test('leaves the runs of a project that was never marked', async () => {
+    const run = await workflowRunFactory.create({workspaceId, projectId});
+
+    await purgeUnfinishedDeletedProjects();
+
+    expect(await getWorkflowRunById(run.id)).toBeDefined();
+  });
+
+  test('does not purge a project again once it is purged', async () => {
+    await purgeDeletedProject({workspaceId, projectId});
+    const purgedAt = (await deletedScope({workspaceId, projectId}))?.purgedAt;
+
+    await purgeUnfinishedDeletedProjects();
+
+    expect((await deletedScope({workspaceId, projectId}))?.purgedAt).toEqual(purgedAt);
   });
 });
