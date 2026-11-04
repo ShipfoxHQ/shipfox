@@ -75,7 +75,11 @@ describe('loadProjectCheckoutDefaults', () => {
     );
 
     await expect(loadProjectCheckoutDefaults({project, projects, integrations})).resolves.toEqual({
-      defaultCheckout: {connectionId: codeConnectionId, externalRepositoryId: app.externalId},
+      defaultCheckout: {
+        connectionId: codeConnectionId,
+        externalRepositoryId: app.externalId,
+        lookupName: app.lookupName,
+      },
       defaultConnectionId: codeConnectionId,
     });
   });
