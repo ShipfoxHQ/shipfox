@@ -55,6 +55,9 @@ function linearClient(overrides: Partial<LinearApiClient> = {}): LinearApiClient
     createAgentActivity: vi.fn(() => Promise.resolve()),
     hasAgentActivity: vi.fn(() => Promise.resolve(false)),
     addAgentSessionExternalUrls: vi.fn(() => Promise.resolve()),
+    getAgentSessionIssueId: vi.fn(() => Promise.resolve(null)),
+    hasIssueComment: vi.fn(() => Promise.resolve(false)),
+    createIssueComment: vi.fn(() => Promise.resolve()),
     getIssueContext: vi.fn(() => {
       throw new Error('not used');
     }),

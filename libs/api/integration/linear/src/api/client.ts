@@ -58,6 +58,32 @@ const AGENT_SESSION_UPDATE_MUTATION = `
   }
 `;
 
+const AGENT_SESSION_ISSUE_QUERY = `
+  query ShipfoxAgentSessionIssueId($id: String!) {
+    agentSession(id: $id) {
+      issue {
+        id
+      }
+    }
+  }
+`;
+
+const COMMENT_QUERY = `
+  query ShipfoxComment($id: String!) {
+    comment(id: $id) {
+      id
+    }
+  }
+`;
+
+const COMMENT_CREATE_MUTATION = `
+  mutation ShipfoxCommentCreate($input: CommentCreateInput!) {
+    commentCreate(input: $input) {
+      success
+    }
+  }
+`;
+
 const ISSUE_CONTEXT_QUERY = `
   query ShipfoxAgentSessionIssue($id: String!) {
     issue(id: $id) {
@@ -139,6 +165,22 @@ export interface LinearApiClient {
     urls: {label: string; url: string}[];
   }): Promise<void>;
   getIssueContext(input: {accessToken: string; issueId: string}): Promise<LinearIssueContext>;
+  /** The issue an agent session belongs to, or null for a session that has none. */
+  getAgentSessionIssueId(input: {
+    accessToken: string;
+    agentSessionId: string;
+  }): Promise<string | null>;
+  /** Whether Linear holds a comment with this id. */
+  hasIssueComment(input: {accessToken: string; id: string}): Promise<boolean>;
+  /** Posts a comment on an issue as the app, shown under `createAsUser` instead of the app. */
+  createIssueComment(input: {
+    accessToken: string;
+    /** A client-chosen UUID, so the comment can be found again after a send of unknown outcome. */
+    id: string;
+    issueId: string;
+    body: string;
+    createAsUser: string;
+  }): Promise<void>;
 }
 
 interface LinearRefreshDiagnostics {
@@ -179,6 +221,18 @@ interface LinearAgentActivityData {
 
 interface LinearAgentSessionUpdateData {
   agentSessionUpdate?: {success?: unknown} | null;
+}
+
+interface LinearAgentSessionIssueData {
+  agentSession?: {issue?: {id?: unknown} | null} | null;
+}
+
+interface LinearCommentData {
+  comment?: {id?: unknown} | null;
+}
+
+interface LinearCommentCreateData {
+  commentCreate?: {success?: unknown} | null;
 }
 
 interface LinearIssueContextData {
@@ -363,6 +417,77 @@ export function createLinearApiClient(): LinearApiClient {
         throw new LinearIntegrationProviderError(
           'malformed-provider-response',
           'Linear did not update the agent session',
+        );
+      }
+    },
+
+    async getAgentSessionIssueId(input) {
+      const body = await mapLinearError(
+        'get-agent-session-issue',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {query: AGENT_SESSION_ISSUE_QUERY, variables: {id: input.agentSessionId}},
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearAgentSessionIssueData>>(),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      const issueId = graphqlData('get-agent-session-issue', body).agentSession?.issue?.id;
+      return typeof issueId === 'string' ? issueId : null;
+    },
+
+    async hasIssueComment(input) {
+      const body = await mapLinearError(
+        'get-comment',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {query: COMMENT_QUERY, variables: {id: input.id}},
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearCommentData>>()
+            .catch((error: unknown) => {
+              // Linear may answer an unknown id with a 400 that carries the GraphQL error.
+              if (error instanceof HTTPError && isNotFoundBody(error.data)) return error.data;
+              throw error;
+            }),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      // Only a recognized not-found answer proves the comment is absent.
+      if (isNotFoundBody(body)) return false;
+      return graphqlData('get-comment', body).comment?.id === input.id;
+    },
+
+    async createIssueComment(input) {
+      const body = await mapLinearError(
+        'create-issue-comment',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {
+                query: COMMENT_CREATE_MUTATION,
+                variables: {
+                  input: {
+                    id: input.id,
+                    issueId: input.issueId,
+                    body: input.body,
+                    createAsUser: input.createAsUser,
+                  },
+                },
+              },
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearCommentCreateData>>(),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      if (graphqlData('create-issue-comment', body).commentCreate?.success !== true) {
+        throw new LinearIntegrationProviderError(
+          'malformed-provider-response',
+          'Linear did not create the comment',
         );
       }
     },

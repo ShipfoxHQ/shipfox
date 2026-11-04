@@ -105,7 +105,13 @@ export const linearRequestContextSchema = {
 export interface LinearInteractionProviderOptions {
   linear: Pick<
     LinearApiClient,
-    'getIssueContext' | 'createAgentActivity' | 'hasAgentActivity' | 'addAgentSessionExternalUrls'
+    | 'getIssueContext'
+    | 'createAgentActivity'
+    | 'hasAgentActivity'
+    | 'addAgentSessionExternalUrls'
+    | 'getAgentSessionIssueId'
+    | 'hasIssueComment'
+    | 'createIssueComment'
   >;
   tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
 }
@@ -155,9 +161,10 @@ export class LinearInteractionProvider
 
   /**
    * Linear sets a session's state from its last activity, so a reply is a `response` or an
-   * `error` activity. The agent's name is not used: the activity belongs to the app. The reply
-   * id is the activity id, so a repeat of a send that landed finds its activity and is delivered
-   * instead of posting the answer twice.
+   * `error` activity, and a session that completed days ago still takes one. The agent's name is
+   * not used: the activity belongs to the app. The reply id is the activity id, so a repeat of a
+   * send that landed finds its activity and is delivered instead of posting the answer twice. An
+   * activity Linear refuses becomes an issue comment.
    */
   async sendReply({
     connection,
@@ -165,6 +172,7 @@ export class LinearInteractionProvider
     replyId,
     kind,
     text,
+    agent,
   }: SendInteractionReplyInput<IntegrationConnection<'linear'>>): Promise<InteractionReplyOutcome> {
     let accessToken: string;
     try {
@@ -196,13 +204,65 @@ export class LinearInteractionProvider
               lookupError instanceof LinearIntegrationProviderError &&
               lookupError.reason === 'access-denied'
             ) {
+              return undefined;
+            }
+            throw lookupError;
+          });
+        if (delivered === undefined) return {outcome: 'undeliverable', reason: error.message};
+        if (delivered) return {outcome: 'delivered'};
+      }
+      return await this.commentOnIssue({
+        accessToken,
+        id: replyId,
+        agentSessionId: conversationKey,
+        body: text,
+        createAsUser: agent.name,
+        rejection: error.message,
+      });
+    }
+    return {outcome: 'delivered'};
+  }
+
+  /**
+   * The fallback when Linear refuses an activity, such as a session it no longer accepts them on.
+   * The comment shows as the agent "via" the app. The reply id is the comment id, so a repeat of
+   * a send that landed finds its comment and is delivered. A refused comment too is undeliverable,
+   * with the activity's reason.
+   */
+  private async commentOnIssue(params: {
+    accessToken: string;
+    id: string;
+    agentSessionId: string;
+    body: string;
+    createAsUser: string;
+    rejection: string;
+  }): Promise<InteractionReplyOutcome> {
+    const {accessToken, id, agentSessionId, body, createAsUser, rejection} = params;
+    try {
+      const issueId = await this.options.linear.getAgentSessionIssueId({
+        accessToken,
+        agentSessionId,
+      });
+      if (issueId === null) return {outcome: 'undeliverable', reason: rejection};
+      await this.options.linear.createIssueComment({accessToken, id, issueId, body, createAsUser});
+    } catch (error) {
+      if (!isRejectedByLinear(error)) throw error;
+      // Linear refuses a repeated id, which looks like any other rejection until the id is found.
+      if (error.reason === 'malformed-provider-response') {
+        const delivered = await this.options.linear
+          .hasIssueComment({accessToken, id})
+          .catch((lookupError: unknown) => {
+            if (
+              lookupError instanceof LinearIntegrationProviderError &&
+              lookupError.reason === 'access-denied'
+            ) {
               return false;
             }
             throw lookupError;
           });
         if (delivered) return {outcome: 'delivered'};
       }
-      return {outcome: 'undeliverable', reason: error.message};
+      return {outcome: 'undeliverable', reason: rejection};
     }
     return {outcome: 'delivered'};
   }

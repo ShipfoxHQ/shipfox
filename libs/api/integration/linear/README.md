@@ -77,9 +77,13 @@ activity.
 A turn's reply is an activity on the session, because Linear sets the session's
 state from its last activity. `sendReply` posts a `response` activity, or an `error`
 activity for a failed turn. A stopped turn's reply is its final activity, which is
-how a stop is confirmed. Linear refusing the activity, with a rejected request or a
-lost authorization, is `undeliverable`. A rate limit, a timeout, or an outage fails
-the call, so the delivery is retried.
+how a stop is confirmed. A session that completed days ago still takes the activity,
+so a late run result goes on it too. When Linear refuses the activity, with a
+rejected request or a lost authorization, the reply becomes a comment on the
+session's issue, created as the agent's name so it shows as "via" the app, with the
+reply id as the comment id so a repeat is delivered. It is
+`undeliverable` when Linear refuses the comment too, or the session has no issue. A
+rate limit, a timeout, or an outage fails the call, so the delivery is retried.
 
 `reportProgress` posts each tool call as an ephemeral `action` activity, which the
 next activity replaces, and adds the links it receives, such as the run link, to
