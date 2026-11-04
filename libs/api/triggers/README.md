@@ -355,6 +355,7 @@ overlap. Dispatch reads them for each new request, as described in Agent routing
 | `DEFINITION_RESOLVED` | definitions | triggers | A workflow definition was created or updated. The payload includes the parsed `triggers` map. |
 | `DEFINITION_DELETED` | definitions | triggers | A workflow definition was soft-deleted. Subscription rows are removed. |
 | `DEFINITION_AGENT_RULES_RESOLVED` | definitions | triggers | A project's agent files were synced. The payload lists the `on:` rules of each agent. Agent subscriptions are replaced. |
+| `PROJECT_DELETED` | projects | triggers | A project was deleted. Its subscriptions, agent subscriptions, listener subscriptions, and decisions are purged, and later writes for the project are refused. |
 
 ## API
 

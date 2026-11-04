@@ -1,6 +1,6 @@
 import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {encodeActionBundle} from '@shipfox/workflow-document';
-import {and, eq, sql} from 'drizzle-orm';
+import {and, eq} from 'drizzle-orm';
 import {getActionSnapshot, upsertActionSnapshot} from '#db/action-snapshots.js';
 import {applyVcsAgentsBatch, listProjectAgents} from '#db/agents.js';
 import {db} from '#db/db.js';
@@ -134,39 +134,8 @@ describe('onProjectDeleted', () => {
     expect(markers).toHaveLength(1);
   });
 
-  it('deletes a snapshot that no definition references', async () => {
+  it('keeps the action snapshots of the project, because projects share them', async () => {
     const digest = await storeSnapshot({workspaceId, projectId, content: `a ${projectId}`});
-
-    await onProjectDeleted(deletedEvent({workspaceId, projectId}));
-
-    expect(await getActionSnapshot({workspaceId, digest})).toBeUndefined();
-  });
-
-  it('keeps a snapshot that a definition of another project references', async () => {
-    const otherProjectId = crypto.randomUUID();
-    const digest = await storeSnapshot({workspaceId, projectId, content: `shared ${projectId}`});
-    const other = await definitionFactory.create(
-      {projectId: otherProjectId},
-      {transient: {workspaceId}},
-    );
-    await db().execute(
-      sql`update definitions_workflow_definitions
-        set definition = jsonb_set(definition, '{usedDigest}', to_jsonb(${digest}::text))
-        where id = ${other.id}`,
-    );
-
-    await onProjectDeleted(deletedEvent({workspaceId, projectId}));
-
-    expect(await getActionSnapshot({workspaceId, digest})).toBeDefined();
-  });
-
-  it('keeps the snapshots another project stored', async () => {
-    const otherProjectId = crypto.randomUUID();
-    const digest = await storeSnapshot({
-      workspaceId,
-      projectId: otherProjectId,
-      content: `other ${otherProjectId}`,
-    });
 
     await onProjectDeleted(deletedEvent({workspaceId, projectId}));
 
@@ -195,11 +164,13 @@ describe('onProjectDeleted', () => {
     });
 
     it('refuses to record a sync state', async () => {
+      const sourceConnectionId = crypto.randomUUID();
+
       await expect(
         markDefinitionSyncState({
           workspaceId,
           projectId,
-          sourceConnectionId: crypto.randomUUID(),
+          sourceConnectionId,
           sourceExternalRepositoryId: 'acme/app',
           ref: 'main',
           status: 'syncing',
@@ -208,7 +179,7 @@ describe('onProjectDeleted', () => {
       expect(
         await getLatestDefinitionSyncState({
           projectId,
-          sourceConnectionId: crypto.randomUUID(),
+          sourceConnectionId,
           sourceExternalRepositoryId: 'acme/app',
         }),
       ).toBeUndefined();

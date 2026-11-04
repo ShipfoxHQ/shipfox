@@ -7,7 +7,7 @@ import type {
 import type {JobListenerSubscription} from '#core/entities/job-listener-subscription.js';
 import type {TriggerEventOrigin, TriggerEventResource} from '#core/entities/received-event.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
-import {db} from './db.js';
+import {db, type Tx} from './db.js';
 import {inWritableScope} from './deleted-scopes.js';
 import {triggersDecisions} from './schema/decisions.js';
 import {triggersReceivedEvents} from './schema/received-events.js';
@@ -626,6 +626,7 @@ async function upsertDevDecision(
 
 export interface UpsertAgentDecisionParams {
   receivedEventId: string;
+  workspaceId: string;
   decision: 'owner' | 'default' | 'dropped';
   /** Null when no agent took the request. */
   agentKey: string | null;
@@ -633,7 +634,8 @@ export interface UpsertAgentDecisionParams {
   reason: string | null;
 }
 
-// One routing result per received event, so a replay overwrites its own row.
+// One routing result per received event, so a replay overwrites its own row. A routed decision
+// carries a project, so a late one for a deleted project is refused like any other root write.
 export async function upsertAgentDecision(params: UpsertAgentDecisionParams): Promise<void> {
   const values = {
     decision: params.decision,
@@ -641,19 +643,26 @@ export async function upsertAgentDecision(params: UpsertAgentDecisionParams): Pr
     projectId: params.projectId,
     reason: params.reason,
   };
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      receivedEventId: params.receivedEventId,
-      subscriptionKind: 'agent',
-      subscriptionId: null,
-      ...values,
-    })
-    .onConflictDoUpdate({
-      target: triggersDecisions.receivedEventId,
-      targetWhere: sql`"subscription_kind" = 'agent' AND "subscription_id" IS NULL`,
-      set: values,
-    });
+  const write = async (executor: Pick<Tx, 'insert'>) => {
+    await executor
+      .insert(triggersDecisions)
+      .values({
+        receivedEventId: params.receivedEventId,
+        subscriptionKind: 'agent',
+        subscriptionId: null,
+        ...values,
+      })
+      .onConflictDoUpdate({
+        target: triggersDecisions.receivedEventId,
+        targetWhere: sql`"subscription_kind" = 'agent' AND "subscription_id" IS NULL`,
+        set: values,
+      });
+  };
+  if (params.projectId === null) {
+    await write(db());
+    return;
+  }
+  await inWritableScope({workspaceId: params.workspaceId, projectId: params.projectId}, write);
 }
 
 export interface UpsertAgentSubscriptionDecisionParams {

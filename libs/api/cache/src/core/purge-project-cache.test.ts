@@ -33,7 +33,7 @@ describe('purgeProjectCache', () => {
 
   it('deletes the entries of the project with their objects, and leaves another project alone', async () => {
     const job = await startJob();
-    const other = await startJob();
+    const other = await startSiblingJob(job, {projectId: crypto.randomUUID()});
     const readyId = await saveEntry(testApp.app, job, {key: 'ready', body: archiveOf('ready')});
     const otherId = await saveEntry(testApp.app, other, {key: 'other', body: archiveOf('other')});
 

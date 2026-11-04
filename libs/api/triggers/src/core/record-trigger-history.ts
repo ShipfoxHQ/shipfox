@@ -393,6 +393,7 @@ export async function beginTriggerHistory(
       record('agent-routed-decision', (id) =>
         upsertAgentDecision({
           receivedEventId: id,
+          workspaceId: params.workspaceId,
           decision: result.outcome,
           agentKey: result.outcome === 'dropped' ? null : result.agentKey,
           projectId: result.outcome === 'dropped' ? null : result.projectId,

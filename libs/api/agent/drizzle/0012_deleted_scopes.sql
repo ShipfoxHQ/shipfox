@@ -8,3 +8,5 @@ CREATE TABLE "agent_deleted_scopes" (
 );
 --> statement-breakpoint
 CREATE INDEX "agent_sessions_project_idx" ON "agent_sessions" USING btree ("project_id");
+--> statement-breakpoint
+CREATE INDEX "agent_conversations_project_idx" ON "agent_conversations" USING btree ("project_id");

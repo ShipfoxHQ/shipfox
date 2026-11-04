@@ -14,6 +14,7 @@ import {
   validateDefinitionAtRef,
 } from '#core/resolve-definition-at-ref.js';
 import {db} from '#db/db.js';
+import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {definitionActionSnapshots} from '#db/schema/action-snapshots.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
 import {definitionsOutbox} from '#db/schema/outbox.js';
@@ -277,6 +278,27 @@ describe('resolveDefinitionAtRef', () => {
     expect(definitions).toHaveLength(0);
     expect(await countOutboxRows(projectId)).toHaveLength(0);
     expect(metrics.recordDefinitionRefResolution).toHaveBeenCalledWith('resolved');
+  });
+
+  test('answers project-not-found and stores nothing for a deleted project', async () => {
+    const projectId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+    await recordProjectDeleted({scope: {workspaceId, projectId}, reason: 'project_deleted'});
+
+    const attempt = resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      ...clients,
+    });
+
+    await expect(attempt).rejects.toMatchObject({
+      name: 'DefinitionAtRefError',
+      code: 'project-not-found',
+      details: {projectId},
+    });
+    expect(await countLineageRows(projectId)).toHaveLength(0);
   });
 
   test('validates supplied content without fetching the file', async () => {

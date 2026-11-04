@@ -19,17 +19,24 @@ export async function recordProjectSecretsDeleted(params: {
 
 /** Deletes the project's secrets and variables in batches. Workspace-level rows stay. */
 export async function deleteProjectSecretRows(params: {
+  workspaceId: string;
   projectId: string;
 }): Promise<{secrets: number; variables: number}> {
   const secrets = await deleteInBatches({
     db: db(),
     table: secretValues,
-    where: eq(secretValues.projectId, params.projectId),
+    where: and(
+      eq(secretValues.workspaceId, params.workspaceId),
+      eq(secretValues.projectId, params.projectId),
+    ),
   });
   const variables = await deleteInBatches({
     db: db(),
     table: secretVariables,
-    where: eq(secretVariables.projectId, params.projectId),
+    where: and(
+      eq(secretVariables.workspaceId, params.workspaceId),
+      eq(secretVariables.projectId, params.projectId),
+    ),
   });
   return {secrets, variables};
 }
@@ -40,8 +47,8 @@ export async function markProjectSecretsPurged(params: {
   projectId: string;
 }): Promise<boolean> {
   const remaining = await db().execute(
-    sql`select 1 where exists (select 1 from ${secretValues} where ${secretValues.projectId} = ${params.projectId})
-      or exists (select 1 from ${secretVariables} where ${secretVariables.projectId} = ${params.projectId})`,
+    sql`select 1 where exists (select 1 from ${secretValues} where ${secretValues.workspaceId} = ${params.workspaceId} and ${secretValues.projectId} = ${params.projectId})
+      or exists (select 1 from ${secretVariables} where ${secretVariables.workspaceId} = ${params.workspaceId} and ${secretVariables.projectId} = ${params.projectId})`,
   );
   if (remaining.rows.length > 0) return false;
   await db()

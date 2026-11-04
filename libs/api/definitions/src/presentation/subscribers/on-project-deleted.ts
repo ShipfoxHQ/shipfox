@@ -14,4 +14,7 @@ export async function onProjectDeleted(payload: ProjectDeletedEvent): Promise<vo
   const purged = await purgeProjectRows(scope);
   const complete = await markProjectPurged(scope);
   logger().info({...scope, purged, complete}, 'project deleted: purged definitions rows');
+  if (!complete) {
+    throw new Error(`Definitions of a deleted project are still being written: ${scope.projectId}`);
+  }
 }

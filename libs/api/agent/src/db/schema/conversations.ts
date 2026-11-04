@@ -53,6 +53,7 @@ export const conversations = pgTable(
     index('agent_conversations_web_owner_activity_idx')
       .on(table.projectId, table.ownerUserId, table.lastActivityAt, table.id)
       .where(sql`${table.originKind} = 'web'`),
+    index('agent_conversations_project_idx').on(table.projectId),
     index('agent_conversations_retry_requested_idx')
       .on(table.retryRequestedAt)
       .where(sql`${table.retryRequestedAt} is not null`),

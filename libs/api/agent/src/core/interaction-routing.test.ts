@@ -4,6 +4,7 @@ import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-modul
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
+import {recordProjectAgentDeleted} from '#db/project-purge.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
 import {conversations} from '#db/schema/conversations.js';
 import {
@@ -229,6 +230,22 @@ describe('routeInteraction', () => {
     const result = await routeInteraction(interaction(), deps);
 
     expect(result).toEqual({outcome: 'dropped', reason: 'no-project'});
+  });
+
+  it('drops a request when the default project was deleted after the policy check', async () => {
+    const projectId = crypto.randomUUID();
+    const {deps, wake, base, interaction} = setup(projectId);
+    await recordProjectAgentDeleted({workspaceId: base.workspaceId, projectId});
+
+    const result = await routeInteraction(interaction(), deps);
+
+    expect(result).toEqual({outcome: 'dropped', reason: 'project-deleted'});
+    const stored = await db()
+      .select({id: conversations.id})
+      .from(conversations)
+      .where(eq(conversations.workspaceId, base.workspaceId));
+    expect(stored).toEqual([]);
+    expect(wake).not.toHaveBeenCalled();
   });
 
   describe('project access', () => {

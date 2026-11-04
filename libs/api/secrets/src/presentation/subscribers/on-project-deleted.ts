@@ -9,11 +9,13 @@ import {
 /**
  * Blocks later writes for the deleted project, then deletes its secrets and variables.
  * Workspace-level rows stay. Every step is safe to repeat, because the outbox redelivers.
+ * It throws while a row remains, so the event is redelivered until none does.
  */
 export async function onProjectDeleted(event: ProjectDeletedEvent): Promise<void> {
   const {workspaceId, projectId} = event;
   await recordProjectSecretsDeleted({workspaceId, projectId});
-  const deleted = await deleteProjectSecretRows({projectId});
+  const deleted = await deleteProjectSecretRows({workspaceId, projectId});
   const purged = await markProjectSecretsPurged({workspaceId, projectId});
   logger().info({workspaceId, projectId, ...deleted, purged}, 'project deleted: purged secrets');
+  if (!purged) throw new Error(`Secrets of a deleted project remain: ${projectId}`);
 }

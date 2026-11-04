@@ -98,30 +98,31 @@ describe('onProjectDeleted', () => {
     const projectId = crypto.randomUUID();
     await onProjectDeleted(deletedEvent({workspaceId, projectId}));
 
-    const secretWrite = db().transaction((tx) =>
-      upsertSecretValueRows(
-        [
-          {
-            workspaceId,
-            projectId,
-            namespace: '',
-            key: 'TOKEN',
-            ciphertext: 'cipher',
-            fingerprint: null,
-          },
-        ],
-        tx,
+    await expect(
+      db().transaction((tx) =>
+        upsertSecretValueRows(
+          [
+            {
+              workspaceId,
+              projectId,
+              namespace: '',
+              key: 'TOKEN',
+              ciphertext: 'cipher',
+              fingerprint: null,
+            },
+          ],
+          tx,
+        ),
       ),
-    );
-    const variableWrite = db().transaction((tx) =>
-      upsertSecretVariableRows(
-        [{workspaceId, projectId, namespace: '', key: 'REGION', value: 'eu'}],
-        tx,
+    ).rejects.toThrow(ScopeDeletedError);
+    await expect(
+      db().transaction((tx) =>
+        upsertSecretVariableRows(
+          [{workspaceId, projectId, namespace: '', key: 'REGION', value: 'eu'}],
+          tx,
+        ),
       ),
-    );
-
-    await expect(secretWrite).rejects.toThrow(ScopeDeletedError);
-    await expect(variableWrite).rejects.toThrow(ScopeDeletedError);
+    ).rejects.toThrow(ScopeDeletedError);
     expect(await countRows(projectId)).toEqual({secrets: 0, variables: 0});
     expect(() => translateManagementError(new ScopeDeletedError({workspaceId, projectId}))).toThrow(
       expect.objectContaining({code: 'project-not-found', status: 404}),

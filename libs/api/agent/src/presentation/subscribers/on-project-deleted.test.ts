@@ -52,7 +52,7 @@ describe('onProjectDeleted', () => {
       .select()
       .from(agentDeletedScopes)
       .where(eq(agentDeletedScopes.projectId, projectId));
-    expect(marker?.purgedAt).not.toBeNull();
+    expect(marker?.purgedAt).toBeInstanceOf(Date);
   });
 
   it('keeps another project untouched', async () => {
@@ -115,32 +115,34 @@ describe('onProjectDeleted', () => {
     const projectId = crypto.randomUUID();
     await recordProjectAgentDeleted({workspaceId, projectId});
 
-    const integration = insertIntegrationConversation({
-      id: crypto.randomUUID(),
-      workspaceId,
-      projectId,
-      agentKey: 'shippy',
-      origin: {connectionId: crypto.randomUUID(), provider: 'slack', key: crypto.randomUUID()},
-      firstInput: {
+    await expect(
+      insertIntegrationConversation({
         id: crypto.randomUUID(),
-        clientMessageId: crypto.randomUUID(),
-        sessionVersion: 1,
-        sealedEntry: Buffer.from('sealed'),
-        meta: {role: 'user'},
-      },
-    });
-    const created = createSessionFor({workspaceId, projectId});
-    const claimed = claimSession({
-      workspaceId,
-      projectId,
-      workflowRunAttemptId: crypto.randomUUID(),
-      key: 'main',
-      harness: 'pi',
-      stepAttemptId: crypto.randomUUID(),
-    });
-
-    await expect(integration).rejects.toBeInstanceOf(ScopeDeletedError);
-    await expect(created).rejects.toBeInstanceOf(ScopeDeletedError);
-    await expect(claimed).rejects.toBeInstanceOf(ScopeDeletedError);
+        workspaceId,
+        projectId,
+        agentKey: 'shippy',
+        origin: {connectionId: crypto.randomUUID(), provider: 'slack', key: crypto.randomUUID()},
+        firstInput: {
+          id: crypto.randomUUID(),
+          clientMessageId: crypto.randomUUID(),
+          sessionVersion: 1,
+          sealedEntry: Buffer.from('sealed'),
+          meta: {role: 'user'},
+        },
+      }),
+    ).rejects.toBeInstanceOf(ScopeDeletedError);
+    await expect(createSessionFor({workspaceId, projectId})).rejects.toBeInstanceOf(
+      ScopeDeletedError,
+    );
+    await expect(
+      claimSession({
+        workspaceId,
+        projectId,
+        workflowRunAttemptId: crypto.randomUUID(),
+        key: 'main',
+        harness: 'pi',
+        stepAttemptId: crypto.randomUUID(),
+      }),
+    ).rejects.toBeInstanceOf(ScopeDeletedError);
   });
 });

@@ -33,7 +33,10 @@ export type CacheDeletionMetricReason = CacheDeletionReason | 'stale_upload' | '
 
 export const cacheDeletionCount = meter.createCounter<{reason: CacheDeletionMetricReason}>(
   'cache_deletions',
-  {description: 'Cache entries deleted by reason. A stale upload is one the reaper removed.'},
+  {
+    description:
+      'Cache entries deleted by reason. A stale upload is one the reaper removed. A project_deleted entry went with its project.',
+  },
 );
 
 export const cacheSweepDuration = meter.createHistogram<{outcome: 'completed' | 'timed_out'}>(

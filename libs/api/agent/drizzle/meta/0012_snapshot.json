@@ -599,6 +599,21 @@
           "method": "btree",
           "with": {}
         },
+        "agent_conversations_project_idx": {
+          "name": "agent_conversations_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "agent_conversations_retry_requested_idx": {
           "name": "agent_conversations_retry_requested_idx",
           "columns": [

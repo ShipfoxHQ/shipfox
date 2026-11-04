@@ -1,9 +1,11 @@
 import type {DefinitionResolvedEvent} from '@shipfox/api-definitions-dto';
 import type {ProjectDeletedEvent} from '@shipfox/api-projects-dto';
 import type {WorkflowsJobActivatedEventDto} from '@shipfox/api-workflows-dto';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {eq} from 'drizzle-orm';
 import {projectAgentSubscriptions} from '#db/agent-subscriptions.js';
 import {db} from '#db/db.js';
+import {upsertAgentDecision} from '#db/event-history.js';
 import {agentSubscriptions} from '#db/schema/agent-subscriptions.js';
 import {triggersCronSchedules} from '#db/schema/cron-schedules.js';
 import {triggersDecisions} from '#db/schema/decisions.js';
@@ -190,6 +192,25 @@ describe('onProjectDeleted', () => {
     const rows = await countRows(event.projectId);
     expect(rows.agents).toBe(0);
     expect(rows.listeners).toBe(0);
+  });
+
+  it('stores no agent routing decision for the project after the deletion', async () => {
+    const event = buildDeleted();
+    await onProjectDeleted(event);
+    const receivedEvent = await receivedEventFactory.create({workspaceId: event.workspaceId});
+
+    await expect(
+      upsertAgentDecision({
+        receivedEventId: receivedEvent.id,
+        workspaceId: event.workspaceId,
+        decision: 'default',
+        agentKey: 'triage',
+        projectId: event.projectId,
+        reason: null,
+      }),
+    ).rejects.toBeInstanceOf(ScopeDeletedError);
+
+    expect((await countRows(event.projectId)).decisions).toBe(0);
   });
 
   it('still projects definitions for another project of the same workspace', async () => {
