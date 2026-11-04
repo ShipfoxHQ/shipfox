@@ -65,8 +65,8 @@ This adds:
 - the `GET /workflow-definitions/readiness` route, which reports what a project's workflows still need before their runs can start cleanly
 - the `POST /dev-runs` route, which creates a run from a workflow file at a git ref without creating a trigger subscription
 - the `GET /trigger-events`, `GET /trigger-events/facets`, and `GET /trigger-events/:id` inspection routes
-- subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`, and
-  `INTEGRATION_EVENT_RECEIVED`
+- subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`,
+  `DEFINITION_AGENT_RULES_RESOLVED`, and `INTEGRATION_EVENT_RECEIVED`
 - the `triggers` outbox publisher
 - the hourly `triggers-prune-trigger-events` Temporal cron, which deletes old
   rows from `triggers_received_events`
@@ -324,6 +324,16 @@ connection, is skipped and logged, so agents never delay workflows, and a key ov
 characters is skipped the same way. Any other failure, including the Agent module's, fails
 the event after the workflows ran, and the outbox replays it.
 
+### Agent subscriptions
+
+An agent file can claim requests with `on:` rules. Definition sync publishes
+`DEFINITION_AGENT_RULES_RESOLVED` after each agent sync, with the rules of every
+agent the project stores. Triggers replaces the project's rows in
+`triggers_agent_subscriptions` to match: one row per project, agent key, source,
+and filter, and the rows of a removed rule or agent are deleted. A rule that stays
+keeps its row and its `created_at`, because the earliest binding wins when rules
+overlap. Dispatch does not read these rows yet.
+
 ## Events
 
 | Event | Published by | Consumed by | Purpose |
@@ -331,6 +341,7 @@ the event after the workflows ran, and the outbox replays it.
 | `INTEGRATION_EVENT_RECEIVED` | `integration/*` | triggers, projects | An integration received a webhook and validated it. The payload is the integration's domain event. |
 | `DEFINITION_RESOLVED` | definitions | triggers | A workflow definition was created or updated. The payload includes the parsed `triggers` map. |
 | `DEFINITION_DELETED` | definitions | triggers | A workflow definition was soft-deleted. Subscription rows are removed. |
+| `DEFINITION_AGENT_RULES_RESOLVED` | definitions | triggers | A project's agent files were synced. The payload lists the `on:` rules of each agent. Agent subscriptions are replaced. |
 
 ## API
 

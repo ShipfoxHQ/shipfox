@@ -11,6 +11,7 @@ export type WorkflowModelValidationIssueCode =
   | 'action-not-resolved'
   | 'action-secret-input-invalid'
   | 'agent-mcp-server-name-collision'
+  | 'invalid-agent-rule-filter'
   | 'agent-session-harness-mismatch'
   | 'agent-session-parallel-resume'
   | 'background-key-required'

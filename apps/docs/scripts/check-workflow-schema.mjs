@@ -33,6 +33,7 @@ const requiredAnchors = new Set([
   'tool-step-outputs',
   'environment-variables',
   'agent-file-fields',
+  'agent-rule-fields',
 ]);
 const schemaHeader =
   '# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json';

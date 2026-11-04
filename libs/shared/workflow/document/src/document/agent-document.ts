@@ -13,6 +13,24 @@ export const AGENT_DOCUMENT_DEFAULT_KEY = 'shippy';
 export const AGENT_DOCUMENT_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /**
+ * One `on:` rule of an agent file. It claims the requests of a source, narrowed
+ * by a filter. A rule has no `event`, `with`, `secrets`, or `config`, because
+ * only requests can match.
+ */
+export const agentRuleSchema = z.strictObject({
+  source: z.string().min(1).meta({
+    description:
+      'Selects the slug of the integration connection whose requests this rule covers, such as `slack_acme` or `linear_acme`. Use the slug of your own connection. The integration must let people talk to agents.',
+  }),
+  filter: z.string().min(1).optional().meta({
+    description:
+      'Narrows the rule to requests that match this condition. The condition can use `request`, where the request was made, and `event`, the raw payload. Without it, the rule covers every request from the source. See [Expressions](/reference/expressions).',
+  }),
+});
+
+export type AgentRule = z.infer<typeof agentRuleSchema>;
+
+/**
  * One file in `.shipfox/agents/`. The file name without its extension is the
  * agent's key, so the document declares no key. `shippy.yaml` adds to the
  * built-in agent and every field is optional. Any other file is a custom agent,
@@ -46,6 +64,10 @@ export const agentDocumentSchema = z.strictObject({
   integrations: z.array(workflowDocumentStepIntegrationSchema).min(1).optional().meta({
     description:
       'Adds tools from integration connections to the agent. See [integrations and tools](/understand/integrations-connections-and-tools).',
+  }),
+  on: z.array(agentRuleSchema).optional().meta({
+    description:
+      'Declares the requests from Slack or Linear that the agent claims. Sync checks and stores these rules. Requests are not routed by them yet.',
   }),
 });
 

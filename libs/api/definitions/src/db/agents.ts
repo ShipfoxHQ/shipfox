@@ -1,8 +1,14 @@
+import {
+  DEFINITION_AGENT_RULES_RESOLVED,
+  type DefinitionsEventMap,
+} from '@shipfox/api-definitions-dto';
+import {writeOutboxEvent} from '@shipfox/node-outbox';
 import type {AgentDocument} from '@shipfox/workflow-document';
 import {and, asc, eq, notInArray, sql} from 'drizzle-orm';
 import type {ProjectAgent, ProjectAgentError} from '#core/entities/project-agent.js';
 import {db} from './db.js';
 import {definitionAgents, toProjectAgent} from './schema/agents.js';
+import {definitionsOutbox} from './schema/outbox.js';
 
 export interface ValidAgentUpsert {
   key: string;
@@ -20,7 +26,10 @@ export interface InvalidAgentUpsert {
   error: ProjectAgentError;
 }
 
+type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
+
 export interface ApplyVcsAgentsBatchParams {
+  workspaceId: string;
   projectId: string;
   /** The agents whose files parsed. Each one replaces its row and clears its error. */
   valid: readonly ValidAgentUpsert[];
@@ -95,7 +104,31 @@ export async function applyVcsAgentsBatch(
       )
       .returning({id: definitionAgents.id});
 
+    await publishAgentRules(tx, {workspaceId: params.workspaceId, projectId: params.projectId});
+
     return {appliedCount: params.valid.length, deletedCount: deleted.length};
+  });
+}
+
+/** Publishes the rules of every stored agent, so a project whose agents lose their rules is told too. */
+async function publishAgentRules(
+  tx: Tx,
+  params: {workspaceId: string; projectId: string},
+): Promise<void> {
+  const rows = await tx
+    .select({key: definitionAgents.key, document: definitionAgents.document})
+    .from(definitionAgents)
+    .where(eq(definitionAgents.projectId, params.projectId))
+    .orderBy(asc(definitionAgents.key));
+  await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
+    type: DEFINITION_AGENT_RULES_RESOLVED,
+    payload: {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+      agents: rows.flatMap(({key, document}) =>
+        document.on === undefined || document.on.length === 0 ? [] : [{key, rules: document.on}],
+      ),
+    },
   });
 }
 

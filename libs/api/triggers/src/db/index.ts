@@ -2,6 +2,12 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {
+  type AgentRuleInput,
+  listAgentSubscriptionsByProject,
+  type ProjectAgentSubscriptionsParams,
+  projectAgentSubscriptions,
+} from './agent-subscriptions.js';
+export {
   advanceCronSchedule,
   claimDueCronSchedules,
   countDueCronSchedules,
@@ -35,6 +41,7 @@ export {
   projectJobListenerSubscriptions,
   removeJobListenerSubscriptionsForJob,
 } from './job-listener-subscriptions.js';
+export {agentSubscriptions} from './schema/agent-subscriptions.js';
 export {
   type CronScheduleDb,
   type CronScheduleInsertDb,

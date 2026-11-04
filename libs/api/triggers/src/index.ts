@@ -2,6 +2,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {
+  DEFINITION_AGENT_RULES_RESOLVED,
   DEFINITION_DELETED,
   DEFINITION_RESOLVED,
   type DefinitionsEventMap,
@@ -34,6 +35,7 @@ import {createTriggersInterModulePresentation} from '#presentation/inter-module.
 import {
   createOnIntegrationEventReceived,
   createOnShipfoxLifecycleEvent,
+  onDefinitionAgentRulesResolved,
   onDefinitionDeleted,
   onDefinitionResolved,
   onJobActivated,
@@ -136,6 +138,7 @@ export function createTriggersModule({
     publishers: [{name: 'triggers', table: triggersOutbox, db}],
     subscribers: [
       subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
+      subscriber(DEFINITION_AGENT_RULES_RESOLVED, onDefinitionAgentRulesResolved),
       subscriber(DEFINITION_DELETED, onDefinitionDeleted),
       subscriber(
         INTEGRATION_EVENT_RECEIVED,

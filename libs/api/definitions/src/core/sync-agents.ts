@@ -22,6 +22,10 @@ import {DEFAULT_AGENT_PATH, type SyncSourceContext, withTrailingSlash} from './s
 import type {WorkflowModelValidationIssue} from './workflow-model/invalid-workflow-model-error.js';
 import {validateAgentFileIntegrations} from './workflow-model/normalize-agent-integrations.js';
 import {validateAgentModelSelection} from './workflow-model/validate-agent-model-selection.js';
+import {
+  type InteractionRequestSchemas,
+  validateAgentRules,
+} from './workflow-model/validate-agent-rules.js';
 
 export const AGENT_FILE_INVALID_CODE = 'agent-file-invalid';
 // Server-side agent turns run on pi, so an agent file is checked against it.
@@ -60,6 +64,8 @@ export interface FetchAndParseAgentsParams extends SyncSourceContext {
   agentValidationCatalog: AgentValidationCatalogV2;
   /** Without it, the `integrations` of an agent file are not checked against the workspace. */
   loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
+  /** Without it, the filters of `on` rules are checked for syntax only. */
+  loadInteractionRequestSchemas?: (() => Promise<InteractionRequestSchemas>) | undefined;
   onProgress?: ((path: string) => void) | undefined;
 }
 
@@ -75,13 +81,20 @@ export async function fetchAndParseAgents(
   const result: ParsedAgents = {valid: [], invalid: [], diagnostics: []};
   const seenKeys = new Map<string, string>();
   const integrationValidationContext = once(params.loadIntegrationValidationContext);
+  const interactionRequestSchemas = once(params.loadInteractionRequestSchemas);
 
   const outcomes = await boundedMap(
     params.paths,
     FILE_FETCH_CONCURRENCY,
     async (path) => {
       params.onProgress?.(path);
-      return await parseAgentFile({...params, path, agentPath, integrationValidationContext});
+      return await parseAgentFile({
+        ...params,
+        path,
+        agentPath,
+        integrationValidationContext,
+        interactionRequestSchemas,
+      });
     },
     {stopOnError: true},
   );
@@ -144,6 +157,7 @@ async function parseAgentFile(
     path: string;
     agentPath: string;
     integrationValidationContext: () => Promise<IntegrationValidationContext | undefined>;
+    interactionRequestSchemas: () => Promise<InteractionRequestSchemas | undefined>;
   },
 ): Promise<AgentFileOutcome> {
   const {path} = params;
@@ -207,6 +221,7 @@ async function parseAgentFile(
     path,
     agentValidationCatalog: params.agentValidationCatalog,
     integrationValidationContext: params.integrationValidationContext,
+    interactionRequestSchemas: params.interactionRequestSchemas,
   });
   if (diagnostics.some((entry) => entry.severity === 'error')) return fail(diagnostics);
 
@@ -232,6 +247,7 @@ async function validateAgentDocument(params: {
   path: string;
   agentValidationCatalog: AgentValidationCatalogV2;
   integrationValidationContext: () => Promise<IntegrationValidationContext | undefined>;
+  interactionRequestSchemas: () => Promise<InteractionRequestSchemas | undefined>;
 }): Promise<DefinitionSyncDiagnostic[]> {
   const {document} = params;
   const issues: WorkflowModelValidationIssue[] = [];
@@ -244,8 +260,10 @@ async function validateAgentDocument(params: {
     agentValidationCatalog: params.agentValidationCatalog,
   });
   validateThinking(document, params.agentValidationCatalog, issues);
-  const integrationValidationContext =
-    document.integrations === undefined ? undefined : await params.integrationValidationContext();
+  const needsContext = document.integrations !== undefined || document.on !== undefined;
+  const integrationValidationContext = needsContext
+    ? await params.integrationValidationContext()
+    : undefined;
   if (integrationValidationContext !== undefined) {
     validateAgentFileIntegrations({
       integrations: document.integrations,
@@ -253,6 +271,13 @@ async function validateAgentDocument(params: {
       issues,
     });
   }
+  validateAgentRules({
+    rules: document.on,
+    integrationValidationContext,
+    requestSchemas:
+      document.on === undefined ? undefined : await params.interactionRequestSchemas(),
+    issues,
+  });
   return issues.map((issue) =>
     diagnostic({
       code: issue.code,

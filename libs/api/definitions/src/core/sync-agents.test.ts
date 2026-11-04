@@ -4,6 +4,7 @@ import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {DefinitionsSourceControl} from './integrations.js';
 import {fetchAndParseAgents} from './sync-agents.js';
+import type {InteractionRequestSchemas} from './workflow-model/validate-agent-rules.js';
 
 const context = {
   workspaceId: 'workspace-1',
@@ -48,12 +49,14 @@ function parse(
   repository: Record<string, string>,
   paths = Object.keys(repository),
   loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>,
+  loadInteractionRequestSchemas?: () => Promise<InteractionRequestSchemas>,
 ) {
   return fetchAndParseAgents({
     ...context,
     paths: paths.filter((path) => path.startsWith('.shipfox/agents/')),
     sourceControl: repositorySourceControl(repository),
     ...(loadIntegrationValidationContext === undefined ? {} : {loadIntegrationValidationContext}),
+    ...(loadInteractionRequestSchemas === undefined ? {} : {loadInteractionRequestSchemas}),
   });
 }
 
@@ -392,6 +395,157 @@ describe('fetchAndParseAgents', () => {
       );
 
       expect(load).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('on rules', () => {
+    const requestSchemas: InteractionRequestSchemas = new Map([
+      [
+        'slack',
+        {
+          type: 'object',
+          properties: {channel_id: {type: 'string'}, user_id: {type: 'string'}},
+          required: ['channel_id', 'user_id'],
+        },
+      ],
+      [
+        'linear',
+        {
+          type: 'object',
+          properties: {
+            team_key: {type: 'string'},
+            labels: {type: 'array', items: {type: 'string'}},
+          },
+        },
+      ],
+    ]);
+    const chatContext = () =>
+      integrationContext({
+        workspaceConnectionSnapshot: new Map([
+          [
+            'slack',
+            {id: 'connection-3', provider: 'slack', capabilities: ['interaction'], allowed: true},
+          ],
+          [
+            'linear',
+            {id: 'connection-4', provider: 'linear', capabilities: ['interaction'], allowed: true},
+          ],
+          ['hooks', {id: 'connection-2', provider: 'webhook', capabilities: [], allowed: true}],
+        ]),
+      });
+    const agent = (on: string) => `description: Payments.\ninstructions: Answer.\non:\n${on}`;
+    const parseRules = (on: string) =>
+      parse(
+        {'.shipfox/agents/payments.yaml': agent(on)},
+        undefined,
+        async () => chatContext(),
+        async () => requestSchemas,
+      );
+
+    it('syncs a rule that names a Slack channel', async () => {
+      const result = await parseRules(
+        '  - source: slack\n    filter: request.channel_id == "C04PAYMENTS"',
+      );
+
+      expect(result.invalid).toEqual([]);
+      expect(result.valid[0]?.document.on).toEqual([
+        {source: 'slack', filter: 'request.channel_id == "C04PAYMENTS"'},
+      ]);
+    });
+
+    it('syncs a rule with no filter and a filter on the raw event', async () => {
+      const result = await parseRules(
+        '  - source: slack\n  - source: slack\n    filter: event.type == "app_mention"',
+      );
+
+      expect(result.invalid).toEqual([]);
+      expect(result.valid[0]?.document.on).toHaveLength(2);
+    });
+
+    it('syncs a filter over the labels of a Linear request', async () => {
+      const result = await parseRules(
+        `  - source: linear\n    filter: "'payments' in request.labels && request.team_key == 'ENG'"`,
+      );
+
+      expect(result.invalid).toEqual([]);
+      expect(result.valid).toHaveLength(1);
+    });
+
+    it('rejects a source without the interaction capability', async () => {
+      const result = await parseRules('  - source: hooks');
+
+      expect(result.valid).toEqual([]);
+      expect(result.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({code: 'integration-connection-not-capable', path: 'on.0.source'}),
+      ]);
+    });
+
+    it('rejects a source that is no connection of the workspace', async () => {
+      const result = await parseRules('  - source: manual');
+
+      expect(result.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({code: 'integration-connection-not-found', path: 'on.0.source'}),
+      ]);
+    });
+
+    it('rejects a filter on a field the request does not have', async () => {
+      const result = await parseRules('  - source: slack\n    filter: request.labels == "x"');
+
+      expect(result.valid).toEqual([]);
+      expect(result.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({code: 'invalid-agent-rule-filter', path: 'on.0.filter'}),
+      ]);
+    });
+
+    it('rejects a filter that is not a boolean over request and event', async () => {
+      for (const filter of ['request.channel_id', 'inputs.x == "y"', 'request.channel_id ==']) {
+        const result = await parseRules(`  - source: slack\n    filter: ${filter}`);
+
+        expect(result.invalid[0]?.error.diagnostics[0]?.code).toBe('invalid-agent-rule-filter');
+      }
+    });
+
+    it('rejects event, with, secrets, and config on a rule', async () => {
+      for (const extra of ['event: app_mention', 'with: {}', 'secrets: {}', 'config: {}']) {
+        const result = await parseRules(`  - source: slack\n    ${extra}`);
+
+        expect(result.invalid[0]?.error.diagnostics).toEqual([
+          expect.objectContaining({code: 'agent-file-invalid'}),
+        ]);
+      }
+    });
+
+    it('rejects a filter too long to index', async () => {
+      const filter = `request.channel_id == "${'C'.repeat(2000)}"`;
+
+      const result = await parseRules(`  - source: slack\n    filter: '${filter}'`);
+
+      expect(result.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({code: 'invalid-agent-rule-filter', path: 'on.0.filter'}),
+      ]);
+    });
+
+    it('checks only the filter syntax when the workspace context is not loaded', async () => {
+      const result = await parse({
+        '.shipfox/agents/payments.yaml': agent(
+          '  - source: slack\n    filter: request.anything == 1',
+        ),
+      });
+
+      expect(result.invalid).toEqual([]);
+    });
+
+    it('loads the request schemas only for a file with rules', async () => {
+      const load = vi.fn(async () => requestSchemas);
+
+      await parse(
+        {'.shipfox/agents/plain.yaml': 'description: Plain.\ninstructions: Be plain.'},
+        undefined,
+        async () => chatContext(),
+        load,
+      );
+
+      expect(load).not.toHaveBeenCalled();
     });
   });
 

@@ -514,6 +514,99 @@ describe('definition sync activities', () => {
       expect(await listProjectAgents(projectId)).toEqual([]);
     });
 
+    describe('on rules', () => {
+      const slackRule = 'on:\n  - source: slack\n    filter: request.channel_id == "C04PAYMENTS"\n';
+      const integrations = {
+        getAgentToolsContext: vi.fn(() =>
+          Promise.resolve({
+            selectionCatalogs: [],
+            catalogs: [],
+            workspaceConnections: [
+              {
+                slug: 'slack',
+                id: crypto.randomUUID(),
+                provider: 'slack',
+                capabilities: ['interaction'],
+                allowed: true,
+              },
+              {
+                slug: 'hooks',
+                id: crypto.randomUUID(),
+                provider: 'webhook',
+                capabilities: [],
+                allowed: true,
+              },
+            ],
+            eventCatalogs: [],
+            fixedEventProviders: [],
+          }),
+        ),
+        listInteractionProviders: vi.fn(() =>
+          Promise.resolve({
+            providers: [
+              {
+                provider: 'slack',
+                interactionEvents: {app_mention: 'request'},
+                requestContextSchema: {
+                  type: 'object',
+                  properties: {channel_id: {type: 'string'}},
+                  required: ['channel_id'],
+                },
+                replyGuidance: '',
+              },
+            ],
+          }),
+        ),
+      } as never;
+
+      function syncRules(content: string) {
+        const activities = createDefinitionSyncActivities(
+          repositorySource({[reviewerPath]: content}),
+          agent,
+          projects,
+          integrations,
+        );
+        return sync(activities, [reviewerPath]);
+      }
+
+      it('stores the rules of an agent whose rule names a Slack channel', async () => {
+        const result = await syncRules(reviewerYaml + slackRule);
+
+        expect(result).toMatchObject({appliedCount: 1, diagnostics: []});
+        const [stored] = await listProjectAgents(projectId);
+        expect(stored?.document.on).toEqual([
+          {source: 'slack', filter: 'request.channel_id == "C04PAYMENTS"'},
+        ]);
+      });
+
+      it('keeps the last valid rules when a rule names a source without the capability', async () => {
+        await syncRules(reviewerYaml + slackRule);
+
+        const result = await syncRules(reviewerYaml + 'on:\n  - source: hooks\n');
+
+        expect(result.appliedCount).toBe(0);
+        expect(result.diagnostics).toEqual([
+          expect.objectContaining({code: 'integration-connection-not-capable'}),
+        ]);
+        const [stored] = await listProjectAgents(projectId);
+        expect(stored?.document.on?.[0]?.source).toBe('slack');
+        expect(stored?.lastError?.diagnostics).toEqual([
+          expect.objectContaining({code: 'integration-connection-not-capable'}),
+        ]);
+      });
+
+      it('rejects a filter on an unknown context field', async () => {
+        const result = await syncRules(
+          reviewerYaml + 'on:\n  - source: slack\n    filter: request.nope == "x"\n',
+        );
+
+        expect(result.appliedCount).toBe(0);
+        expect(result.diagnostics).toEqual([
+          expect.objectContaining({code: 'invalid-agent-rule-filter', path: 'on.0.filter'}),
+        ]);
+      });
+    });
+
     it('changes nothing when the project points at another source', async () => {
       const current = createDefinitionSyncActivities(
         repositorySource({[reviewerPath]: reviewerYaml}),
