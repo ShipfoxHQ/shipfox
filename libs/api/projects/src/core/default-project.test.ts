@@ -1,4 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {logger} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/index.js';
 import {projects} from '#db/schema/projects.js';
@@ -122,6 +123,7 @@ describe('ensureDefaultProject', () => {
   });
 
   test('logs and returns nothing when the default can not be created on a read', async () => {
+    const warnSpy = vi.spyOn(logger(), 'warn');
     vi.mocked(integrations.createManagedRepository).mockRejectedValue(new Error('storage down'));
 
     const result = await tryEnsureDefaultProject({
@@ -131,5 +133,9 @@ describe('ensureDefaultProject', () => {
     });
 
     expect(result).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId, err: expect.any(Error)}),
+      'Could not create the default project of a workspace',
+    );
   });
 });

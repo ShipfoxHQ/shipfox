@@ -2,7 +2,7 @@ import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/i
 import {logger} from '@shipfox/node-opentelemetry';
 import {getDefaultProject} from '#db/projects.js';
 import type {Project} from './entities/project.js';
-import {DefaultProjectExistsError} from './errors.js';
+import {DefaultProjectExistsError, ProjectSlugConflictError} from './errors.js';
 import {createManagedProject} from './projects.js';
 
 export const DEFAULT_PROJECT_NAME = 'Default';
@@ -19,8 +19,9 @@ export interface EnsureDefaultProjectParams {
 /**
  * Returns the workspace's default project, creating an empty managed one when it has none. It
  * ignores the `managed-config-repos` flag, which gates only the create route. Calls racing for
- * the same workspace end with the same project, because the unique index lets one insert win.
- * A workspace that already has a project with the slug `default` fails with a slug conflict.
+ * the same workspace end with the same project: the losing insert reports either the default
+ * index or the slug index, depending on which Postgres checks first, and both read the winner.
+ * A workspace that already has another project with the slug `default` fails with a slug conflict.
  */
 export async function ensureDefaultProject(params: EnsureDefaultProjectParams): Promise<Project> {
   const existing = await getDefaultProject(params.workspaceId);
@@ -36,7 +37,7 @@ export async function ensureDefaultProject(params: EnsureDefaultProjectParams): 
       integrations: params.integrations,
     });
   } catch (error) {
-    if (error instanceof DefaultProjectExistsError) {
+    if (error instanceof DefaultProjectExistsError || error instanceof ProjectSlugConflictError) {
       const winner = await getDefaultProject(params.workspaceId);
       if (winner) return winner;
     }
