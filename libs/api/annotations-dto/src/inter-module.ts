@@ -42,6 +42,7 @@ export const annotationsInterModuleContract = defineInterModuleContract({
       }),
       output: z.object({}),
       errors: {
+        'project-deleted': z.object({}),
         'annotation-body-too-large': z.object({maxBytes: z.number().int().positive()}),
         'annotation-count-limit-exceeded': z.object({maxAnnotations: z.number().int().positive()}),
         'annotation-total-bytes-limit-exceeded': z.object({maxBytes: z.number().int().positive()}),

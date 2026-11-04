@@ -2,10 +2,11 @@ import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {attemptStreams} from './schema/attempt-streams.js';
 import {logChunks} from './schema/chunks.js';
+import {logsDeletedScopes} from './schema/deleted-scopes.js';
 import {jobAccounting} from './schema/job-accounting.js';
 import {logsOutbox} from './schema/outbox.js';
 
-export const schema = {jobAccounting, attemptStreams, logChunks, logsOutbox};
+export const schema = {jobAccounting, attemptStreams, logChunks, logsDeletedScopes, logsOutbox};
 
 export type Database = NodePgDatabase<typeof schema>;
 export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];

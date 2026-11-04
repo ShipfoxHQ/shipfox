@@ -169,6 +169,13 @@
       "when": 1792087255547,
       "tag": "0023_runner_session_platform",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793778523622,
+      "tag": "0024_deleted_scopes",
+      "breakpoints": true
     }
   ]
 }

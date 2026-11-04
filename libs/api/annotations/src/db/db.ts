@@ -1,8 +1,9 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {annotations} from './schema/annotations.js';
+import {annotationsDeletedScopes} from './schema/deleted-scopes.js';
 
-export const schema = {annotations};
+export const schema = {annotations, annotationsDeletedScopes};
 
 export type Database = NodePgDatabase<typeof schema>;
 export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];

@@ -102,6 +102,7 @@ export const logsInterModuleContract = defineInterModuleContract({
         'append-body-too-large': z.object({maxBytes: z.number().int().positive()}),
         'runner-writer-active': z.object({}),
         'offset-gap': z.object({committedLength: z.number().int().nonnegative()}),
+        'project-deleted': z.object({}),
       },
     },
   },

@@ -51,6 +51,8 @@ export const annotations = pgTable(
     index('annotations_workflow_run_attempt_idx').on(table.workflowRunId, table.workflowRunAttempt),
     index('annotations_workflow_run_attempt_id_idx').on(table.workflowRunAttemptId),
     index('annotations_job_execution_id_idx').on(table.jobExecutionId),
+    // Purging a deleted project selects its annotations by project.
+    index('annotations_project_idx').on(table.projectId),
     check('annotations_workflow_run_attempt_positive_ck', sql`${table.workflowRunAttempt} > 0`),
     check('annotations_origin_step_attempt_positive_ck', sql`${table.originStepAttempt} > 0`),
     check(

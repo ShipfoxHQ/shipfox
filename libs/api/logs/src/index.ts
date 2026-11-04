@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {LOG_STREAM_CLOSED, type LogsEventMap, logsEventSchemas} from '@shipfox/api-logs-dto';
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
@@ -17,6 +18,7 @@ import {createLogsInterModulePresentation} from '#presentation/inter-module.js';
 import {createLogsRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';
 import {onLogStreamClosed} from '#presentation/subscribers/on-log-stream-closed.js';
+import {onProjectDeleted} from '#presentation/subscribers/on-project-deleted.js';
 import {onStepAttemptTerminated} from '#presentation/subscribers/on-step-attempt-terminated.js';
 import {createLogsActivities} from '#temporal/activities/index.js';
 import {LOGS_COMPACTION_TASK_QUEUE, LOGS_LIFECYCLE_TASK_QUEUE} from '#temporal/constants.js';
@@ -26,7 +28,9 @@ export {checkBucketReachable} from '#api/object-storage.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<WorkflowsEventMapDto & LogsEventMap>();
+const subscriber = subscriberFactory<
+  WorkflowsEventMapDto & LogsEventMap & Pick<ProjectsEventMap, typeof PROJECT_DELETED>
+>();
 
 export function createLogsModule({
   workflows,
@@ -50,6 +54,7 @@ export function createLogsModule({
       subscriber(WORKFLOWS_STEP_ATTEMPT_TERMINATED, onStepAttemptTerminated),
       subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
       subscriber(LOG_STREAM_CLOSED, onLogStreamClosed),
+      subscriber(PROJECT_DELETED, onProjectDeleted),
     ],
     workers: [
       {

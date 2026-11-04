@@ -2,6 +2,7 @@ import type {
   StepAttemptTerminalCauseDto,
   WorkflowsStepAttemptTerminatedEventDto,
 } from '@shipfox/api-workflows-dto';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {onStepAttemptTerminated} from './on-step-attempt-terminated.js';
 
 const {finalizeAttemptLogStreamMock} = vi.hoisted(() => ({
@@ -48,5 +49,20 @@ describe('onStepAttemptTerminated', () => {
     expect(finalizeAttemptLogStreamMock).toHaveBeenCalledWith(
       expect.objectContaining({terminalCause: expectedCause}),
     );
+  });
+
+  it('skips the event of a deleted project', async () => {
+    const payload = buildPayload(null);
+    finalizeAttemptLogStreamMock.mockRejectedValue(
+      new ScopeDeletedError({workspaceId: payload.workspaceId, projectId: payload.projectId}),
+    );
+
+    await expect(onStepAttemptTerminated(payload)).resolves.toBeUndefined();
+  });
+
+  it('still fails on any other error, so the event is redelivered', async () => {
+    finalizeAttemptLogStreamMock.mockRejectedValue(new Error('database down'));
+
+    await expect(onStepAttemptTerminated(buildPayload(null))).rejects.toThrow('database down');
   });
 });

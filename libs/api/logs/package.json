@@ -44,6 +44,7 @@
     "@shipfox/agent-transcript": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
+    "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/workflow-document": "workspace:*",
     "@shipfox/config": "workspace:*",

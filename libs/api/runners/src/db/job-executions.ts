@@ -6,6 +6,7 @@ import {
   type RunnerLifecycleCapabilitiesDto,
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import type {PolicyNotice} from '@shipfox/policy-notice';
@@ -62,6 +63,7 @@ import {
   releaseTerminalRunnerInstanceReservationsByIds,
 } from './reservations.js';
 import {terminalStates} from './runner-states.js';
+import {runnersDeletedScopes} from './schema/deleted-scopes.js';
 import {expiredJobExecutions} from './schema/expired-job-executions.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
@@ -705,6 +707,10 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
       .limit(1);
     if (leaseExpired) return false;
 
+    await assertScopeWritable(tx, runnersDeletedScopes, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     const [inserted] = await tx
       .insert(pendingJobExecutions)
       .values({

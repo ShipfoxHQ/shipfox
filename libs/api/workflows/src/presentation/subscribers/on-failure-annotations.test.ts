@@ -1751,6 +1751,33 @@ describe('failure annotations', () => {
       'Failed to project workflow failure annotation',
     );
   });
+
+  it('skips the annotation of a deleted project without recording a failure', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({id: payload.stepId, jobExecutionId: JOB_EXECUTION_ID});
+    const attempt = stepAttemptEntity({stepId: step.id});
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+    replaceOrRemoveAnnotation.mockRejectedValueOnce(
+      createInterModuleKnownError(
+        annotationsInterModuleContract.methods.replaceOrRemoveAnnotation,
+        'project-deleted',
+        {},
+      ),
+    );
+
+    await expect(
+      onStepAttemptTerminatedFailureAnnotation(annotations)(payload),
+    ).resolves.toBeUndefined();
+
+    expect(metricMocks.recordWorkflowFailureAnnotationFailed).not.toHaveBeenCalled();
+    expect(loggerWarn).not.toHaveBeenCalled();
+  });
 });
 
 async function checkoutFailureBody(error: Record<string, unknown>): Promise<string> {

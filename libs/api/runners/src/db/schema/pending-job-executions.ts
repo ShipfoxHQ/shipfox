@@ -21,6 +21,8 @@ export const pendingJobExecutions = pgTable(
   (table) => [
     index('runners_pending_jobs_workspace_created_idx').on(table.workspaceId, table.createdAt),
     index('runners_pending_jobs_job_id_idx').on(table.jobId),
+    // Purging a deleted project selects its pending jobs by project.
+    index('runners_pending_jobs_project_idx').on(table.projectId),
   ],
 );
 

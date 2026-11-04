@@ -7,6 +7,11 @@ reservations, and termination authorization.
 
 - **`createRunnersModule`** registers runner routes, authentication methods,
   workers, metrics, database migrations, and event subscribers.
+- **Project deletion**: The `PROJECT_DELETED` subscriber records a deletion marker, which refuses
+  later job queueing for the project, and deletes its pending jobs. A running job ends through the
+  cancellation of its run, so the event fails and the outbox retries it, up to its attempt limit (about 36 minutes). If a job
+  outlives the retries, `purged_at` stays unset, while the pending jobs stay deleted and the marker
+  keeps refusing new ones.
 - **`getWorkspaceJobCounts`** returns workspace job counts for API consumers.
 - **`isJobLeaseActive`** checks whether a job lease is active.
 - **`getEffectiveRunnerToolCapabilities`** and **`unadvertisedRunnerTools`**

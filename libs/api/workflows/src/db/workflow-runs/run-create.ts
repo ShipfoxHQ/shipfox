@@ -62,6 +62,7 @@ import {
   recordWorkflowRunCreated,
 } from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
+import {assertProjectWritable, rethrowDeletedProject} from '../deleted-scopes.js';
 import {type WorkflowsOutboxEvent, writeWorkflowsOutboxEvents} from '../outbox-writes.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {workflowRunCounters} from '../schema/workflow-run-counters.js';
@@ -125,19 +126,21 @@ export async function createWorkflowRun(
     integrations: params.integrations,
     projectId: params.projectId,
   });
-  const result = await db().transaction((tx) =>
-    createWorkflowRunInTransaction(
-      {
-        params,
-        staticName,
-        triggerReference,
-        agentToolContext,
-        agentToolMaterialization,
-        noDefaultCheckout,
-      },
-      tx,
-    ),
-  );
+  const result = await db()
+    .transaction((tx) =>
+      createWorkflowRunInTransaction(
+        {
+          params,
+          staticName,
+          triggerReference,
+          agentToolContext,
+          agentToolMaterialization,
+          noDefaultCheckout,
+        },
+        tx,
+      ),
+    )
+    .catch(rethrowDeletedProject(params.projectId));
 
   if (result.created && result.concurrencyAdmission !== undefined) {
     recordWorkflowConcurrencyAdmissionMetrics(result.concurrencyAdmission);
@@ -209,6 +212,10 @@ async function createWorkflowRunInTransaction(
   const existing = await findIdempotentWorkflowRun(context.params.triggerIdempotencyKey, tx);
   if (existing) return {run: existing, created: false as const};
 
+  await assertProjectWritable(tx, {
+    workspaceId: context.params.workspaceId,
+    projectId: context.params.projectId,
+  });
   const insertion = await insertWorkflowRun(context, tx);
   if (insertion.kind === 'existing') return {run: insertion.run, created: false as const};
   return materializeCreatedWorkflowRun(context, insertion.row, tx);

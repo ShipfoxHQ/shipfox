@@ -3,6 +3,7 @@ import {
   leasedWriteAnnotationsResponseSchema,
 } from '@shipfox/annotations-dto';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {
   AnnotationBodyTooLargeError,
@@ -22,6 +23,9 @@ export const writeAnnotationsRoute = defineRoute({
     },
   },
   errorHandler: (error) => {
+    if (error instanceof ScopeDeletedError) {
+      throw new ClientError('Project was deleted', 'project-not-found', {status: 404});
+    }
     if (error instanceof AnnotationBodyTooLargeError) {
       throw new ClientError(error.message, 'annotation-body-too-large', {
         status: 413,

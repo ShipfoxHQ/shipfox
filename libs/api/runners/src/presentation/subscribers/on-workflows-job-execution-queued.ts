@@ -1,4 +1,5 @@
 import type {WorkflowsJobExecutionQueuedEventDto} from '@shipfox/api-workflows-dto';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {logger} from '@shipfox/node-opentelemetry';
 import {enqueueJobExecution} from '#db/job-executions.js';
 
@@ -13,14 +14,20 @@ export async function onWorkflowsJobExecutionQueued(
     },
     'Queueing runner job execution from workflow fact',
   );
-  await enqueueJobExecution({
-    workspaceId: payload.workspaceId,
-    workflowRunId: payload.workflowRunId,
-    workflowRunAttemptId: payload.workflowRunAttemptId,
-    jobId: payload.jobId,
-    jobExecutionId: payload.jobExecutionId,
-    projectId: payload.projectId,
-    requiredLabels: payload.requiredLabels,
-    queuedAt: new Date(payload.queuedAt),
-  });
+  try {
+    await enqueueJobExecution({
+      workspaceId: payload.workspaceId,
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      jobId: payload.jobId,
+      jobExecutionId: payload.jobExecutionId,
+      projectId: payload.projectId,
+      requiredLabels: payload.requiredLabels,
+      queuedAt: new Date(payload.queuedAt),
+    });
+  } catch (error) {
+    // The project was deleted, so its job has no run to queue for.
+    if (error instanceof ScopeDeletedError) return;
+    throw error;
+  }
 }

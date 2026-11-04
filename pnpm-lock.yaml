@@ -3439,6 +3439,9 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../projects-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -5935,6 +5938,9 @@ importers:
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../logs-dto
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../projects-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto
@@ -6304,6 +6310,9 @@ importers:
       '@shipfox/api-common-dto':
         specifier: workspace:*
         version: link:../common-dto
+      '@shipfox/api-projects-dto':
+        specifier: workspace:*
+        version: link:../projects-dto
       '@shipfox/api-runners-dto':
         specifier: workspace:*
         version: link:../runners-dto

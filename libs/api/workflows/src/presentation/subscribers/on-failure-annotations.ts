@@ -493,12 +493,13 @@ async function writeFailureAnnotation(params: {
         : {op: 'remove'},
     });
   } catch (error) {
-    const reason = isInterModuleKnownError(
+    const known = isInterModuleKnownError(
       annotationsInterModuleContract.methods.replaceOrRemoveAnnotation,
       error,
-    )
-      ? 'budget'
-      : 'write';
+    );
+    // The project was deleted, so its annotations are gone for good and nothing is left to report.
+    if (known && error.code === 'project-deleted') return;
+    const reason = known ? 'budget' : 'write';
     recordFailureAnnotationFailure(error, reason, params.target);
   }
 }
