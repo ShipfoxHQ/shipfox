@@ -8,7 +8,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {type ReactNode, useState} from 'react';
-import type {ConversationSummary} from '#core/conversation.js';
+import type {ActiveRun, ConversationSummary} from '#core/conversation.js';
 import type {ProjectAgent} from '#core/project-agents.js';
 import {buildTranscript, type TranscriptEntry} from '#core/transcript.js';
 import {type ReplyActivity, turnFailure} from '#core/turn-state.js';
@@ -17,6 +17,7 @@ import {
   noticeItem,
   OLD_TURN_ID,
   rowsItem,
+  runResultItem,
   TURN_ID,
   toolCall,
   toolResult,
@@ -33,6 +34,7 @@ import {
   ConversationDeleted,
   FirstUse,
 } from './chat-panel.js';
+import {ChatActiveRuns} from './chat-runs.js';
 import {ChatTranscript} from './chat-transcript.js';
 
 const withRouter: Decorator = (Story) => {
@@ -93,8 +95,10 @@ function Panel({
   disabled = false,
   error,
   initialDraft = '',
+  activeRuns,
 }: {
   title?: string;
+  activeRuns?: readonly ActiveRun[];
   body: ReactNode;
   composer?: boolean;
   replying?: boolean;
@@ -111,13 +115,16 @@ function Panel({
         onKeyDown={() => undefined}
         announcement=""
         header={
-          <ChatPanelHeader
-            title={title}
-            view="chat"
-            onToggleHistory={() => undefined}
-            onNewConversation={() => undefined}
-            onClose={() => undefined}
-          />
+          <>
+            <ChatPanelHeader
+              title={title}
+              view="chat"
+              onToggleHistory={() => undefined}
+              onNewConversation={() => undefined}
+              onClose={() => undefined}
+            />
+            <ChatActiveRuns runs={activeRuns} workspaceSlug="acme" projectSlug="api" />
+          </>
         }
         body={body}
         composer={
@@ -270,6 +277,75 @@ export const Answered: Story = {
         <Transcript
           entries={buildTranscript({
             items: answeredItems,
+            queued: [],
+            partialText: '',
+            runningTurnId: undefined,
+          })}
+        />
+      }
+    />
+  ),
+};
+
+const prReply =
+  'The pull request is open: https://github.com/acme/api/pull/88. I will report back when review feedback arrives.';
+
+function activeRun(
+  number: number,
+  name: string,
+  status: string,
+  progress: {finished: number; total: number} = {finished: 0, total: 0},
+): ActiveRun {
+  return {
+    runId: `00000000-0000-4000-a000-${String(number).padStart(12, '0')}`,
+    number,
+    name,
+    attempt: 1,
+    status,
+    startedAt: status === 'running' ? new Date(Date.now() - 4 * 60_000).toISOString() : undefined,
+    jobsFinished: progress.finished,
+    jobsTotal: progress.total,
+  };
+}
+
+export const DelegatedRunSettled: Story = {
+  render: () => (
+    <Panel
+      title="Add rate limiting to the API"
+      activeRuns={[
+        activeRun(215, 'implement', 'running', {finished: 2, total: 5}),
+        activeRun(216, 'docs', 'pending'),
+        activeRun(217, 'lint-fix', 'running'),
+        activeRun(218, 'implement', 'waiting'),
+      ]}
+      body={
+        <Transcript
+          entries={buildTranscript({
+            items: [
+              userItem(1, 'Add rate limiting to the API'),
+              rowsItem({
+                seq: 2,
+                turnId: OLD_TURN_ID,
+                rows: [
+                  toolCall('start', 'start_workflow_run', '{"workflow":"implement"}'),
+                  {
+                    kind: 'tool-result',
+                    timestamp: 4,
+                    toolCallId: 'start',
+                    toolName: 'start_workflow_run',
+                    output: JSON.stringify({
+                      run_id: '55555555-5555-4555-8555-555555555555',
+                      run_number: 214,
+                      name: 'implement',
+                    }),
+                    isError: false,
+                  },
+                ],
+              }),
+              runResultItem({seq: 3, status: 'settled'}),
+              rowsItem({seq: 4, turnId: OLD_TURN_ID, rows: [agentRow(prReply)]}),
+              runResultItem({seq: 5, status: 'failed', attempt: 2}),
+            ],
             queued: [],
             partialText: '',
             runningTurnId: undefined,

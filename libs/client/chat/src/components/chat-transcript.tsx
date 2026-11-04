@@ -10,11 +10,13 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScrollerScrollable,
 } from '@shipfox/react-ui/message-scroller';
-import {useRouter} from '@tanstack/react-router';
-import type {MouseEvent, ReactNode} from 'react';
+import {type ReactNode, useEffect} from 'react';
 import type {TranscriptEntry} from '#core/transcript.js';
 import type {ReplyActivity} from '#core/turn-state.js';
+import {useInAppLinks} from '#hooks/use-in-app-links.js';
+import {ChatRunCard} from './chat-runs.js';
 import {ChatRunStarted, ChatToolRows} from './chat-tool-rows.js';
 
 const activityCopy: Partial<Record<ReplyActivity['kind'], string>> = {
@@ -23,32 +25,6 @@ const activityCopy: Partial<Record<ReplyActivity['kind'], string>> = {
   stopping: 'Stopping',
   reconnecting: 'Reconnecting',
 };
-
-function sameOriginPath(anchor: HTMLAnchorElement): string | undefined {
-  try {
-    const url = new URL(anchor.href);
-    return url.origin === window.location.origin
-      ? `${url.pathname}${url.search}${url.hash}`
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** A link to a Shipfox page moves the page, and the panel stays. */
-function useInAppLinks() {
-  const router = useRouter();
-  return (event: MouseEvent<HTMLElement>) => {
-    if (event.defaultPrevented || event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const anchor = (event.target as Element).closest('a');
-    if (!anchor) return;
-    const path = sameOriginPath(anchor);
-    if (!path) return;
-    event.preventDefault();
-    void router.navigate({href: path});
-  };
-}
 
 function EntryView({
   entry,
@@ -90,9 +66,27 @@ function EntryView({
       return (
         <ChatRunStarted run={entry.run} workspaceSlug={workspaceSlug} projectSlug={projectSlug} />
       );
+    case 'run-result':
+      return (
+        <ChatRunCard
+          result={entry.result}
+          workspaceSlug={workspaceSlug}
+          projectSlug={projectSlug}
+        />
+      );
     case 'notice':
       return null;
   }
+}
+
+/** Reports whether the reader can see the latest message, which is what marks it read. */
+function LatestVisibility({onChange}: {onChange: (visible: boolean) => void}) {
+  const {end} = useMessageScrollerScrollable();
+  const visible = !end;
+  useEffect(() => onChange(visible), [onChange, visible]);
+  // A transcript that leaves the panel shows nothing, so nothing in it can be read.
+  useEffect(() => () => onChange(false), [onChange]);
+  return null;
 }
 
 export interface ChatTranscriptProps {
@@ -105,6 +99,8 @@ export interface ChatTranscriptProps {
   /** The failed turn's notice, after everything else. */
   footer?: ReactNode;
   olderHistory: {hasMore: boolean; loading: boolean; load: () => void};
+  /** Called with whether the latest message is scrolled into view. */
+  onLatestVisibleChange?: ((visible: boolean) => void) | undefined;
 }
 
 export function ChatTranscript({
@@ -115,12 +111,14 @@ export function ChatTranscript({
   renderNotice,
   footer,
   olderHistory,
+  onLatestVisibleChange,
 }: ChatTranscriptProps) {
   const onClick = useInAppLinks();
   const status = activityCopy[activity.kind];
 
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+      {onLatestVisibleChange ? <LatestVisibility onChange={onLatestVisibleChange} /> : null}
       <MessageScroller className="flex-1">
         <MessageScrollerViewport aria-label="Conversation with Shippy">
           <MessageScrollerContent

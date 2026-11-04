@@ -7664,6 +7664,9 @@ importers:
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
+      '@shipfox/client-workflows':
+        specifier: workspace:*
+        version: link:../workflows
       '@shipfox/policy-notice':
         specifier: workspace:*
         version: link:../../shared/common/policy-notice

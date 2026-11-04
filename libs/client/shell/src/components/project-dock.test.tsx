@@ -10,6 +10,7 @@ import {renderComposedShell} from '#test/render.js';
 import {ProjectDockPanel} from './project-dock-panel.js';
 
 const LAUNCHER_NAME = 'Open Shippy, your project agent';
+const UNREAD_COUNT = /^\d+$/;
 
 const dockMounted = vi.fn();
 const dockUnmounted = vi.fn();
@@ -95,10 +96,10 @@ async function spriteState() {
   return launcher.querySelector('[data-slot="shippy-sprite"]')?.getAttribute('data-state');
 }
 
-function publishingDock(state: ShippyState) {
+function publishingDock(state: ShippyState, unread = 0) {
   return dockFeature(async () => ({
     default: function PublishingDock() {
-      useShippyStatus({state});
+      useShippyStatus({state, unread});
       return <Dock />;
     },
   }));
@@ -527,6 +528,37 @@ describe("Shippy's motion", () => {
 
     expect(await launcherForm()).toBe('face');
     expect(document.querySelector('[data-slot="shippy-sprite"]')).not.toBeInTheDocument();
+  });
+});
+
+describe("Shippy's unread badge", () => {
+  beforeEach(greetedAlready);
+
+  test('names the unread count on floating Shippy and shows it beside the hoodie', async () => {
+    await renderDock({features: [pagesFeature(), publishingDock('reply_ready', 2)]});
+
+    const launcher = await screen.findByRole('button', {name: 'Shippy, 2 unread'});
+    expect(within(launcher).getByText('2')).toBeVisible();
+    expect(launcher.querySelector('[data-slot="shippy-sprite"]')).toHaveAttribute(
+      'data-state',
+      'reply_ready',
+    );
+  });
+
+  test('shows the count on the discreet face', async () => {
+    window.localStorage.setItem('shipfox.shippy.placement', 'tab_bar');
+
+    await renderDock({features: [pagesFeature(), publishingDock('idle', 1)]});
+
+    const launcher = await screen.findByRole('button', {name: 'Shippy, 1 unread'});
+    expect(within(launcher).getByText('1')).toBeVisible();
+  });
+
+  test('shows no badge while nothing is unread', async () => {
+    await renderDock({features: [pagesFeature(), publishingDock('idle')]});
+
+    const launcher = await screen.findByRole('button', {name: LAUNCHER_NAME});
+    expect(within(launcher).queryByText(UNREAD_COUNT)).not.toBeInTheDocument();
   });
 });
 

@@ -132,6 +132,7 @@ export function createAgentRoutes(
       : createConversationRoutes({
           projects: options.projects,
           definitions: options.definitions,
+          workflows: options.workflows,
           wake: options.wakeConversation,
         })),
   ];

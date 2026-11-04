@@ -20,6 +20,10 @@ import {
 import {ChatTranscript, type ChatTranscriptProps} from './chat-transcript.js';
 
 const RUN_LINK_NAME = /run #214/;
+const SETTLED_CARD_NAME = /implement #214 · Listening/;
+const FAILED_CARD_NAME = /Run · Failed/;
+const RUNNING = /Running/;
+const LISTENING_NOTE = /Still listening/;
 
 async function renderTranscript(props: Partial<ChatTranscriptProps> & {activity?: ReplyActivity}) {
   const transcript = (
@@ -101,6 +105,71 @@ describe('ChatTranscript', () => {
       'href',
       `/w/acme/p/api/runs/${runId}`,
     );
+  });
+
+  test('shows a settled run as listening, never as running, with a link to the run', async () => {
+    const runId = '55555555-5555-4555-8555-555555555555';
+    await renderTranscript({
+      entries: [
+        {
+          kind: 'run-result',
+          key: 'result',
+          result: {
+            runId,
+            attemptId: '66666666-6666-4666-8666-666666666666',
+            status: 'settled',
+            number: 214,
+            name: 'implement',
+            attempt: 1,
+          },
+        },
+      ],
+    });
+
+    const link = screen.getByRole('link', {name: SETTLED_CARD_NAME});
+    expect(link).toHaveAttribute('href', `/w/acme/p/api/runs/${runId}`);
+    expect(within(link).getByText('Open run')).toBeInTheDocument();
+    expect(
+      screen.getByText('Work finished. Still listening for review feedback.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(RUNNING)).not.toBeInTheDocument();
+  });
+
+  test('shows a run that ended with its status and no listening note', async () => {
+    await renderTranscript({
+      entries: [
+        {
+          kind: 'run-result',
+          key: 'result',
+          result: {
+            runId: '55555555-5555-4555-8555-555555555555',
+            attemptId: '66666666-6666-4666-8666-666666666666',
+            status: 'failed',
+            number: undefined,
+            name: undefined,
+            attempt: undefined,
+          },
+        },
+      ],
+    });
+
+    expect(screen.getByRole('link', {name: FAILED_CARD_NAME})).toBeInTheDocument();
+    expect(screen.queryByText(LISTENING_NOTE)).not.toBeInTheDocument();
+  });
+
+  test('reports the latest message as visible, and as gone once the transcript leaves', async () => {
+    const onLatestVisibleChange = vi.fn();
+    await renderTranscript({
+      entries: buildTranscript({
+        items: [userItem(1, 'Hello')],
+        queued: [],
+        partialText: '',
+        runningTurnId: undefined,
+      }),
+      onLatestVisibleChange,
+    });
+
+    expect(onLatestVisibleChange).toHaveBeenLastCalledWith(true);
   });
 
   test('says when a reply is slow to start', async () => {

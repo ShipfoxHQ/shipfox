@@ -7,7 +7,7 @@ import {
   type SessionRowSource,
   type SessionViewRow,
 } from '@shipfox/client-logs';
-import type {ConversationItem, TurnNotice} from './conversation.js';
+import type {ConversationItem, RunResult, TurnNotice} from './conversation.js';
 import {type RunStarted, readRunStarted} from './run-started.js';
 
 export type ToolNode = ActivityActionNode | ActivityReadGroupNode;
@@ -18,6 +18,8 @@ export type TranscriptEntry =
   | {kind: 'tools'; key: string; nodes: readonly ToolNode[]}
   // A write has its own row, so a run never hides in a group of reads.
   | {kind: 'run-started'; key: string; run: RunStarted}
+  // One per attempt, so a rerun adds its own card.
+  | {kind: 'run-result'; key: string; result: RunResult}
   | {kind: 'notice'; key: string; notice: TurnNotice};
 
 export interface BuildTranscriptParams {
@@ -43,9 +45,9 @@ function rowSources(items: readonly ConversationItem[]): RowSource[] {
   for (const item of items) {
     if (item.seq === null || !item.content) continue;
     const base = item.seq * ROWS_PER_ITEM;
-    if (item.content.type === 'turn_notice') {
-      // A notice has no rows. A placeholder keeps its place among them.
-      sources.push({seq: base, lineNumber: base, row: noticePlaceholder(item), item});
+    if (item.content.type === 'turn_notice' || item.content.type === 'run_result') {
+      // A notice and a run result have no rows. A placeholder keeps their place among them.
+      sources.push({seq: base, lineNumber: base, row: placeholder(item), item});
       continue;
     }
     if (item.content.type !== 'rows') continue;
@@ -56,11 +58,11 @@ function rowSources(items: readonly ConversationItem[]): RowSource[] {
   return sources;
 }
 
-function noticePlaceholder(item: ConversationItem): SessionViewRow {
+function placeholder(item: ConversationItem): SessionViewRow {
   return {
     kind: 'lifecycle',
     timestamp: Date.parse(item.createdAt) || 0,
-    label: 'turn notice',
+    label: item.content?.type === 'run_result' ? 'run result' : 'turn notice',
     detail: null,
     meta: [],
     tone: 'default',
@@ -111,6 +113,9 @@ function rowEntry(
 ): TranscriptEntry | undefined {
   if (item?.content?.type === 'turn_notice') {
     return {kind: 'notice', key: item.id, notice: item.content.notice};
+  }
+  if (item?.content?.type === 'run_result') {
+    return {kind: 'run-result', key: item.id, result: item.content.result};
   }
   if (row.kind !== 'message') return undefined;
   if (row.role === 'user' && item) {
@@ -171,6 +176,11 @@ export function buildTranscript(params: BuildTranscriptParams): TranscriptEntry[
   }
 
   for (const item of params.queued) {
+    // A result is in the conversation once delivered, so it shows before a turn claims it.
+    if (item.content?.type === 'run_result') {
+      entries.push({kind: 'run-result', key: item.id, result: item.content.result});
+      continue;
+    }
     const text = userText(item);
     if (text !== undefined) entries.push({kind: 'user', key: item.id, text, queued: true});
   }

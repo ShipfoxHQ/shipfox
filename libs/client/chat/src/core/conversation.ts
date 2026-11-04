@@ -17,6 +17,8 @@ export interface ConversationSummary {
 export interface ConversationList {
   conversations: readonly ConversationSummary[];
   nextCursor: string | undefined;
+  /** Conversations with an unread reply, across every page. */
+  unreadCount: number;
 }
 
 export interface ConversationTurn {
@@ -28,9 +30,37 @@ export interface ConversationTurn {
   provider: string | null;
 }
 
+/** A run the conversation started whose latest attempt has no result yet. */
+export interface ActiveRun {
+  runId: string;
+  number: number;
+  /** What the run is called, which is the workflow's name unless it set a run name. */
+  name: string;
+  attempt: number;
+  status: string;
+  /** Undefined while the attempt waits to start. */
+  startedAt: string | undefined;
+  jobsFinished: number;
+  jobsTotal: number;
+}
+
 export interface ConversationDetail extends ConversationSummary {
   /** The most recent turn, finished or not. */
   latestTurn: ConversationTurn | undefined;
+  /** Oldest first. */
+  activeRuns: readonly ActiveRun[];
+}
+
+/** The result one run attempt delivered to the conversation. */
+export interface RunResult {
+  runId: string;
+  attemptId: string;
+  /** `settled` while a listener holds the run open, or the status the attempt ended with. */
+  status: string;
+  // Results stored before these fields existed have none of them.
+  number: number | undefined;
+  name: string | undefined;
+  attempt: number | undefined;
 }
 
 export interface TurnNotice {
@@ -41,7 +71,7 @@ export interface TurnNotice {
 
 export type ConversationItemContent =
   | {type: 'rows'; rows: readonly SessionViewRow[]}
-  | {type: 'run_result'}
+  | {type: 'run_result'; result: RunResult}
   | {type: 'turn_notice'; notice: TurnNotice};
 
 export interface ConversationItem extends StreamedItem {

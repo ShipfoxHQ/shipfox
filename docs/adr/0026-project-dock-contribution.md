@@ -35,8 +35,8 @@ The shell mounts the component on project pages, beside `main`, inside a reporti
 the agent is doing, but the conversation state lives in the dock. The dock publishes a status
 through `useShippyStatus`, and the launcher reads it with `useCurrentShippyStatus`. The shell keeps
 one value, which clears when the dock unmounts, so Shippy shows `idle` when no dock publishes. A dock
-that fails to render still hides the launcher. The status holds `state` today, and the unread count
-joins it later.
+that fails to render still hides the launcher. The status holds `state` and the unread count, so
+the launcher shows a badge on any project page while the panel is closed.
 
 - **States.** `idle`, `working`, `reply_ready`, and `failed`. Floating Shippy plays them from one
   sprite sheet with CSS `steps()`, through a `data-state` attribute and no timers. `failed` shows
@@ -45,7 +45,11 @@ joins it later.
 - **Keyframes.** The shell renders them in a hoisted React `style` element, so every composing
   application gets them without importing a stylesheet.
 - **A closed dock.** It keeps the stream of a turn that runs, so `working` ends when the reply does.
-  It doesn't poll while closed, and it never marks a reply read.
+  It doesn't poll the open conversation while closed, and it never marks a reply read. It reads the
+  conversation list every 30 seconds for the unread count, and not in a hidden tab, because a result
+  can arrive days later.
+- **Read.** A reply is read once its latest item is in view in an open panel, in a visible and
+  focused tab, so a hidden tab can't clear unread.
 - **Greeting.** In floating mode, the first project page in a browser shows a bubble beside Shippy.
   `Say hello` opens the panel and `Not now` dismisses it, and a browser flag keeps it from
   returning. Opening the panel by any route counts as meeting Shippy, so a project that opens with

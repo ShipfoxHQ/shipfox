@@ -1,8 +1,10 @@
 import {
+  type ConversationActiveRunDto,
   type ConversationDetailDto,
   type ConversationItemContentDto,
   type ConversationItemDto,
   type ConversationLatestTurnDto,
+  type ConversationRunResultDto,
   type ConversationSummaryDto,
   type ListConversationItemsResponseDto,
   type ListConversationsResponseDto,
@@ -11,6 +13,7 @@ import {
 } from '@shipfox/api-agent-dto';
 import type {AgentPageContext} from '@shipfox/client-shell/runtime';
 import type {
+  ActiveRun,
   ConversationDetail,
   ConversationItem,
   ConversationItemContent,
@@ -18,6 +21,7 @@ import type {
   ConversationList,
   ConversationSummary,
   ConversationTurn,
+  RunResult,
 } from '#core/conversation.js';
 
 export function toConversationSummary(dto: ConversationSummaryDto): ConversationSummary {
@@ -36,6 +40,7 @@ export function toConversationList(dto: ListConversationsResponseDto): Conversat
   return {
     conversations: dto.conversations.map(toConversationSummary),
     nextCursor: dto.next_cursor ?? undefined,
+    unreadCount: dto.unread_count,
   };
 }
 
@@ -50,10 +55,35 @@ function toConversationTurn(dto: ConversationLatestTurnDto): ConversationTurn {
   };
 }
 
+function toActiveRun(dto: ConversationActiveRunDto): ActiveRun {
+  return {
+    runId: dto.workflow_run_id,
+    number: dto.run_number,
+    name: dto.name,
+    attempt: dto.attempt,
+    status: dto.status,
+    startedAt: dto.started_at ?? undefined,
+    jobsFinished: dto.jobs_finished,
+    jobsTotal: dto.jobs_total,
+  };
+}
+
 export function toConversationDetail(dto: ConversationDetailDto): ConversationDetail {
   return {
     ...toConversationSummary(dto),
     latestTurn: dto.latest_turn ? toConversationTurn(dto.latest_turn) : undefined,
+    activeRuns: dto.active_runs.map(toActiveRun),
+  };
+}
+
+function toRunResult(dto: ConversationRunResultDto): RunResult {
+  return {
+    runId: dto.workflow_run_id,
+    attemptId: dto.run_attempt_id,
+    status: dto.status,
+    number: dto.run_number,
+    name: dto.name,
+    attempt: dto.attempt,
   };
 }
 
@@ -62,7 +92,7 @@ function toItemContent(dto: ConversationItemContentDto): ConversationItemContent
     case 'rows':
       return {type: 'rows', rows: dto.rows};
     case 'run_result':
-      return {type: 'run_result'};
+      return {type: 'run_result', result: toRunResult(dto.run_result)};
     case 'turn_notice':
       return {
         type: 'turn_notice',

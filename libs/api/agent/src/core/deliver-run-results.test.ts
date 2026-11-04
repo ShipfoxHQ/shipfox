@@ -199,6 +199,9 @@ describe('run result delivery', () => {
           status: 'succeeded',
           job_keys: ['build'],
           outputs: {pr_url: 'https://example.com/pull/1'},
+          run_number: 7,
+          name: 'Implement',
+          attempt: 1,
         },
       });
     });

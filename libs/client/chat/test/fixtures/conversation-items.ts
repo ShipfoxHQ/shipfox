@@ -73,3 +73,33 @@ export function noticeItem(seq: number, notice: TurnNotice): ConversationItem {
     createdAt: '2026-11-02T10:00:00.000Z',
   };
 }
+
+export const DELEGATED_RUN_ID = '55555555-5555-4555-8555-555555555555';
+
+/** A run result item. `seq` is null while it waits for a turn to claim it. */
+export function runResultItem(params: {
+  seq: number | null;
+  status: string;
+  attempt?: number;
+  runId?: string;
+}): ConversationItem {
+  const attempt = params.attempt ?? 1;
+  return {
+    id: params.seq === null ? queuedId() : itemId(params.seq),
+    seq: params.seq,
+    turnId: null,
+    clientMessageId: null,
+    content: {
+      type: 'run_result',
+      result: {
+        runId: params.runId ?? DELEGATED_RUN_ID,
+        attemptId: `66666666-6666-4666-8666-${String(attempt).padStart(12, '0')}`,
+        status: params.status,
+        number: 214,
+        name: 'implement',
+        attempt,
+      },
+    },
+    createdAt: '2026-11-02T10:00:00.000Z',
+  };
+}

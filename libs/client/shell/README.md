@@ -132,8 +132,10 @@ composition and collision rules.
   without a contribution. A failed dock loses its launcher and strip, and the shell retries it on
   navigation up to three times per project. See
   [ADR 0026](../../../docs/adr/0026-project-dock-contribution.md).
-- `useShippyStatus()` lets the dock publish what the agent is doing until it unmounts, and
-  `useCurrentShippyStatus()` reads it, or `idle` when no dock publishes. Floating Shippy plays the
+- `useShippyStatus()` lets the dock publish what the agent is doing and how many conversations have
+  an unread reply, until it unmounts. `useCurrentShippyStatus()` reads it, or `idle` with nothing
+  unread when no dock publishes. Shippy shows the unread count as a badge beside the hoodie, or on
+  the discreet face, and names it in the launcher, as in `Shippy, 2 unread`. Floating Shippy plays the
   state from one sprite sheet with CSS `steps()`: `idle` flicks its tail about every 12 seconds,
   `working` blinks the cursor on the hoodie and bobs the head, and `reply_ready` waves once.
   `failed` stays still. Motion stops under `prefers-reduced-motion`, pauses in a hidden tab, and

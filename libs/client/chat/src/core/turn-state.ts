@@ -80,17 +80,20 @@ export function isReplyActive(activity: ReplyActivity): boolean {
 }
 
 /**
- * What floating Shippy shows for the open conversation. A reply waves only while it is unread,
- * and a failure stays still.
+ * What floating Shippy shows. A reply waves only while it is unread, in the open conversation or
+ * in another one, and a failure in the open conversation stays still.
  */
 export function shippyStateOf(params: {
   activity: ReplyActivity;
   turn: ConversationTurn | undefined;
   unread: boolean;
+  /** Another conversation of the project has a reply the user hasn't seen. */
+  unreadElsewhere: boolean;
 }): 'idle' | 'working' | 'reply_ready' | 'failed' {
   if (isReplyActive(params.activity)) return 'working';
   if (params.turn?.status === 'failed') return 'failed';
   if (params.turn?.status === 'succeeded' && params.unread) return 'reply_ready';
+  if (params.unreadElsewhere) return 'reply_ready';
   return 'idle';
 }
 

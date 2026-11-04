@@ -33,6 +33,8 @@ export interface UseChatConversationParams {
    * input or retry that waits.
    */
   active: boolean;
+  /** Whether the latest item is scrolled into view, which a read needs. */
+  latestVisible: boolean;
   onCreated: (conversationId: string) => void;
 }
 
@@ -72,21 +74,47 @@ function useStreamRecovery(params: {
   }, [failedAt, turnRunning, refetch]);
 }
 
-/** Marks the conversation read while the user can see it. */
+function isTabFocused(): boolean {
+  return document.visibilityState === 'visible' && document.hasFocus();
+}
+
+/** Whether the reader is looking at this tab. A hidden or background tab is not. */
+function useTabFocused(): boolean {
+  const [focused, setFocused] = useState(isTabFocused);
+  useEffect(() => {
+    const update = () => setFocused(isTabFocused());
+    window.addEventListener('focus', update);
+    window.addEventListener('blur', update);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      window.removeEventListener('focus', update);
+      window.removeEventListener('blur', update);
+      document.removeEventListener('visibilitychange', update);
+    };
+  }, []);
+  return focused;
+}
+
+/**
+ * Marks the conversation read once the reader sees its latest item: the panel is open, the
+ * latest item is scrolled into view, and the tab is focused. A hidden tab never clears unread.
+ */
 function useMarkRead(params: {
   projectId: string;
   conversationId: string | undefined;
   unread: boolean;
   lastSeq: number;
   active: boolean;
+  latestVisible: boolean;
 }) {
-  const {projectId, conversationId, unread, lastSeq, active} = params;
+  const {projectId, conversationId, unread, lastSeq, active, latestVisible} = params;
+  const focused = useTabFocused();
   const {mutate} = useMarkConversationReadMutation(projectId);
   useEffect(() => {
-    if (!active || !unread || !conversationId || lastSeq === 0) return;
-    if (document.visibilityState !== 'visible') return;
+    if (!active || !latestVisible || !focused) return;
+    if (!unread || !conversationId || lastSeq === 0) return;
     mutate({conversationId, lastReadSeq: lastSeq});
-  }, [active, unread, conversationId, lastSeq, mutate]);
+  }, [active, latestVisible, focused, unread, conversationId, lastSeq, mutate]);
 }
 
 /** Follows the active turn while one runs or an input waits, and reads it again when it ends. */
@@ -133,6 +161,7 @@ export function useChatConversation({
   projectId,
   conversationId,
   active,
+  latestVisible,
   onCreated,
 }: UseChatConversationParams) {
   const [streamOpen, setStreamOpen] = useState(false);
@@ -201,6 +230,7 @@ export function useChatConversation({
     unread: detailQuery.data?.unread ?? false,
     lastSeq,
     active,
+    latestVisible,
   });
 
   const send = useCallback(
