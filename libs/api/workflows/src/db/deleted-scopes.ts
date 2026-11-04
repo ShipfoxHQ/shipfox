@@ -5,7 +5,7 @@ import {
   ScopeDeletedError,
   type WorkScope,
 } from '@shipfox/node-drizzle';
-import {and, count, eq, inArray, isNull, sql} from 'drizzle-orm';
+import {and, asc, count, eq, inArray, isNotNull, isNull, sql} from 'drizzle-orm';
 import {ProjectDeletedError} from '#core/errors.js';
 import {db, type Tx} from './db.js';
 import {workflowsDeletedScopes} from './schema/deleted-scopes.js';
@@ -38,6 +38,24 @@ export async function recordProjectDeleted(
 ): Promise<void> {
   await db().transaction((tx) =>
     recordDeletedScope(tx, workflowsDeletedScopes, {scope: toWorkScope(scope), reason}),
+  );
+}
+
+/** Deleted projects whose purge has not finished, oldest first. */
+export async function listUnpurgedProjectScopes(limit: number): Promise<DeletedProjectScope[]> {
+  const rows = await db()
+    .select({
+      workspaceId: workflowsDeletedScopes.workspaceId,
+      projectId: workflowsDeletedScopes.projectId,
+    })
+    .from(workflowsDeletedScopes)
+    .where(
+      and(isNull(workflowsDeletedScopes.purgedAt), isNotNull(workflowsDeletedScopes.projectId)),
+    )
+    .orderBy(asc(workflowsDeletedScopes.recordedAt))
+    .limit(limit);
+  return rows.flatMap((row) =>
+    row.projectId === null ? [] : [{workspaceId: row.workspaceId, projectId: row.projectId}],
   );
 }
 

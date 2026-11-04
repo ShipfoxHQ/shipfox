@@ -9,6 +9,7 @@ import {
   recoverStaleIdleRunnerSessions,
 } from '#core/maintenance.js';
 import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
+import {purgeUnfinishedDeletedProjects} from '#core/purge-project.js';
 import {reconcileCapacityHolds} from '#db/capacity-holds.js';
 import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import {
@@ -106,6 +107,10 @@ async function deleteExpiredRows(): Promise<void> {
   await runBestEffort('delete expired ephemeral registration tokens', async () => {
     const {deleted} = await deleteExpiredEphemeralRegistrationTokens();
     if (deleted > 0) logger().info({deleted}, 'Deleted expired ephemeral registration tokens');
+  });
+  await runBestEffort('finish purges of deleted projects', async () => {
+    const {purged} = await purgeUnfinishedDeletedProjects();
+    if (purged > 0) logger().info({purged}, 'Finished purges of deleted projects');
   });
 }
 

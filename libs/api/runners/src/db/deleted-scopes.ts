@@ -1,5 +1,5 @@
 import {deleteInBatches, recordDeletedScope} from '@shipfox/node-drizzle';
-import {and, count, eq, isNull, sql} from 'drizzle-orm';
+import {and, asc, count, eq, isNotNull, isNull, sql} from 'drizzle-orm';
 import {db} from './db.js';
 import {runnersDeletedScopes} from './schema/deleted-scopes.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
@@ -15,6 +15,22 @@ export async function recordProjectDeleted(
   reason: string,
 ): Promise<void> {
   await db().transaction((tx) => recordDeletedScope(tx, runnersDeletedScopes, {scope, reason}));
+}
+
+/** Deleted projects whose purge has not finished, oldest first. */
+export async function listUnpurgedProjectScopes(limit: number): Promise<DeletedProjectScope[]> {
+  const rows = await db()
+    .select({
+      workspaceId: runnersDeletedScopes.workspaceId,
+      projectId: runnersDeletedScopes.projectId,
+    })
+    .from(runnersDeletedScopes)
+    .where(and(isNull(runnersDeletedScopes.purgedAt), isNotNull(runnersDeletedScopes.projectId)))
+    .orderBy(asc(runnersDeletedScopes.recordedAt))
+    .limit(limit);
+  return rows.flatMap((row) =>
+    row.projectId === null ? [] : [{workspaceId: row.workspaceId, projectId: row.projectId}],
+  );
 }
 
 export function deleteProjectPendingJobs(scope: DeletedProjectScope): Promise<number> {
