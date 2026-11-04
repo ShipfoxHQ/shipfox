@@ -191,7 +191,13 @@ export class LinearInteractionProvider
         const delivered = await this.options.linear
           .hasAgentActivity({accessToken, id: replyId})
           .catch((lookupError: unknown) => {
-            if (isRejectedByLinear(lookupError)) return false;
+            // Only a lost authorization settles without proof: retrying can't help.
+            if (
+              lookupError instanceof LinearIntegrationProviderError &&
+              lookupError.reason === 'access-denied'
+            ) {
+              return false;
+            }
             throw lookupError;
           });
         if (delivered) return {outcome: 'delivered'};

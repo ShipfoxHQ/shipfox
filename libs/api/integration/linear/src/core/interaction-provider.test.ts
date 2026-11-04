@@ -386,6 +386,20 @@ describe('LinearInteractionProvider', () => {
       expect(outcome).toEqual({outcome: 'undeliverable', reason: 'Linear rejected it'});
     });
 
+    it('fails when the lookup after a refusal is malformed so the delivery is retried', async () => {
+      const {provider, createAgentActivity, hasAgentActivity} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+      hasAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear GraphQL failed'),
+      );
+
+      const result = provider.sendReply(reply('response', 'Done.'));
+
+      await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+    });
+
     it('fails when the lookup after a refusal hits an outage so the delivery is retried', async () => {
       const {provider, createAgentActivity, hasAgentActivity} = setup();
       createAgentActivity.mockRejectedValue(
