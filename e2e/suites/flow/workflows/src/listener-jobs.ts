@@ -38,6 +38,7 @@ export interface ListenerCase {
   client: ReturnType<typeof createApiClient>;
   fireConnection: Awaited<ReturnType<typeof createWebhookConnection>>;
   fireDiagnostics: WebhookDiagnosticsRequest;
+  project: {id: string; name: string};
   resolveConnection: Awaited<ReturnType<typeof createWebhookConnection>>;
   resolveDiagnostics: WebhookDiagnosticsRequest;
   repo: string;
@@ -118,7 +119,7 @@ export async function setupListenerCase(params: {
     }),
   ]);
 
-  const {definition} = await seedProjectWithApiDefinition({
+  const {definition, project} = await seedProjectWithApiDefinition({
     suite: params.suite,
     token,
     name: params.testName,
@@ -145,6 +146,7 @@ export async function setupListenerCase(params: {
     definitionId: definition.id,
     fireConnection,
     fireDiagnostics: {deliveryIds: [], source: fireSlug},
+    project: {id: project.id, name: project.name},
     repo,
     resolveConnection,
     resolveDiagnostics: {deliveryIds: [], source: resolveSlug},

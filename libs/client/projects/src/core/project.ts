@@ -49,6 +49,13 @@ export interface UpdateProjectCommand {
   slug?: string;
 }
 
+export interface DeleteProjectCommand {
+  workspaceId: string;
+  projectId: string;
+  /** The project's name, typed by the admin to confirm. */
+  name: string;
+}
+
 const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
 
 export function projectNameFromRepository(repositoryId: string): string {

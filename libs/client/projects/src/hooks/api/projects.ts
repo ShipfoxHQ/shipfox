@@ -1,10 +1,11 @@
 import {
   createProjectBodySchema,
+  deleteProjectBodySchema,
   listProjectsResponseSchema,
   projectResponseSchema,
   updateProjectBodySchema,
 } from '@shipfox/api-projects-dto';
-import {checkedApiRequest} from '@shipfox/client-api';
+import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {
   type InfiniteData,
   keepPreviousData,
@@ -20,6 +21,7 @@ import {
 import {useCallback} from 'react';
 import {
   type CreateProjectCommand,
+  type DeleteProjectCommand,
   hasUserProject,
   type Project,
   type ProjectList,
@@ -227,6 +229,14 @@ export async function updateProject(command: UpdateProjectCommand): Promise<Proj
       body,
     }),
   );
+}
+
+export async function deleteProject(command: DeleteProjectCommand): Promise<void> {
+  const body = deleteProjectBodySchema.parse({name: command.name});
+  await checkedApiRequest(emptyResponseSchema, `/projects/${command.projectId}`, {
+    method: 'DELETE',
+    body,
+  });
 }
 
 export function isProjectSlugAvailable({
@@ -440,6 +450,32 @@ export function useUpdateProjectMutation() {
         queryKey: [...projectsQueryKeys.all, 'slug', project.workspaceId],
       });
       await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(project.workspaceId)});
+    },
+  });
+}
+
+export function useDeleteProjectMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteProject,
+    onSuccess: async (_result, command) => {
+      // The settings page still observes the deleted project until the caller navigates away, so its
+      // own queries go stale without a refetch that would flash "not found".
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [...projectsQueryKeys.all, 'slug', command.workspaceId],
+          refetchType: 'none',
+        }),
+        queryClient.invalidateQueries({
+          queryKey: projectsQueryKeys.detail(command.projectId),
+          refetchType: 'none',
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [...projectsQueryKeys.all, 'list', command.workspaceId],
+        }),
+        queryClient.invalidateQueries({queryKey: projectsQueryKeys.exists(command.workspaceId)}),
+      ]);
     },
   });
 }

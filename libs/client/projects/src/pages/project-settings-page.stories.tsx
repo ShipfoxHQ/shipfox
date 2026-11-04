@@ -129,6 +129,20 @@ export const SlugChangeWarning: Story = {
   },
 };
 
+export const DeleteProjectDialog: Story = {
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', {name: 'Delete project'}));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Delete Platform?');
+    const confirm = within(dialog).getByRole('button', {name: 'Delete project'});
+    expect(confirm).toBeDisabled();
+    await userEvent.type(within(dialog).getByRole('textbox'), 'Platform');
+    expect(confirm).toBeEnabled();
+  },
+};
+
 function createStoryRouter(scenario: Scenario) {
   const project = projectForScenario(scenario);
   const rootRoute = createRootRoute({component: Outlet});
