@@ -61,6 +61,7 @@ describe('defaultFeatures', () => {
     expect(composition.settingsSections.map(({id}) => id)).toEqual([
       'settings.project-general',
       'settings.general',
+      'settings.project-access',
       'settings.members',
       'settings.runners',
       'settings.provisioners',
