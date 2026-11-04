@@ -244,6 +244,7 @@ function validateSelection(params: {
 
 function validateWriteSelection(params: {
   include: readonly string[];
+  exclude?: readonly string[];
   allowWrite: boolean;
   selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
   selectorPath: (field: 'include' | 'exclude', tokenIndex?: number) => readonly (string | number)[];
@@ -252,8 +253,16 @@ function validateWriteSelection(params: {
 }): void {
   if (params.allowWrite) return;
 
+  const excluded = new Set(
+    (params.exclude ?? []).flatMap((token) => grantedTokens(token, params.selectorsByToken)),
+  );
   const writeTokens = dedupe(
-    params.include.filter((token) => params.selectorsByToken.get(token)?.sensitivity === 'write'),
+    params.include.filter((token) =>
+      grantedTokens(token, params.selectorsByToken).some(
+        (granted) =>
+          !excluded.has(granted) && params.selectorsByToken.get(granted)?.sensitivity === 'write',
+      ),
+    ),
   );
   if (writeTokens.length === 0) return;
 
@@ -265,6 +274,22 @@ function validateWriteSelection(params: {
       details: {tokens: writeTokens, ...params.details},
     }),
   );
+}
+
+/** The standalone tools and family methods a token selects. Unknown tokens select nothing. */
+function grantedTokens(
+  token: string,
+  selectorsByToken: ReadonlyMap<string, AgentToolSelector>,
+): readonly string[] {
+  const selector = selectorsByToken.get(token);
+  if (selector === undefined) return [];
+  if (selector.kind === 'standalone' || selector.kind === 'method') return [token];
+
+  const family = selector.kind === 'family_wildcard' ? token.slice(0, -'.*'.length) : token;
+  const methods = [...selectorsByToken.values()]
+    .filter((candidate) => candidate.kind === 'method' && candidate.token.startsWith(`${family}.`))
+    .map((candidate) => candidate.token);
+  return methods.length === 0 ? [family] : methods;
 }
 
 function classifyUnknownSelection(

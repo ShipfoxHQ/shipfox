@@ -62,6 +62,8 @@ const selectors = [
   {token: 'issue_read.get', kind: 'method', sensitivity: 'read', sensitive: false},
   {token: 'issue_write', kind: 'family', sensitivity: 'write', sensitive: true},
   {token: 'issue_write.create', kind: 'method', sensitivity: 'write', sensitive: true},
+  {token: 'issue_write.update', kind: 'method', sensitivity: 'write', sensitive: true},
+  {token: 'issue_write.list', kind: 'method', sensitivity: 'read', sensitive: false},
 ] as const;
 
 function integrationContext(
@@ -293,6 +295,29 @@ describe('fetchAndParseAgents', () => {
       ]);
       expect(allowed.invalid).toEqual([]);
       expect(allowed.valid).toHaveLength(1);
+    });
+
+    it('accepts a write family once exclude removes every write method', async () => {
+      const files = (exclude: string) => ({
+        '.shipfox/agents/triage.yaml': agent(`  - include: [issue_write]\n    exclude: ${exclude}`),
+      });
+      const load = async () => integrationContext();
+
+      const allExcluded = await parse(
+        files('[issue_write.create, issue_write.update]'),
+        undefined,
+        load,
+      );
+      const partlyExcluded = await parse(files('[issue_write.create]'), undefined, load);
+
+      expect(allExcluded.invalid).toEqual([]);
+      expect(allExcluded.valid).toHaveLength(1);
+      expect(partlyExcluded.invalid[0]?.error.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'integration-write-not-allowed',
+          path: 'integrations.0.include',
+        }),
+      ]);
     });
 
     it('rejects a connection that does not exist or cannot serve tools', async () => {
