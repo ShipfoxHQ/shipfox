@@ -352,6 +352,7 @@ describe('tools granted by an agent file', () => {
     const stored = (await items()).at(-1) as ConversationItem;
     expect(stored.meta).toMatchObject({role: 'toolResult', outcome: 'unknown'});
     const entry = await readEntry(stored);
+    expect(entry.message.isError).toBe(false);
     expect(entry.message.content[0].text).toContain(UNFINISHED_WRITE_OUTCOME_TEXT);
   });
 

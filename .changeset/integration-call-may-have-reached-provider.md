@@ -1,6 +1,6 @@
 ---
-"@shipfox/api-integration-core-dto": patch
-"@shipfox/api-integration-core": patch
+"@shipfox/api-integration-core-dto": minor
+"@shipfox/api-integration-core": minor
 "@shipfox/api-agent": patch
 ---
 
