@@ -229,15 +229,23 @@ async function executeRepeat(params: {
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
   } finally {
-    if (projectId !== undefined) {
-      result.cost_usd = await getOpenRouterCost({projectId})
-        .then((cost) => cost.cost_usd)
-        .catch(() => 0);
-    }
+    if (projectId !== undefined) await recordCost({result, projectId});
     for (const cleanup of cleanups.reverse()) await cleanup().catch(() => undefined);
     result.duration_ms = Date.now() - startedAt;
   }
   return result;
+}
+
+// A cost that can't be read must not count as free, or `maxCostUsd` would stop counting spend.
+async function recordCost(params: {result: ShippyCaseResult; projectId: string}): Promise<void> {
+  try {
+    params.result.cost_usd = (await getOpenRouterCost({projectId: params.projectId})).cost_usd;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    params.result.status = 'error';
+    params.result.error =
+      `${params.result.error ?? ''}\nThe cost could not be read: ${reason}`.trim();
+  }
 }
 
 function passedCell(result: ShippyCaseResult): string {

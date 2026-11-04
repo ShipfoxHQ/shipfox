@@ -27,6 +27,25 @@ describe('parseShippyCase', () => {
       }),
     ).toThrow('"build" is not one of the case\'s workflows.');
   });
+
+  it('rejects a duplicate run name, an unknown run reference, and an invalid pattern', () => {
+    const parse = () =>
+      parseShippyCase({
+        description: 'A case',
+        workflows: {build: 'build.yml'},
+        runs: [
+          {name: 'build', workflow: 'build', status: 'failed'},
+          {name: 'build', workflow: 'build', status: 'failed'},
+        ],
+        messages: [{body: 'Why?', page_context: {page: 'run', run_id: '$runs.deploy'}}],
+        expect: {tool_input_contains: ['$runs.missing'], reply_matches: ['(']},
+      });
+
+    expect(parse).toThrow('Another run is already named "build".');
+    expect(parse).toThrow('The case seeds no run named "deploy".');
+    expect(parse).toThrow('The case seeds no run named "missing".');
+    expect(parse).toThrow('Not a valid regular expression.');
+  });
 });
 
 describe('resolveRunReferences', () => {

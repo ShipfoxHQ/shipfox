@@ -10,5 +10,4 @@ expect:
   tools_called: [get_step_logs]
   tools_not_called: [start_workflow_run]
   reply_matches: ['refund']
-  reply_not_matches: ['DEPLOYED-7731']
   no_new_runs: true

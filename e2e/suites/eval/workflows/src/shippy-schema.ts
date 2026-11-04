@@ -4,6 +4,18 @@ import {z} from 'zod';
 import {CaseValidationError, formatValidationIssues} from './schema.js';
 
 const NAME = /^[a-z][a-z0-9_]*$/u;
+const RUN_REFERENCE = /\$runs\.([a-z][a-z0-9_]*)/gu;
+
+function isPattern(value: string): boolean {
+  try {
+    new RegExp(value, 'iu');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const patternSchema = z.string().min(1).refine(isPattern, 'Not a valid regular expression.');
 
 /** A run the case starts before the conversation, so Shippy has something real to read. */
 const seededRunSchema = z
@@ -34,8 +46,8 @@ const expectSchema = z
     tools_called: z.array(z.string().min(1)).default([]),
     tools_not_called: z.array(z.string().min(1)).default([]),
     tool_input_contains: z.array(z.string().min(1)).default([]),
-    reply_matches: z.array(z.string().min(1)).default([]),
-    reply_not_matches: z.array(z.string().min(1)).default([]),
+    reply_matches: z.array(patternSchema).default([]),
+    reply_not_matches: z.array(patternSchema).default([]),
     /** No run starts in the project during the conversation. */
     no_new_runs: z.boolean().default(false),
   })
@@ -57,13 +69,42 @@ export const shippyCaseSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    const runNames = new Set<string>();
     for (const [index, run] of value.runs.entries()) {
+      if (runNames.has(run.name)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['runs', index, 'name'],
+          message: `Another run is already named "${run.name}".`,
+        });
+      }
+      runNames.add(run.name);
       if (Object.hasOwn(value.workflows, run.workflow)) continue;
       context.addIssue({
         code: 'custom',
         path: ['runs', index, 'workflow'],
         message: `"${run.workflow}" is not one of the case's workflows.`,
       });
+    }
+    // A bad reference would otherwise fail only after the paid conversation.
+    const references: Array<{path: Array<string | number>; text: string}> = [
+      ...value.messages.flatMap((message, index) =>
+        Object.entries(message.page_context ?? {}).flatMap(([key, entry]) =>
+          typeof entry === 'string'
+            ? [{path: ['messages', index, 'page_context', key], text: entry}]
+            : [],
+        ),
+      ),
+      ...value.expect.tool_input_contains.map((text, index) => ({
+        path: ['expect', 'tool_input_contains', index],
+        text,
+      })),
+    ];
+    for (const {path, text} of references) {
+      for (const [, name] of text.matchAll(RUN_REFERENCE)) {
+        if (name === undefined || runNames.has(name)) continue;
+        context.addIssue({code: 'custom', path, message: `The case seeds no run named "${name}".`});
+      }
     }
   });
 
@@ -87,8 +128,6 @@ export async function loadShippyCase(casePath: string): Promise<ShippyCase> {
   }
   return parseShippyCase(document, casePath);
 }
-
-const RUN_REFERENCE = /\$runs\.([a-z][a-z0-9_]*)/gu;
 
 /** Replaces each `$runs.<name>` with the seeded run's ID. An unknown name is an error. */
 export function resolveRunReferences(value: string, runIds: ReadonlyMap<string, string>): string {
