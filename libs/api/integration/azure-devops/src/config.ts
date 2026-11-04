@@ -5,6 +5,10 @@ export const config = createConfig({
     desc: 'Base URL of Azure DevOps Services that organization URLs are built from. Defaults to https://dev.azure.com; override it only to point tests or a proxy at another host.',
     default: 'https://dev.azure.com',
   }),
+  AZURE_DEVOPS_WEBHOOK_BASE_URL: url({
+    desc: 'Public base URL that Azure DevOps Service Hooks post to. The connect flow shows the full hook URL built from it. Development and test environments default to http://localhost:3000; production requires an explicit URL.',
+    devDefault: 'http://localhost:3000',
+  }),
   AZURE_DEVOPS_CHECKOUT_TTL_SECONDS: num({
     desc: 'Lifetime in seconds reported for the checkout credentials handed to the runner. The credential itself is the connection token; renewal happens when git rejects it. Defaults to 300 (five minutes).',
     default: 300,

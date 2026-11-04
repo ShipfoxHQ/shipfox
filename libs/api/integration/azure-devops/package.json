@@ -28,6 +28,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./agent-tools": {
+      "workspace-source": {
+        "types": "./src/core/agent-tools.ts",
+        "default": "./src/core/agent-tools.ts"
+      },
+      "default": {
+        "types": "./dist/core/agent-tools.d.ts",
+        "default": "./dist/core/agent-tools.js"
+      }
     }
   },
   "scripts": {
@@ -41,8 +51,16 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-auth-context": "workspace:*",
+    "@shipfox/api-integration-azure-devops-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
-    "@shipfox/config": "workspace:*"
+    "@shipfox/config": "workspace:*",
+    "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-fastify": "workspace:*",
+    "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/node-postgres": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -50,6 +68,11 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*"
+    "@shipfox/vitest": "workspace:*",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "fastify": "catalog:",
+    "fastify-type-provider-zod": "catalog:",
+    "fishery": "catalog:"
   }
 }
