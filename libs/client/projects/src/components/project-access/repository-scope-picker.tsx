@@ -39,7 +39,7 @@ export function RepositoryScopePicker({
       <ModalContent aria-describedby={undefined}>
         <ModalTitle className="sr-only">Select repositories</ModalTitle>
         <ModalHeader title={`Select repositories on ${connectionName}`} />
-        {open ? <RepositoryScopeList {...props} /> : null}
+        <RepositoryScopeList {...props} />
         <ModalFooter>
           <Button type="button" onClick={() => onOpenChange(false)}>
             Done
@@ -72,6 +72,7 @@ function RepositoryScopeList({
         type="search"
         placeholder="Search repositories…"
         aria-label="Search repositories"
+        maxLength={100}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
       />

@@ -116,6 +116,27 @@ describe('ProjectAccessForm', () => {
     expect(screen.getByRole('checkbox', {name: 'Slack, acme'})).not.toBeChecked();
   });
 
+  test('offers an inactive connection only to remove it', () => {
+    const errored = {
+      ...connection(SLACK_ID, 'slack', ['interaction']),
+      lifecycleStatus: 'error' as const,
+    };
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProjectAccessForm
+          project={project()}
+          access={{...managedAccess, connections: []}}
+          connections={[connections[0] as IntegrationConnection, errored]}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole('checkbox', {name: 'GitHub, acme'})).toBeVisible();
+    expect(screen.queryByRole('checkbox', {name: 'Slack, acme'})).not.toBeInTheDocument();
+  });
+
   test('says that access limits workloads, not who sees the project', () => {
     renderForm({});
 

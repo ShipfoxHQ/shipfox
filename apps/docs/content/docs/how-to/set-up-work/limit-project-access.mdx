@@ -66,8 +66,8 @@ To remove every limit, select **All connections** and save.
 To give a project only its own repository:
 
 1. Select **Only these connections**.
-2. Keep the GitHub integration connection checked, and leave the others
-   unchecked.
+2. Keep the project's GitHub or Gitea integration connection checked, and
+   leave the others unchecked.
 3. Choose **Selected** for it. If the project's config is in that repository,
    it is already listed. Otherwise, select it with **Select repositories**.
 4. Save.
@@ -89,9 +89,11 @@ Cron, manual, and Shipfox lifecycle triggers are not affected.
 Shipfox asks you to confirm two kinds of change:
 
 - **The default checkout changes.** A project whose config Shipfox stores
-  checks out a repository by default when its access names exactly one
-  repository. A change that adds or removes that repository changes what jobs
-  check out when they don't set `checkout`.
+  checks out a repository by default when its access lists exactly one GitHub
+  or Gitea integration connection, limited to exactly one repository. A change
+  that adds or removes that repository, or lists another GitHub or Gitea
+  integration connection, changes what jobs check out when they don't set
+  `checkout`.
 - **The default project stops answering.** The default project answers Slack
   and Linear requests that no other agent claims. If you remove that
   integration connection from its access, those requests get no answer.

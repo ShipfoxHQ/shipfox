@@ -1,6 +1,7 @@
 import {
   type IntegrationConnection,
   IntegrationIcon,
+  isUsableConnection,
   PROVIDER_CATALOG,
 } from '@shipfox/client-integrations';
 import {Button} from '@shipfox/react-ui/button';
@@ -66,12 +67,21 @@ function providerName(provider: string): string {
   return PROVIDER_CATALOG[provider]?.displayName ?? provider;
 }
 
-/** The workspace's connections, then any listed connection the workspace no longer has. */
+/**
+ * The workspace's active connections and the listed ones, then any listed connection the workspace
+ * no longer has. The API refuses an inactive connection, so only a listed one shows, to be removed.
+ */
 function connectionEntries(
   connections: readonly IntegrationConnection[],
   access: ProjectAccess,
 ): ConnectionEntry[] {
-  const entries: ConnectionEntry[] = connections.map((connection) => ({
+  const listedIds = new Set(
+    access.connections === 'all' ? [] : access.connections.map(({connectionId}) => connectionId),
+  );
+  const shown = connections.filter(
+    (connection) => isUsableConnection(connection) || listedIds.has(connection.id),
+  );
+  const entries: ConnectionEntry[] = shown.map((connection) => ({
     connectionId: connection.id,
     provider: connection.provider,
     displayName: connection.displayName,

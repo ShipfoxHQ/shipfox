@@ -40,15 +40,31 @@ function toPolicy({
   };
 }
 
-function repositoryName(drafts: AccessDraft[], externalId: string): string {
+interface CheckoutTarget {
+  connectionId: string;
+  externalRepositoryId: string;
+}
+
+function repositoryName(drafts: AccessDraft[], target: CheckoutTarget): string {
   for (const draft of drafts) {
     for (const connection of draft.connections) {
-      if (connection.resources === 'all') continue;
-      const match = connection.resources.find((resource) => resource.externalId === externalId);
+      if (connection.connectionId !== target.connectionId || connection.resources === 'all') {
+        continue;
+      }
+      const match = connection.resources.find(
+        (resource) => resource.externalId === target.externalRepositoryId,
+      );
       if (match) return match.displayName;
     }
   }
-  return externalId;
+  return target.externalRepositoryId;
+}
+
+function isSameCheckout(left: CheckoutTarget | null, right: CheckoutTarget | null): boolean {
+  return (
+    left?.connectionId === right?.connectionId &&
+    left?.externalRepositoryId === right?.externalRepositoryId
+  );
 }
 
 /**
@@ -104,14 +120,14 @@ function checkoutWarnings({
 }): string[] {
   const checkoutBefore = defaultCheckoutRepository(before, {sourceControlConnectionIds});
   const checkoutAfter = defaultCheckoutRepository(after, {sourceControlConnectionIds});
-  if (checkoutBefore?.externalRepositoryId === checkoutAfter?.externalRepositoryId) return [];
+  if (isSameCheckout(checkoutBefore, checkoutAfter)) return [];
   const warnings: string[] = [];
   if (checkoutBefore) {
-    const name = repositoryName([saved, draft], checkoutBefore.externalRepositoryId);
+    const name = repositoryName([saved, draft], checkoutBefore);
     warnings.push(`Jobs that don't set checkout will stop checking out ${name}.`);
   }
   if (checkoutAfter) {
-    const name = repositoryName([draft, saved], checkoutAfter.externalRepositoryId);
+    const name = repositoryName([draft, saved], checkoutAfter);
     warnings.push(`Jobs that don't set checkout will check out ${name}.`);
   }
   return warnings;

@@ -33,8 +33,11 @@ function connection(
   };
 }
 
+const GITEA_ID = '66666666-6666-4666-8666-666666666666';
+
 const connections = [
   connection(GITHUB_ID, 'github', ['source_control', 'agent_tools']),
+  connection(GITEA_ID, 'gitea', ['source_control']),
   connection(SLACK_ID, 'slack', ['interaction', 'agent_tools']),
 ];
 
@@ -91,6 +94,32 @@ describe('accessChangeWarnings', () => {
     const result = warnings({saved: onlyApp, draft});
 
     expect(result).toEqual(["Jobs that don't set checkout will stop checking out acme/App."]);
+  });
+
+  test('warns when the default checkout moves to another connection', () => {
+    const draft: AccessDraft = {
+      mode: 'selected',
+      connections: [
+        {
+          connectionId: GITEA_ID,
+          resources: [
+            {
+              kind: 'repository',
+              externalId: 'github:2',
+              lookupName: 'acme/app',
+              displayName: 'acme/app',
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = warnings({saved: onlyApp, draft});
+
+    expect(result).toEqual([
+      "Jobs that don't set checkout will stop checking out acme/App.",
+      "Jobs that don't set checkout will check out acme/app.",
+    ]);
   });
 
   test('says nothing when the default checkout stays', () => {

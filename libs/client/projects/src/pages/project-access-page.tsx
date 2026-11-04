@@ -38,15 +38,17 @@ export function ProjectAccessPage() {
   if (!project) return <ProjectNotFound />;
 
   if (accessQuery.isPending || connectionsQuery.isPending) return <FullPageLoader />;
-  if (accessQuery.isError) return <QueryLoadError query={accessQuery} subject="project access" />;
-  if (connectionsQuery.isError) {
+  // A failed background refetch keeps the cached data, and the form keeps its draft.
+  if (accessQuery.data === undefined) {
+    return <QueryLoadError query={accessQuery} subject="project access" />;
+  }
+  if (connectionsQuery.data === undefined) {
     return <QueryLoadError query={connectionsQuery} subject="integrations" />;
   }
 
   return (
     <ProjectAccessForm
-      // A save or a refetch replaces the saved access, and the draft starts again from it.
-      key={`${project.id}:${accessQuery.dataUpdatedAt}`}
+      key={project.id}
       project={project}
       access={accessQuery.data}
       connections={connectionsQuery.data}
