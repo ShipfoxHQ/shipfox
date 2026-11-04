@@ -1,7 +1,7 @@
 {
   "name": "@shipfox/client-workflows",
   "license": "MIT",
-  "version": "52.0.3",
+  "version": "53.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",

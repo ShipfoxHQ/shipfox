@@ -1,5 +1,64 @@
 # @shipfox/client-logs
 
+## 53.0.0
+
+### Minor Changes
+
+- 3d329a9: Add the Shippy chat panel beside every project page.
+
+  - **Client chat:** a new package. `chatFeature` contributes the project dock: a panel with a transcript, tool rows, a composer with the page the agent sees, history with delete, and every turn state from thinking to a deleted conversation. `Mod+.` opens or closes it.
+  - **Client features:** `defaultFeatures()` includes `chatFeature`.
+  - **Client logs:** exports `groupActivityReads`, `ActivityReadGroupNode`, `ActionDetails`, and `actionDisplayLabel`.
+  - **Client shell:** `useAgentPageContext()` accepts `undefined`, and its context gains `runNumber` and `name`, which only label the page for the reader.
+  - **Agent:** `GET /conversations/:conversationId` returns `latest_turn`, with its status, failure code, and model.
+  - **Agent DTO:** adds `conversationLatestTurnDtoSchema`, and `latest_turn` on `conversationDetailDtoSchema`.
+  - **Client workflows and projects:** the runs, run, job, automations, and project settings pages tell Shippy where the user is.
+
+- 3f1363c: Claude now names integration tools `mcp__shipfox__<connection>__<tool>`, which leaves more room under its 64-character tool-name limit.
+
+  - **Agent DTO:** `AGENT_TOOLS_MCP_SERVER_ID` names the server that harnesses see. The persisted descriptor name `shipfox_integration_tools` does not change, so older runners and stored configs keep working.
+  - **Logs:** `withoutClaudeIntegrationPrefix` strips the new prefix and the legacy `mcp__shipfox_integration_tools__` prefix, so older transcripts still show their integration tools.
+
+- 8317a3c: The run page shows action steps (`uses`).
+
+  - **Step inspector:** an action step shows an `Action` badge and an Action section with the `uses` path, a short snapshot digest, the source commit on dev runs, and the node and `@shipfox/actions` versions from the step's first log line. It lists the resolved inputs, with secret-bound inputs shown as `*** (secrets.KEY)`, and each integration alias with its connection and granted tools marked Read or Write.
+  - **Failures:** callouts explain `action_input_invalid`, `action_unavailable`, an early exit, an out-of-memory kill, and missing, undeclared, mistyped, or oversized outputs. An invalid input also shows as "Step did not run" in the step's log area, naming the input.
+  - **Logs:** action tool calls reuse the tool-step rows, named `<alias>__<tool>` and resolved from the step's bindings, with the alias and connection in the expanded row. A download shows its file name, size, media type, and SHA-256. A failed write whose outcome is unknown reads "outcome unknown", and a call still open when the step ended reads "interrupted".
+  - **`@shipfox/client-logs`:** `IntegrationActionTool` accepts optional `alias` and `result` fields, and `ActionPresentation` accepts optional `outcome` and `meta` fields.
+
+### Patch Changes
+
+- b183992: Registers the Claap provider. The integrations module loads it on every start, with no feature flag, and reads the new `CLAAP_MCP_ENDPOINT` setting. The workflow tool catalog now lists the Claap tools, and run logs show the Claap name.
+- 7b0fafd: Agent activity reads Pi 1.x session entries, and Markdown keeps text written with XML-like tags.
+
+  - **System prompt:** a structured system message becomes a `system-prompt` row. The body has the sections in order, removed sections, and the names of added or removed tools. The row metadata lists the section names. The client shows this row as plain text, so the prompt keeps its tags and indentation.
+  - **Context edits:** a `context_edit` entry becomes a lifecycle row that says whether the target message was removed or replaced, with the replacement text.
+  - **Usage:** a `usage` entry becomes a lifecycle row with its kind, note, model, tokens, and cost.
+  - **Markdown:** raw HTML is shown as literal text instead of being dropped. Before, a block such as `<issue>` hid every line up to the next blank line.
+
+  Session rows are parsed and stored when the session is ingested. Sessions recorded before this release keep their raw rows.
+
+- 7056182: Shows the Shipfox logo on Shipfox tool calls and Set Output rows in run activity.
+- Updated dependencies [ac1e750]
+- Updated dependencies [0461349]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2b3aded]
+- Updated dependencies [93b8cac]
+- Updated dependencies [7b0fafd]
+- Updated dependencies [10678ba]
+- Updated dependencies [f43cafb]
+- Updated dependencies [32a2dcc]
+- Updated dependencies [6faa1d7]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [7056182]
+- Updated dependencies [cc70c3b]
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/integration-icons@0.6.0
+  - @shipfox/client-api@53.0.0
+  - @shipfox/api-logs-dto@34.0.0
+
 ## 52.0.3
 
 ### Patch Changes

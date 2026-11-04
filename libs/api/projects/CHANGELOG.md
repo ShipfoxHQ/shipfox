@@ -1,5 +1,120 @@
 # @shipfox/api-projects
 
+## 34.0.0
+
+### Minor Changes
+
+- 46f78a0: Adds `find_workspaces` and `find_projects` to the admin MCP endpoint `POST /mcp/admin`. Both need the `admin-observer` role and no impersonation window. `search` matches part of a name or slug, or an exact ID when it is a UUID. Leave it out to list every workspace or project. `find_workspaces` also filters by `status`. Each project names its `workspace_id` and `workspace_slug` for `start_impersonation`. The admin endpoint now needs a projects client. The Workspaces contract adds `listAdminWorkspaces`, and the Projects contract adds `listAdminProjects`. The `GET /admin/workspaces` and `GET /admin/projects` searches now match slugs as well as names.
+- dd63da9: Gives every workspace a default project that answers the Slack and Linear requests no other agent claims.
+
+  - **Projects:** a new workspace gets an empty managed project named Default. A workspace made before this release gets its own when the first page of its project list is read without a search, or when its default project is read, so no backfill step is needed. A renamed default keeps its flag.
+  - **Contract:** projects carry `is_default` (`isDefault` between modules), and `getDefaultProject` returns the default project of a workspace.
+  - **Agent:** an unclaimed request starts a conversation in the default project, not the oldest one.
+  - **Client:** the projects hub, the project switcher, the project breadcrumb, and the project settings show a Default badge. The setup gate ignores the default project when it checks whether a workspace has a project.
+
+- 1872f3d: Move a managed project to a repository.
+
+  - **Routes:** `POST /projects/:projectId/config/link` checks the target and refuses with `config-exists`, `repository-in-use`, `repository-empty`, `connection-inactive`, or `link-unsupported`. With `dry_run: true` it stops there. Otherwise it makes the managed repository read-only, opens a pull request that adds `.shipfox/`, moves the project's config source, and finishes. A stopped move answers `503 move-unconfirmed`, and the next call resumes the stored attempt without opening a second pull request. `POST /projects/:projectId/config/link/pull-request` opens a new one after a closed pull request. Impersonated sessions are refused on both.
+  - **Config read:** `GET /projects/:projectId/config` and `getConfigSource` return the move and the pull request state. A merged pull request clears its stored URL.
+  - **Providers:** the source-control SPI gains `openConfigPullRequest` and `getConfigPullRequest`, idempotent on the branch. GitHub implements both.
+  - **Projects:** the inter-module contract gains `moveProjectSource`, which moves a project's config source to the linked repository.
+  - **E2E setup:** `mergeTestVcsPullRequest` and `closeTestVcsPullRequest` drive a Test VCS pull request.
+
+- 0af8bad: Adds projects with a managed repository, behind the `managed-config-repos` workspace flag. `POST /projects` accepts a managed source, the project DTO gains `source.kind`, and the workspace's hidden connection stays out of every list. A job with a default checkout on a managed project now explains how to fix it.
+- cdb88a7: A project can store and read its access: the connections it can use and, for each, the repositories it can reach. Nothing enforces it yet.
+
+  - **Projects:** `GET` and `PUT /projects/:projectId/access`, with admin-only writes. A linked project's config connection can be saved with zero repositories, which means only the config repository. A repository rename updates the stored names of a listed repository.
+  - **Projects DTO:** a browser-safe access evaluator and the policy types, and `getProjectAccessPolicy` and `getProjectAccessPolicies` on the inter-module contract.
+  - **Integrations:** providers can declare `resourceKinds` and implement `listScopeResources` and `resolveScopeResource`. GitHub and Gitea do so for repositories. `GET /integration-connections/:connectionId/scope-resources` serves the picker, and `getScopeConnection` and `resolveScopeResource` join the inter-module contract.
+  - **Connection deletion** of every kind writes `integrations.connection.deleted`, and Projects removes the matching scopes.
+
+- f8adab0: Adds project deletion. An admin deletes a project with `DELETE /projects/:projectId` and repeats its name to confirm. The project disappears at once, and its slug and linked repository can be reused. The default project can't be deleted.
+
+  - **Projects:** a delete sets `deleted_at` and `deleted_by` on the project row and writes `PROJECT_DELETED`. Every read skips deleted projects, except the admin list, which shows them with `status` `deleted` and `deleted_at`. The module deletes its own access rows and event dedup rows when it consumes the event.
+  - **Contract:** `getProjectsByIds` returns the name, slug, and `deletedAt` of projects, and shows deleted ones with `includeDeleted`.
+  - **Agent access:** `find_projects` returns `deleted_at`, null for a live project, because the admin list now includes deleted projects.
+  - **Drizzle:** `@shipfox/node-drizzle` adds `deletedScopeColumns`, `recordDeletedScope`, `assertScopeWritable`, `ScopeDeletedError`, and `deleteInBatches`. A module can use the marker helpers to block writes to a deleted project. The projects module uses `deleteInBatches` to purge its event dedup rows.
+
+- e6981d5: An integration connection no longer has a repository access mode. Every connection reaches all repositories its installation can see, and projects narrow access instead.
+
+  - **Release note:** a connection that was set to **Only your projects' repositories** now reaches every repository its installation sees. A project with full access can use all of them. This migration sets every connection to the open behavior and removes the setting. To narrow a project, limit its access.
+  - **Integration SPI:** `IntegrationConnection` no longer has `repositoryAccessMode`, and `IntegrationConnectionRepositoryAccessMode` is gone.
+  - **Integration core DTOs:** the `CONNECTION_REPOSITORY_ACCESS_CHANGED` event and the repository access schemas are gone.
+  - **Projects DTOs:** the inter-module method `listProjectsBySourceConnection` is gone.
+  - **API:** `GET` and `PUT /integration-connections/:connectionId/repository-access` are removed. The `repository_access` column is dropped from connections and secret cleanups.
+  - **Integration core:** `IntegrationConnectionRepositoryAccessMode` is no longer exported from the package root.
+  - **Client:** the connection page no longer has a repository access section, and the connection menu no longer offers **Manage repository access**. Use **Open in GitHub** to change the repositories on GitHub. `RepositoryAccess`, `RepositoryAccessMode`, `RepositoryAccessRepository`, `listIntegrationConnectionRepositoryAccess`, `updateIntegrationConnectionRepositoryAccess`, and the matching query hooks are no longer exported.
+
+### Patch Changes
+
+- 7fddfc5: A checkout-token refusal for an explicit `checkout.project` names the repository when the project has a source owner and name. `resolveCheckoutTarget` returns both as `sourceRepositoryOwner` and `sourceRepositoryName`.
+- Updated dependencies [46f78a0]
+- Updated dependencies [eadd377]
+- Updated dependencies [2062ec8]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [0363a2c]
+- Updated dependencies [1fa56a2]
+- Updated dependencies [8a926dc]
+- Updated dependencies [c4f486b]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [2cc76a9]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [b59424d]
+- Updated dependencies [dd63da9]
+- Updated dependencies [2d009f4]
+- Updated dependencies [4273dad]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [9e173c3]
+- Updated dependencies [b92d2a8]
+- Updated dependencies [f432fd2]
+- Updated dependencies [3022de6]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [a64d96d]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [a020cbf]
+- Updated dependencies [27dc317]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [c06262b]
+- Updated dependencies [52969e5]
+- Updated dependencies [e6981d5]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [107ecc7]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [a32c90c]
+- Updated dependencies [82f2480]
+- Updated dependencies [4c8f870]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/feature-flags@0.1.0
+  - @shipfox/node-feature-flags@0.1.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/api-integration-managed-vcs-dto@34.0.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-temporal@0.6.0
+
 ## 31.0.0
 
 ### Patch Changes

@@ -1,5 +1,173 @@
 # @shipfox/client-projects
 
+## 53.0.0
+
+### Major Changes
+
+- 1f60244: The Automations page replaces the Workflows page of every project.
+
+  - **Route:** the page lives at `/w/$workspaceSlug/p/$projectSlug/automations`, and the `nav.automations` tab replaces `nav.workflows`. The `/workflows` route is removed with no redirect.
+  - **Source header:** one line shows the config source, its default branch, the latest commit when available, and the sync state. A GitHub repository gets an **Open on GitHub** link, and a managed project shows "Managed by Shipfox". `SourceStrip` is removed.
+  - **Workflows tab:** the table adds a "Starts on" column and a search over the name, the config path, and the triggers.
+  - **`@shipfox/client-projects`:** adds `useProjectConfigQuery`, `projectConfigQueryOptions`, `getProjectConfig`, and the `ProjectConfig` model. `Definition` gains the required `triggers` field, read from the workflow model.
+  - **`@shipfox/client-workflows`:** `ProjectWorkflowsPage` becomes `ProjectAutomationsPage`, which also takes `workspaceSlug` and `projectSlug`. The runs empty state links to the Automations page.
+
+### Minor Changes
+
+- 2e404d5: The Automations page gains a Files tab with file history.
+
+  - **Files tab:** the `.shipfox/` tree on the default branch, pinned to the head commit, beside a read-only viewer at `/w/$workspaceSlug/p/$projectSlug/automations/files/*`. Symbolic links, submodules, files over 1 MB, files that aren't text, and failed reads each show their own state.
+  - **History:** a `Code | History` toggle, kept in the `view=history` search parameter, lists the commits that changed a file. A selected folder lists its history, so `.shipfox` shows every config change. Rows open the commit when the provider has a page for it, and History is hidden when the provider can't list commits.
+  - **Links:** a file names the workflow that uses it. On the Workflows tab, `View file`, the "Updated" cell, and sync diagnostics open the file.
+  - **`@shipfox/client-projects`:** adds `useProjectConfigFilesQuery`, `useProjectConfigFileQuery`, `useProjectConfigCommitsInfiniteQuery`, their query options and request functions, and the `ConfigFileEntry`, `ConfigFile`, and `ConfigCommit` models.
+  - **`@shipfox/client-workflows`:** `ProjectAutomationsPage` takes an optional `tab`.
+
+- 0288794: The Automations page can move a managed project's config to a repository.
+
+  - **Move to your repository:** a managed project's source header offers the move. The dialog picks a connection (skipped when there is only one, with a link to Integrations when there is none) and a repository, with no default selection. Each selection runs the move checks with `dry_run`, and a refusal stays next to the selection, takes focus, and keeps **Continue** disabled. The confirm screen names the repository, its default branch, the file count, and what changes, and says when the repository is public. Progress stays in the dialog until the pull request opens.
+  - **Source header states:** while a move is underway, the header's state comes from the move and the pull request, never from a sync error. It shows who is moving the project and where, **Retry** two minutes after a move stopped, the open pull request, **Open a new pull request** after a closed one, and a neutral "Check pull request" banner when the provider doesn't answer. The sync failure alert stays hidden while a move waits for its merge.
+  - **Files:** while the pull request is open, the tab explains that files appear once it merges. A managed project says how its config changes.
+  - **`@shipfox/client-projects`:** `ProjectConfig` gains `move` and `pullRequest`. Adds `checkProjectConfigMove`, `moveProjectConfig`, `openProjectConfigPullRequest`, their mutation hooks, and `configMoveErrorCopy` with copy for each move refusal.
+  - **`@shipfox/client-integrations`:** `RepositoryPicker` takes `showDetails` to name each repository by its full name, with its default branch and visibility.
+
+- dd63da9: Gives every workspace a default project that answers the Slack and Linear requests no other agent claims.
+
+  - **Projects:** a new workspace gets an empty managed project named Default. A workspace made before this release gets its own when the first page of its project list is read without a search, or when its default project is read, so no backfill step is needed. A renamed default keeps its flag.
+  - **Contract:** projects carry `is_default` (`isDefault` between modules), and `getDefaultProject` returns the default project of a workspace.
+  - **Agent:** an unclaimed request starts a conversation in the default project, not the oldest one.
+  - **Client:** the projects hub, the project switcher, the project breadcrumb, and the project settings show a Default badge. The setup gate ignores the default project when it checks whether a workspace has a project.
+
+- 0af8bad: Adds projects with a managed repository, behind the `managed-config-repos` workspace flag. `POST /projects` accepts a managed source, the project DTO gains `source.kind`, and the workspace's hidden connection stays out of every list. A job with a default checkout on a managed project now explains how to fix it.
+- 988b5f9: Project settings gain an **Access** section, at `settings/access`. An admin chooses All connections or a list, and limits each listed GitHub or Gitea connection to all its repositories or selected ones. A linked project's config connection and repository show checked and locked. Saving asks for confirmation when it changes the repository jobs check out by default, or when the default project stops answering an interaction connection such as Slack or Linear. A refused save turns the section read-only.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- 710275f: The project source strip shows "No workflows yet" instead of a failed sync when the repository has no workflow files.
+- 3d329a9: Add the Shippy chat panel beside every project page.
+
+  - **Client chat:** a new package. `chatFeature` contributes the project dock: a panel with a transcript, tool rows, a composer with the page the agent sees, history with delete, and every turn state from thinking to a deleted conversation. `Mod+.` opens or closes it.
+  - **Client features:** `defaultFeatures()` includes `chatFeature`.
+  - **Client logs:** exports `groupActivityReads`, `ActivityReadGroupNode`, `ActionDetails`, and `actionDisplayLabel`.
+  - **Client shell:** `useAgentPageContext()` accepts `undefined`, and its context gains `runNumber` and `name`, which only label the page for the reader.
+  - **Agent:** `GET /conversations/:conversationId` returns `latest_turn`, with its status, failure code, and model.
+  - **Agent DTO:** adds `conversationLatestTurnDtoSchema`, and `latest_turn` on `conversationDetailDtoSchema`.
+  - **Client workflows and projects:** the runs, run, job, automations, and project settings pages tell Shippy where the user is.
+
+- Updated dependencies [be33fe6]
+- Updated dependencies [46f78a0]
+- Updated dependencies [2062ec8]
+- Updated dependencies [179fa81]
+- Updated dependencies [24a18d3]
+- Updated dependencies [7d20d04]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [0288794]
+- Updated dependencies [0363a2c]
+- Updated dependencies [1fa56a2]
+- Updated dependencies [c64d42f]
+- Updated dependencies [ac1e750]
+- Updated dependencies [807ae57]
+- Updated dependencies [4c789ca]
+- Updated dependencies [c4f486b]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [0461349]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [476e3b1]
+- Updated dependencies [eb3f034]
+- Updated dependencies [2cc76a9]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [b59424d]
+- Updated dependencies [dd63da9]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [f05ecde]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [2c9838a]
+- Updated dependencies [4273dad]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [dcd0b79]
+- Updated dependencies [5e12647]
+- Updated dependencies [9e173c3]
+- Updated dependencies [b92d2a8]
+- Updated dependencies [2c89020]
+- Updated dependencies [3022de6]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [c2f006c]
+- Updated dependencies [2b3aded]
+- Updated dependencies [f1f520f]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a64d96d]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [a020cbf]
+- Updated dependencies [1320dac]
+- Updated dependencies [853a185]
+- Updated dependencies [67e55ea]
+- Updated dependencies [af3b91f]
+- Updated dependencies [658d71f]
+- Updated dependencies [7b0fafd]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [0160be6]
+- Updated dependencies [bea7e50]
+- Updated dependencies [f43cafb]
+- Updated dependencies [32a2dcc]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [560cee4]
+- Updated dependencies [96a66ed]
+- Updated dependencies [d657853]
+- Updated dependencies [6faa1d7]
+- Updated dependencies [090d6a0]
+- Updated dependencies [a328042]
+- Updated dependencies [e6981d5]
+- Updated dependencies [bea7e50]
+- Updated dependencies [60ff4ba]
+- Updated dependencies [3d329a9]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [f5c364b]
+- Updated dependencies [107ecc7]
+- Updated dependencies [2100749]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+- Updated dependencies [6b2a308]
+- Updated dependencies [c3768b2]
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-integrations@53.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-api@53.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/client-agent@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

@@ -1,5 +1,113 @@
 # @shipfox/api-integration-spi
 
+## 5.0.0
+
+### Major Changes
+
+- 7cc3735: Adds a `conversation` caller to `integrations.callTool`, so a server-side agent turn can call tools with no job lease.
+
+  - **Breaking:** `AgentToolsCallerContext` and `IntegrationToolCallCaller` become unions. Code that reads `runId`, `jobExecutionId`, or `stepId` from a caller must narrow on the caller kind first.
+  - **Provider contract:** `AgentToolsProvider` gains an optional `conversationCatalog`. A provider without one offers a conversation nothing.
+  - **Inter-module contract:** `listConversationTools` returns the tools to offer, and `callTool` refuses any other tool for a conversation caller.
+  - **Project scoping:** on the `shipfox` provider, a conversation caller can't pass `project_id`, can't call `list_projects`, gets `not-found` for a run or step in another project, and sees a null `parent_run` when the parent is in another project. Lease callers are unchanged.
+  - **Audit:** tool call records name the conversation caller with its project, conversation, turn, and call item. The `integrations_agent_tool_call` metric adds a `conversation` value to its `caller` label only.
+
+- e6981d5: An integration connection no longer has a repository access mode. Every connection reaches all repositories its installation can see, and projects narrow access instead.
+
+  - **Release note:** a connection that was set to **Only your projects' repositories** now reaches every repository its installation sees. A project with full access can use all of them. This migration sets every connection to the open behavior and removes the setting. To narrow a project, limit its access.
+  - **Integration SPI:** `IntegrationConnection` no longer has `repositoryAccessMode`, and `IntegrationConnectionRepositoryAccessMode` is gone.
+  - **Integration core DTOs:** the `CONNECTION_REPOSITORY_ACCESS_CHANGED` event and the repository access schemas are gone.
+  - **Projects DTOs:** the inter-module method `listProjectsBySourceConnection` is gone.
+  - **API:** `GET` and `PUT /integration-connections/:connectionId/repository-access` are removed. The `repository_access` column is dropped from connections and secret cleanups.
+  - **Integration core:** `IntegrationConnectionRepositoryAccessMode` is no longer exported from the package root.
+  - **Client:** the connection page no longer has a repository access section, and the connection menu no longer offers **Manage repository access**. Use **Open in GitHub** to change the repositories on GitHub. `RepositoryAccess`, `RepositoryAccessMode`, `RepositoryAccessRepository`, `listIntegrationConnectionRepositoryAccess`, `updateIntegrationConnectionRepositoryAccess`, and the matching query hooks are no longer exported.
+
+### Minor Changes
+
+- 2062ec8: An agent in a Slack or Linear conversation starts workflow runs. `fireManualTrigger` accepts a conversation with a provider and no user as an agent actor, and `start_workflow_run` no longer needs a Shipfox user for such a conversation. The run budget still applies. The run page reads "Started by Shippy in Slack", and Linear shows the run link on the agent session. Web conversations still record their author.
+- c4f486b: Names the cause of a checkout failure. Each refusal now identifies the repository, connection or project it was about, a suspended or removed GitHub App installation has its own `installation-inactive` code, and GitHub's own explanation reaches the step error as `provider_message` and `provider_status`. A missing repository now returns a 422, and a failed token mint is cached for 60 seconds instead of 15 minutes.
+- 2339c1b: A conversation can start workflow runs, with a limit on how many it starts without a person writing.
+
+  - **Start tool:** `start_workflow_run` is now offered to conversations. It starts a root run in the conversation's project for the conversation owner, and its idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. The conversation caller context now carries `agentKey`.
+  - **Run budget:** `claimConversationRunStart` on the agent inter-module contract spends one of five run starts. A message from a person resets the count. At the limit, the tool returns `run-budget-exhausted` and tells the agent to ask the user. A repeated call doesn't spend the budget again.
+  - **Manual trigger:** `fireManualTrigger` and the manual trigger payload take an optional `conversation` with `id`, `agentKey`, and `provider`. The workflows inter-module contract gains `hasRunForIdempotencyKey`.
+  - **Run reads:** run list items and the run overview header return `conversation` with `agent_key`, `provider`, and `author_user_id`, and never the conversation id.
+  - **Client:** the run list shows `via Shippy`, the run summary shows `Started by <author> via Shippy`, and the chat shows a `Run started` row that never joins a group of reads. The panel copy and suggested prompts say that Shippy can start work.
+  - **Shippy prompt:** a conversation pinned before this change says it can't start runs and suggests a new conversation.
+
+- e5872d5: Records a GitHub App uninstall or suspension on the installation and moves the connection to `error`. Unsuspending brings it back to `active`. A user-disabled connection stays disabled, and connecting a suspended installation now writes `error`.
+- 9e173c3: Adds `provider_access` to a connection that lost access at the provider, either `removed` or `suspended`. Enabling such a connection now returns 409 `connection-provider-access-unavailable`, and a checkout on it tells the runner to unsuspend or reinstall the GitHub App. GitHub reports the access from the installation and no longer returns an external URL after an uninstall.
+- f769d90: Add the `image` tool result kind. A provider marks a tool that returns images with `result: 'image'`. An agent step can call it and receives the image blocks. A tool step that names it fails validation with `integration-tool-agent-only`, and an action cannot call it: the generated action tool types leave it out and the action endpoint refuses the call.
+- 15b4274: Adds the `interaction` capability to the integration SPI, so people can talk to agents through a provider. A provider declares `interactionEvents`, reads events into interactions, sends replies, and can report progress. Integrations exposes `readInteraction`, `sendInteractionReply`, `reportInteractionProgress`, and `listInteractionProviders` as inter-module operations. `@shipfox/api-integration-spi/testing` exports `createFakeInteractionProvider`.
+- 1872f3d: Move a managed project to a repository.
+
+  - **Routes:** `POST /projects/:projectId/config/link` checks the target and refuses with `config-exists`, `repository-in-use`, `repository-empty`, `connection-inactive`, or `link-unsupported`. With `dry_run: true` it stops there. Otherwise it makes the managed repository read-only, opens a pull request that adds `.shipfox/`, moves the project's config source, and finishes. A stopped move answers `503 move-unconfirmed`, and the next call resumes the stored attempt without opening a second pull request. `POST /projects/:projectId/config/link/pull-request` opens a new one after a closed pull request. Impersonated sessions are refused on both.
+  - **Config read:** `GET /projects/:projectId/config` and `getConfigSource` return the move and the pull request state. A merged pull request clears its stored URL.
+  - **Providers:** the source-control SPI gains `openConfigPullRequest` and `getConfigPullRequest`, idempotent on the branch. GitHub implements both.
+  - **Projects:** the inter-module contract gains `moveProjectSource`, which moves a project's config source to the linked repository.
+  - **E2E setup:** `mergeTestVcsPullRequest` and `closeTestVcsPullRequest` drive a Test VCS pull request.
+
+- 0af8bad: Adds projects with a managed repository, behind the `managed-config-repos` workspace flag. `POST /projects` accepts a managed source, the project DTO gains `source.kind`, and the workspace's hidden connection stays out of every list. A job with a default checkout on a managed project now explains how to fix it.
+- c8e0869: Adds a `not-found` integration provider error reason. The tool gateway keeps it as the tool call error code instead of `unknown`, and does not report it as an unexpected failure. Linear tool errors for a missing record, or one the token cannot see, now carry it.
+- cdb88a7: A project can store and read its access: the connections it can use and, for each, the repositories it can reach. Nothing enforces it yet.
+
+  - **Projects:** `GET` and `PUT /projects/:projectId/access`, with admin-only writes. A linked project's config connection can be saved with zero repositories, which means only the config repository. A repository rename updates the stored names of a listed repository.
+  - **Projects DTO:** a browser-safe access evaluator and the policy types, and `getProjectAccessPolicy` and `getProjectAccessPolicies` on the inter-module contract.
+  - **Integrations:** providers can declare `resourceKinds` and implement `listScopeResources` and `resolveScopeResource`. GitHub and Gitea do so for repositories. `GET /integration-connections/:connectionId/scope-resources` serves the picker, and `getScopeConnection` and `resolveScopeResource` join the inter-module contract.
+  - **Connection deletion** of every kind writes `integrations.connection.deleted`, and Projects removes the matching scopes.
+
+- 1d94e37: A refused provider write now carries a stable reason next to its code: `stale-head`, `branch-not-found`, `branch-exists`, `pull-request-exists`, `no-commits-between`, `protected-branch`, `permission-denied`, or `unprocessable`. `IntegrationProviderError` takes it as `detail`, the tools gateway returns it as `reason`, and an action reads it from `ToolCallError.reason`. `@shipfox/actions` exports `PROVIDER_ERROR_REASONS`, `ProviderErrorReason`, and `ToolCallErrorReason`. The code and the message are unchanged.
+- 3fe51c3: Events and runs stay inside their project's access.
+
+  - **Events:** the integration event envelope has an optional `resource`. GitHub and Gitea fill it with the repository of the event.
+  - **Triggers:** a workflow or listening job in a project whose access excludes the connection or the repository no longer receives the event. The trigger history records the decision as `filtered`, with the reason `project-access`, or `project-deleted` when the project is gone. Dev runs that replay an event apply the same check. The job-activated event and listener subscriptions now carry the project.
+  - **Agent:** a request or message for a project that excludes the connection is dropped with `project-access` or `project-deleted`, and no other project answers it.
+  - **Shipfox tools:** `start_workflow_run` no longer takes `project_id` and starts runs only in the caller's project.
+
+- 107ecc7: Prepares Slack for agents. The Slack app now requests `chat:write.customize` and `assistant:write`, and Slack publishes the agent view events `assistant_thread_started`, `app_context_changed`, and `agent_session_stopped` without adding them to the workflow event catalog. A provider can implement `connectionReconnectRequired` to report an active connection that lacks a newer permission. The connections list then returns `reconnect_required`, the connection page asks the user to reconnect, and agents ignore the connection's events until it reconnects. Slack reports this for an installation that lacks a required scope.
+- 27dc317: Adds the optional `listCommits` method to `SourceControlProvider`, and the shared source control contract cases in `@shipfox/api-integration-spi/testing`.
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- 7d9b08a: Integration providers can serve file tools, and leased action steps download their files through the tool gateway.
+
+  - **Adapter:** `AgentToolsProvider` gains an optional `downloadFile({connection, toolId, arguments, signal})`, which returns `{body, mediaType, filename?, size?}`. A provider whose catalog declares a `file` tool implements it. It passes `signal` to the provider fetch and to the body, so an abandoned transfer stops. `MAX_AGENT_TOOL_FILE_BYTES` is the 100 MiB per-file limit.
+  - **Errors:** `IntegrationProviderErrorReason` adds `file-too-large` and `file-location-not-allowed`.
+  - **Route:** `POST /runs/jobs/current/integration-tools/download` takes `{connection_slug, tool, arguments}` from a leased action step. It authorizes like the MCP route: the frozen grant, the live connection state, and repository scope. It streams the file with `content-type`, `x-shipfox-filename` (RFC 5987), and `x-shipfox-size` when known, and cuts the stream past 100 MiB. The deadline is the smaller of `x-shipfox-deadline` (remaining milliseconds) and 5 minutes. A runner disconnect aborts the provider transfer. Errors before the first byte use the gateway codes. Agent steps get `leased-step-not-action`.
+  - **Audit:** downloads are audited with the `action` caller, `resultKind: 'file'`, and the streamed byte count.
+  - **Frozen result kind:** the gateway reads each tool's frozen `result` kind. A tool frozen as a file tool stays out of MCP `listTools`, even when the live catalog no longer lists it.
+
+- 82f2480: Adds a `json` or `file` result kind to agent tool catalog entries. An absent kind means `json`. The connection tool catalog and the agent tools context carry the resolved kind, and the MCP gateway neither lists nor calls file tools.
+
+### Patch Changes
+
+- 9aeb048: A retried Linear reply no longer posts the answer twice. `sendReply` uses the `replyId` as the activity `id`. When Linear refuses the activity, the provider looks it up and reports `delivered` if an earlier send landed. `LinearApiClient` gains `hasAgentActivity`, and `createAgentActivity` accepts an `id`. The `replyId` of `SendInteractionReplyInput` is now documented as a UUID that providers use for idempotency when their platform allows it.
+- Updated dependencies [2062ec8]
+- Updated dependencies [0363a2c]
+- Updated dependencies [1fa56a2]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2cc76a9]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [b59424d]
+- Updated dependencies [4273dad]
+- Updated dependencies [9e173c3]
+- Updated dependencies [b92d2a8]
+- Updated dependencies [3022de6]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [a64d96d]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [a020cbf]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [e6981d5]
+- Updated dependencies [107ecc7]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+  - @shipfox/api-integration-core-dto@34.0.0
+
 ## 4.3.3
 
 ### Patch Changes

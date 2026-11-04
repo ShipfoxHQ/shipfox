@@ -1,5 +1,22 @@
 # @shipfox/node-opentelemetry
 
+## 0.7.0
+
+### Minor Changes
+
+- c06262b: Postgres queries create spans only inside a parent span. Requests to the instance and service metrics ports create no spans, and the SDK drops the `http.server.duration` and `http.server.request.duration` histograms. Fastify spans for 4xx client errors no longer carry an error status; they record the reason as `error.type` and `error.message` attributes instead of an exception event. Adds `withoutTracing`, which runs a function without creating spans.
+
+### Patch Changes
+
+- 041ae63: Two installed copies of these packages now share their process state through `@shipfox/node-process-state` slots: the Postgres pool, the Fastify app, auth methods, and client errors, the default logger, the OpenTelemetry SDK, meter provider, and base logger, the OpenFeature domain counter, outbox write listeners, reported errors, and precise cursor timestamps. `@shipfox/node-module` now reports a duplicate copy of any of them at startup.
+- Updated dependencies [8937e15]
+- Updated dependencies [5cf799b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+  - @shipfox/regex@0.4.0
+  - @shipfox/node-log@0.3.10
+  - @shipfox/node-process-state@0.1.0
+
 ## 0.6.6
 
 ### Patch Changes

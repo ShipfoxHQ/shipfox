@@ -1,5 +1,26 @@
 # @shipfox/node-drizzle
 
+## 0.4.0
+
+### Minor Changes
+
+- f8adab0: Adds project deletion. An admin deletes a project with `DELETE /projects/:projectId` and repeats its name to confirm. The project disappears at once, and its slug and linked repository can be reused. The default project can't be deleted.
+
+  - **Projects:** a delete sets `deleted_at` and `deleted_by` on the project row and writes `PROJECT_DELETED`. Every read skips deleted projects, except the admin list, which shows them with `status` `deleted` and `deleted_at`. The module deletes its own access rows and event dedup rows when it consumes the event.
+  - **Contract:** `getProjectsByIds` returns the name, slug, and `deletedAt` of projects, and shows deleted ones with `includeDeleted`.
+  - **Agent access:** `find_projects` returns `deleted_at`, null for a live project, because the admin list now includes deleted projects.
+  - **Drizzle:** `@shipfox/node-drizzle` adds `deletedScopeColumns`, `recordDeletedScope`, `assertScopeWritable`, `ScopeDeletedError`, and `deleteInBatches`. A module can use the marker helpers to block writes to a deleted project. The projects module uses `deleteInBatches` to purge its event dedup rows.
+
+### Patch Changes
+
+- 041ae63: Two installed copies of these packages now share their process state through `@shipfox/node-process-state` slots: the Postgres pool, the Fastify app, auth methods, and client errors, the default logger, the OpenTelemetry SDK, meter provider, and base logger, the OpenFeature domain counter, outbox write listeners, reported errors, and precise cursor timestamps. `@shipfox/node-module` now reports a duplicate copy of any of them at startup.
+- Updated dependencies [2d009f4]
+- Updated dependencies [21c993b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-process-state@0.1.0
+
 ## 0.3.6
 
 ### Patch Changes

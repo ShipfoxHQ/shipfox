@@ -1,5 +1,248 @@
 # @shipfox/api-triggers
 
+## 34.0.0
+
+### Minor Changes
+
+- 2062ec8: An agent in a Slack or Linear conversation starts workflow runs. `fireManualTrigger` accepts a conversation with a provider and no user as an agent actor, and `start_workflow_run` no longer needs a Shipfox user for such a conversation. The run budget still applies. The run page reads "Started by Shippy in Slack", and Linear shows the run link on the agent session. Web conversations still record their author.
+- 24a18d3: An agent file can claim part of Slack or Linear with `on:` rules, and definition sync stores those claims as agent subscriptions.
+
+  - **Agent document:** `on` is a list of rules, each with a `source` and an optional `filter`. A rule has no `event`, `with`, `secrets`, or `config`. `agentRuleSchema` and the `AgentRule` type are exported.
+  - **Sync:** a rule must name a connection with the interaction capability, and its filter is checked as a boolean condition over `request`, typed from the provider's `requestContextSchema`, and `event`. An invalid rule keeps the agent's last valid version and records the error. A rule on an unknown connection fails with `integration-connection-not-found`, and a filter error has the new code `invalid-agent-rule-filter`.
+  - **Events:** each agent sync publishes `definitions.agent_rules.resolved` with the rules of every stored agent.
+  - **Subscriptions:** Triggers owns the new `triggers_agent_subscriptions` table, with project, agent key, source, filter, and the date the binding was first created. A rule that stays keeps its date, and a removed rule or agent removes its subscription.
+
+- 610ab29: A new Slack or Linear request goes to the agent whose `on:` rule matches it, with one agent per conversation.
+
+  - **Matching:** for a request, Triggers evaluates the agent subscriptions on the event's source, with each filter reading `request` and `event`, and passes the matches to `routeInteraction` as `candidates`. Follow-ups and stops match no rule.
+  - **Owner:** Agent starts the conversation with the first candidate whose project takes the connection: custom agents before Shippys, and the earliest binding first within each group. Without one, the default Shippy answers, as before. A key that already has a conversation keeps it.
+  - **Contract:** `routeInteraction` takes an optional `candidates` list and can return the new outcome `matched`, with the winning `subscriptionId` and the `ambiguousSubscriptionIds` of the other candidates.
+  - **Decisions:** an `agent` decision can now name an agent subscription. The winning rule is recorded as `owner`, the others as the new outcome `ambiguous`, and a rule whose filter fails as `filter-error`. Migration `0008_agent_rule_decisions` relaxes the decisions check constraint, and the decision DTOs accept an `agent` decision with a subscription ID. The `get_trigger_event` tool schema includes `ambiguous`.
+  - **Docs:** the `on` field description and the workflow schema reference describe how requests are routed.
+
+- 4c789ca: Adds the `check_workflow` read tool. It checks a pushed or local workflow file and reports how one of its triggers would have handled up to 50 past events. It writes nothing and starts no run.
+
+  - **Tool:** `check_workflow` takes `project_id`, `config_path`, and `ref` or `content`. It also accepts `actions`, `commit`, and a `trigger` with `event_ids`. An invalid definition is a result with `valid: false` and its errors, not an error. Each event gets one result: `matched`, `filtered`, `filter-error`, `event-mismatch`, `payload-unavailable`, or `not-found`. The admin MCP endpoint serves it like the other read tools.
+  - **Definitions:** `validateDefinitionAtRef` checks a definition the way `resolveDefinitionAtRef` does, and writes nothing. It requires `workspaceId` and answers `project-not-found` for a project in another workspace.
+  - **Triggers:** `checkWorkflow` checks project ownership, then checks events with the same source, event, and filter rules as dispatch. `create_dev_run` with `dry_run: true` uses the same validation, so a dry run writes nothing either.
+  - **Skills:** `validate-workflow-change` uses `check_workflow` instead of a dry run.
+
+- 2339c1b: A conversation can start workflow runs, with a limit on how many it starts without a person writing.
+
+  - **Start tool:** `start_workflow_run` is now offered to conversations. It starts a root run in the conversation's project for the conversation owner, and its idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. The conversation caller context now carries `agentKey`.
+  - **Run budget:** `claimConversationRunStart` on the agent inter-module contract spends one of five run starts. A message from a person resets the count. At the limit, the tool returns `run-budget-exhausted` and tells the agent to ask the user. A repeated call doesn't spend the budget again.
+  - **Manual trigger:** `fireManualTrigger` and the manual trigger payload take an optional `conversation` with `id`, `agentKey`, and `provider`. The workflows inter-module contract gains `hasRunForIdempotencyKey`.
+  - **Run reads:** run list items and the run overview header return `conversation` with `agent_key`, `provider`, and `author_user_id`, and never the conversation id.
+  - **Client:** the run list shows `via Shippy`, the run summary shows `Started by <author> via Shippy`, and the chat shows a `Run started` row that never joins a group of reads. The panel copy and suggested prompts say that Shippy can start work.
+  - **Shippy prompt:** a conversation pinned before this change says it can't start runs and suggests a new conversation.
+
+- a9e85c1: Exposes the missing variable in refused manual starts and trigger history. The 422 `workflow-interpolation-unresolvable` details carry optional `variable_key`, `job_key` and `step`. The `interpolation-unresolvable` diagnostic gains optional `variableKey`, `jobKey`, `step` and `source`, and a missing secret input records its own `secret-input-missing` diagnostic instead of `unexpected-workflow-start-failure`. A manual fire that fails on a missing secret is now recorded as a terminal error.
+- a48410e: Purges the configuration and conversations of a deleted project. After a project is deleted, its subscriptions, definitions, secrets, cache entries, conversations, and managed repository are removed, and a late event can't bring any of them back. A write for a deleted project answers `project-not-found`. A repository the project linked is not touched, and action snapshots stay, because projects in a workspace share them.
+- 3fe51c3: Events and runs stay inside their project's access.
+
+  - **Events:** the integration event envelope has an optional `resource`. GitHub and Gitea fill it with the repository of the event.
+  - **Triggers:** a workflow or listening job in a project whose access excludes the connection or the repository no longer receives the event. The trigger history records the decision as `filtered`, with the reason `project-access`, or `project-deleted` when the project is gone. Dev runs that replay an event apply the same check. The job-activated event and listener subscriptions now carry the project.
+  - **Agent:** a request or message for a project that excludes the connection is dropped with `project-access` or `project-deleted`, and no other project answers it.
+  - **Shipfox tools:** `start_workflow_run` no longer takes `project_id` and starts runs only in the caller's project.
+
+- 6c0d6bd: Adds Shipfox run and job lifecycle events for workflow triggers.
+- d77a8c4: Adds `GET /workflow-definitions/readiness`, which reports for up to 100 definitions what the workspace still lacks before their runs can start cleanly. Each issue says where it is read and whether it blocks the run from starting or fails a job after the run starts.
+- 507915a: A required action can carry an optional `intent`, and `REQUIRED_ACTION_INTENTS` lists the known values. `intent` names a behavior a composing application may provide in place of opening `url`, such as `contact-support`. `url` stays required as the fallback, and an unknown `intent` still parses.
+
+  The admission denial contract, the HTTP 409 `required_action`, and the agent-access error details now keep `intent` when it is set.
+
+- 25fd5a8: Routes requests from integrations that support interactions to agents. An unowned request starts a conversation with the Shippy of the workspace's default project. A request on an owned key, a follow-up, or a stop reaches the conversation that owns its key, and a follow-up or stop with no owner is dropped. A replayed event creates one conversation. Triggers records each result as an `agent` decision: `owner`, `default`, or `dropped`. Agent adds `routeInteraction` and the origin columns on conversations.
+- d2a2168: Stops work for a deleted project and refuses new work. After a project is deleted, its open runs and listening jobs are canceled, its active turns stop with no reply in Slack or Linear, and no trigger, cron, manual fire, dev run, or rerun can start a run in it, including a job with `checkout: false`.
+
+  - **Workflows:** every start path checks that the project is live before it creates a run. A refused start fails with the new `project-deleted` error on `startRunFromTrigger`, `startDevRun`, `rerunWorkflowRun`, and `deliverEventToJobListener`. `runWorkflow`, `runDevWorkflow`, and `rerunWorkflowRun` now require a `projects` client. The module adds `stopWork({scope, reason})`, a core function and an inter-module method that cancels the open runs in a workspace or project and returns how many remain. Its `PROJECT_DELETED` subscriber calls it. The run keeps the existing canceled status, with no deletion reason yet.
+  - **Agent:** turn admission refuses a deleted project quietly, and the pinned prompt no longer falls back to an `unknown` project name. The module adds the same `stopWork` method. With `project_deleted` it marks the replies of the stopped turns `suppressed`, so nothing is posted back and the loading status is left alone. Its `PROJECT_DELETED` subscriber calls it.
+  - **Triggers:** a `project-deleted` error from Workflows shows as the `project-deleted` decision diagnostic and as `project-not-found` on the manual-fire and dev-run routes. The command contracts list the new error.
+
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- daf0208: Names the cause of a refused start when an integration connection or tool cannot be materialized. `agent-integration-materialization-failed` carries a `reason` (`connection-missing`, `connection-provider-mismatch`, `source-connection-missing`, `tool-unknown` or `no-tools-selected`) with the `connection` and `tool` where they apply, and the job and step it came from. They reach the inter-module error, the 422 `details` (`reason`, `connection`, `tool`, `job_key`, `step`) and the trigger diagnostic. Setup failures keep no reason. Every new field is optional, so stored diagnostics still map.
+- ffffc16: The workflow readiness route now reports trigger-scoped issues. A trigger whose `secrets:` mapping points at a secret that exists at neither project nor workspace scope gets `trigger-secret-missing`, which blocks that trigger's runs from starting. A `secrets.inputs.K` the workflow reads but a trigger's mapping does not provide gets `secret-input-unmapped`, which fails the step that reads it.
+
+### Patch Changes
+
+- 196bc87: Clear the progress a provider shows for an agent request that routing drops, so the conversation no longer looks busy.
+- 1418393: Adds the E2E-only route `GET /__e2e/triggers/definitions/:definitionId/readiness`, which reports whether a definition's trigger subscriptions are projected.
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- a9bf139: Maps `definition-not-found` to 404 and `project-mismatch` to 409 for manual triggers, and `workflow-execution-payload-too-large` to 422 with `field`, `limit_bytes` and `measured_bytes` for both manual triggers and dev runs. These start failures no longer return a 500.
+- eca4c27: Stops runs that check out the project's source while its connection is missing, disabled, or in error. Trigger starts and listening-job deliveries now fail with the `source-connection-unavailable` known error. Cron records an errored tick and sends no failure alerts, and the next tick after recovery starts a run. A manual fire returns 422.
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- edd18ca: Shipfox `run.completed` events now carry the completed attempt's workflow outputs in `run.outputs`.
+- dcd98c8: Runner maintenance and the cron trigger tick use far fewer Temporal actions. Cron trigger throughput per minute is now set by `TRIGGER_CRON_FANOUT` and `TRIGGER_CRON_CLAIM_BATCH`; adding workers no longer raises it.
+- 2ab4025: Workflows can link to their runs. `run.url` in the run context, `event.run.url` on Shipfox run and job events, and `url` on the `start_workflow_run` output hold the run permalink, built from `CLIENT_BASE_URL`. Replaying a Shipfox event stored without `run.url` fills it in. The `slack-dispatcher` and `report-failed-runs` templates use these links instead of `https://app.shipfox.io/runs/`.
+- Updated dependencies [be33fe6]
+- Updated dependencies [af0e24b]
+- Updated dependencies [e99aa97]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [af3b91f]
+- Updated dependencies [46f78a0]
+- Updated dependencies [2062ec8]
+- Updated dependencies [4227bda]
+- Updated dependencies [179fa81]
+- Updated dependencies [24a18d3]
+- Updated dependencies [7d20d04]
+- Updated dependencies [610ab29]
+- Updated dependencies [dc2bd62]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [1f218c4]
+- Updated dependencies [16d18f4]
+- Updated dependencies [0363a2c]
+- Updated dependencies [1fa56a2]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [807ae57]
+- Updated dependencies [4c789ca]
+- Updated dependencies [c4f486b]
+- Updated dependencies [d273097]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [e087b95]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [476e3b1]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [c0b814f]
+- Updated dependencies [2cc76a9]
+- Updated dependencies [0654280]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [18678ea]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [b59424d]
+- Updated dependencies [dd63da9]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [027e401]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [2d009f4]
+- Updated dependencies [4273dad]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [3b63397]
+- Updated dependencies [b76c004]
+- Updated dependencies [0b661c9]
+- Updated dependencies [dc8065c]
+- Updated dependencies [39c5466]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [205afb5]
+- Updated dependencies [dcd0b79]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [9e173c3]
+- Updated dependencies [b92d2a8]
+- Updated dependencies [530d00f]
+- Updated dependencies [3022de6]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [cfe6ce6]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [61b5524]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [a64d96d]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [a020cbf]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [e40ec8b]
+- Updated dependencies [c06262b]
+- Updated dependencies [e08530c]
+- Updated dependencies [e560f69]
+- Updated dependencies [21c993b]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [3869c1d]
+- Updated dependencies [1a50666]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [52969e5]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [6c0d6bd]
+- Updated dependencies [eca4c27]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [cb411b1]
+- Updated dependencies [090d6a0]
+- Updated dependencies [507915a]
+- Updated dependencies [e6981d5]
+- Updated dependencies [25fd5a8]
+- Updated dependencies [2c36559]
+- Updated dependencies [9906470]
+- Updated dependencies [395e11d]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [ebe3ac1]
+- Updated dependencies [42829e8]
+- Updated dependencies [3d329a9]
+- Updated dependencies [f5c364b]
+- Updated dependencies [3f1363c]
+- Updated dependencies [107ecc7]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [96ac908]
+- Updated dependencies [651153a]
+- Updated dependencies [d2a2168]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [a32c90c]
+- Updated dependencies [82f2480]
+- Updated dependencies [0b2af13]
+- Updated dependencies [3c8db4c]
+- Updated dependencies [ffffc16]
+- Updated dependencies [0b661c9]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [70e6983]
+- Updated dependencies [89a6cc7]
+  - @shipfox/workflow-document@4.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/expression@2.12.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-shipfox-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-error-monitoring@0.4.1
+
 ## 33.0.0
 
 ### Patch Changes
