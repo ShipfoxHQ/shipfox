@@ -233,7 +233,7 @@ export const conversationCompactionCount = meter.createCounter<{
 
 export const conversationToolCallCount = meter.createCounter<{
   sensitivity: 'read' | 'write' | 'local' | 'unknown';
-  outcome: 'success' | 'error' | 'replayed';
+  outcome: 'success' | 'error' | 'replayed' | 'unknown';
 }>('agent_conversation_tool_calls', {
   description: 'Agent conversation tool calls by tool sensitivity and outcome',
 });

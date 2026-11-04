@@ -181,6 +181,7 @@ describe('defaultModules', () => {
             deleteManagedRepository: vi.fn(),
             fetchSourceFile: vi.fn(),
             getAgentToolsContext: vi.fn(),
+            resolveAgentTools: vi.fn(),
             getConfigSource: vi.fn(),
             getConnectionToolCatalog: vi.fn(),
             listConfigCommits: vi.fn(),

@@ -12,6 +12,7 @@ import {db, type Transaction} from './db.js';
 import {conversationItems, toConversationItem} from './schema/conversation-items.js';
 import {conversations, toConversation} from './schema/conversations.js';
 import {replyDeliveries} from './schema/reply-deliveries.js';
+import {toolCallStarts} from './schema/tool-call-starts.js';
 import {turnStreamChunks} from './schema/turn-stream-chunks.js';
 import {toAgentTurn, turns} from './schema/turns.js';
 
@@ -618,4 +619,22 @@ export async function deleteStreamChunks(params: {
         eq(turnStreamChunks.modelCallIndex, params.modelCallIndex),
       ),
     );
+}
+
+/**
+ * Records that a write tool call has begun, and says whether this attempt may run it. Only the
+ * first attempt for a position gets true. A later one finds the row, so a crash after the call
+ * began never runs it again.
+ */
+export async function claimToolCallStart(position: {
+  turnId: string;
+  modelCallIndex: number;
+  callIndex: number;
+}): Promise<boolean> {
+  const inserted = await db()
+    .insert(toolCallStarts)
+    .values(position)
+    .onConflictDoNothing()
+    .returning({turnId: toolCallStarts.turnId});
+  return inserted.length > 0;
 }

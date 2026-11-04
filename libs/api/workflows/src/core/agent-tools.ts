@@ -3,8 +3,13 @@ import type {
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
 import {flattenJobSteps, type WorkflowModel} from '@shipfox/api-definitions-dto';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {
+  type IntegrationsModuleClient,
+  integrationsInterModuleContract,
+} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {AgentIntegrationMaterializationReason} from '@shipfox/api-workflows-dto';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {AgentIntegrationMaterializationError} from './errors.js';
 import {isManagedProject} from './managed-source.js';
 
@@ -19,6 +24,9 @@ type IntegrationsAgentToolsContext = Awaited<
 export type AgentToolCatalogEntry =
   IntegrationsAgentToolsContext['catalogs'][number]['tools'][number];
 type AgentToolCatalogMethod = NonNullable<AgentToolCatalogEntry['methods']>[number];
+type ResolvedAgentToolsGrant = Awaited<
+  ReturnType<IntegrationsModuleClient['resolveAgentTools']>
+>['integrations'][number];
 type IntegrationProviderKind = IntegrationsAgentToolsContext['catalogs'][number]['provider'];
 type AgentToolCatalogs = ReadonlyMap<IntegrationProviderKind, readonly AgentToolCatalogEntry[]>;
 type WorkspaceConnectionSnapshot = ReadonlyMap<
@@ -39,7 +47,16 @@ export interface AgentToolMaterializationContext {
     readonly slug: string;
     readonly provider: IntegrationProviderKind;
   } | null;
+  /**
+   * What Integrations granted each agent step and action step, or why it could not. A failure
+   * waits here until the step materializes, so it surfaces where a failed selection always has.
+   */
+  readonly integrationOutcomes?: ReadonlyMap<string, IntegrationOutcome> | undefined;
 }
+
+export type IntegrationOutcome =
+  | {readonly kind: 'granted'; readonly grants: readonly ResolvedAgentToolsGrant[]}
+  | {readonly kind: 'failed'; readonly error: AgentIntegrationMaterializationError};
 
 export interface AgentToolMaterializationSnapshot {
   readonly steps: readonly AgentToolMaterializationSnapshotStep[];
@@ -76,12 +93,6 @@ export interface MaterializedToolStep {
   readonly outputSchema?: Readonly<Record<string, unknown>>;
 }
 
-interface SelectedToolState {
-  readonly entry: AgentToolCatalogEntry;
-  readonly methods: Map<string, AgentToolCatalogMethod>;
-  selectedStandalone: boolean;
-}
-
 export async function loadAgentToolMaterializationContext(params: {
   readonly model: WorkflowModel | null;
   readonly workspaceId: string;
@@ -115,29 +126,180 @@ export async function loadAgentToolMaterializationContext(params: {
   const defaultConnection = context.defaultConnection;
   // A managed project has no source connection of its own, so a step that names a connection
   // still works without a default.
-  if (defaultConnection === null && isManagedProject(project)) {
-    return {
-      catalogs: new Map(context.catalogs.map(({provider, tools}) => [provider, tools])),
-      workspaceConnectionSnapshot,
-      defaultConnection: null,
-    };
-  }
-  if (defaultConnection === null) {
+  if (defaultConnection === null && !isManagedProject(project)) {
     throw new AgentIntegrationMaterializationError(
       `Source connection ${project.sourceConnectionId} was not found while materializing agent integrations`,
       {reason: 'source-connection-missing', connection: project.sourceConnectionId},
     );
   }
 
-  return {
+  const base = {
     catalogs: new Map(context.catalogs.map(({provider, tools}) => [provider, tools])),
     workspaceConnectionSnapshot,
-    defaultConnection: {
-      id: defaultConnection.id,
-      slug: defaultConnection.slug,
-      provider: defaultConnection.provider,
-    },
+    defaultConnection:
+      defaultConnection === null
+        ? null
+        : {
+            id: defaultConnection.id,
+            slug: defaultConnection.slug,
+            provider: defaultConnection.provider,
+          },
   };
+  const integrationOutcomes = await resolveIntegrationOutcomes({
+    model: params.model,
+    jobs: params.jobs,
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+    integrations: params.integrations,
+    workspaceConnectionSnapshot,
+  });
+  return {...base, integrationOutcomes};
+}
+
+const KEY_SEPARATOR = '\u0000';
+
+function agentStepKey(params: {readonly jobKey: string; readonly stepId: string}): string {
+  return [params.jobKey, params.stepId].join(KEY_SEPARATOR);
+}
+
+/**
+ * Asks Integrations for the tools every agent step and action step selects, one call per step.
+ * Integrations is the one place selectors are interpreted. A refused selection is kept as the
+ * step's outcome, so it fails the step it belongs to and no other.
+ */
+async function resolveIntegrationOutcomes(params: {
+  readonly model: WorkflowModel | null;
+  readonly jobs: readonly WorkflowModelJob[] | undefined;
+  readonly workspaceId: string;
+  readonly projectId: string;
+  readonly integrations: IntegrationsModuleClient;
+  readonly workspaceConnectionSnapshot: WorkspaceConnectionSnapshot;
+}): Promise<Map<string, IntegrationOutcome>> {
+  const outcomes = new Map<string, IntegrationOutcome>();
+  if (params.model === null) return outcomes;
+
+  const requests = (params.jobs ?? params.model.jobs).flatMap((job) =>
+    flattenJobSteps(job).flatMap((step) =>
+      stepIntegrationRequests({
+        key: agentStepKey({jobKey: job.key, stepId: step.id}),
+        step,
+        workspaceConnectionSnapshot: params.workspaceConnectionSnapshot,
+      }),
+    ),
+  );
+  await Promise.all(
+    requests.map(async (request) => {
+      try {
+        const {integrations} = await params.integrations.resolveAgentTools({
+          workspaceId: params.workspaceId,
+          projectId: params.projectId,
+          integrations: request.integrations,
+        });
+        outcomes.set(request.key, {kind: 'granted', grants: integrations});
+      } catch (error) {
+        const method = integrationsInterModuleContract.methods.resolveAgentTools;
+        if (!isInterModuleKnownError(method, error)) throw error;
+        if (error.code === 'project-not-found') {
+          throw new AgentIntegrationMaterializationError(
+            `Project ${params.projectId} was not found while materializing agent integrations`,
+          );
+        }
+        outcomes.set(request.key, {
+          kind: 'failed',
+          error: request.failure(error.details.integrationIndex, error.details),
+        });
+      }
+    }),
+  );
+  return outcomes;
+}
+
+interface IntegrationRequest {
+  readonly key: string;
+  readonly integrations: Parameters<
+    IntegrationsModuleClient['resolveAgentTools']
+  >[0]['integrations'];
+  readonly failure: (
+    index: number,
+    error: SelectionInvalid,
+  ) => AgentIntegrationMaterializationError;
+}
+
+function stepIntegrationRequests(params: {
+  readonly key: string;
+  readonly step: WorkflowModelJob['steps'][number];
+  readonly workspaceConnectionSnapshot: WorkspaceConnectionSnapshot;
+}): IntegrationRequest[] {
+  const {key, step} = params;
+  if (step.kind === 'agent' && step.integrations !== undefined) {
+    return [
+      {
+        key,
+        integrations: step.integrations.map((integration) => ({
+          ...(integration.connection === undefined ? {} : {connection: integration.connection}),
+          include: [...integration.include],
+          ...(integration.exclude === undefined ? {} : {exclude: [...integration.exclude]}),
+          allowWrite: integration.allowWrite,
+        })),
+        failure: (_index, error) =>
+          selectionFailure(error, (connection) => ({
+            connectionMissing: `Integration connection ${connection} was not found while materializing agent integrations`,
+          })),
+      },
+    ];
+  }
+  if (step.kind !== 'action') return [];
+
+  const aliases = Object.entries(step.action.integrations);
+  if (aliases.length === 0) return [];
+  return [
+    {
+      key,
+      integrations: aliases.map(([, integration]) => ({
+        connection: integration.connection,
+        provider: integration.provider,
+        include: [...integration.include],
+        allowWrite: integration.allowWrite,
+      })),
+      failure: (index, error) => {
+        const [alias, integration] = aliases[index] ?? ['', undefined];
+        return selectionFailure(error, (connection) => ({
+          connectionMissing: `Integration connection ${connection} was not found while materializing action integration ${alias}`,
+          providerMismatch: `Action integration ${alias} expects a ${integration?.provider} connection, but ${connection} is ${params.workspaceConnectionSnapshot.get(connection)?.provider}`,
+        }));
+      },
+    },
+  ];
+}
+
+interface SelectionInvalid {
+  readonly reason?: AgentIntegrationMaterializationReason | 'write-not-allowed' | undefined;
+  readonly message: string;
+  readonly connection?: string | undefined;
+  readonly tool?: string | undefined;
+}
+
+/**
+ * The failure of a refused selection. Integrations words it without a step in mind, so the two
+ * reasons that name the caller's own entry take the caller's wording.
+ */
+function selectionFailure(
+  error: SelectionInvalid,
+  wording: (connection: string) => {connectionMissing: string; providerMismatch?: string},
+): AgentIntegrationMaterializationError {
+  let message = error.message;
+  if (error.connection !== undefined) {
+    const custom = wording(error.connection);
+    if (error.reason === 'connection-missing') message = custom.connectionMissing;
+    if (error.reason === 'connection-provider-mismatch' && custom.providerMismatch !== undefined) {
+      message = custom.providerMismatch;
+    }
+  }
+  return new AgentIntegrationMaterializationError(message, {
+    reason: error.reason === 'write-not-allowed' ? undefined : error.reason,
+    connection: error.connection,
+    tool: error.tool,
+  });
 }
 
 export function materializeAgentIntegrations(params: {
@@ -157,11 +319,12 @@ export function materializeAgentIntegrations(params: {
       'Agent integrations require materialization context',
     );
   }
-  const {context} = params;
-
-  return params.integrations.map((integration) =>
-    materializeAgentIntegration({integration, context}),
-  );
+  const outcome = requireOutcome(params.context, {
+    jobKey: params.jobKey,
+    stepId: params.stepId,
+    what: 'Agent integrations',
+  });
+  return outcome.grants.map(toMaterializedIntegration);
 }
 
 export function materializeToolStep(params: {
@@ -229,49 +392,60 @@ export function materializeActionIntegrations(params: {
     );
   }
 
+  const outcome = requireOutcome(context, {
+    jobKey: params.jobKey,
+    stepId: params.stepId,
+    what: 'Action integrations',
+  });
   return Object.fromEntries(
-    aliases.map(([alias, integration]) => [
-      alias,
-      materializeActionIntegration({alias, integration, context}),
-    ]),
+    aliases.map(([alias], index) => {
+      const grant = outcome.grants[index];
+      if (grant === undefined) {
+        throw new AgentIntegrationMaterializationError(
+          `Action integration ${alias} was not resolved`,
+        );
+      }
+      return [alias, toMaterializedActionIntegration(grant)];
+    }),
   );
 }
 
-function materializeActionIntegration(params: {
-  readonly alias: string;
-  readonly integration: WorkflowModelActionIntegrations[string];
-  readonly context: AgentToolMaterializationContext;
-}): MaterializedActionIntegration {
-  const connection = resolveConnection({
-    connectionSlug: params.integration.connection,
-    context: params.context,
-    missingMessage: `Integration connection ${params.integration.connection} was not found while materializing action integration ${params.alias}`,
-  });
-  if (connection.provider !== params.integration.provider) {
+function requireOutcome(
+  context: AgentToolMaterializationContext,
+  params: {readonly jobKey: string; readonly stepId: string; readonly what: string},
+): Extract<IntegrationOutcome, {kind: 'granted'}> {
+  const outcome = context.integrationOutcomes?.get(agentStepKey(params));
+  if (outcome === undefined) {
     throw new AgentIntegrationMaterializationError(
-      `Action integration ${params.alias} expects a ${params.integration.provider} connection, but ${connection.slug} is ${connection.provider}`,
-      {reason: 'connection-provider-mismatch', connection: connection.slug},
+      `${params.what} require materialization context`,
     );
   }
-  const catalog = params.context.catalogs.get(connection.provider);
-  if (catalog === undefined) {
-    throw new AgentIntegrationMaterializationError(
-      `Integration provider ${connection.provider} has no agent tool catalog`,
-    );
-  }
+  if (outcome.kind === 'failed') throw outcome.error;
+  return outcome;
+}
 
-  const tools = selectToolStates({
-    catalog,
-    connection: connection.slug,
-    include: params.integration.include,
-    exclude: [],
-  }).map((state) => ({...materializedTool(state), result: state.entry.result}));
+/** The persisted grant leaves out what a model-facing caller reads: descriptions and result kind. */
+function toMaterializedIntegration(
+  grant: ResolvedAgentToolsGrant,
+): MaterializedAgentIntegrationConfigDto {
   return {
-    connectionId: connection.id,
-    connectionSlug: connection.slug,
-    provider: connection.provider,
-    requiredScope: mergeRequiredScopes(tools.map((tool) => tool.requiredScope)),
-    tools,
+    connectionId: grant.connectionId,
+    connectionSlug: grant.connectionSlug,
+    provider: grant.provider,
+    requiredScope: grant.requiredScope,
+    tools: grant.tools.map(({description: _description, result: _result, ...tool}) => tool),
+  };
+}
+
+function toMaterializedActionIntegration(
+  grant: ResolvedAgentToolsGrant,
+): MaterializedActionIntegration {
+  return {
+    connectionId: grant.connectionId,
+    connectionSlug: grant.connectionSlug,
+    provider: grant.provider,
+    requiredScope: grant.requiredScope,
+    tools: grant.tools.map(({description: _description, ...tool}) => tool),
   };
 }
 
@@ -443,39 +617,6 @@ function findSnapshotStep(params: {
   );
 }
 
-function materializeAgentIntegration(params: {
-  readonly integration: WorkflowModelStepIntegration;
-  readonly context: AgentToolMaterializationContext;
-}): MaterializedAgentIntegrationConfigDto {
-  const connection = resolveConnection({
-    connectionSlug: params.integration.connection,
-    context: params.context,
-    missingMessage: `Integration connection ${params.integration.connection} was not found while materializing agent integrations`,
-  });
-  const catalog = params.context.catalogs.get(connection.provider);
-  if (catalog === undefined) {
-    throw new AgentIntegrationMaterializationError(
-      `Integration provider ${connection.provider} has no agent tool catalog`,
-    );
-  }
-
-  const tools = selectToolStates({
-    catalog,
-    connection: connection.slug,
-    include: params.integration.include,
-    exclude: params.integration.exclude ?? [],
-  }).map(materializedTool);
-  const requiredScope = mergeRequiredScopes(tools.map((tool) => tool.requiredScope));
-
-  return {
-    connectionId: connection.id,
-    connectionSlug: connection.slug,
-    provider: connection.provider,
-    requiredScope,
-    tools,
-  };
-}
-
 function copyMaterializedIntegration(
   integration: MaterializedAgentIntegrationConfigDto,
 ): MaterializedAgentIntegrationConfigDto {
@@ -523,169 +664,6 @@ function resolveConnection(params: {
     id: connection.id,
     slug: params.connectionSlug,
     provider: connection.provider,
-  };
-}
-
-function selectToolStates(params: {
-  readonly catalog: readonly AgentToolCatalogEntry[];
-  readonly connection: string;
-  readonly include: readonly string[];
-  readonly exclude: readonly string[];
-}): SelectedToolState[] {
-  const selected = new Map<string, SelectedToolState>();
-
-  for (const token of params.include) {
-    applySelection({
-      catalog: params.catalog,
-      connection: params.connection,
-      selected,
-      token,
-      mode: 'include',
-    });
-  }
-  for (const token of params.exclude) {
-    applySelection({
-      catalog: params.catalog,
-      connection: params.connection,
-      selected,
-      token,
-      mode: 'exclude',
-    });
-  }
-
-  const states = params.catalog.flatMap((entry) => selected.get(entry.id) ?? []);
-  if (states.length === 0) {
-    throw new AgentIntegrationMaterializationError(
-      'Agent integration selection resolved to no tools',
-      {reason: 'no-tools-selected', connection: params.connection},
-    );
-  }
-  return states;
-}
-
-function applySelection(params: {
-  readonly catalog: readonly AgentToolCatalogEntry[];
-  readonly connection: string;
-  readonly selected: Map<string, SelectedToolState>;
-  readonly token: string;
-  readonly mode: 'include' | 'exclude';
-}): void {
-  if (params.token === '*') {
-    for (const entry of params.catalog) applyEntrySelection(params, entry);
-    return;
-  }
-
-  const match = findCatalogSelection(params.catalog, params.token);
-  if (match === undefined) {
-    throw new AgentIntegrationMaterializationError(`Unknown integration tool: ${params.token}`, {
-      reason: 'tool-unknown',
-      connection: params.connection,
-      tool: params.token,
-    });
-  }
-  applyEntrySelection(params, match.entry, match.method);
-}
-
-function applyEntrySelection(
-  params: {
-    readonly selected: Map<string, SelectedToolState>;
-    readonly token: string;
-    readonly mode: 'include' | 'exclude';
-  },
-  entry: AgentToolCatalogEntry,
-  method?: AgentToolCatalogMethod | undefined,
-): void {
-  if (params.mode === 'exclude') {
-    excludeEntrySelection(params.selected, entry, method);
-    return;
-  }
-
-  const state =
-    params.selected.get(entry.id) ??
-    ({entry, methods: new Map(), selectedStandalone: false} satisfies SelectedToolState);
-  if (entry.methods === undefined) {
-    state.selectedStandalone = true;
-  } else if (method === undefined) {
-    for (const candidate of entry.methods) state.methods.set(candidate.id, candidate);
-  } else {
-    state.methods.set(method.id, method);
-  }
-  params.selected.set(entry.id, state);
-}
-
-function excludeEntrySelection(
-  selected: Map<string, SelectedToolState>,
-  entry: AgentToolCatalogEntry,
-  method?: AgentToolCatalogMethod | undefined,
-): void {
-  if (method === undefined) {
-    selected.delete(entry.id);
-    return;
-  }
-
-  const state = selected.get(entry.id);
-  if (state === undefined) return;
-  state.methods.delete(method.id);
-  if (!state.selectedStandalone && state.methods.size === 0) selected.delete(entry.id);
-}
-
-function findCatalogSelection(
-  catalog: readonly AgentToolCatalogEntry[],
-  token: string,
-):
-  | {readonly entry: AgentToolCatalogEntry; readonly method?: AgentToolCatalogMethod | undefined}
-  | undefined {
-  const entry = catalog.find((candidate) => candidate.id === token);
-  if (entry !== undefined) return {entry};
-
-  const wildcardSuffix = '.*';
-  if (token.endsWith(wildcardSuffix)) {
-    const family = token.slice(0, -wildcardSuffix.length);
-    const familyEntry = catalog.find((candidate) => candidate.id === family);
-    return familyEntry === undefined ? undefined : {entry: familyEntry};
-  }
-
-  const dotIndex = token.indexOf('.');
-  if (dotIndex < 1) return undefined;
-  const family = token.slice(0, dotIndex);
-  const methodId = token.slice(dotIndex + 1);
-  const familyEntry = catalog.find((candidate) => candidate.id === family);
-  const method = familyEntry?.methods?.find((candidate) => candidate.id === methodId);
-  if (familyEntry === undefined || method === undefined) return undefined;
-  return {entry: familyEntry, method};
-}
-
-function materializedTool(state: SelectedToolState): MaterializedAgentIntegrationToolConfigDto {
-  if (state.entry.methods === undefined) {
-    return {
-      id: state.entry.id,
-      sensitivity: state.entry.sensitivity,
-      sensitive: state.entry.sensitive,
-      requiredScope: normalizeRequiredScope(state.entry.requiredScope),
-      inputSchema: state.entry.inputSchema,
-      ...(state.entry.outputSchema === undefined ? {} : {outputSchema: state.entry.outputSchema}),
-    };
-  }
-
-  const methods = state.entry.methods
-    .filter((method) => state.methods.has(method.id))
-    .map((method) => ({
-      id: method.id,
-      token: `${state.entry.id}.${method.id}`,
-      description: method.description,
-      sensitivity: method.sensitivity,
-      sensitive: method.sensitive,
-      requiredScope: normalizeRequiredScope(method.requiredScope),
-    }));
-
-  return {
-    id: state.entry.id,
-    sensitivity: methods.some((method) => method.sensitivity === 'write') ? 'write' : 'read',
-    sensitive: methods.some((method) => method.sensitive),
-    requiredScope: mergeRequiredScopes(methods.map((method) => method.requiredScope)),
-    inputSchema: state.entry.inputSchema,
-    ...(state.entry.outputSchema === undefined ? {} : {outputSchema: state.entry.outputSchema}),
-    methods,
   };
 }
 

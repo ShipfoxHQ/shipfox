@@ -33,6 +33,8 @@ export function toolResultMessageEntry(params: {
   toolName: string;
   text: string;
   isError: boolean;
+  /** Set when no one knows whether the call took effect. */
+  outcome?: 'unknown' | undefined;
 }): string {
   const now = Date.now();
   return messageEntry(
@@ -42,6 +44,7 @@ export function toolResultMessageEntry(params: {
       toolName: params.toolName,
       content: [{type: 'text', text: params.text}],
       isError: params.isError,
+      ...(params.outcome === undefined ? {} : {details: {outcome: params.outcome}}),
       timestamp: now,
     },
     now,

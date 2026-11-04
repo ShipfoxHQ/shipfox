@@ -2,6 +2,7 @@ import type {WorkflowModelAction} from '@shipfox/api-definitions-dto';
 import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import type {Step} from '#core/entities/step.js';
 import {ActionInputInvalidError} from '#core/errors.js';
+import {withIntegrationOutcomes} from '#test/fixtures/integrations-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
 import {materializeJobExecutionSteps} from './materialize-job-execution-steps.js';
@@ -56,7 +57,7 @@ async function materializeActionStep(step: ActionStepInput) {
     model,
     job,
     context: creationContext,
-    agentToolContext,
+    agentToolContext: await withIntegrationOutcomes(model, agentToolContext),
   });
   const materialized = steps[1];
   if (!materialized) throw new Error('Expected materialized action step');

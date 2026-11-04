@@ -11,6 +11,7 @@ import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {AgentToolCatalogEntry, AgentToolMaterializationContext} from '#core/agent-tools.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
+import {withIntegrationOutcomes} from '#test/fixtures/integrations-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import {
   jobChecksOutProjectSource,
@@ -903,7 +904,7 @@ describe('materializeJobExecutionSteps', () => {
       model,
       job,
       context: jobExecutionContext(),
-      agentToolContext: githubAgentToolContext(),
+      agentToolContext: await withIntegrationOutcomes(model, githubAgentToolContext()),
     });
     const integrations = steps[1]?.config.integrations;
 
@@ -1013,7 +1014,10 @@ describe('materializeJobExecutionSteps', () => {
           },
         },
       },
-      agentToolContext: githubAgentToolContext(typedToolCatalog()),
+      agentToolContext: await withIntegrationOutcomes(
+        model,
+        githubAgentToolContext(typedToolCatalog()),
+      ),
     });
 
     expect(steps[1]?.config.tool).toMatchObject({
@@ -1057,7 +1061,10 @@ describe('materializeJobExecutionSteps', () => {
       model,
       job,
       context: {...jobExecutionContext(runNumber), site: 'run-creation'},
-      agentToolContext: githubAgentToolContext(typedToolCatalog()),
+      agentToolContext: await withIntegrationOutcomes(
+        model,
+        githubAgentToolContext(typedToolCatalog()),
+      ),
     });
 
     expect(steps[1]?.config.tool).toMatchObject({
@@ -1110,7 +1117,10 @@ describe('materializeJobExecutionSteps', () => {
           },
         },
       },
-      agentToolContext: githubAgentToolContext(checkRunToolCatalog()),
+      agentToolContext: await withIntegrationOutcomes(
+        model,
+        githubAgentToolContext(checkRunToolCatalog()),
+      ),
     });
 
     expect(steps[1]?.config.tool).toMatchObject({
@@ -1206,7 +1216,10 @@ describe('materializeJobExecutionSteps', () => {
       model,
       job,
       context: jobExecutionContext(),
-      agentToolContext: githubAgentToolContext(typedToolCatalog()),
+      agentToolContext: await withIntegrationOutcomes(
+        model,
+        githubAgentToolContext(typedToolCatalog()),
+      ),
     });
     const persistedStep = JSON.parse(JSON.stringify(steps[1])) as (typeof steps)[number];
 
@@ -1252,7 +1265,7 @@ describe('materializeJobExecutionSteps', () => {
       model,
       job,
       context: jobExecutionContext(),
-      agentToolContext: githubAgentToolContext(),
+      agentToolContext: await withIntegrationOutcomes(model, githubAgentToolContext()),
     });
 
     expect(steps[1]?.config).toEqual({

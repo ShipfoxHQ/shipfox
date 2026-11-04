@@ -1,10 +1,17 @@
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {newConversationRecordId} from '#db/conversations.js';
-import {appendTurnEntry, getConversationById, getTurnById, getTurnEntry} from '#db/turn-runtime.js';
+import {
+  appendTurnEntry,
+  claimToolCallStart,
+  getConversationById,
+  getTurnById,
+  getTurnEntry,
+} from '#db/turn-runtime.js';
 import {conversationToolCallCount} from '#metrics/index.js';
 import {CONVERSATION_SESSION_VERSION, parseConversationEntry} from '../conversation-entries.js';
 import {
@@ -14,6 +21,8 @@ import {
   sealConversationEntry,
 } from '../conversation-sealing.js';
 import type {Conversation} from '../entities/conversation.js';
+import {ProjectAgentNotFoundError} from '../errors.js';
+import {type ResolvedProjectAgent, resolveProjectAgent} from '../project-agents.js';
 import {listConversationToolSet} from './conversation-tools.js';
 import {toolResultMessageEntry} from './entries.js';
 import {TurnFailure} from './failures.js';
@@ -25,6 +34,8 @@ export interface ToolCallParams {
   modelCallIndex: number;
   callIndex: number;
   integrations: IntegrationsModuleClient;
+  /** Reads the agent's file for the tools it grants. Without it, only the built-in tools exist. */
+  definitions?: DefinitionsInterModuleClient | undefined;
   /** True when Temporal won't retry the activity again, so a failure has to be recorded. */
   lastAttempt: boolean;
 }
@@ -88,6 +99,46 @@ interface ToolOutput {
   text: string;
   isError: boolean;
   sensitivity: 'read' | 'write' | 'local' | 'unknown';
+  /** Set when an earlier attempt began a write, so this one cannot tell if it took effect. */
+  outcome?: 'unknown';
+}
+
+export const UNKNOWN_WRITE_OUTCOME_TEXT =
+  'unknown: An earlier attempt of this call began, and Shipfox cannot tell whether it changed anything. It was not run again. Read the current state with a read tool before you try again.';
+
+/**
+ * Whether a call can change something outside Shipfox. A family tool is a write when the method
+ * it names is one, and any other call to a tool that has a write method counts as one.
+ */
+function isWriteCall(
+  tool: {
+    sensitivity: 'read' | 'write';
+    methods?: readonly {id: string; sensitivity: string}[] | undefined;
+  },
+  args: Record<string, unknown>,
+): boolean {
+  if (tool.sensitivity !== 'write') return false;
+  const method = tool.methods?.find((candidate) => candidate.id === args.method);
+  return method === undefined ? true : method.sensitivity === 'write';
+}
+
+/** The agent whose file grants the tools, or none when it has since been deleted. */
+async function readConversationAgent(params: {
+  conversation: Conversation;
+  definitions: DefinitionsInterModuleClient | undefined;
+}): Promise<ResolvedProjectAgent | undefined> {
+  const {conversation} = params;
+  try {
+    return await resolveProjectAgent({
+      definitions: params.definitions,
+      workspaceId: conversation.workspaceId,
+      projectId: conversation.projectId,
+      key: conversation.agentKey,
+    });
+  } catch (error) {
+    if (error instanceof ProjectAgentNotFoundError) return undefined;
+    throw error;
+  }
 }
 
 function contentText(content: readonly Record<string, unknown>[], result: unknown): string {
@@ -100,11 +151,19 @@ async function executeTool(params: {
   conversation: Conversation;
   turnId: string;
   call: RequestedToolCall;
+  modelCallIndex: number;
   callIndex: number;
   integrations: IntegrationsModuleClient;
+  definitions: DefinitionsInterModuleClient | undefined;
 }): Promise<ToolOutput> {
   const {call, conversation} = params;
-  const {tools} = await listConversationToolSet(params.integrations).catch((error: unknown) => {
+  const agent = await readConversationAgent({conversation, definitions: params.definitions});
+  const {tools} = await listConversationToolSet({
+    integrations: params.integrations,
+    workspaceId: conversation.workspaceId,
+    projectId: conversation.projectId,
+    agent,
+  }).catch((error: unknown) => {
     throw new TurnFailure('tool_catalog_unavailable', 'The tool catalog is unavailable', true, {
       cause: error,
     });
@@ -123,6 +182,24 @@ async function executeTool(params: {
     };
   }
 
+  // The start is committed before the call, so a crash or retry after it began never repeats a
+  // write. The model learns the outcome is unknown and reads the state itself.
+  if (
+    isWriteCall(entry.tool, call.arguments) &&
+    !(await claimToolCallStart({
+      turnId: params.turnId,
+      modelCallIndex: params.modelCallIndex,
+      callIndex: params.callIndex,
+    }))
+  ) {
+    return {
+      text: UNKNOWN_WRITE_OUTCOME_TEXT,
+      isError: false,
+      sensitivity: 'write',
+      outcome: 'unknown',
+    };
+  }
+
   try {
     const outcome = await params.integrations.callTool({
       workspaceId: conversation.workspaceId,
@@ -137,6 +214,7 @@ async function executeTool(params: {
         turnId: params.turnId,
         callItemId: `${call.assistantItemId}:${params.callIndex}`,
         ...(conversation.ownerUserId === null ? {} : {actorUserId: conversation.ownerUserId}),
+        ...(entry.grantedByAgent ? {grantedByAgent: true} : {}),
       },
     });
     return outcome.outcome === 'success'
@@ -189,6 +267,60 @@ async function reportToolProgress(params: {
   }
 }
 
+/** Stores the result of a call on the timeline, unless a concurrent attempt stored one first. */
+async function storeToolResult(params: {
+  conversation: Conversation;
+  position: {turnId: string; modelCallIndex: number; callIndex: number};
+  call: RequestedToolCall;
+  output: ToolOutput;
+}): Promise<ToolCallResult> {
+  const {conversation, position, call, output} = params;
+  const itemId = await newConversationRecordId();
+  const appended = await appendTurnEntry({
+    conversationId: conversation.id,
+    position,
+    completesModelCall: false,
+    entry: {
+      id: itemId,
+      entryType: 'message',
+      sessionVersion: CONVERSATION_SESSION_VERSION,
+      sealedEntry: sealConversationEntry({
+        key: await conversationDataKey(conversation.workspaceId),
+        aad: aadForConversationItem({
+          workspaceId: conversation.workspaceId,
+          conversationId: conversation.id,
+          itemId,
+        }),
+        entry: toolResultMessageEntry({
+          toolCallId: call.id,
+          toolName: call.name,
+          text: wrapToolResultText({toolName: call.name, text: output.text}),
+          isError: output.isError,
+          outcome: output.outcome,
+        }),
+      }),
+      meta: {
+        role: 'toolResult',
+        tool_call_id: call.id,
+        tool_name: call.name,
+        ...(output.isError ? {is_error: true} : {}),
+        ...(output.outcome === undefined ? {} : {outcome: output.outcome}),
+      },
+    },
+  });
+  if (!appended) throw new TurnFailure('internal_error', 'The turn ended before its result', false);
+  // A concurrent attempt may have stored first, and its result is the one the timeline holds.
+  if (!appended.stored) {
+    conversationToolCallCount.add(1, {sensitivity: output.sensitivity, outcome: 'replayed'});
+    return {status: appended.item.meta.is_error ? 'error' : 'success'};
+  }
+  conversationToolCallCount.add(1, {
+    sensitivity: output.sensitivity,
+    outcome: output.outcome ?? (output.isError ? 'error' : 'success'),
+  });
+  return {status: output.isError ? 'error' : 'success'};
+}
+
 /**
  * One tool call of a stored assistant reply. It reads the call from the stored entry, runs it,
  * and stores a `toolResult` entry, capped and wrapped as untrusted data. The result is unique per
@@ -229,8 +361,10 @@ export async function runToolCall(params: ToolCallParams): Promise<ToolCallResul
       conversation,
       turnId: params.turnId,
       call,
+      modelCallIndex: params.modelCallIndex,
       callIndex: params.callIndex,
       integrations: params.integrations,
+      definitions: params.definitions,
     });
   } catch (error) {
     if (!params.lastAttempt) throw error;
@@ -238,46 +372,5 @@ export async function runToolCall(params: ToolCallParams): Promise<ToolCallResul
     output = {text: 'The tool failed to run', isError: true, sensitivity: 'unknown'};
   }
 
-  const itemId = await newConversationRecordId();
-  const appended = await appendTurnEntry({
-    conversationId: conversation.id,
-    position,
-    completesModelCall: false,
-    entry: {
-      id: itemId,
-      entryType: 'message',
-      sessionVersion: CONVERSATION_SESSION_VERSION,
-      sealedEntry: sealConversationEntry({
-        key: await conversationDataKey(conversation.workspaceId),
-        aad: aadForConversationItem({
-          workspaceId: conversation.workspaceId,
-          conversationId: conversation.id,
-          itemId,
-        }),
-        entry: toolResultMessageEntry({
-          toolCallId: call.id,
-          toolName: call.name,
-          text: wrapToolResultText({toolName: call.name, text: output.text}),
-          isError: output.isError,
-        }),
-      }),
-      meta: {
-        role: 'toolResult',
-        tool_call_id: call.id,
-        tool_name: call.name,
-        ...(output.isError ? {is_error: true} : {}),
-      },
-    },
-  });
-  if (!appended) throw new TurnFailure('internal_error', 'The turn ended before its result', false);
-  // A concurrent attempt may have stored first, and its result is the one the timeline holds.
-  if (!appended.stored) {
-    conversationToolCallCount.add(1, {sensitivity: output.sensitivity, outcome: 'replayed'});
-    return {status: appended.item.meta.is_error ? 'error' : 'success'};
-  }
-  conversationToolCallCount.add(1, {
-    sensitivity: output.sensitivity,
-    outcome: output.isError ? 'error' : 'success',
-  });
-  return {status: output.isError ? 'error' : 'success'};
+  return await storeToolResult({conversation, position, call, output});
 }

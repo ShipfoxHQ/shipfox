@@ -125,6 +125,7 @@ export function createDefinitionSyncActivities(
       sourceControl,
       agent,
       projects,
+      integrations,
       options?.agentPath,
     ),
     // Versioned names keep old workers from silently dropping diagnostics.
@@ -237,6 +238,7 @@ function createFetchAndApplyAgentsActivity(
   sourceControl: DefinitionsSourceControl,
   agent: AgentInterModuleClient,
   projects: Pick<ProjectsModuleClient, 'getProjectById'>,
+  integrations: IntegrationsModuleClient | undefined,
   agentPath?: string | undefined,
 ) {
   return async function fetchAndApplyDefinitionAgents(
@@ -251,6 +253,15 @@ function createFetchAndApplyAgentsActivity(
         agentValidationCatalog: await agent.getValidationCatalogV2({
           workspaceId: input.workspaceId,
         }),
+        loadIntegrationValidationContext:
+          integrations === undefined
+            ? undefined
+            : async () =>
+                await loadIntegrationValidationContext(
+                  integrations,
+                  input.workspaceId,
+                  input.sourceConnectionId,
+                ),
         onProgress: (path) => Context.current().heartbeat({path}),
       });
 

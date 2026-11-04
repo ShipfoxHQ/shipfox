@@ -7,6 +7,7 @@ import {sessionDataKeys} from './schema/data-keys.js';
 import {modelProviderConfigs} from './schema/model-provider-configs.js';
 import {replyDeliveries} from './schema/reply-deliveries.js';
 import {sessions} from './schema/sessions.js';
+import {toolCallStarts} from './schema/tool-call-starts.js';
 import {turnStreamChunks} from './schema/turn-stream-chunks.js';
 import {turns} from './schema/turns.js';
 
@@ -18,6 +19,7 @@ export const schema = {
   conversations,
   conversationItems,
   turns,
+  toolCallStarts,
   turnStreamChunks,
   replyDeliveries,
 };

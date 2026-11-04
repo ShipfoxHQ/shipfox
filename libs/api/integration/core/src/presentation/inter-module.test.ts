@@ -1168,6 +1168,27 @@ describe('integrations inter-module callTool', () => {
     expect(onCall).not.toHaveBeenCalled();
   });
 
+  it('serves a conversation caller the full catalog when the agent file granted the tool', async () => {
+    const onCall = vi.fn();
+    const client = createToolCallClient({onCall});
+
+    const result = await client.callTool({
+      ...toolCallInput,
+      caller: {
+        kind: 'conversation',
+        projectId: 'project-1',
+        conversationId: 'conversation-1',
+        turnId: 'turn-1',
+        agentKey: 'shippy',
+        callItemId: 'item-1',
+        grantedByAgent: true,
+      },
+    });
+
+    expect(result.outcome).toBe('success');
+    expect(onCall).toHaveBeenCalledOnce();
+  });
+
   it('classifies repository targets from the conversation catalog', async () => {
     const onCall = vi.fn();
     const resolveRepositoryAuthorization = vi.fn(async () => ({
@@ -1897,5 +1918,162 @@ describe('integrations template conformance', () => {
         'connection shipfox uses provider shipfox, which is not available',
       ],
     });
+  });
+
+  describe('resolveAgentTools', () => {
+    const projectId = crypto.randomUUID();
+
+    function createResolver(params: {workspaceId: string; sourceConnectionId?: string}) {
+      const registry = createIntegrationProviderRegistry([
+        {
+          provider: 'github',
+          displayName: 'GitHub',
+          adapters: {
+            agent_tools: agentToolsProvider([
+              catalogTool({id: 'issue_read'}),
+              catalogTool({id: 'issue_write', sensitivity: 'write', methods: undefined}),
+            ]),
+          },
+        },
+      ]);
+      const sourceControl = createSourceControlIntegrationService({
+        registry,
+        getIntegrationConnectionById: async () => undefined,
+      });
+      const transport = createInMemoryInterModuleTransport();
+      const client = transport.createClient(integrationsInterModuleContract);
+      transport.register(
+        createIntegrationsInterModulePresentation({
+          registry,
+          sourceControl,
+          projects: {
+            getProjectById: async () => {
+              await Promise.resolve();
+              return {
+                project: {
+                  id: projectId,
+                  workspaceId: params.workspaceId,
+                  sourceConnectionId: params.sourceConnectionId ?? connectionId,
+                  sourceExternalRepositoryId: 'acme/api',
+                },
+              };
+            },
+          } as never,
+          getIntegrationConnectionById: async (id) => {
+            await Promise.resolve();
+            return id === params.sourceConnectionId
+              ? await integrationConnectionFactory.build({
+                  id,
+                  workspaceId: params.workspaceId,
+                  provider: 'github',
+                  slug: 'github_alpha',
+                })
+              : undefined;
+          },
+        }),
+      );
+      transport.seal();
+      return client;
+    }
+
+    it('grants a read tool of the project default connection', async () => {
+      const resolverWorkspaceId = crypto.randomUUID();
+      const github = await integrationConnectionFactory.create({
+        workspaceId: resolverWorkspaceId,
+        provider: 'github',
+        slug: 'github_alpha',
+      });
+      const client = createResolver({
+        workspaceId: resolverWorkspaceId,
+        sourceConnectionId: github.id,
+      });
+
+      const {integrations} = await client.resolveAgentTools({
+        workspaceId: resolverWorkspaceId,
+        projectId,
+        integrations: [{include: ['issue_read.get'], allowWrite: false}],
+      });
+
+      expect(integrations).toMatchObject([
+        {
+          connectionId: github.id,
+          connectionSlug: 'github_alpha',
+          provider: 'github',
+          tools: [{id: 'issue_read', sensitivity: 'read', methods: [{token: 'issue_read.get'}]}],
+        },
+      ]);
+    });
+
+    it('refuses a write tool without allowWrite as a known error that names the entry', async () => {
+      const resolverWorkspaceId = crypto.randomUUID();
+      const github = await integrationConnectionFactory.create({
+        workspaceId: resolverWorkspaceId,
+        provider: 'github',
+        slug: 'github_alpha',
+      });
+      const client = createResolver({
+        workspaceId: resolverWorkspaceId,
+        sourceConnectionId: github.id,
+      });
+
+      const error = await client
+        .resolveAgentTools({
+          workspaceId: resolverWorkspaceId,
+          projectId,
+          integrations: [
+            {include: ['issue_read'], allowWrite: false},
+            {include: ['issue_write'], allowWrite: false},
+          ],
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(
+        isInterModuleKnownError(integrationsInterModuleContract.methods.resolveAgentTools, error),
+      ).toBe(true);
+      expect(error).toMatchObject({
+        code: 'selection-invalid',
+        details: {
+          integrationIndex: 1,
+          reason: 'write-not-allowed',
+          connection: 'github_alpha',
+          tool: 'issue_write',
+        },
+      });
+    });
+
+    it('treats a project of another workspace as missing', async () => {
+      const client = createResolver({workspaceId: crypto.randomUUID()});
+
+      await expect(
+        client.resolveAgentTools({
+          workspaceId: crypto.randomUUID(),
+          projectId,
+          integrations: [{include: ['issue_read'], allowWrite: false}],
+        }),
+      ).rejects.toMatchObject({code: 'project-not-found', details: {projectId}});
+    });
+  });
+
+  it('answers the agent tools context without a default connection', async () => {
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {agent_tools: agentToolsProvider([catalogTool({id: 'issue_read'})])},
+      },
+    ]);
+    const sourceControl = createSourceControlIntegrationService({
+      registry,
+      getIntegrationConnectionById: async () => undefined,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
+    transport.seal();
+
+    const context = await client.getAgentToolsContext({workspaceId});
+
+    expect(context.defaultConnection).toBeNull();
+    expect(context.catalogs).toMatchObject([{provider: 'github'}]);
   });
 });

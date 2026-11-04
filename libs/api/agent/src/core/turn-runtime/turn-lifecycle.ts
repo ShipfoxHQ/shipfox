@@ -65,12 +65,17 @@ async function pinConversationPrompt(
 ): Promise<void> {
   if (conversation.lastSeq > 0) return;
 
-  const [{project}, toolSet, integration, agent] = await Promise.all([
+  const [{project}, integration, agent] = await Promise.all([
     deps.projects.getProjectById({projectId: conversation.projectId}),
-    listConversationToolSet(deps.integrations),
     integrationPromptContext(conversation, deps.integrations),
     resolveConversationAgent(conversation, deps),
   ]);
+  const toolSet = await listConversationToolSet({
+    integrations: deps.integrations,
+    workspaceId: conversation.workspaceId,
+    projectId: conversation.projectId,
+    agent,
+  });
   const itemId = await newConversationRecordId();
   await pinSystemEntry({
     conversationId: conversation.id,
