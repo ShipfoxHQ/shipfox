@@ -1,10 +1,11 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
+import {cacheDeletedScopes} from './schema/deleted-scopes.js';
 import {cacheDeletions} from './schema/deletions.js';
 import {cacheEntries} from './schema/entries.js';
 import {cacheWorkspaceSettings} from './schema/workspace-settings.js';
 
-export const schema = {cacheEntries, cacheWorkspaceSettings, cacheDeletions};
+export const schema = {cacheEntries, cacheWorkspaceSettings, cacheDeletions, cacheDeletedScopes};
 
 export type Database = NodePgDatabase<typeof schema>;
 

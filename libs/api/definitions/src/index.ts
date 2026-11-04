@@ -12,6 +12,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {
+  PROJECT_DELETED,
   PROJECT_SOURCE_BOUND,
   PROJECT_SOURCE_COMMIT_OBSERVED,
   type ProjectsEventMap,
@@ -28,6 +29,7 @@ import {createDefinitionRoutes} from '#presentation/index.js';
 import {createDefinitionsInterModulePresentation} from '#presentation/inter-module.js';
 import {
   createOnIntegrationConnectionAvailable,
+  onProjectDeleted,
   onProjectSourceBound,
   onProjectSourceCommitObserved,
 } from '#presentation/subscribers/index.js';
@@ -110,6 +112,7 @@ export function createDefinitionsModule({
         INTEGRATION_CONNECTION_AVAILABLE,
         createOnIntegrationConnectionAvailable(projects),
       ),
+      subscriber(PROJECT_DELETED, onProjectDeleted),
       subscriber(PROJECT_SOURCE_BOUND, onProjectSourceBound),
       subscriber(PROJECT_SOURCE_COMMIT_OBSERVED, onProjectSourceCommitObserved),
     ],

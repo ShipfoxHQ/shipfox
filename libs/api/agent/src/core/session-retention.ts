@@ -134,7 +134,7 @@ export async function runSessionRetentionSweep(
         return batch.map(({session}) => session);
       },
       async (session) => {
-        await deleteExpiredSession(session);
+        await deleteSessionWithObjects(session);
         result.sessionsDeleted += 1;
       },
     );
@@ -172,7 +172,7 @@ export async function runSessionRetentionSweep(
 }
 
 /**
- * Deletes one expired session: its objects (minus head objects a carried-over
+ * Deletes one session, expired or not: its objects (minus head objects a carried-over
  * rerun row still references) and then its row. The object deletion and the
  * row delete happen under a `FOR UPDATE` lock on the session row, so a
  * concurrent `carryOverSessions` (which locks the same source rows) can never
@@ -184,7 +184,7 @@ export async function runSessionRetentionSweep(
  * other rows gone and deletes the object, so two sweeps processing the same
  * shared head can never both preserve it and leave a permanent storage orphan.
  */
-async function deleteExpiredSession(session: AgentSession): Promise<void> {
+export async function deleteSessionWithObjects(session: AgentSession): Promise<void> {
   await db().transaction(async (tx) => {
     const [row] = await tx
       .select({id: sessions.id, headObjectKey: sessions.headObjectKey})

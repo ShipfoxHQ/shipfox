@@ -1,7 +1,9 @@
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {and, asc, eq, like, notInArray, sql} from 'drizzle-orm';
 import type {CacheDeletionReason, CacheEntry} from '#core/entities/cache-entry.js';
 import {cacheDeletionCount} from '#metrics/instance.js';
 import {db} from './db.js';
+import {cacheDeletedScopes} from './schema/deleted-scopes.js';
 import {cacheDeletions} from './schema/deletions.js';
 import {cacheEntries, toCacheEntry} from './schema/entries.js';
 import {cacheWorkspaceSettings} from './schema/workspace-settings.js';
@@ -21,26 +23,35 @@ export interface InsertUploadingEntryParams extends EntryIdentity {
   createdByJobExecutionId: string;
 }
 
-/** Returns `undefined` when the identity is taken, so the unique index decides concurrent reserves. */
+/**
+ * Returns `undefined` when the identity is taken, so the unique index decides concurrent reserves.
+ * Throws `ScopeDeletedError` when the project was deleted.
+ */
 export async function insertUploadingEntry(
   params: InsertUploadingEntryParams,
 ): Promise<CacheEntry | undefined> {
-  const [row] = await db()
-    .insert(cacheEntries)
-    .values({
+  const [row] = await db().transaction(async (tx) => {
+    await assertScopeWritable(tx, cacheDeletedScopes, {
       workspaceId: params.workspaceId,
       projectId: params.projectId,
-      scope: params.scope,
-      key: params.key,
-      version: params.version,
-      status: 'uploading',
-      sizeBytes: params.sizeBytes,
-      sha256: params.sha256,
-      createdByRunId: params.createdByRunId,
-      createdByJobExecutionId: params.createdByJobExecutionId,
-    })
-    .onConflictDoNothing()
-    .returning();
+    });
+    return await tx
+      .insert(cacheEntries)
+      .values({
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        scope: params.scope,
+        key: params.key,
+        version: params.version,
+        status: 'uploading',
+        sizeBytes: params.sizeBytes,
+        sha256: params.sha256,
+        createdByRunId: params.createdByRunId,
+        createdByJobExecutionId: params.createdByJobExecutionId,
+      })
+      .onConflictDoNothing()
+      .returning();
+  });
   return row ? toCacheEntry(row) : undefined;
 }
 

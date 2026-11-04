@@ -56,6 +56,8 @@ export const triggersDecisions = pgTable(
       .on(table.receivedEventId)
       .where(sql`${table.subscriptionKind} = 'agent' AND ${table.subscriptionId} IS NULL`),
     index('triggers_decisions_run_idx').on(table.runId),
+    // The purge of a deleted project deletes by project.
+    index('triggers_decisions_project_idx').on(table.projectId),
     check(
       'triggers_decisions_subscription_kind_ck',
       sql`${table.subscriptionKind} IN ('trigger', 'listener', 'dev', 'agent')`,

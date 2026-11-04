@@ -272,7 +272,7 @@ export function createSessionArtifactStore(params: {
     async deleteSessionObjects(session) {
       await db().transaction(async (tx) => {
         // Lock the source row through the reference check and the object
-        // deletion, mirroring the retention sweep's `deleteExpiredSession`: a
+        // deletion, mirroring the retention sweep's `deleteSessionWithObjects`: a
         // concurrent carry-over (which locks the same source rows) can never
         // copy this head pointer between the check and the deletion.
         const [row] = await tx

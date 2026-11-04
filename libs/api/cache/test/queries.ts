@@ -1,6 +1,7 @@
 import {and, eq} from 'drizzle-orm';
 import type {CacheDeletionReason, CacheEntry} from '#core/entities/cache-entry.js';
 import {db} from '#db/db.js';
+import {cacheDeletedScopes} from '#db/schema/deleted-scopes.js';
 import {cacheDeletions} from '#db/schema/deletions.js';
 import {cacheEntries, toCacheEntry} from '#db/schema/entries.js';
 import {cacheWorkspaceSettings} from '#db/schema/workspace-settings.js';
@@ -80,4 +81,13 @@ export async function insertDeletion(params: {projectId: string; deletedAt: Date
     reason: 'expired',
     deletedAt: params.deletedAt,
   });
+}
+
+export async function findDeletedScope(projectId: string) {
+  const [row] = await db()
+    .select()
+    .from(cacheDeletedScopes)
+    .where(eq(cacheDeletedScopes.projectId, projectId))
+    .limit(1);
+  return row;
 }

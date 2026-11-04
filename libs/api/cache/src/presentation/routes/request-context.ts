@@ -1,5 +1,6 @@
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   CacheEntryNotCommittableError,
@@ -59,6 +60,9 @@ export function createCacheRequestContext(
 }
 
 export function translateCacheError(error: unknown): never {
+  if (error instanceof ScopeDeletedError) {
+    throw new ClientError('Project not found for this lease', 'project-not-found', {status: 404});
+  }
   if (error instanceof ReservedScopeError) {
     throw new ClientError(error.message, 'reserved-scope', {status: 400});
   }

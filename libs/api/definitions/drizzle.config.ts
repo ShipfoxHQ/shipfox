@@ -5,6 +5,7 @@ export default defineConfig({
     './src/db/schema/action-snapshots.ts',
     './src/db/schema/agents.ts',
     './src/db/schema/definitions.ts',
+    './src/db/schema/deleted-scopes.ts',
     './src/db/schema/outbox.ts',
     './src/db/schema/sync-states.ts',
     './src/db/schema/workflows.ts',

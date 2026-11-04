@@ -8,6 +8,7 @@ import {
 } from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {z} from 'zod';
@@ -56,6 +57,9 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
           details: error.details,
           status: 400,
         });
+      }
+      if (error instanceof ScopeDeletedError) {
+        throw new ClientError('Project not found', 'project-not-found', {status: 404});
       }
       throw error;
     },

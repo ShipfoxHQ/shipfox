@@ -31,6 +31,12 @@ export {
   upsertModelProviderConfig,
 } from './model-provider-configs.js';
 export {
+  deleteProjectConversations,
+  listProjectSessions,
+  markProjectAgentPurged,
+  recordProjectAgentDeleted,
+} from './project-purge.js';
+export {
   getSessionById,
   hasSessionReferencingObjectKey,
   listExpiredSessions,
@@ -39,6 +45,7 @@ export {
 } from './retention.js';
 export {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
 export {sessionDataKeys} from './schema/data-keys.js';
+export {agentDeletedScopes} from './schema/deleted-scopes.js';
 export {modelProviderConfigs} from './schema/model-provider-configs.js';
 export {sessions} from './schema/sessions.js';
 export type {

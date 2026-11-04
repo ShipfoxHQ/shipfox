@@ -1,9 +1,10 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {UsageModuleClient} from '@shipfox/api-usage-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
-import type {ShipfoxModule} from '@shipfox/node-module';
+import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {type CacheStoragePolicy, createWorkspaceStorageLimits} from '#core/storage-policy.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/index.js';
@@ -11,6 +12,7 @@ import {registerCacheServiceMetrics} from '#metrics/service.js';
 import {createCacheInterModulePresentation} from '#presentation/inter-module.js';
 import {createCacheRoutes} from '#presentation/routes/index.js';
 import {createCacheManagementRoutes} from '#presentation/routes/management/index.js';
+import {onProjectDeleted} from '#presentation/subscribers/on-project-deleted.js';
 import {createCacheActivities} from '#temporal/activities/index.js';
 import {
   CACHE_MAINTENANCE_TASK_QUEUE,
@@ -41,6 +43,7 @@ export function createCacheModule({
 }): ShipfoxModule {
   // One instance, so the routes and the sweeper share the resolved limits.
   const limits = createWorkspaceStorageLimits(storage?.policy);
+  const projectsSubscriber = subscriberFactory<ProjectsEventMap>();
 
   return {
     name: 'cache',
@@ -51,6 +54,7 @@ export function createCacheModule({
     ],
     interModulePresentations: [createCacheInterModulePresentation({projects, limits})],
     metrics: registerCacheServiceMetrics,
+    subscribers: [projectsSubscriber(PROJECT_DELETED, onProjectDeleted)],
     workers: [
       {
         taskQueue: CACHE_MAINTENANCE_TASK_QUEUE,

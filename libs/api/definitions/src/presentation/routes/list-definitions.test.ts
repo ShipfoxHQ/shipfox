@@ -71,6 +71,7 @@ describe('GET /api/definitions', () => {
     const startedAt = new Date('2026-05-07T01:00:00.000Z');
     const finishedAt = new Date('2026-05-07T01:00:05.000Z');
     await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId,
@@ -118,6 +119,7 @@ describe('GET /api/definitions', () => {
   test('returns failed sync summary', async () => {
     const startedAt = new Date('2026-05-07T02:00:00.000Z');
     await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId,

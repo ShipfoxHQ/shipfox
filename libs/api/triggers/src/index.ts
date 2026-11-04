@@ -13,6 +13,7 @@ import {
   type IntegrationsEventMap,
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
@@ -40,6 +41,7 @@ import {
   onDefinitionResolved,
   onJobActivated,
   onJobTerminated,
+  onProjectDeleted,
 } from '#presentation/subscribers/index.js';
 import {
   createTriggersCronActivities,
@@ -96,7 +98,10 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const temporalWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 const subscriber = subscriberFactory<
-  DefinitionsEventMap & IntegrationsEventMap & WorkflowsEventMapDto
+  DefinitionsEventMap &
+    IntegrationsEventMap &
+    WorkflowsEventMapDto &
+    Pick<ProjectsEventMap, typeof PROJECT_DELETED>
 >();
 
 export interface CreateTriggersModuleOptions {
@@ -137,6 +142,7 @@ export function createTriggersModule({
     ],
     publishers: [{name: 'triggers', table: triggersOutbox, db}],
     subscribers: [
+      subscriber(PROJECT_DELETED, onProjectDeleted),
       subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
       subscriber(DEFINITION_AGENT_RULES_RESOLVED, onDefinitionAgentRulesResolved),
       subscriber(DEFINITION_DELETED, onDefinitionDeleted),

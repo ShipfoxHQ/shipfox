@@ -25,8 +25,11 @@ export const cacheSaveCount = meter.createCounter<{result: CacheSaveResult}>('ca
   description: 'Cache save steps by result: reserve outcomes, commits, aborts, and failed commits',
 });
 
-/** A stale upload was never a visible entry, so it has a reason of its own. */
-export type CacheDeletionMetricReason = CacheDeletionReason | 'stale_upload';
+/**
+ * A stale upload was never a visible entry, and a project purge leaves no deletion record, so each
+ * has a reason of its own.
+ */
+export type CacheDeletionMetricReason = CacheDeletionReason | 'stale_upload' | 'project_deleted';
 
 export const cacheDeletionCount = meter.createCounter<{reason: CacheDeletionMetricReason}>(
   'cache_deletions',

@@ -1,6 +1,7 @@
 import {requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {ClientError, type FastifyRequest} from '@shipfox/node-fastify';
 import type {Conversation} from '#core/entities/conversation.js';
 import {
@@ -75,6 +76,9 @@ export async function requireConversationAgent(
 }
 
 export function translateConversationRouteError(error: unknown): never {
+  if (error instanceof ScopeDeletedError) {
+    throw new ClientError('Project not found', 'project-not-found', {status: 404, cause: error});
+  }
   if (error instanceof ConversationNotFoundError) throw conversationNotFound(error);
   if (error instanceof ConversationTurnRunningError) {
     throw new ClientError('A turn is running in this conversation', 'conversation-turn-running', {

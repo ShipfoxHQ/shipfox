@@ -9,6 +9,7 @@ import {
   projectsInterModuleContract,
 } from '@shipfox/api-projects-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {
   findIntegrationConversation,
   insertIntegrationConversation,
@@ -152,7 +153,7 @@ async function startConversation(args: {
   const key = await conversationDataKey(params.workspaceId);
   const conversationId = await newConversationRecordId();
   const itemId = await newConversationRecordId();
-  const {conversation, created} = await insertIntegrationConversation({
+  const inserted = await insertIntegrationConversation({
     id: conversationId,
     workspaceId: params.workspaceId,
     projectId: args.projectId,
@@ -177,7 +178,13 @@ async function startConversation(args: {
       }),
       meta: {role: 'user'},
     },
+  }).catch((error: unknown) => {
+    // The project was deleted after the check above, so the request has no project to join.
+    if (error instanceof ScopeDeletedError) return undefined;
+    throw error;
   });
+  if (!inserted) return {outcome: 'dropped', reason: 'project-deleted'};
+  const {conversation, created} = inserted;
   // Another delivery won the race for this key, so this one is a message to its owner.
   if (!created) return await deliverToOwner({params, owner: conversation, messageId, deps});
 

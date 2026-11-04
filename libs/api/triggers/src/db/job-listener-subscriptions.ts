@@ -4,6 +4,7 @@ import type {
   JobListenerSubscription,
 } from '#core/entities/job-listener-subscription.js';
 import {db} from './db.js';
+import {assertTriggersScopeWritable} from './deleted-scopes.js';
 import {
   jobListenerSubscriptions,
   toJobListenerSubscription,
@@ -35,6 +36,10 @@ export async function projectJobListenerSubscriptions(
   params: ProjectJobListenerSubscriptionsParams,
 ): Promise<void> {
   await db().transaction(async (tx) => {
+    await assertTriggersScopeWritable(tx, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     await pruneStaleMatchers(tx, params.jobId, 'on', params.on ?? []);
     await pruneStaleMatchers(tx, params.jobId, 'until', params.until ?? []);
 

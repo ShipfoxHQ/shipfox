@@ -5,6 +5,7 @@ import {conversationItems} from './schema/conversation-items.js';
 import {conversationRunLinks} from './schema/conversation-run-links.js';
 import {conversations} from './schema/conversations.js';
 import {sessionDataKeys} from './schema/data-keys.js';
+import {agentDeletedScopes} from './schema/deleted-scopes.js';
 import {modelProviderConfigs} from './schema/model-provider-configs.js';
 import {replyDeliveries} from './schema/reply-deliveries.js';
 import {sessions} from './schema/sessions.js';
@@ -17,6 +18,7 @@ export const schema = {
   agentWorkspaceSettings,
   sessions,
   sessionDataKeys,
+  agentDeletedScopes,
   conversations,
   conversationItems,
   conversationRunLinks,

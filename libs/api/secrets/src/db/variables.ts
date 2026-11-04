@@ -1,6 +1,8 @@
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {and, eq, inArray, isNull, sql} from 'drizzle-orm';
 import {SecretBatchScopeMismatchError} from '#core/errors.js';
 import {db, type Tx} from './db.js';
+import {secretsDeletedScopes} from './schema/deleted-scopes.js';
 import {type SecretVariable, secretVariables, toSecretVariable} from './schema/variables.js';
 import {
   lookupWithPrecedenceWhere,
@@ -61,8 +63,15 @@ export async function listSecretVariableRowsByNamespace(
 }
 
 export async function upsertSecretVariableRows(rows: SecretVariableWrite[], tx: Tx): Promise<void> {
-  if (rows.length === 0) return;
+  const first = rows[0];
+  if (!first) return;
   const projectId = batchProjectId(rows);
+  if (projectId) {
+    await assertScopeWritable(tx, secretsDeletedScopes, {
+      workspaceId: first.workspaceId,
+      projectId,
+    });
+  }
   await tx
     .insert(secretVariables)
     .values(rows)

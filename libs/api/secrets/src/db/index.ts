@@ -23,7 +23,13 @@ export {
   type SecretManagementRow,
   type VariableManagementListRow,
 } from './management.js';
+export {
+  deleteProjectSecretRows,
+  markProjectSecretsPurged,
+  recordProjectSecretsDeleted,
+} from './project-purge.js';
 export {secretDataKeys} from './schema/data-keys.js';
+export {secretsDeletedScopes} from './schema/deleted-scopes.js';
 export {secretsOutbox} from './schema/outbox.js';
 export {secretValues} from './schema/values.js';
 export {secretVariables} from './schema/variables.js';

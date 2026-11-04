@@ -8,6 +8,7 @@ import type {JobListenerSubscription} from '#core/entities/job-listener-subscrip
 import type {TriggerEventOrigin, TriggerEventResource} from '#core/entities/received-event.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {db} from './db.js';
+import {inWritableScope} from './deleted-scopes.js';
 import {triggersDecisions} from './schema/decisions.js';
 import {triggersReceivedEvents} from './schema/received-events.js';
 
@@ -140,35 +141,42 @@ export interface UpsertTriggeredDecisionParams {
 export async function upsertTriggeredDecision(
   params: UpsertTriggeredDecisionParams,
 ): Promise<void> {
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      receivedEventId: params.receivedEventId,
-      subscriptionKind: 'trigger',
-      subscriptionId: params.subscription.id,
-      subscriptionName: params.subscription.name,
-      workflowDefinitionId: params.subscription.workflowDefinitionId,
-      projectId: params.subscription.projectId,
-      decision: 'triggered',
-      runId: params.run.id,
-      runName: params.run.name,
-      reason: null,
-      diagnostic: null,
-    })
-    .onConflictDoUpdate({
-      target: [
-        triggersDecisions.receivedEventId,
-        triggersDecisions.subscriptionKind,
-        triggersDecisions.subscriptionId,
-      ],
-      set: {
-        decision: 'triggered',
-        runId: params.run.id,
-        runName: params.run.name,
-        reason: null,
-        diagnostic: null,
-      },
-    });
+  await inWritableScope(
+    {
+      workspaceId: params.subscription.workspaceId,
+      projectId: params.subscription.projectId ?? undefined,
+    },
+    (tx) =>
+      tx
+        .insert(triggersDecisions)
+        .values({
+          receivedEventId: params.receivedEventId,
+          subscriptionKind: 'trigger',
+          subscriptionId: params.subscription.id,
+          subscriptionName: params.subscription.name,
+          workflowDefinitionId: params.subscription.workflowDefinitionId,
+          projectId: params.subscription.projectId,
+          decision: 'triggered',
+          runId: params.run.id,
+          runName: params.run.name,
+          reason: null,
+          diagnostic: null,
+        })
+        .onConflictDoUpdate({
+          target: [
+            triggersDecisions.receivedEventId,
+            triggersDecisions.subscriptionKind,
+            triggersDecisions.subscriptionId,
+          ],
+          set: {
+            decision: 'triggered',
+            runId: params.run.id,
+            runName: params.run.name,
+            reason: null,
+            diagnostic: null,
+          },
+        }),
+  );
 }
 
 export interface UpsertFailedDecisionParams {
@@ -193,34 +201,41 @@ async function upsertFailedDecision(
   params: UpsertFailedDecisionParams,
   decision: 'filter-error' | 'dispatch-error',
 ): Promise<void> {
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      receivedEventId: params.receivedEventId,
-      subscriptionKind: 'trigger',
-      subscriptionId: params.subscription.id,
-      subscriptionName: params.subscription.name,
-      workflowDefinitionId: params.subscription.workflowDefinitionId,
-      projectId: params.subscription.projectId,
-      decision,
-      reason: params.reason,
-      diagnostic: params.diagnostic,
-    })
-    .onConflictDoUpdate({
-      target: [
-        triggersDecisions.receivedEventId,
-        triggersDecisions.subscriptionKind,
-        triggersDecisions.subscriptionId,
-      ],
-      set: {
-        decision,
-        reason: params.reason,
-        diagnostic: params.diagnostic,
-        runId: null,
-        runName: null,
-      },
-      setWhere: ne(triggersDecisions.decision, 'triggered'),
-    });
+  await inWritableScope(
+    {
+      workspaceId: params.subscription.workspaceId,
+      projectId: params.subscription.projectId ?? undefined,
+    },
+    (tx) =>
+      tx
+        .insert(triggersDecisions)
+        .values({
+          receivedEventId: params.receivedEventId,
+          subscriptionKind: 'trigger',
+          subscriptionId: params.subscription.id,
+          subscriptionName: params.subscription.name,
+          workflowDefinitionId: params.subscription.workflowDefinitionId,
+          projectId: params.subscription.projectId,
+          decision,
+          reason: params.reason,
+          diagnostic: params.diagnostic,
+        })
+        .onConflictDoUpdate({
+          target: [
+            triggersDecisions.receivedEventId,
+            triggersDecisions.subscriptionKind,
+            triggersDecisions.subscriptionId,
+          ],
+          set: {
+            decision,
+            reason: params.reason,
+            diagnostic: params.diagnostic,
+            runId: null,
+            runName: null,
+          },
+          setWhere: ne(triggersDecisions.decision, 'triggered'),
+        }),
+  );
 }
 
 export interface UpsertFilteredDecisionParams {
@@ -233,34 +248,41 @@ export interface UpsertFilteredDecisionParams {
 // The project's access refused the event before its filter ran. A run an earlier attempt created
 // stays recorded.
 export async function upsertFilteredDecision(params: UpsertFilteredDecisionParams): Promise<void> {
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      receivedEventId: params.receivedEventId,
-      subscriptionKind: 'trigger',
-      subscriptionId: params.subscription.id,
-      subscriptionName: params.subscription.name,
-      workflowDefinitionId: params.subscription.workflowDefinitionId,
-      projectId: params.subscription.projectId,
-      decision: 'filtered',
-      reason: params.reason,
-      diagnostic: params.diagnostic,
-    })
-    .onConflictDoUpdate({
-      target: [
-        triggersDecisions.receivedEventId,
-        triggersDecisions.subscriptionKind,
-        triggersDecisions.subscriptionId,
-      ],
-      set: {
-        decision: 'filtered',
-        reason: params.reason,
-        diagnostic: params.diagnostic,
-        runId: null,
-        runName: null,
-      },
-      setWhere: ne(triggersDecisions.decision, 'triggered'),
-    });
+  await inWritableScope(
+    {
+      workspaceId: params.subscription.workspaceId,
+      projectId: params.subscription.projectId ?? undefined,
+    },
+    (tx) =>
+      tx
+        .insert(triggersDecisions)
+        .values({
+          receivedEventId: params.receivedEventId,
+          subscriptionKind: 'trigger',
+          subscriptionId: params.subscription.id,
+          subscriptionName: params.subscription.name,
+          workflowDefinitionId: params.subscription.workflowDefinitionId,
+          projectId: params.subscription.projectId,
+          decision: 'filtered',
+          reason: params.reason,
+          diagnostic: params.diagnostic,
+        })
+        .onConflictDoUpdate({
+          target: [
+            triggersDecisions.receivedEventId,
+            triggersDecisions.subscriptionKind,
+            triggersDecisions.subscriptionId,
+          ],
+          set: {
+            decision: 'filtered',
+            reason: params.reason,
+            diagnostic: params.diagnostic,
+            runId: null,
+            runName: null,
+          },
+          setWhere: ne(triggersDecisions.decision, 'triggered'),
+        }),
+  );
 }
 
 export interface UpsertListenerFilteredDecisionParams {
@@ -273,31 +295,38 @@ export interface UpsertListenerFilteredDecisionParams {
 export async function upsertListenerFilteredDecision(
   params: UpsertListenerFilteredDecisionParams,
 ): Promise<void> {
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      ...listenerDecisionIdentity(params),
-      projectId: params.subscription.projectId,
-      decision: 'filtered',
-      reason: params.reason,
-      diagnostic: params.diagnostic,
-    })
-    .onConflictDoUpdate({
-      target: [
-        triggersDecisions.receivedEventId,
-        triggersDecisions.subscriptionKind,
-        triggersDecisions.subscriptionId,
-      ],
-      set: {
-        projectId: params.subscription.projectId,
-        decision: 'filtered',
-        reason: params.reason,
-        diagnostic: params.diagnostic,
-        runId: null,
-        runName: null,
-      },
-      setWhere: ne(triggersDecisions.decision, 'triggered'),
-    });
+  await inWritableScope(
+    {
+      workspaceId: params.subscription.workspaceId,
+      projectId: params.subscription.projectId ?? undefined,
+    },
+    (tx) =>
+      tx
+        .insert(triggersDecisions)
+        .values({
+          ...listenerDecisionIdentity(params),
+          projectId: params.subscription.projectId,
+          decision: 'filtered',
+          reason: params.reason,
+          diagnostic: params.diagnostic,
+        })
+        .onConflictDoUpdate({
+          target: [
+            triggersDecisions.receivedEventId,
+            triggersDecisions.subscriptionKind,
+            triggersDecisions.subscriptionId,
+          ],
+          set: {
+            projectId: params.subscription.projectId,
+            decision: 'filtered',
+            reason: params.reason,
+            diagnostic: params.diagnostic,
+            runId: null,
+            runName: null,
+          },
+          setWhere: ne(triggersDecisions.decision, 'triggered'),
+        }),
+  );
 }
 
 export interface UpsertListenerTriggeredDecisionParams {
@@ -308,24 +337,31 @@ export interface UpsertListenerTriggeredDecisionParams {
 export async function upsertListenerTriggeredDecision(
   params: UpsertListenerTriggeredDecisionParams,
 ): Promise<void> {
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      ...listenerDecisionIdentity(params),
-      decision: 'triggered',
-      runId: null,
-      runName: null,
-      reason: null,
-      diagnostic: null,
-    })
-    .onConflictDoUpdate({
-      target: [
-        triggersDecisions.receivedEventId,
-        triggersDecisions.subscriptionKind,
-        triggersDecisions.subscriptionId,
-      ],
-      set: {decision: 'triggered', runId: null, runName: null, reason: null, diagnostic: null},
-    });
+  await inWritableScope(
+    {
+      workspaceId: params.subscription.workspaceId,
+      projectId: params.subscription.projectId ?? undefined,
+    },
+    (tx) =>
+      tx
+        .insert(triggersDecisions)
+        .values({
+          ...listenerDecisionIdentity(params),
+          decision: 'triggered',
+          runId: null,
+          runName: null,
+          reason: null,
+          diagnostic: null,
+        })
+        .onConflictDoUpdate({
+          target: [
+            triggersDecisions.receivedEventId,
+            triggersDecisions.subscriptionKind,
+            triggersDecisions.subscriptionId,
+          ],
+          set: {decision: 'triggered', runId: null, runName: null, reason: null, diagnostic: null},
+        }),
+  );
 }
 
 export interface UpsertListenerFailedDecisionParams {
@@ -345,31 +381,38 @@ export interface UpsertListenerDeliveryRejectedDecisionParams {
 export async function upsertListenerDeliveryRejectedDecision(
   params: UpsertListenerDeliveryRejectedDecisionParams,
 ): Promise<void> {
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      ...listenerDecisionIdentity(params),
-      decision: 'rejected',
-      runId: null,
-      runName: null,
-      reason: params.reason,
-      diagnostic: params.diagnostic,
-    })
-    .onConflictDoUpdate({
-      target: [
-        triggersDecisions.receivedEventId,
-        triggersDecisions.subscriptionKind,
-        triggersDecisions.subscriptionId,
-      ],
-      set: {
-        decision: 'rejected',
-        runId: null,
-        runName: null,
-        reason: params.reason,
-        diagnostic: params.diagnostic,
-      },
-      setWhere: ne(triggersDecisions.decision, 'triggered'),
-    });
+  await inWritableScope(
+    {
+      workspaceId: params.subscription.workspaceId,
+      projectId: params.subscription.projectId ?? undefined,
+    },
+    (tx) =>
+      tx
+        .insert(triggersDecisions)
+        .values({
+          ...listenerDecisionIdentity(params),
+          decision: 'rejected',
+          runId: null,
+          runName: null,
+          reason: params.reason,
+          diagnostic: params.diagnostic,
+        })
+        .onConflictDoUpdate({
+          target: [
+            triggersDecisions.receivedEventId,
+            triggersDecisions.subscriptionKind,
+            triggersDecisions.subscriptionId,
+          ],
+          set: {
+            decision: 'rejected',
+            runId: null,
+            runName: null,
+            reason: params.reason,
+            diagnostic: params.diagnostic,
+          },
+          setWhere: ne(triggersDecisions.decision, 'triggered'),
+        }),
+  );
 }
 
 export async function upsertListenerFilterErrorDecision(
@@ -388,29 +431,36 @@ async function upsertListenerFailedDecision(
   params: UpsertListenerFailedDecisionParams,
   decision: 'filter-error' | 'dispatch-error',
 ): Promise<void> {
-  await db()
-    .insert(triggersDecisions)
-    .values({
-      ...listenerDecisionIdentity(params),
-      decision,
-      reason: params.reason,
-      diagnostic: params.diagnostic,
-    })
-    .onConflictDoUpdate({
-      target: [
-        triggersDecisions.receivedEventId,
-        triggersDecisions.subscriptionKind,
-        triggersDecisions.subscriptionId,
-      ],
-      set: {
-        decision,
-        reason: params.reason,
-        diagnostic: params.diagnostic,
-        runId: null,
-        runName: null,
-      },
-      setWhere: ne(triggersDecisions.decision, 'triggered'),
-    });
+  await inWritableScope(
+    {
+      workspaceId: params.subscription.workspaceId,
+      projectId: params.subscription.projectId ?? undefined,
+    },
+    (tx) =>
+      tx
+        .insert(triggersDecisions)
+        .values({
+          ...listenerDecisionIdentity(params),
+          decision,
+          reason: params.reason,
+          diagnostic: params.diagnostic,
+        })
+        .onConflictDoUpdate({
+          target: [
+            triggersDecisions.receivedEventId,
+            triggersDecisions.subscriptionKind,
+            triggersDecisions.subscriptionId,
+          ],
+          set: {
+            decision,
+            reason: params.reason,
+            diagnostic: params.diagnostic,
+            runId: null,
+            runName: null,
+          },
+          setWhere: ne(triggersDecisions.decision, 'triggered'),
+        }),
+  );
 }
 
 function listenerDecisionIdentity(params: {
@@ -424,7 +474,7 @@ function listenerDecisionIdentity(params: {
     subscriptionId: subscription.id,
     subscriptionName: listenerSubscriptionName(subscription),
     workflowDefinitionId: null,
-    projectId: null,
+    projectId: subscription.projectId,
     workflowRunId: subscription.workflowRunId,
     jobId: subscription.jobId,
     matcherKind: subscription.kind,

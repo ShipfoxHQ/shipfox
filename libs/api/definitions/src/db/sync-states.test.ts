@@ -11,16 +11,19 @@ import {definitionSyncStates} from './schema/sync-states.js';
 import {getLatestDefinitionSyncState, markDefinitionSyncState} from './sync-states.js';
 
 describe('definition sync state queries', () => {
+  let workspaceId: string;
   let projectId: string;
   let sourceConnectionId: string;
 
   beforeEach(() => {
+    workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     sourceConnectionId = crypto.randomUUID();
   });
 
   it('creates a sync-state row', async () => {
     const state = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -36,6 +39,7 @@ describe('definition sync state queries', () => {
 
   it('updates the same logical sync-state row', async () => {
     const first = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -45,6 +49,7 @@ describe('definition sync state queries', () => {
     });
 
     const second = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -68,6 +73,7 @@ describe('definition sync state queries', () => {
 
   it('bounds last error messages before persisting them', async () => {
     const state = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -97,6 +103,7 @@ describe('definition sync state queries', () => {
     ] as const;
 
     const succeeded = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -108,6 +115,7 @@ describe('definition sync state queries', () => {
     expect(succeeded.diagnostics).toEqual(diagnostics);
 
     const syncing = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -120,6 +128,7 @@ describe('definition sync state queries', () => {
 
   it('orders errors before warnings and bounds diagnostic payloads before persisting them', async () => {
     const state = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -202,6 +211,7 @@ describe('definition sync state queries', () => {
 
   it('clears stale finish data when a sync starts again', async () => {
     await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',
@@ -214,6 +224,7 @@ describe('definition sync state queries', () => {
     });
 
     const state = await markDefinitionSyncState({
+      workspaceId,
       projectId,
       sourceConnectionId,
       sourceExternalRepositoryId: 'gitea-owner/platform',

@@ -4,6 +4,7 @@ import {
 } from '@shipfox/api-triggers-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {AgentSubscription} from '#core/entities/agent-subscription.js';
@@ -477,6 +478,8 @@ async function safe<T>(
   try {
     return await fn();
   } catch (error) {
+    // A decision for a deleted project has nowhere to go, and is not worth a report.
+    if (error instanceof ScopeDeletedError) return undefined;
     logger().warn(
       {err: error, label, eventRef, ...(subscriptionId ? {subscriptionId} : {})},
       'trigger history write failed; ignored (best-effort)',

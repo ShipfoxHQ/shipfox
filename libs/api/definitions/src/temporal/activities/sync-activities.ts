@@ -2,6 +2,7 @@ import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {markErrorReported} from '@shipfox/node-error-monitoring';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {Context} from '@temporalio/activity';
@@ -168,18 +169,23 @@ function createPrepareDefinitionSyncActivity(
     return await runWithPermanentTranslation(async () => {
       const sourceRef = input.sourceRef ?? (await resolveSyncSource({...input, sourceControl})).ref;
 
-      await markDefinitionSyncState({
-        projectId: input.projectId,
-        sourceConnectionId: input.sourceConnectionId,
-        sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-        ref: sourceRef,
-        status: 'syncing',
-        lastErrorCode: null,
-        lastErrorMessage: null,
-        diagnostics: [],
-        startedAt: new Date(),
-        finishedAt: null,
-      });
+      const marked = await ignoreDeletedScope(async () => {
+        await markDefinitionSyncState({
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          sourceConnectionId: input.sourceConnectionId,
+          sourceExternalRepositoryId: input.sourceExternalRepositoryId,
+          ref: sourceRef,
+          status: 'syncing',
+          lastErrorCode: null,
+          lastErrorMessage: null,
+          diagnostics: [],
+          startedAt: new Date(),
+          finishedAt: null,
+        });
+        return true;
+      }, false);
+      if (!marked) return {sourceRef, sourceCommitSha: input.sourceCommitSha};
 
       // Live rows follow the default branch, so lookups by it keep answering while a first sync on a new source fails.
       if (!(await isSyncSuperseded(projects, input))) {
@@ -277,24 +283,28 @@ function createFetchAndApplyAgentsActivity(
         return {appliedCount: 0, deletedCount: 0, diagnostics: []};
       }
 
-      const result = await applyVcsAgentsBatch({
-        workspaceId: input.workspaceId,
-        projectId: input.projectId,
-        valid: parsed.valid.map((entry) => ({
-          key: entry.key,
-          configPath: entry.path,
-          name: entry.name,
-          description: entry.description,
-          instructions: entry.instructions,
-          document: entry.document,
-          contentHash: entry.contentHash,
-        })),
-        invalid: parsed.invalid.map((entry) => ({
-          key: entry.key,
-          configPath: entry.path,
-          error: entry.error,
-        })),
-      });
+      const result = await ignoreDeletedScope(
+        () =>
+          applyVcsAgentsBatch({
+            workspaceId: input.workspaceId,
+            projectId: input.projectId,
+            valid: parsed.valid.map((entry) => ({
+              key: entry.key,
+              configPath: entry.path,
+              name: entry.name,
+              description: entry.description,
+              instructions: entry.instructions,
+              document: entry.document,
+              contentHash: entry.contentHash,
+            })),
+            invalid: parsed.invalid.map((entry) => ({
+              key: entry.key,
+              configPath: entry.path,
+              error: entry.error,
+            })),
+          }),
+        {appliedCount: 0, deletedCount: 0},
+      );
 
       return {...result, diagnostics: limitDefinitionSyncDiagnostics(parsed.diagnostics)};
     });
@@ -341,31 +351,36 @@ function createFetchAndApplyActivity(
         return {appliedCount: 0, deletedCount: 0, diagnostics: []};
       }
 
-      // Snapshots go first, so every stored definition can resolve its digests.
-      for (const action of actions) {
-        await upsertActionSnapshot({
-          workspaceId: input.workspaceId,
-          projectId: input.projectId,
-          manifest: action.manifest,
-          bundle: action.bundle,
-          source: action.registry === undefined ? 'vcs' : 'registry',
-        });
-      }
+      const result = await ignoreDeletedScope(
+        async () => {
+          // Snapshots go first, so every stored definition can resolve its digests.
+          for (const action of actions) {
+            await upsertActionSnapshot({
+              workspaceId: input.workspaceId,
+              projectId: input.projectId,
+              manifest: action.manifest,
+              bundle: action.bundle,
+              source: action.registry === undefined ? 'vcs' : 'registry',
+            });
+          }
 
-      const result = await applyVcsDefinitionsBatch({
-        projectId: input.projectId,
-        workspaceId: input.workspaceId,
-        ref: input.sourceRef,
-        upserts: workflows.map((entry) => ({
-          configPath: entry.path,
-          name: entry.name,
-          document: entry.definition.document,
-          model: entry.definition.model,
-          sourceSnapshot: entry.definition.sourceSnapshot,
-          contentHash: entry.contentHash,
-          registryRefs: entry.registryRefs,
-        })),
-      });
+          return await applyVcsDefinitionsBatch({
+            projectId: input.projectId,
+            workspaceId: input.workspaceId,
+            ref: input.sourceRef,
+            upserts: workflows.map((entry) => ({
+              configPath: entry.path,
+              name: entry.name,
+              document: entry.definition.document,
+              model: entry.definition.model,
+              sourceSnapshot: entry.definition.sourceSnapshot,
+              contentHash: entry.contentHash,
+              registryRefs: entry.registryRefs,
+            })),
+          });
+        },
+        {appliedCount: 0, deletedCount: 0},
+      );
 
       const diagnostics = limitDefinitionSyncDiagnostics([
         ...workflows.flatMap((entry) =>
@@ -386,17 +401,22 @@ function createMarkSyncSucceededActivity() {
   return async function markDefinitionSyncSucceeded(
     input: MarkSyncSucceededActivityInput,
   ): Promise<void> {
-    await markDefinitionSyncState({
-      projectId: input.projectId,
-      sourceConnectionId: input.sourceConnectionId,
-      sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-      ref: input.sourceRef,
-      status: 'succeeded',
-      lastErrorCode: null,
-      lastErrorMessage: null,
-      diagnostics: input.diagnostics ?? [],
-      finishedAt: new Date(),
-    });
+    await ignoreDeletedScope(
+      () =>
+        markDefinitionSyncState({
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          sourceConnectionId: input.sourceConnectionId,
+          sourceExternalRepositoryId: input.sourceExternalRepositoryId,
+          ref: input.sourceRef,
+          status: 'succeeded',
+          lastErrorCode: null,
+          lastErrorMessage: null,
+          diagnostics: input.diagnostics ?? [],
+          finishedAt: new Date(),
+        }),
+      undefined,
+    );
   };
 }
 
@@ -404,18 +424,36 @@ function createMarkSyncFailedActivity() {
   return async function markDefinitionSyncFailed(
     input: MarkSyncFailedActivityInput,
   ): Promise<void> {
-    await markDefinitionSyncState({
-      projectId: input.projectId,
-      sourceConnectionId: input.sourceConnectionId,
-      sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-      ref: input.sourceRef ?? UNRESOLVED_SYNC_REF,
-      status: 'failed',
-      lastErrorCode: input.code,
-      lastErrorMessage: input.message,
-      diagnostics: input.diagnostics ?? [],
-      finishedAt: new Date(),
-    });
+    await ignoreDeletedScope(
+      () =>
+        markDefinitionSyncState({
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          sourceConnectionId: input.sourceConnectionId,
+          sourceExternalRepositoryId: input.sourceExternalRepositoryId,
+          ref: input.sourceRef ?? UNRESOLVED_SYNC_REF,
+          status: 'failed',
+          lastErrorCode: input.code,
+          lastErrorMessage: input.message,
+          diagnostics: input.diagnostics ?? [],
+          finishedAt: new Date(),
+        }),
+      undefined,
+    );
   };
+}
+
+/**
+ * A sync that reaches a deleted project has nothing left to write, and retrying cannot change
+ * that. The activity completes with `fallback` so the sync ends quietly.
+ */
+async function ignoreDeletedScope<T>(operation: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof ScopeDeletedError) return fallback;
+    throw error;
+  }
 }
 
 async function runWithPermanentTranslation<T>(operation: () => Promise<T>): Promise<T> {

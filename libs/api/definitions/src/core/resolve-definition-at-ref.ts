@@ -23,6 +23,7 @@ import {
   registryInterModuleContract,
 } from '@shipfox/api-registry-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {boundedMap} from '@shipfox/node-module';
 import {
@@ -190,20 +191,35 @@ async function resolveDefinitionAtRefUnsafe(
   const {outcome} = prepared;
   if (outcome.kind === 'invalid') throw outcome.error;
 
-  // The model references snapshots by digest, so they exist before the run does.
-  for (const action of outcome.actions.values()) {
-    await upsertActionSnapshot({
+  let workflowId: string;
+  try {
+    // The model references snapshots by digest, so they exist before the run does.
+    for (const action of outcome.actions.values()) {
+      await upsertActionSnapshot({
+        workspaceId: prepared.source.workspaceId,
+        projectId: params.projectId,
+        manifest: action.manifest,
+        bundle: action.bundle,
+        source: snapshotSourceOf(action, outcome.uploadedPaths),
+      });
+    }
+    workflowId = await findOrCreateWorkflowLineage({
       workspaceId: prepared.source.workspaceId,
       projectId: params.projectId,
-      manifest: action.manifest,
-      bundle: action.bundle,
-      source: snapshotSourceOf(action, outcome.uploadedPaths),
+      configPath: params.configPath,
     });
+  } catch (error) {
+    if (error instanceof ScopeDeletedError) {
+      throw new DefinitionAtRefError(
+        'project-not-found',
+        `Project not found: ${params.projectId}`,
+        {
+          projectId: params.projectId,
+        },
+      );
+    }
+    throw error;
   }
-  const workflowId = await findOrCreateWorkflowLineage({
-    projectId: params.projectId,
-    configPath: params.configPath,
-  });
   recordDefinitionRefResolution('resolved');
 
   return {

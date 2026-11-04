@@ -1,4 +1,5 @@
 import type {Harness} from '@shipfox/api-agent-dto';
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {WORKFLOW_SESSION_KEY_PATTERN} from '@shipfox/workflow-document';
 import {and, eq, inArray, sql} from 'drizzle-orm';
 import type {AgentSession} from '#core/entities/agent-session.js';
@@ -12,6 +13,7 @@ import {
 } from '#core/errors.js';
 import {sessionClaimConflictCount, sessionCreatedCount} from '#metrics/instance.js';
 import {db, type Transaction} from './db.js';
+import {agentDeletedScopes} from './schema/deleted-scopes.js';
 import {type AgentSessionDb, sessions, toAgentSession} from './schema/sessions.js';
 
 const AGENT_SESSION_CLAIM_LOCK_PREFIX = 'agent-session-claim:';
@@ -50,6 +52,10 @@ export async function createSession(
 ): Promise<AgentSession> {
   assertValidSessionKey(params.key);
   assertValidSessionHarness(params.harness);
+  await assertScopeWritable(tx, agentDeletedScopes, {
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+  });
 
   const rows = await tx
     .insert(sessions)
@@ -221,6 +227,10 @@ export async function claimSession(
   let created = false;
   try {
     const result = await db().transaction(async (tx) => {
+      await assertScopeWritable(tx, agentDeletedScopes, {
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+      });
       const [existingRow] = await tx.select().from(sessions).where(claimSessionIdentity(params));
       await acquireExistingSessionClaim(tx, existingRow, params);
 
@@ -444,6 +454,10 @@ export async function carryOverSessions(params: {
       assertValidSessionKey(source.key);
       assertValidSessionHarness(source.harness);
 
+      await assertScopeWritable(tx, agentDeletedScopes, {
+        workspaceId: source.workspaceId,
+        projectId: source.projectId,
+      });
       const expectedCarriedFromSessionId = source.carriedFromSessionId ?? source.id;
       const [inserted] = await tx
         .insert(sessions)

@@ -39,6 +39,7 @@ export {
 } from './definitions.js';
 export {definitionActionSnapshots} from './schema/action-snapshots.js';
 export {definitionAgents} from './schema/agents.js';
+export {definitionsDeletedScopes} from './schema/deleted-scopes.js';
 export {definitionsOutbox} from './schema/outbox.js';
 export {definitionSyncStates} from './schema/sync-states.js';
 export {type WorkflowCreateDb, type WorkflowDb, workflowWorkflows} from './schema/workflows.js';

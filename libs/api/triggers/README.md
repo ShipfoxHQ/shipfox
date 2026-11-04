@@ -66,7 +66,12 @@ This adds:
 - the `POST /dev-runs` route, which creates a run from a workflow file at a git ref without creating a trigger subscription
 - the `GET /trigger-events`, `GET /trigger-events/facets`, and `GET /trigger-events/:id` inspection routes
 - subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`,
-  `DEFINITION_AGENT_RULES_RESOLVED`, and `INTEGRATION_EVENT_RECEIVED`
+  `DEFINITION_AGENT_RULES_RESOLVED`, `INTEGRATION_EVENT_RECEIVED`, and `PROJECT_DELETED`
+- a `PROJECT_DELETED` purge: the subscriber records a deletion marker in `triggers_deleted_scopes`,
+  then deletes the project's subscriptions (with their cron schedules), agent rules, listener
+  subscriptions, and decisions. After the marker, a late `DEFINITION_RESOLVED`,
+  `DEFINITION_AGENT_RULES_RESOLVED`, or `WORKFLOWS_JOB_ACTIVATED` event for the project creates
+  nothing. Listener rows written before they carried a project go when their job ends.
 - the `triggers` outbox publisher
 - the hourly `triggers-prune-trigger-events` Temporal cron, which deletes old
   rows from `triggers_received_events`

@@ -717,7 +717,11 @@ describe('definition queries', () => {
         ...definitionFields('Manual only'),
         source: 'manual',
       });
-      await findOrCreateWorkflowLineage({projectId, configPath: 'dev-only.yml'});
+      await findOrCreateWorkflowLineage({
+        workspaceId: crypto.randomUUID(),
+        projectId,
+        configPath: 'dev-only.yml',
+      });
 
       await expect(
         getDefinitionByConfigPath({projectId, configPath: 'missing.yml', ref: 'main'}),

@@ -121,6 +121,7 @@ This module owns tables with the `cache_` prefix.
 | `cache_entries` | One immutable archive per `(project_id, scope, key, version)`. The row is the index. The object sits under the generated key `{prefix}/{workspace_id}/{project_id}/{entry_id}`, so user strings never reach an object key. |
 | `cache_workspace_settings` | Retention days per workspace. A workspace without a row uses the default. |
 | `cache_deletions` | Why an entry disappeared: `expired`, `evicted`, `manual`, or `missing`. Rows are pruned after 30 days. |
+| `cache_deleted_scopes` | One marker per deleted project. A reserve for a marked project answers `project-not-found`. `purged_at` is set once no entry remains. |
 
 ## Behavior notes
 
@@ -137,7 +138,8 @@ This module owns tables with the `cache_` prefix.
 - **Storage policy:** A resolved limit is cached for 60 seconds. A policy that throws applies no limit for that call: the sweep skips eviction for the workspace and a save proceeds.
 - **Storage samples:** A Temporal cron runs at minute 5 of every hour. It sums the `ready` entries per project and calls `recordStorageSamples` in Usage with the key `cache:{projectId}:{windowStart}`, the stored bytes, and the object count. A repeated run for the same hour is counted as a duplicate by Usage. A project with no entries produces no sample, and a missed hour is not backfilled.
 - **Manual deletion:** A deletion removes the object first, then the row, and writes a `manual` record. A storage failure stops a scope deletion and leaves the remaining entries listed, so a retry finishes it. An upload in flight is not an entry, so a deletion leaves it to its job or to the sweeper.
-- **Metrics:** `cache_restores` counts lookups by result (`exact`, `prefix`, `miss`). `cache_saves` counts reserve outcomes, commits, aborts, and failed commits. `cache_deletions` counts deleted entries by reason, with `stale_upload` for a reaped upload. `cache_sweep_duration` records the length of a sweep pass. `cache_stored_bytes` is a service gauge of the bytes of all `ready` entries.
+- **Project deletion:** The `projects.project.deleted` subscriber records the marker, then deletes every entry of the project, including uploads in flight: the multipart upload is ended, the object goes first, then the row. It writes no `cache_deletions` record, because nobody can ask where a deleted project's cache went. A storage failure throws, and the outbox redelivery finishes the job.
+- **Metrics:** `cache_restores` counts lookups by result (`exact`, `prefix`, `miss`). `cache_saves` counts reserve outcomes, commits, aborts, and failed commits. `cache_deletions` counts deleted entries by reason, with `stale_upload` for a reaped upload and `project_deleted` for a purge. `cache_sweep_duration` records the length of a sweep pass. `cache_stored_bytes` is a service gauge of the bytes of all `ready` entries.
 
 ## Development
 
