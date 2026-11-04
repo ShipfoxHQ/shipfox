@@ -14,6 +14,8 @@ import {issue} from './validation-issue.js';
 export type InteractionRequestSchemas = ReadonlyMap<string, Readonly<Record<string, unknown>>>;
 
 const OPEN_MAP: ExpressionType = {kind: 'map'};
+// Triggers indexes the filter text, and a btree entry over about 2.7 KB fails the insert.
+const MAX_AGENT_RULE_FILTER_BYTES = 2000;
 
 /**
  * Checks each `on:` rule of an agent file. The source must be a connection that lets people talk
@@ -94,6 +96,17 @@ function validateRuleFilter(params: {
   path: readonly (string | number)[];
   issues: WorkflowModelValidationIssue[];
 }): void {
+  if (Buffer.byteLength(params.filter, 'utf8') > MAX_AGENT_RULE_FILTER_BYTES) {
+    params.issues.push(
+      issue({
+        code: 'invalid-agent-rule-filter',
+        message: `An agent rule filter cannot be longer than ${MAX_AGENT_RULE_FILTER_BYTES} bytes.`,
+        path: params.path,
+        details: {maximum: MAX_AGENT_RULE_FILTER_BYTES},
+      }),
+    );
+    return;
+  }
   try {
     createWorkflowExpression({
       source: params.filter,

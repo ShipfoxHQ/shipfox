@@ -506,10 +506,22 @@ describe('fetchAndParseAgents', () => {
     });
 
     it('rejects event, with, secrets, and config on a rule', async () => {
-      const result = await parseRules('  - source: slack\n    event: app_mention');
+      for (const extra of ['event: app_mention', 'with: {}', 'secrets: {}', 'config: {}']) {
+        const result = await parseRules(`  - source: slack\n    ${extra}`);
+
+        expect(result.invalid[0]?.error.diagnostics).toEqual([
+          expect.objectContaining({code: 'agent-file-invalid'}),
+        ]);
+      }
+    });
+
+    it('rejects a filter too long to index', async () => {
+      const filter = `request.channel_id == "${'C'.repeat(2000)}"`;
+
+      const result = await parseRules(`  - source: slack\n    filter: '${filter}'`);
 
       expect(result.invalid[0]?.error.diagnostics).toEqual([
-        expect.objectContaining({code: 'agent-file-invalid'}),
+        expect.objectContaining({code: 'invalid-agent-rule-filter', path: 'on.0.filter'}),
       ]);
     });
 

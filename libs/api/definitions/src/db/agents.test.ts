@@ -1,5 +1,5 @@
 import {DEFINITION_AGENT_RULES_RESOLVED} from '@shipfox/api-definitions-dto';
-import {sql} from 'drizzle-orm';
+import {asc, sql} from 'drizzle-orm';
 import {applyVcsAgentsBatch as apply, listProjectAgents} from './agents.js';
 import {db} from './db.js';
 import {definitionsOutbox} from './schema/outbox.js';
@@ -24,7 +24,8 @@ async function listRulesEvents(projectId: string) {
   const rows = await db()
     .select()
     .from(definitionsOutbox)
-    .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+    .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`)
+    .orderBy(asc(definitionsOutbox.createdAt), asc(definitionsOutbox.id));
   return rows
     .filter((row) => row.eventType === DEFINITION_AGENT_RULES_RESOLVED)
     .map((row) => row.payload as {workspaceId: string; agents: unknown[]});

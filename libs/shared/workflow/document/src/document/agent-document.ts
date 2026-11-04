@@ -20,11 +20,11 @@ export const AGENT_DOCUMENT_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 export const agentRuleSchema = z.strictObject({
   source: z.string().min(1).meta({
     description:
-      'Selects the slug of the integration connection whose requests the agent answers, such as `slack` or `linear`. The integration must let people talk to agents.',
+      'Selects the slug of the integration connection whose requests the agent answers, such as `slack_acme` or `linear_acme`. Use the slug of your own connection. The integration must let people talk to agents.',
   }),
   filter: z.string().min(1).optional().meta({
     description:
-      'Claims a request only when it matches this condition. The condition can use `request`, where the request was made, and `event`, the raw payload. Without it, the rule claims every request from the source. See [Expressions](/reference/expressions).',
+      'Narrows the rule to requests that match this condition. The condition can use `request`, where the request was made, and `event`, the raw payload. Without it, the rule covers every request from the source. See [Expressions](/reference/expressions).',
   }),
 });
 
@@ -67,7 +67,7 @@ export const agentDocumentSchema = z.strictObject({
   }),
   on: z.array(agentRuleSchema).optional().meta({
     description:
-      'Claims requests from Slack or Linear for the agent. A new request goes to the agent whose rule matches where it was made.',
+      'Declares the requests from Slack or Linear that the agent claims. Sync checks and stores these rules. Requests are not routed by them yet.',
   }),
 });
 

@@ -9,7 +9,7 @@ thinking: high
 integrations:
   - include: [pull_request_read]
 on:
-  - source: slack
+  - source: slack_acme
     filter: request.channel_id == "C04PAYMENTS" || request.viewing_channel_id == "C04PAYMENTS"
-  - source: linear
+  - source: linear_acme
     filter: "'payments' in request.labels"

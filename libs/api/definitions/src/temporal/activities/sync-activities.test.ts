@@ -590,7 +590,9 @@ describe('definition sync activities', () => {
         ]);
         const [stored] = await listProjectAgents(projectId);
         expect(stored?.document.on?.[0]?.source).toBe('slack');
-        expect(stored?.lastError).not.toBeNull();
+        expect(stored?.lastError?.diagnostics).toEqual([
+          expect.objectContaining({code: 'integration-connection-not-capable'}),
+        ]);
       });
 
       it('rejects a filter on an unknown context field', async () => {
