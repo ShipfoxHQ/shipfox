@@ -37,6 +37,7 @@ const triggerDecisionOutcomeSchema = z.enum([
   'owner',
   'default',
   'dropped',
+  'ambiguous',
 ]);
 const triggerDecisionSchema = z
   .object({
@@ -155,6 +156,7 @@ const triggerDecisionJsonSchema = {
         'owner',
         'default',
         'dropped',
+        'ambiguous',
       ],
     },
     reason: nullable(text),

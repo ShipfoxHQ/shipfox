@@ -545,7 +545,7 @@ describe('agent decision upserts', () => {
     expect(rows.map(({subscriptionKind}) => subscriptionKind).sort()).toEqual(['agent', 'trigger']);
   });
 
-  it('keeps one decision per matched rule next to the routing result', async () => {
+  it('keeps one decision per matched rule', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
     const owner = {id: crypto.randomUUID(), agentKey: 'payments', projectId: crypto.randomUUID()};
     const other = {id: crypto.randomUUID(), agentKey: 'billing', projectId: crypto.randomUUID()};
