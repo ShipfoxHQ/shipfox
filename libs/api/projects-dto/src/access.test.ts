@@ -380,6 +380,7 @@ describe('defaultCheckoutRepository', () => {
     expect(defaultCheckoutRepository(linkedPolicy('all'), {sourceControlConnectionIds})).toEqual({
       connectionId: GITHUB_ACME,
       externalRepositoryId: config.externalId,
+      lookupName: config.lookupName,
     });
   });
 
@@ -389,6 +390,7 @@ describe('defaultCheckoutRepository', () => {
     expect(defaultCheckoutRepository(policy, {sourceControlConnectionIds})).toEqual({
       connectionId: GITHUB_OSS,
       externalRepositoryId: sdk.externalId,
+      lookupName: sdk.lookupName,
     });
   });
 

@@ -253,7 +253,7 @@ describe('resolveDefaultConnection', () => {
     expect(resolved?.id).toBe(gitea.id);
   });
 
-  it('does not fall back to the workspace sole connection when the project lists a list', async () => {
+  it('does not fall back to the workspace sole connection when the project lists no connections', async () => {
     const workspaceId = crypto.randomUUID();
     const hidden = await integrationConnectionFactory.create({
       workspaceId,

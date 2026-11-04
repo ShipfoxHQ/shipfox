@@ -58,7 +58,7 @@ export interface MaterializeJobExecutionStepsParams {
   readonly definitionId?: string | undefined;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
-  /** A managed project has no repository, so its jobs have no default checkout. */
+  /** Jobs that set no `checkout` check out nothing, as on a managed project whose access names no single repository. */
   readonly noDefaultCheckout?: boolean | undefined;
 }
 

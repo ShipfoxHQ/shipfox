@@ -140,7 +140,10 @@ export async function createStepCheckoutSpec({
     });
   }
   failure.connectionId = resolvedTarget.connectionId;
-  failure.repository = resolvedRepositoryName(resolvedTarget, defaultProject) ?? failure.repository;
+  failure.repository =
+    resolvedRepositoryName(resolvedTarget, defaultProject) ??
+    defaultCheckoutName(target) ??
+    failure.repository;
   const ref = resolveCheckoutRef({checkout, triggerReference, run, resolvedTarget, projectId});
   const permissions = checkout.permissions ?? {contents: 'read'};
   const response = await integrations.createCheckoutSpec({
@@ -158,6 +161,10 @@ export async function createStepCheckoutSpec({
     target: resolvedTarget.target,
     permissions,
   });
+}
+
+function defaultCheckoutName(target: CheckoutTargetSelection): string | undefined {
+  return 'defaultCheckout' in target ? (target.defaultCheckout.lookupName ?? undefined) : undefined;
 }
 
 function assertManagedCheckoutTarget(

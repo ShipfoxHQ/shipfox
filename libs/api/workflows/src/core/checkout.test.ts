@@ -1084,6 +1084,23 @@ describe('createStepCheckoutSpec', () => {
         });
       });
 
+      it('records the repository name for a failed checkout to report', async () => {
+        const project = useOneRepository();
+        const failure: CheckoutFailureTarget = {};
+
+        await createStepCheckoutSpec({
+          run: syncedRun,
+          step: checkoutStep({}),
+          workspaceId: project.workspaceId,
+          projectId: project.id,
+          integrations: integrations as IntegrationsModuleClient,
+          projects: projects as ProjectsModuleClient,
+          failure,
+        });
+
+        expect(failure).toMatchObject({connectionId: codeConnectionId, repository: 'acme/app'});
+      });
+
       it('checks out its default branch for a change to the managed config', async () => {
         const project = useOneRepository();
 

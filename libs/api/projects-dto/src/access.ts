@@ -193,12 +193,13 @@ export function soleListedConnection(
 export function defaultCheckoutRepository(
   policy: ProjectAccessPolicy,
   {sourceControlConnectionIds}: {sourceControlConnectionIds: readonly string[]},
-): {connectionId: string; externalRepositoryId: string} | null {
+): {connectionId: string; externalRepositoryId: string; lookupName: string | null} | null {
   const {configSource} = policy;
   if (!configSource.managed) {
     return {
       connectionId: configSource.connectionId,
       externalRepositoryId: configSource.externalRepositoryId,
+      lookupName: configSource.lookupName,
     };
   }
 
@@ -211,7 +212,7 @@ export function defaultCheckoutRepository(
   );
   const [only, ...others] = repositories;
   if (!only || others.length > 0 || repositories.length !== scope.resources.length) return null;
-  return {connectionId, externalRepositoryId: only.externalId};
+  return {connectionId, externalRepositoryId: only.externalId, lookupName: only.lookupName};
 }
 
 /**

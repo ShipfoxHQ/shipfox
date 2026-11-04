@@ -234,7 +234,7 @@ describe('assertProjectSourceAdmits', () => {
       await expect(admits(workflowModel())).resolves.toBeUndefined();
     });
 
-    test('admits the connection of the one repository its access names', async () => {
+    test('rejects the inactive connection of the one repository its access names', async () => {
       getProjectAccessPolicy.mockResolvedValue({
         policy: accessPolicy([
           {

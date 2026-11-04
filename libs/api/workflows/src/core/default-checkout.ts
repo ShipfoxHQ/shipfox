@@ -9,7 +9,11 @@ import {isManagedProject} from './managed-source.js';
 
 export interface ProjectCheckoutDefaults {
   /** The repository a job checks out when it sets no `checkout`. Null when the project has none. */
-  defaultCheckout: {connectionId: string; externalRepositoryId: string} | null;
+  defaultCheckout: {
+    connectionId: string;
+    externalRepositoryId: string;
+    lookupName?: string | null | undefined;
+  } | null;
   /** The connection a checkout of a bare `repository` uses. Null when the project has none. */
   defaultConnectionId: string | null;
 }
