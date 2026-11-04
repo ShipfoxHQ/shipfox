@@ -893,7 +893,9 @@ appending 50 lines a second with an entrance animation is nausea.
   the launcher together. It never appears on workspace pages or focused frames. A
   failed run looks the same as an idle page: no celebratory pose and no reaction.
   It moves only for the agent's own events, as a discrete step and never as a
-  performance, and it stays still under `prefers-reduced-motion`.
+  performance, and it stays still under `prefers-reduced-motion`. Its one
+  speech bubble is the first-run greeting, shown once per browser beside
+  floating Shippy.
 
 ## Do's and Don'ts
 

@@ -1,10 +1,11 @@
 import type {AnyRouter} from '@tanstack/react-router';
-import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import {cleanup, fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {useEffect, useRef} from 'react';
 import {type ClientFeature, defineClientFeature, type ProjectDockContribution} from '#contract.js';
 import type {AuthStateValue} from '#runtime/auth.js';
 import {defineRoute} from '#runtime/define-route.js';
 import {useProjectDock} from '#runtime/project-dock.js';
+import {type ShippyState, useShippyStatus} from '#runtime/shippy-status.js';
 import {renderComposedShell} from '#test/render.js';
 import {ProjectDockPanel} from './project-dock-panel.js';
 
@@ -82,9 +83,29 @@ async function openFromLauncher() {
   fireEvent.click(await screen.findByRole('button', {name: LAUNCHER_NAME}));
 }
 
-async function launcherPose() {
+/** `sprite` for floating Shippy, or the pose of the still image in the tab bar. */
+async function launcherForm() {
   const launcher = await screen.findByRole('button', {name: LAUNCHER_NAME, hidden: true});
+  if (launcher.querySelector('[data-slot="shippy-sprite"]')) return 'sprite';
   return launcher.querySelector('img')?.getAttribute('data-pose');
+}
+
+async function spriteState() {
+  const launcher = await screen.findByRole('button', {name: LAUNCHER_NAME});
+  return launcher.querySelector('[data-slot="shippy-sprite"]')?.getAttribute('data-state');
+}
+
+function publishingDock(state: ShippyState) {
+  return dockFeature(async () => ({
+    default: function PublishingDock() {
+      useShippyStatus({state});
+      return <Dock />;
+    },
+  }));
+}
+
+function greetedAlready() {
+  window.localStorage.setItem('shipfox.shippy.greeted', 'true');
 }
 
 async function chooseInUserMenu(option: string) {
@@ -289,11 +310,11 @@ describe('project dock', () => {
   test('moves to the tab bar from the user menu and gives the strip back', async () => {
     await renderDock();
     const main = await screen.findByRole('main');
-    expect(await launcherPose()).toBe('body');
+    expect(await launcherForm()).toBe('sprite');
 
     await chooseInUserMenu('Tab bar');
 
-    expect(await launcherPose()).toBe('face');
+    expect(await launcherForm()).toBe('face');
     const launcher = screen.getByRole('button', {name: LAUNCHER_NAME, hidden: true});
     expect(screen.getByRole('tablist', {hidden: true}).contains(launcher)).toBe(false);
     expect(frameOf(main).style.paddingBottom).toBe('');
@@ -308,7 +329,7 @@ describe('project dock', () => {
 
     await chooseInUserMenu('Floating');
 
-    expect(await launcherPose()).toBe('body');
+    expect(await launcherForm()).toBe('sprite');
     expect(frameOf(main).style.paddingBottom).toBe('calc(var(--pad-frame-y) - 16px)');
   });
 
@@ -317,7 +338,7 @@ describe('project dock', () => {
 
     await renderDock();
 
-    expect(await launcherPose()).toBe('body');
+    expect(await launcherForm()).toBe('sprite');
   });
 
   test('uses the tab bar and a modal sheet below 976px', async () => {
@@ -330,7 +351,7 @@ describe('project dock', () => {
     expect(screen.queryByText('Shippy')).not.toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('menu'), {key: 'Escape'});
 
-    expect(await launcherPose()).toBe('face');
+    expect(await launcherForm()).toBe('face');
     expect(frameOf(main).style.paddingBottom).toBe('');
 
     await openFromLauncher();
@@ -475,5 +496,95 @@ describe('project dock', () => {
 
     expect(await screen.findByRole('heading', {name: 'runs'})).toBeVisible();
     expect(dockMounted).not.toHaveBeenCalled();
+  });
+});
+
+describe("Shippy's motion", () => {
+  beforeEach(greetedAlready);
+
+  test('animates from the state the dock publishes', async () => {
+    await renderDock({features: [pagesFeature(), publishingDock('working')]});
+
+    await waitFor(async () => expect(await spriteState()).toBe('working'));
+  });
+
+  test('stays idle while the dock publishes nothing', async () => {
+    await renderDock();
+
+    expect(await spriteState()).toBe('idle');
+  });
+
+  test('stays still after a failure', async () => {
+    await renderDock({features: [pagesFeature(), publishingDock('failed')]});
+
+    await waitFor(async () => expect(await spriteState()).toBe('failed'));
+  });
+
+  test('keeps the discreet face still', async () => {
+    window.localStorage.setItem('shipfox.shippy.placement', 'tab_bar');
+
+    await renderDock({features: [pagesFeature(), publishingDock('working')]});
+
+    expect(await launcherForm()).toBe('face');
+    expect(document.querySelector('[data-slot="shippy-sprite"]')).not.toBeInTheDocument();
+  });
+});
+
+describe('first-run greeting', () => {
+  const greeting = () => screen.queryByRole('region', {name: "Hi, I'm Shippy."});
+
+  test('greets once beside floating Shippy, with a wave', async () => {
+    await renderDock();
+
+    expect(await screen.findByRole('region', {name: "Hi, I'm Shippy."})).toBeVisible();
+    expect(await spriteState()).toBe('greeting');
+  });
+
+  test('never returns once dismissed', async () => {
+    await renderDock();
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Not now'}));
+
+    expect(greeting()).not.toBeInTheDocument();
+    expect(await spriteState()).toBe('idle');
+    expect(window.localStorage.getItem('shipfox.shippy.greeted')).toBe('true');
+    cleanup();
+
+    await renderDock();
+    expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    expect(greeting()).not.toBeInTheDocument();
+  });
+
+  test('opens the panel from Say hello', async () => {
+    await renderDock();
+    await waitFor(() => expect(dockMounted).toHaveBeenCalled());
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Say hello'}));
+
+    expect(await screen.findByRole('complementary', {name: 'Shippy'})).toBeVisible();
+    fireEvent.click(screen.getByRole('button', {name: 'Close dock'}));
+    expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    expect(greeting()).not.toBeInTheDocument();
+  });
+
+  test('counts a panel that opens by itself as the first meeting', async () => {
+    window.localStorage.setItem('shipfox.projectDock.open', 'true');
+    await renderDock();
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Close dock'}));
+
+    expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    expect(greeting()).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('shipfox.shippy.greeted')).toBe('true');
+  });
+
+  test('never greets from the tab bar', async () => {
+    window.localStorage.setItem('shipfox.shippy.placement', 'tab_bar');
+
+    await renderDock();
+
+    expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    expect(greeting()).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('shipfox.shippy.greeted')).toBeNull();
   });
 });

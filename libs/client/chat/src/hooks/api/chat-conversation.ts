@@ -28,7 +28,7 @@ export interface UseChatConversationParams {
   projectId: string;
   /** Undefined for a conversation that the first message creates. */
   conversationId: string | undefined;
-  /** Reads pause while the panel is closed. */
+  /** Reads pause while the panel is closed, except the stream of a turn that still runs. */
   active: boolean;
   onCreated: (conversationId: string) => void;
 }
@@ -145,11 +145,11 @@ export function useChatConversation({
   const turnRunning = storedTurn?.status === 'running';
   const retryPickup = useRetryPickup(storedTurn?.id, lastItemSeq(base.items));
 
+  // A closed panel keeps following the turn, so Shippy can tell when the reply is ready.
   const liveTurn = useLiveTurn({
     conversationId,
     afterSeq: lastItemSeq(base.items),
-    enabled:
-      active && !notFound && (turnRunning || base.queued.length > 0 || retryPickup.awaitingRetry),
+    enabled: !notFound && (turnRunning || base.queued.length > 0 || retryPickup.awaitingRetry),
     turnRunning,
   });
   useEffect(() => setStreamOpen(liveTurn.streaming), [liveTurn.streaming]);

@@ -51,9 +51,15 @@ registered when it was sent.
 ## Behavior notes
 
 - The panel polls the conversation every 5 seconds while no turn runs, and
-  follows `GET /conversations/:id/stream` while one does. Reads pause while the
-  panel is closed. Polling also pauses in a hidden tab, but an open stream
-  continues until its turn ends.
+  follows `GET /conversations/:id/stream` while one does. Polling pauses while
+  the panel is closed, but a turn that runs keeps its stream, so Shippy can tell
+  when the reply is ready. Polling also pauses in a hidden tab, but an open
+  stream continues until its turn ends.
+- The dock publishes Shippy's state with `useShippyStatus` from
+  `@shipfox/client-shell/runtime`: `working` while a reply runs or a message
+  waits for its turn, `reply_ready` while the latest reply is unread, `failed`
+  after a failed turn, and `idle` otherwise. A closed panel never marks a reply
+  read.
 - A sent message shows at once with a `Queued` chip, below the reply, until a
   turn claims it.
 - `Mod+.` opens or closes the panel. `Enter` sends, `Shift+Enter` adds a line,

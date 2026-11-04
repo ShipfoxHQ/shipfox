@@ -7,6 +7,7 @@ import {
   useAuthState,
   useCurrentAgentPageContext,
   useProjectDock,
+  useShippyStatus,
 } from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {type KeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState} from 'react';
@@ -16,6 +17,7 @@ import {
   CONTEXT_OVERFLOW_NOTICE_CODE,
   canSendAgain,
   isReplyActive,
+  shippyStateOf,
   type TurnFailure,
   turnFailure,
 } from '#core/turn-state.js';
@@ -174,6 +176,13 @@ function ProjectChat({project}: {project: Project}) {
     chat.turn?.status === 'failed' && !replying ? turnFailure(chat.turn.failureCode) : undefined;
   const {reset, newAgentKey, activeAgent, agentGone} = agentSelection;
   const blocked = chat.notFound || failure?.kind === 'too-long' || !models.hasModel || agentGone;
+  useShippyStatus({
+    state: shippyStateOf({
+      activity: chat.activity,
+      turn: chat.turn,
+      unread: chat.detail?.unread ?? false,
+    }),
+  });
   const announcement = useAnnouncement({
     replying,
     transcript: chat.transcript,

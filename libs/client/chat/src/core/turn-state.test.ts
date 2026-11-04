@@ -1,5 +1,11 @@
 import type {ConversationTurn} from './conversation.js';
-import {currentTurn, partialTextOf, replyActivity, turnFailure} from './turn-state.js';
+import {
+  currentTurn,
+  partialTextOf,
+  replyActivity,
+  shippyStateOf,
+  turnFailure,
+} from './turn-state.js';
 
 const stored: ConversationTurn = {
   id: 'turn-1',
@@ -88,6 +94,39 @@ describe('replyActivity', () => {
     expect(replyActivity({...idle, awaitingTurn: true, slowStart: true})).toEqual({
       kind: 'slow-start',
     });
+  });
+});
+
+describe('shippyStateOf', () => {
+  const succeeded: ConversationTurn = {...stored, status: 'succeeded'};
+
+  test('works while a reply runs or a message waits for its turn', () => {
+    expect(shippyStateOf({activity: {kind: 'replying'}, turn: stored, unread: false})).toBe(
+      'working',
+    );
+    expect(shippyStateOf({activity: {kind: 'thinking'}, turn: succeeded, unread: true})).toBe(
+      'working',
+    );
+  });
+
+  test('shows a reply as ready only while it is unread', () => {
+    expect(shippyStateOf({activity: {kind: 'idle'}, turn: succeeded, unread: true})).toBe(
+      'reply_ready',
+    );
+    expect(shippyStateOf({activity: {kind: 'idle'}, turn: succeeded, unread: false})).toBe('idle');
+  });
+
+  test('stays still after a failed turn, even when it is unread', () => {
+    const failed: ConversationTurn = {...stored, status: 'failed', failureCode: 'timeout'};
+
+    expect(shippyStateOf({activity: {kind: 'idle'}, turn: failed, unread: true})).toBe('failed');
+  });
+
+  test('rests after a stopped turn or with no conversation', () => {
+    const stopped: ConversationTurn = {...stored, status: 'stopped'};
+
+    expect(shippyStateOf({activity: {kind: 'idle'}, turn: stopped, unread: true})).toBe('idle');
+    expect(shippyStateOf({activity: {kind: 'idle'}, turn: undefined, unread: false})).toBe('idle');
   });
 });
 

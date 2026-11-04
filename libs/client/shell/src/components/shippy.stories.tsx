@@ -1,6 +1,7 @@
 import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import {Shippy, type ShippyPose} from './shippy.js';
+import {ShippySprite, type ShippySpriteState} from './shippy-sprite.js';
 
 const POSES: readonly ShippyPose[] = [
   'bench',
@@ -45,8 +46,33 @@ export const Poses: Story = {
 export const LauncherSprites: Story = {
   render: () => (
     <div className="flex items-end gap-region">
+      <ShippySprite state="idle" />
       <Shippy pose="body" className="h-64" />
       <Shippy pose="face" className="h-32" />
+    </div>
+  ),
+};
+
+const SPRITE_STATES: readonly ShippySpriteState[] = [
+  'idle',
+  'working',
+  'reply_ready',
+  'failed',
+  'greeting',
+];
+
+/** Floating Shippy in each state. Visual tests stop motion, so each shows its resting frame. */
+export const LauncherStates: Story = {
+  render: () => (
+    <div className="flex items-end gap-region">
+      {SPRITE_STATES.map((state) => (
+        <div key={state} className="flex flex-col items-center gap-inline">
+          <ShippySprite state={state} />
+          <Text size="xs" className="text-foreground-neutral-muted">
+            {state}
+          </Text>
+        </div>
+      ))}
     </div>
   ),
 };

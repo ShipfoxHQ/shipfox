@@ -79,6 +79,21 @@ export function isReplyActive(activity: ReplyActivity): boolean {
   return activity.kind !== 'idle';
 }
 
+/**
+ * What floating Shippy shows for the open conversation. A reply waves only while it is unread,
+ * and a failure stays still.
+ */
+export function shippyStateOf(params: {
+  activity: ReplyActivity;
+  turn: ConversationTurn | undefined;
+  unread: boolean;
+}): 'idle' | 'working' | 'reply_ready' | 'failed' {
+  if (isReplyActive(params.activity)) return 'working';
+  if (params.turn?.status === 'failed') return 'failed';
+  if (params.turn?.status === 'succeeded' && params.unread) return 'reply_ready';
+  return 'idle';
+}
+
 export type TurnFailureAction = 'retry' | 'continue' | 'new-conversation' | 'model-settings';
 
 export interface TurnFailure {
