@@ -1,0 +1,5 @@
+- match: {prompt_contains: "What failed recently?"}
+  replies:
+    - tool: list_workflow_runs
+      args: {status: failed, limit: 10}
+    - text: "One run failed recently: **Deploy preview** ended in `failed` on its `upload` step. Open the run to see the log."

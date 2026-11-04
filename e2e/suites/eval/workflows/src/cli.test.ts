@@ -2,8 +2,9 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseEvalArgs} from './cli.js';
 
 const onboardingOnlyPattern = /onboarding only/u;
-const workersPattern = /--workers applies to scripted and live template runs only/u;
+const workersPattern = /--workers applies to scripted and live template and shippy runs only/u;
 const positivePattern = /--workers must be a positive integer/u;
+const compilePattern = /compile applies to --suite templates and contracts only/u;
 
 describe('model options', () => {
   it('reads the onboarding agent and simulator models', () => {
@@ -35,6 +36,14 @@ describe('workers option', () => {
   it('defaults to 4 workers for scripted and live template runs', () => {
     expect(parseEvalArgs([]).workers).toBe(4);
     expect(parseEvalArgs(['--mode', 'live']).workers).toBe(4);
+  });
+
+  it('spreads shippy runs over workers like template runs', () => {
+    expect(parseEvalArgs(['--suite', 'shippy']).workers).toBe(4);
+    expect(parseEvalArgs(['--suite', 'shippy', '--mode', 'live', '--workers', '2']).workers).toBe(
+      2,
+    );
+    expect(() => parseEvalArgs(['--suite', 'shippy', '--mode', 'compile'])).toThrow(compilePattern);
   });
 
   it('sets no workers for the onboarding suite and compile mode', () => {

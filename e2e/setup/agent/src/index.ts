@@ -153,15 +153,32 @@ export interface DeleteModelProviderConfigParams {
   providerId: ModelProviderRef;
 }
 
+/** How long the provider waits before it answers, so a test can act while a turn is running. */
+const scriptedManagedProviderDelaySchema = z.number().int().nonnegative().optional();
+
 const scriptedManagedProviderReplySchema = z.union([
-  z.object({text: z.string()}).strict(),
-  z.object({tool: z.string().min(1), args: z.record(z.string(), z.unknown()).optional()}).strict(),
+  z.object({text: z.string(), delay_ms: scriptedManagedProviderDelaySchema}).strict(),
+  z
+    .object({
+      tool: z.string().min(1),
+      args: z.record(z.string(), z.unknown()).optional(),
+      delay_ms: scriptedManagedProviderDelaySchema,
+    })
+    .strict(),
+  // A provider failure in place of a message, so the turn it answers fails on purpose.
+  z
+    .object({
+      error: z.object({status: z.number().int().min(400).max(599), message: z.string()}).strict(),
+      delay_ms: scriptedManagedProviderDelaySchema,
+    })
+    .strict(),
 ]);
 
 /**
  * The replies of the scripted managed provider, the shape of a `scripted.yaml`. Each entry serves
- * one step attempt: its first request picks the first entry whose `prompt_contains` it contains,
- * and later requests of that attempt read the entry's next reply.
+ * one step attempt or one conversation: its first request picks the first entry whose
+ * `prompt_contains` it contains, and later requests of that attempt or conversation read the
+ * entry's next reply.
  */
 export const scriptedManagedProviderEntriesSchema = z
   .array(
@@ -348,12 +365,20 @@ export async function registerScriptedManagedProvider(
   });
 }
 
-/** Sends a project's managed-provider requests to OpenRouter. Needs `E2E_OPENROUTER_API_KEY` on the API. */
+/**
+ * Sends a project's managed-provider requests to OpenRouter. Needs `E2E_OPENROUTER_API_KEY` on
+ * the API. A conversation runs on the workspace default model, which OpenRouter doesn't map, so
+ * `defaultModel` names the catalog model that serves such requests.
+ */
 export async function registerOpenRouterManagedProvider(params: {
   projectId: string;
+  defaultModel?: string | undefined;
 }): Promise<void> {
   await requestJson('post', '/__e2e/managed-inference/openrouter', {
-    json: {project_id: params.projectId},
+    json: {
+      project_id: params.projectId,
+      ...(params.defaultModel === undefined ? {} : {default_model: params.defaultModel}),
+    },
   });
 }
 

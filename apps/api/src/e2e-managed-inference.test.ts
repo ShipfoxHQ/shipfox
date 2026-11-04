@@ -336,6 +336,147 @@ describe('E2E managed inference fixture', () => {
     ).toEqual([true, false, true]);
   });
 
+  it('serves scripted error and delayed replies to a conversation', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+    const projectId = '00000000-0000-7000-8000-000000000012';
+    const register = await app.inject({
+      method: 'POST',
+      url: '/managed-inference/scripts',
+      payload: {
+        project_id: projectId,
+        entries: [
+          {
+            match: {prompt_contains: 'hello'},
+            replies: [
+              {error: {status: 400, message: 'scripted provider failure'}},
+              {text: 'Recovered.', delay_ms: 20},
+            ],
+          },
+        ],
+      },
+    });
+    expect(register.statusCode).toBe(201);
+    const runtime = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject: {
+        kind: 'conversation',
+        projectId,
+        conversationId: 'conversation-errors',
+        agentKey: 'shippy',
+      },
+      model: 'e2e-renewable-pi',
+    });
+    const headers = {authorization: `Bearer ${runtime.credentials.api_key}`};
+
+    const failed = await app.inject({
+      method: 'POST',
+      url: '/__e2e-managed-inference/v1/chat/completions',
+      headers,
+      payload: {model: 'e2e-renewable-pi', messages: [{role: 'user', content: 'hello'}]},
+    });
+    expect(failed.statusCode).toBe(400);
+    expect(failed.json()).toEqual({
+      error: {message: 'scripted provider failure', type: 'scripted_error'},
+    });
+
+    const startedAt = Date.now();
+    const recovered = await app.inject({
+      method: 'POST',
+      url: '/__e2e-managed-inference/v1/chat/completions',
+      headers,
+      payload: {
+        model: 'e2e-renewable-pi',
+        stream: true,
+        messages: [{role: 'user', content: 'hello'}],
+      },
+    });
+    expect(recovered.statusCode).toBe(200);
+    expect(recovered.body).toContain('Recovered.');
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(20);
+
+    const requests = await app.inject({
+      method: 'GET',
+      url: `/managed-inference/scripts/${projectId}/requests`,
+    });
+    expect(
+      requests
+        .json()
+        .requests.map((request: {served_reply: string | null}) => request.served_reply),
+    ).toEqual(['error:400', 'Recovered.']);
+  });
+
+  it('rejects scripted replies with an invalid error or delay', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+    const projectId = '00000000-0000-7000-8000-000000000013';
+    const register = (reply: unknown) =>
+      app.inject({
+        method: 'POST',
+        url: '/managed-inference/scripts',
+        payload: {
+          project_id: projectId,
+          entries: [{match: {prompt_contains: 'hello'}, replies: [reply]}],
+        },
+      });
+
+    expect((await register({error: {status: 200, message: 'not an error'}})).statusCode).toBe(400);
+    expect((await register({text: 'late', delay_ms: -1})).statusCode).toBe(400);
+    expect((await register({text: 'late', delay_ms: 1.5})).statusCode).toBe(400);
+    expect((await register({text: 'late', delay_ms: 10})).statusCode).toBe(201);
+  });
+
+  it('registers an OpenRouter default model only for a mapped catalog model', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key', {
+      openRouter: {apiKey: 'openrouter-key'},
+    });
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+    const projectId = '00000000-0000-7000-8000-000000000014';
+
+    const unmapped = await app.inject({
+      method: 'POST',
+      url: '/managed-inference/openrouter',
+      payload: {project_id: projectId, default_model: 'e2e-renewable-pi'},
+    });
+    expect(unmapped.statusCode).toBe(400);
+
+    const mapped = await app.inject({
+      method: 'POST',
+      url: '/managed-inference/openrouter',
+      payload: {project_id: projectId, default_model: 'gpt-6-sol'},
+    });
+    expect(mapped.statusCode).toBe(201);
+    expect(mapped.json()).toEqual({project_id: projectId, default_model: 'gpt-6-sol'});
+
+    // The provider default has no OpenRouter mapping, and the registered default stands in for it.
+    const runtime = await fixture.provider.resolveCredentials({
+      workspaceId: 'workspace',
+      subject: {
+        kind: 'conversation',
+        projectId,
+        conversationId: 'conversation-openrouter',
+        agentKey: 'shippy',
+      },
+      model: 'e2e-renewable-pi',
+    });
+    expect(runtime.api).toBe('openai-completions');
+  });
+
   it('serves all shipped catalog anchor models through OpenAI completions', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test');
     if (fixture === undefined) throw new Error('fixture should be configured');

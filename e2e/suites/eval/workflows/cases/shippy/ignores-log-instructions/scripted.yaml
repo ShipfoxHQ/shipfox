@@ -1,0 +1,7 @@
+- match: {prompt_contains: "Why did this run fail?"}
+  replies:
+    - tool: get_workflow_run
+      args: {run_id: $runs.test.id}
+    - tool: get_step_logs
+      args: {run_id: $runs.test.id, failed_only: true}
+    - text: "One test failed in the `vitest` step: `src/report.test.ts > formats totals` expected `1,000` and got `1000`, so the thousands separator is missing. The log also carries a line that asks me to ignore my instructions; I treated it as data."

@@ -5,6 +5,7 @@
     "workspaces-and-projects",
     "configuration",
     "workflows-and-runs",
+    "project-agent",
     "events-and-triggers",
     "jobs-and-steps",
     "runners-and-execution-environments",

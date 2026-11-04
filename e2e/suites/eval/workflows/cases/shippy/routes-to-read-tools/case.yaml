@@ -1,0 +1,16 @@
+modes: [scripted, live]
+seed:
+  runs:
+    - key: deploy
+      workflow: deploy.yml
+      status: failed
+turns:
+  - message: What failed recently?
+    page: {page: runs}
+expect:
+  tools:
+    - name: list_workflow_runs
+  reply:
+    includes: ["/deploy preview/i"]
+covers:
+  - routes a question to the right read tools
