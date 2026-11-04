@@ -41,7 +41,7 @@ test.describe('Shippy chat', () => {
     await shippyChat.send(`What ran lately? ${prompt}`);
 
     await expect(shippyChat.toolCall('List Workflow Runs')).toBeVisible(TURN);
-    await expect(shippyChat.message('This project has no runs.')).toBeVisible();
+    await expect(shippyChat.message('This project has no runs.')).toBeVisible(TURN);
     const requests = await agent.getScriptedManagedProviderRequests({
       projectId: workspace.projectId,
     });
