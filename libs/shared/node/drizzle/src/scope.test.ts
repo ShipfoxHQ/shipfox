@@ -35,11 +35,13 @@ async function createTables(database: ReturnType<typeof drizzle>): Promise<void>
     )`);
 }
 
-// A statement is blocked once PostgreSQL lists a lock request it has not granted.
+// Each test runs in its own database, so a backend waiting on a lock there is the test's statement.
 async function waitForBlockedStatement(pool: Pool): Promise<void> {
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
-    const {rows} = await pool.query('select 1 from pg_locks where not granted');
+    const {rows} = await pool.query(
+      "select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+    );
     if (rows.length > 0) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
