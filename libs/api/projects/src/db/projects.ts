@@ -15,8 +15,6 @@ import {
   ilike,
   inArray,
   isNotNull,
-  isNull,
-  like,
   or,
   type SQL,
   sql,
@@ -234,56 +232,6 @@ export async function getDefaultProject(workspaceId: string): Promise<Project | 
     .where(and(eq(projects.workspaceId, workspaceId), eq(projects.isDefault, true)))
     .limit(1);
   return row ? toProject(row) : undefined;
-}
-
-/** The slugs of a workspace that are `base` or `base-<n>`, so a caller can pick the first free one. */
-export async function listSlugsWithBase(params: {
-  workspaceId: string;
-  base: string;
-}): Promise<string[]> {
-  const rows = await db()
-    .select({slug: projects.slug})
-    .from(projects)
-    .where(
-      and(
-        eq(projects.workspaceId, params.workspaceId),
-        or(
-          eq(projects.slug, params.base),
-          like(projects.slug, `${escapeIlikePattern(params.base)}-%`),
-        ),
-      ),
-    );
-  return rows.map((row) => row.slug);
-}
-
-export interface ProjectMissingRepositoryCoordinates {
-  id: string;
-  workspaceId: string;
-  sourceConnectionId: string;
-  sourceExternalRepositoryId: string;
-}
-
-/** A page of projects with no stored owner or name for their config repository, by id. */
-export async function listProjectsMissingRepositoryCoordinates(params: {
-  afterId?: string | undefined;
-  limit: number;
-}): Promise<ProjectMissingRepositoryCoordinates[]> {
-  return await db()
-    .select({
-      id: projects.id,
-      workspaceId: projects.workspaceId,
-      sourceConnectionId: projects.sourceConnectionId,
-      sourceExternalRepositoryId: projects.sourceExternalRepositoryId,
-    })
-    .from(projects)
-    .where(
-      and(
-        or(isNull(projects.sourceRepositoryOwner), isNull(projects.sourceRepositoryName)),
-        params.afterId === undefined ? undefined : gt(projects.id, params.afterId),
-      ),
-    )
-    .orderBy(asc(projects.id))
-    .limit(params.limit);
 }
 
 export interface GetProjectBySourceParams {

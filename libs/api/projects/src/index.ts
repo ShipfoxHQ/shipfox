@@ -10,7 +10,6 @@ import {
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsEventSchemas} from '@shipfox/api-projects-dto';
 import {WORKSPACES_WORKSPACE_CREATED, type WorkspacesEventMap} from '@shipfox/api-workspaces-dto';
-import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
@@ -35,7 +34,6 @@ const subscriber = subscriberFactory<IntegrationsEventMap & WorkspacesEventMap>(
 
 export type {Project} from '#core/index.js';
 export {
-  backfillDefaultProjects,
   createManagedProject,
   createProjectFromSource,
   ensureDefaultProject,
@@ -67,25 +65,23 @@ export {projectsFlags} from './flags.js';
 export interface CreateProjectsModuleOptions {
   integrations: IntegrationsModuleClient;
   auth: AuthInterModuleClient;
-  workspaces: Pick<WorkspacesInterModuleClient, 'listAdminWorkspaces'>;
   flags: FeatureFlags;
 }
 
 export function createProjectsModule({
   integrations,
   auth,
-  workspaces,
   flags,
 }: CreateProjectsModuleOptions): ShipfoxModule {
   return {
     name: 'projects',
     flags: projectsFlags,
     database: {db, migrationsPath, databaseNamespace: 'projects'},
-    routes: createProjectRoutes(integrations, auth, workspaces, flags),
+    routes: createProjectRoutes(integrations, auth, flags),
     e2eRoutes: [projectsE2eRoutes],
     metrics: registerProjectsServiceMetrics,
     publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],
-    interModulePresentations: [createProjectsInterModulePresentation()],
+    interModulePresentations: [createProjectsInterModulePresentation({integrations})],
     subscribers: [
       subscriber(INTEGRATION_CONNECTION_DELETED, onConnectionDeleted),
       subscriber(INTEGRATION_SOURCE_COMMIT_PUSHED, onSourceCommitPushed),

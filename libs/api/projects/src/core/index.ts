@@ -1,6 +1,9 @@
-export {DEFAULT_PROJECT_NAME, ensureDefaultProject} from './default-project.js';
-export type {BackfillDefaultProjectsResult} from './default-project-backfill.js';
-export {backfillDefaultProjects} from './default-project-backfill.js';
+export {
+  DEFAULT_PROJECT_NAME,
+  ensureDefaultProject,
+  SYSTEM_ACTOR_ID,
+  tryEnsureDefaultProject,
+} from './default-project.js';
 export type * from './entities/index.js';
 export {
   DefaultProjectExistsError,

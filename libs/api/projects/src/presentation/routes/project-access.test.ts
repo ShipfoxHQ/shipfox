@@ -129,7 +129,6 @@ describe('project access routes', () => {
       routes: createProjectRoutes(
         integrations as IntegrationsModuleClient,
         {requireAdminRole: vi.fn()} as Pick<AuthInterModuleClient, 'requireAdminRole'>,
-        {listAdminWorkspaces: vi.fn()},
         createTestFeatureFlags(),
       ),
       swagger: false,

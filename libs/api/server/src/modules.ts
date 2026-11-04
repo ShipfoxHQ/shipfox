@@ -292,7 +292,6 @@ export async function defaultModules(
   const projectsModule = createProjectsModule({
     integrations: integrationsClient,
     auth: authClient,
-    workspaces: workspacesClient,
     flags: featureFlags,
   });
   const definitionsModule = createDefinitionsModule({

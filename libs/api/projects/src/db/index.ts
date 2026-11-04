@@ -15,7 +15,6 @@ export type {
   ListAdminProjectsResult,
   ListProjectsParams,
   ListProjectsResult,
-  ProjectMissingRepositoryCoordinates,
   ResolveCheckoutTargetParams,
   ResolvedCheckoutTarget,
   UpdateProjectParams,
@@ -31,12 +30,9 @@ export {
   getWorkspaceProjectCounts,
   listAdminProjects,
   listProjects,
-  listProjectsMissingRepositoryCoordinates,
-  listSlugsWithBase,
   requireProjectForWorkspace,
   resolveCheckoutTarget,
   updateProject,
-  updateProjectSourceRepository,
 } from './projects.js';
 export {projectsIntegrationEventDedup} from './schema/integration-event-dedup.js';
 export {projectsOutbox} from './schema/outbox.js';

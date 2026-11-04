@@ -3,7 +3,8 @@ import {eq} from 'drizzle-orm';
 import {db} from '#db/index.js';
 import {projects} from '#db/schema/projects.js';
 import {projectFactory} from '#test/index.js';
-import {ensureDefaultProject} from './default-project.js';
+import {ensureDefaultProject, tryEnsureDefaultProject} from './default-project.js';
+import {ProjectSlugConflictError} from './errors.js';
 import {updateProjectDetails} from './projects.js';
 
 type Integrations = Pick<
@@ -56,9 +57,8 @@ describe('ensureDefaultProject', () => {
   }
 
   test('creates an empty managed project named Default', async () => {
-    const {project, created} = await ensure();
+    const project = await ensure();
 
-    expect(created).toBe(true);
     expect(project).toMatchObject({workspaceId, name: 'Default', slug: 'default', isDefault: true});
     expect(integrations.createManagedRepository).toHaveBeenCalledWith({
       workspaceId,
@@ -71,29 +71,27 @@ describe('ensureDefaultProject', () => {
 
     const second = await ensure();
 
-    expect(second).toEqual({project: first.project, created: false});
+    expect(second).toEqual(first);
     expect(integrations.createManagedRepository).toHaveBeenCalledTimes(1);
   });
 
-  test('takes the next free slug when default is taken', async () => {
+  test('fails with a slug conflict when the workspace already has a project named default', async () => {
     await projectFactory.create({workspaceId, slug: 'default'});
-    await projectFactory.create({workspaceId, slug: 'default-2'});
 
-    const {project} = await ensure();
-
-    expect(project.slug).toBe('default-3');
+    await expect(ensure()).rejects.toBeInstanceOf(ProjectSlugConflictError);
+    expect(integrations.deleteManagedRepository).toHaveBeenCalledTimes(1);
   });
 
   test('ends with one default when two calls race', async () => {
     const results = await Promise.all([ensure(), ensure()]);
 
-    expect(results[0].project.id).toBe(results[1].project.id);
+    expect(results[0].id).toBe(results[1].id);
     const rows = await db().select().from(projects).where(eq(projects.workspaceId, workspaceId));
     expect(rows.filter((row) => row.isDefault)).toHaveLength(1);
   });
 
   test('keeps the default when it is renamed', async () => {
-    const {project} = await ensure();
+    const project = await ensure();
 
     await updateProjectDetails({
       actorId,
@@ -102,10 +100,11 @@ describe('ensureDefaultProject', () => {
       slug: 'platform',
     });
 
-    const again = await ensure();
-    expect(again).toMatchObject({
-      created: false,
-      project: {id: project.id, name: 'Platform', slug: 'platform', isDefault: true},
+    expect(await ensure()).toMatchObject({
+      id: project.id,
+      name: 'Platform',
+      slug: 'platform',
+      isDefault: true,
     });
   });
 
@@ -117,8 +116,20 @@ describe('ensureDefaultProject', () => {
     });
     const mine = await ensure();
 
-    expect(other.project.id).not.toBe(mine.project.id);
-    expect(other.project.slug).toBe('default');
-    expect(mine.project.slug).toBe('default');
+    expect(other.id).not.toBe(mine.id);
+    expect(other.slug).toBe('default');
+    expect(mine.slug).toBe('default');
+  });
+
+  test('logs and returns nothing when the default can not be created on a read', async () => {
+    vi.mocked(integrations.createManagedRepository).mockRejectedValue(new Error('storage down'));
+
+    const result = await tryEnsureDefaultProject({
+      actorId,
+      workspaceId,
+      integrations: integrations as IntegrationsModuleClient,
+    });
+
+    expect(result).toBeUndefined();
   });
 });

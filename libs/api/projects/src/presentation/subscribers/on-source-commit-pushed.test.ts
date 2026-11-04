@@ -149,7 +149,6 @@ describe('onSourceCommitPushed', () => {
     const module = createProjectsModule({
       integrations: {} as IntegrationsModuleClient,
       auth: {} as AuthInterModuleClient,
-      workspaces: {listAdminWorkspaces: vi.fn()},
       flags: createTestFeatureFlags(),
     });
 

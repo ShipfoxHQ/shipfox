@@ -109,14 +109,3 @@ export const listAdminProjectsResponseSchema = z.object({
 });
 
 export type ListAdminProjectsResponseDto = z.infer<typeof listAdminProjectsResponseSchema>;
-
-export const backfillDefaultProjectsResponseSchema = z.object({
-  workspaces_checked: z.number().int().nonnegative(),
-  defaults_created: z.number().int().nonnegative(),
-  repositories_filled: z.number().int().nonnegative(),
-  failures: z.number().int().nonnegative(),
-});
-
-export type BackfillDefaultProjectsResponseDto = z.infer<
-  typeof backfillDefaultProjectsResponseSchema
->;

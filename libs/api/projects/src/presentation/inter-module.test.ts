@@ -1,3 +1,4 @@
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
@@ -7,10 +8,39 @@ import {replaceProjectAccess} from '#db/project-access.js';
 import {projects} from '#db/schema/projects.js';
 import {createProjectsInterModulePresentation} from './inter-module.js';
 
-function createClient() {
+function createIntegrations() {
+  const connectionId = crypto.randomUUID();
+  return {
+    createManagedRepository: vi.fn(({projectId}: {projectId: string}) =>
+      Promise.resolve({connectionId, externalRepositoryId: `managed-vcs:${projectId}`}),
+    ),
+    resolveSourceRepository: vi.fn(({externalRepositoryId}: {externalRepositoryId: string}) =>
+      Promise.resolve({
+        connection: {id: connectionId, provider: 'managed-vcs', slug: 'shipfox-managed'},
+        repository: {
+          externalRepositoryId,
+          owner: 'shipfox',
+          name: externalRepositoryId,
+          fullName: `shipfox/${externalRepositoryId}`,
+          defaultBranch: 'main',
+          visibility: 'private',
+          cloneUrl: '',
+          htmlUrl: '',
+        },
+      }),
+    ),
+    deleteManagedRepository: vi.fn().mockResolvedValue({deleted: true}),
+  };
+}
+
+function createClient(integrations = createIntegrations()) {
   const transport = createInMemoryInterModuleTransport();
   const client = transport.createClient(projectsInterModuleContract);
-  transport.register(createProjectsInterModulePresentation());
+  transport.register(
+    createProjectsInterModulePresentation({
+      integrations: integrations as unknown as IntegrationsModuleClient,
+    }),
+  );
   transport.seal();
   return client;
 }
@@ -61,7 +91,7 @@ async function expectUnauthorized(
 }
 
 describe('Projects checkout target inter-module presentation', () => {
-  test('returns the default project of a workspace, or none', async () => {
+  test('returns the default project of a workspace', async () => {
     const client = createClient();
     const workspaceId = crypto.randomUUID();
     const ordinary = await insertProject({
@@ -70,12 +100,34 @@ describe('Projects checkout target inter-module presentation', () => {
       owner: 'acme',
       name: 'first',
     });
-    expect(await client.getDefaultProject({workspaceId})).toEqual({project: null});
     await db().update(projects).set({isDefault: true}).where(eq(projects.id, ordinary.projectId));
 
     const {project} = await client.getDefaultProject({workspaceId});
 
     expect(project).toMatchObject({id: ordinary.projectId, isDefault: true});
+  });
+
+  test('creates the default project of a workspace that has none', async () => {
+    const integrations = createIntegrations();
+    const client = createClient(integrations);
+    const workspaceId = crypto.randomUUID();
+
+    const first = await client.getDefaultProject({workspaceId});
+    const second = await client.getDefaultProject({workspaceId});
+
+    expect(first.project).toMatchObject({workspaceId, name: 'Default', isDefault: true});
+    expect(second.project?.id).toBe(first.project?.id);
+    expect(integrations.createManagedRepository).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns no project when the default can not be created', async () => {
+    const integrations = createIntegrations();
+    integrations.createManagedRepository.mockRejectedValue(new Error('storage down'));
+    const client = createClient(integrations);
+
+    expect(await client.getDefaultProject({workspaceId: crypto.randomUUID()})).toEqual({
+      project: null,
+    });
   });
 
   test('lists workspace projects through the paginated inter-module contract', async () => {
