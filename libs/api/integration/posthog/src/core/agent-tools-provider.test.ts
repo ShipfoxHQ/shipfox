@@ -16,7 +16,6 @@ function posthogConnection(): IntegrationConnection<'posthog'> {
     slug: 'posthog-main',
     displayName: 'PostHog',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: now,
     updatedAt: now,
   };

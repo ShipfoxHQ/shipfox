@@ -1,10 +1,7 @@
 import {afterEach} from '@shipfox/vitest/vi';
 import {sql} from 'drizzle-orm';
 import {createIntegrationProviderRegistry} from '#core/providers/registry.js';
-import {
-  updateIntegrationConnectionRepositoryAccessMode,
-  upsertIntegrationConnection,
-} from '#db/connections.js';
+import {upsertIntegrationConnection} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {
   enqueueIntegrationSecretCleanup,
@@ -78,7 +75,6 @@ describe('processIntegrationSecretCleanups', () => {
     const failedConnection = await createCleanupConnection({externalAccountId: 'failed'});
     const completedConnection = await createCleanupConnection({
       externalAccountId: 'completed',
-      repositoryAccessMode: 'all',
     });
     const deleteConnectionSecrets = vi.fn((connection: {id: string}) => {
       if (connection.id === failedConnection.id) {
@@ -107,7 +103,6 @@ describe('processIntegrationSecretCleanups', () => {
       slug: completedConnection.slug,
       displayName: completedConnection.displayName,
       lifecycleStatus: completedConnection.lifecycleStatus,
-      repositoryAccessMode: 'all',
       createdAt: completedConnection.createdAt,
       updatedAt: completedConnection.updatedAt,
     });
@@ -118,13 +113,9 @@ describe('processIntegrationSecretCleanups', () => {
 });
 
 async function createCleanupConnection(
-  overrides: {
-    externalAccountId?: string;
-    provider?: string;
-    repositoryAccessMode?: 'selected' | 'all';
-  } = {},
+  overrides: {externalAccountId?: string; provider?: string} = {},
 ) {
-  const created = await upsertIntegrationConnection({
+  const connection = await upsertIntegrationConnection({
     workspaceId: crypto.randomUUID(),
     provider: overrides.provider ?? 'slack',
     externalAccountId: overrides.externalAccountId ?? crypto.randomUUID(),
@@ -132,13 +123,6 @@ async function createCleanupConnection(
     displayName: overrides.provider ?? 'Slack',
     capabilities: overrides.provider === 'gitea' ? ['source_control'] : ['agent_tools'],
   });
-  const connection =
-    overrides.repositoryAccessMode === undefined
-      ? created
-      : ((await updateIntegrationConnectionRepositoryAccessMode({
-          id: created.id,
-          repositoryAccessMode: overrides.repositoryAccessMode,
-        })) ?? created);
   await enqueueIntegrationSecretCleanup({connection});
   return connection;
 }

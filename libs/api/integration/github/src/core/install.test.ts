@@ -67,7 +67,6 @@ function githubConnection(
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-    repositoryAccessMode: overrides.repositoryAccessMode ?? 'selected',
   };
 }
 

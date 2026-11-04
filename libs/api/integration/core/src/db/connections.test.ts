@@ -16,7 +16,6 @@ import {
   resolveUniqueConnectionSlug,
   updateIntegrationConnectionExternalAccount,
   updateIntegrationConnectionLifecycleStatus,
-  updateIntegrationConnectionRepositoryAccessMode,
   upsertIntegrationConnection,
 } from './connections.js';
 import {db} from './db.js';
@@ -518,54 +517,6 @@ describe('integration connection queries', () => {
     });
 
     expect(result).toBeUndefined();
-  });
-
-  it('opens a new connection to every repository and keeps the mode a reconnect finds', async () => {
-    const connection = await upsertIntegrationConnection({
-      workspaceId,
-      provider: 'github',
-      externalAccountId: 'github-mode',
-      slug: 'github_mode',
-      displayName: 'GitHub',
-      capabilities: ['source_control', 'agent_tools'],
-    });
-
-    expect(connection.repositoryAccessMode).toBe('all');
-
-    const narrowed = await updateIntegrationConnectionRepositoryAccessMode({
-      id: connection.id,
-      repositoryAccessMode: 'selected',
-    });
-
-    expect(narrowed?.repositoryAccessMode).toBe('selected');
-
-    const reconnected = await upsertIntegrationConnection({
-      workspaceId,
-      provider: 'github',
-      externalAccountId: 'github-mode',
-      slug: 'ignored_on_reconnect',
-      displayName: 'GitHub renamed',
-      capabilities: ['source_control', 'agent_tools'],
-    });
-
-    expect(reconnected.id).toBe(connection.id);
-    expect(reconnected.repositoryAccessMode).toBe('selected');
-    expect((await getIntegrationConnectionById(connection.id))?.repositoryAccessMode).toBe(
-      'selected',
-    );
-  });
-
-  it('creates a connection with the mode the caller asks for', async () => {
-    const connection = await upsertIntegrationConnection({
-      workspaceId,
-      provider: 'github',
-      externalAccountId: 'github-selected',
-      slug: 'github_selected',
-      displayName: 'GitHub',
-      repositoryAccessMode: 'selected',
-    });
-
-    expect(connection.repositoryAccessMode).toBe('selected');
   });
 
   it('deletes a connection and reports whether a row was removed', async () => {

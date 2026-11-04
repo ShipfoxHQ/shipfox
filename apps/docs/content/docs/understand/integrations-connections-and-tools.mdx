@@ -138,27 +138,27 @@ list the exact settings.
 
 ## Which repositories a workflow can reach
 
-Two settings decide this, one on each side.
+Two layers decide this, one on each side.
 
 ```text
 All repositories in your GitHub organization
 `-- Repositories the Shipfox app can see        <- you choose this on GitHub
-    `-- Repositories a workflow can name         <- you choose this in Shipfox
+    `-- Repositories a workflow can name         <- the project's access decides this
 ```
 
 - **On GitHub**, you choose which repositories the Shipfox app can see when
   you install it. Shipfox can never reach a repository outside that list.
-- **In Shipfox**, each integration connection has an access mode. A new
-  integration connection can reach every repository the app can see. Its
-  settings narrow that to the repositories your projects use.
+- **In Shipfox**, an integration connection reaches every repository the app
+  can see. A project's access can narrow that to the repositories its
+  workflows use.
 
 A project with [managed config](/understand/configuration#in-your-repository-or-managed-by-shipfox) has no repository
 of its own. Its jobs check out only the repositories they name.
 
 [Manage GitHub repository access](/integrations/github/guides/manage-repository-access)
-explains how to change both settings. The
-[GitHub tool catalog](/integrations/github/tools) says which tools the access
-mode can and can't check.
+explains how to change the repositories selected in GitHub. The
+[GitHub tool catalog](/integrations/github/tools) says which tools project
+access can and can't check.
 
 <Cards>
   <Card title="Agents" href="/understand/agents">

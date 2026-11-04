@@ -45,7 +45,6 @@ export function connection(overrides: Partial<IntegrationConnection> = {}): Inte
     createdAt: now,
     updatedAt: now,
     ...overrides,
-    repositoryAccessMode: overrides.repositoryAccessMode ?? 'selected',
   };
 }
 

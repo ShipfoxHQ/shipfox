@@ -18,7 +18,6 @@ function claapConnection(): IntegrationConnection<'claap'> {
     slug: 'claap_mercateam',
     displayName: 'Claap Mercateam',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: now,
     updatedAt: now,
   };

@@ -56,7 +56,6 @@ function connection(input: Partial<IntegrationConnection<'clickup'>> = {}) {
     slug: 'clickup_acme',
     displayName: 'ClickUp Acme',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: new Date(),
     updatedAt: new Date(),
     ...input,

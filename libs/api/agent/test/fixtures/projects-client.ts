@@ -31,7 +31,6 @@ export function createTestProjectsClient(params: {
       },
       getProjectBySource: vi.fn(),
       findProjectBySourceRepositoryName: vi.fn(),
-      listProjectsBySourceConnection: vi.fn(),
       listProjectsByWorkspace: vi.fn(),
       listProjectCatalogByWorkspace: vi.fn(),
       getDefaultProject: vi.fn(),

@@ -28,7 +28,6 @@ const connection: IntegrationConnection<'test-vcs'> = {
   slug: 'test_vcs_e2e_owner',
   displayName: 'Test VCS',
   lifecycleStatus: 'active',
-  repositoryAccessMode: 'all',
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 };

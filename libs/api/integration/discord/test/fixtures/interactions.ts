@@ -37,7 +37,6 @@ export function fakeConnection(
     slug: 'discord_acme',
     displayName: 'Acme Discord',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

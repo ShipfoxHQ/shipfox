@@ -23,7 +23,6 @@ function clickupConnection(
     createdAt: now,
     updatedAt: now,
     ...overrides,
-    repositoryAccessMode: overrides.repositoryAccessMode ?? 'selected',
   };
 }
 

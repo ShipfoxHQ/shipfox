@@ -6,15 +6,12 @@ import {
 } from '@shipfox/node-drizzle';
 import {
   and,
-  asc,
   count,
   desc,
   eq,
   getTableColumns,
-  gt,
   ilike,
   inArray,
-  isNotNull,
   or,
   type SQL,
   sql,
@@ -299,123 +296,6 @@ export async function findProjectBySourceRepositoryName(
     .orderBy(projects.createdAt, projects.id);
 
   return rows.map(toProject);
-}
-
-export interface ProjectRepositoryListItem {
-  sourceExternalRepositoryId: string;
-  sourceRepositoryOwner: string;
-  sourceRepositoryName: string;
-  projectId: string;
-  projectName: string;
-  projectSlug: string;
-}
-
-export interface ProjectRepositoryListCursor {
-  sourceRepositoryOwner: string;
-  sourceRepositoryName: string;
-  sourceExternalRepositoryId: string;
-}
-
-export interface ListProjectsBySourceConnectionParams {
-  workspaceId: string;
-  sourceConnectionId: string;
-  limit: number;
-  cursor?: ProjectRepositoryListCursor | undefined;
-}
-
-export interface ListProjectsBySourceConnectionResult {
-  projects: ProjectRepositoryListItem[];
-  nextCursor: ProjectRepositoryListCursor | null;
-}
-
-function projectSourceRepositoryCursorWhere(
-  cursor: ProjectRepositoryListCursor | undefined,
-): SQL | undefined {
-  if (!cursor) return undefined;
-
-  return or(
-    sql`lower(${projects.sourceRepositoryOwner}) > lower(${cursor.sourceRepositoryOwner})`,
-    and(
-      sql`lower(${projects.sourceRepositoryOwner}) = lower(${cursor.sourceRepositoryOwner})`,
-      sql`lower(${projects.sourceRepositoryName}) > lower(${cursor.sourceRepositoryName})`,
-    ),
-    and(
-      sql`lower(${projects.sourceRepositoryOwner}) = lower(${cursor.sourceRepositoryOwner})`,
-      sql`lower(${projects.sourceRepositoryName}) = lower(${cursor.sourceRepositoryName})`,
-      gt(projects.sourceExternalRepositoryId, cursor.sourceExternalRepositoryId),
-    ),
-  );
-}
-
-export async function listProjectsBySourceConnection(
-  params: ListProjectsBySourceConnectionParams,
-): Promise<ListProjectsBySourceConnectionResult> {
-  const conditions = [
-    eq(projects.workspaceId, params.workspaceId),
-    eq(projects.sourceConnectionId, params.sourceConnectionId),
-    liveProject,
-    and(isNotNull(projects.sourceRepositoryOwner), sql`${projects.sourceRepositoryOwner} <> ''`),
-    and(isNotNull(projects.sourceRepositoryName), sql`${projects.sourceRepositoryName} <> ''`),
-  ];
-  const cursorCondition = projectSourceRepositoryCursorWhere(params.cursor);
-  if (cursorCondition) conditions.push(cursorCondition);
-
-  const rows = await db()
-    .select({
-      sourceExternalRepositoryId: projects.sourceExternalRepositoryId,
-      sourceRepositoryOwner: projects.sourceRepositoryOwner,
-      sourceRepositoryName: projects.sourceRepositoryName,
-      projectId: projects.id,
-      projectName: projects.name,
-      projectSlug: projects.slug,
-    })
-    .from(projects)
-    .where(and(...conditions))
-    .orderBy(
-      asc(sql`lower(${projects.sourceRepositoryOwner})`),
-      asc(sql`lower(${projects.sourceRepositoryName})`),
-      asc(projects.sourceExternalRepositoryId),
-    )
-    .limit(params.limit + 1);
-
-  const hasMore = rows.length > params.limit;
-  const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
-  const projectRepositories = pageRows.map(toProjectRepositoryListItem);
-  const last = projectRepositories.at(-1);
-
-  return {
-    projects: projectRepositories,
-    nextCursor:
-      hasMore && last
-        ? {
-            sourceRepositoryOwner: last.sourceRepositoryOwner,
-            sourceRepositoryName: last.sourceRepositoryName,
-            sourceExternalRepositoryId: last.sourceExternalRepositoryId,
-          }
-        : null,
-  };
-}
-
-function toProjectRepositoryListItem(row: {
-  sourceExternalRepositoryId: string;
-  sourceRepositoryOwner: string | null;
-  sourceRepositoryName: string | null;
-  projectId: string;
-  projectName: string;
-  projectSlug: string;
-}): ProjectRepositoryListItem {
-  if (row.sourceRepositoryOwner === null || row.sourceRepositoryName === null) {
-    throw new Error('Project source repository metadata is missing');
-  }
-
-  return {
-    sourceExternalRepositoryId: row.sourceExternalRepositoryId,
-    sourceRepositoryOwner: row.sourceRepositoryOwner,
-    sourceRepositoryName: row.sourceRepositoryName,
-    projectId: row.projectId,
-    projectName: row.projectName,
-    projectSlug: row.projectSlug,
-  };
 }
 
 export interface UpdateProjectSourceRepositoryParams extends GetProjectBySourceParams {

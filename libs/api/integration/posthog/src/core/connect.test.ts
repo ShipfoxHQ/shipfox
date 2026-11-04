@@ -17,7 +17,6 @@ function connection(): IntegrationConnection<'posthog'> {
     slug: 'posthog_analytics',
     displayName: 'Analytics',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

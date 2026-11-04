@@ -30,7 +30,6 @@ function connection(): IntegrationConnection<'discord'> {
     lifecycleStatus: 'active',
     createdAt: now,
     updatedAt: now,
-    repositoryAccessMode: 'selected',
   };
 }
 

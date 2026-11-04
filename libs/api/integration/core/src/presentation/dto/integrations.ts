@@ -1,14 +1,10 @@
-import type {
-  IntegrationConnectionProviderAccess,
-  IntegrationConnectionRepositoryAccessRepositoryDto,
-} from '@shipfox/api-integration-spi';
+import type {IntegrationConnectionProviderAccess} from '@shipfox/api-integration-spi';
 import type {IntegrationConnection} from '#core/entities/connection.js';
 import type {
   IntegrationCapability,
   RegisteredIntegrationProvider,
 } from '#core/entities/provider.js';
 import type {RepositorySnapshot} from '#core/providers/source-control.js';
-import type {RepositoryAccessRepository} from '#core/repository-access-read.js';
 
 export function toIntegrationProviderDto(provider: RegisteredIntegrationProvider) {
   return {
@@ -72,18 +68,5 @@ export function toRepositoryDto(connectionId: string, repository: RepositorySnap
     visibility: repository.visibility,
     clone_url: repository.cloneUrl,
     html_url: repository.htmlUrl,
-  };
-}
-
-export function toRepositoryAccessRepositoryDto(
-  repository: RepositoryAccessRepository,
-): IntegrationConnectionRepositoryAccessRepositoryDto {
-  return {
-    external_repository_id: repository.externalRepositoryId,
-    owner: repository.owner,
-    name: repository.name,
-    project_id: repository.projectId,
-    project_name: repository.projectName,
-    project_slug: repository.projectSlug,
   };
 }

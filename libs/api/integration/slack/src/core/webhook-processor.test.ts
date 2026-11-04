@@ -17,7 +17,6 @@ function fakeConnection(): IntegrationConnection {
     slug: 'slack_acme',
     displayName: 'Slack Acme',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

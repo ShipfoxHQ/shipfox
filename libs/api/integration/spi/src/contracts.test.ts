@@ -185,7 +185,6 @@ describe('repositoryScopeResources', () => {
     slug: 'github_acme',
     displayName: 'GitHub',
     lifecycleStatus: 'active' as const,
-    repositoryAccessMode: 'all' as const,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

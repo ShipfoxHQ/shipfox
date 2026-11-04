@@ -692,7 +692,6 @@ function syntheticConnection(params: {
     slug: params.slug,
     displayName: params.provider,
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'all',
     createdAt: timestamp,
     updatedAt: timestamp,
   };

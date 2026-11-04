@@ -79,7 +79,6 @@ export {
 export type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
-  IntegrationConnectionRepositoryAccessMode,
 } from '#core/entities/connection.js';
 export type {
   IntegrationCapability,

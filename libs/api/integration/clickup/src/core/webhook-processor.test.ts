@@ -23,7 +23,6 @@ function createConnection(
     slug: 'clickup_acme',
     displayName: 'ClickUp Acme',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: now,
     updatedAt: now,
     ...overrides,

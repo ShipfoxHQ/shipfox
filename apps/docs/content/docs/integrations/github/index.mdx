@@ -25,24 +25,18 @@ repository being checked out.
 GitHub controls which repositories an integration connection can access.
 Shipfox cannot access any repository outside that selection.
 
-Shipfox uses one of two modes when a workflow names a repository:
+An integration connection reaches every repository selected for the GitHub App
+installation. It has no repository setting of its own. A project's access can
+narrow the repositories its workflows and agents use.
 
-| Mode | Allowed repositories |
-| --- | --- |
-| **Only your projects' repositories** | Repositories used by Shipfox projects. |
-| **Every repository this integration can access** | Repositories selected for the GitHub App installation. |
-
-A new integration connection uses **Every repository this integration can
-access**. An existing integration connection keeps its mode.
-
-By default, a job checks out its project's repository. These modes apply when a
-workflow explicitly checks out a repository or a tool names one. A project with
+By default, a job checks out its project's repository. Project access applies
+when a workflow explicitly checks out a repository or a tool names one. A project with
 [managed config](/understand/configuration#in-your-repository-or-managed-by-shipfox) has no repository of its own, so
 its jobs check out only the repositories they name.
 
 Use [Manage GitHub repository
-access](/integrations/github/guides/manage-repository-access) to change these
-settings. See the [GitHub tool catalog](/integrations/github/tools) for
+access](/integrations/github/guides/manage-repository-access) to change the
+repositories selected in GitHub. See the [GitHub tool catalog](/integrations/github/tools) for
 tool-specific behavior.
 
 ## Integration connection identity

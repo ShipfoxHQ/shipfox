@@ -11,7 +11,6 @@ import {and, asc, eq, gt, inArray, or} from 'drizzle-orm';
 import type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
-  IntegrationConnectionRepositoryAccessMode,
 } from '#core/entities/connection.js';
 import type {IntegrationCapability, IntegrationProviderKind} from '#core/entities/provider.js';
 import {IntegrationConnectionAlreadyExistsError} from '#core/errors.js';
@@ -31,8 +30,6 @@ export interface UpsertIntegrationConnectionParams {
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
   capabilities?: IntegrationCapability[] | undefined;
   actorUserId?: string | undefined;
-  /** The mode of a new connection. An existing connection keeps its mode. Defaults to `all`. */
-  repositoryAccessMode?: IntegrationConnectionRepositoryAccessMode | undefined;
   /**
    * Set for a connection of an internal provider. Nothing outside the provider should learn it
    * exists, so no `INTEGRATION_CONNECTION_AVAILABLE` event is written.
@@ -60,8 +57,6 @@ export async function upsertIntegrationConnection(
       slug: params.slug,
       displayName: params.displayName,
       lifecycleStatus: params.lifecycleStatus ?? 'active',
-      // The repositories picked at install are the boundary, so a new connection starts open.
-      repositoryAccessMode: params.repositoryAccessMode ?? 'all',
     })
     .onConflictDoNothing({
       target: [
@@ -424,43 +419,6 @@ export async function updateIntegrationConnectionExternalAccount(
 
 export type UpdateIntegrationConnectionExternalAccountFn =
   typeof updateIntegrationConnectionExternalAccount;
-
-export interface UpdateIntegrationConnectionRepositoryAccessModeParams {
-  id: string;
-  repositoryAccessMode: IntegrationConnectionRepositoryAccessMode;
-}
-
-export async function updateIntegrationConnectionRepositoryAccessMode(
-  params: UpdateIntegrationConnectionRepositoryAccessModeParams,
-  options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
-): Promise<IntegrationConnection | undefined> {
-  if (options.tx === undefined) {
-    return await db().transaction((tx) =>
-      updateIntegrationConnectionRepositoryAccessMode(params, {tx}),
-    );
-  }
-
-  const [existing] = await options.tx
-    .select()
-    .from(integrationConnections)
-    .where(eq(integrationConnections.id, params.id))
-    .limit(1)
-    .for('update');
-  if (!existing) return undefined;
-  if (existing.repositoryAccessMode === params.repositoryAccessMode) {
-    return toIntegrationConnection(existing);
-  }
-
-  const [row] = await options.tx
-    .update(integrationConnections)
-    .set({repositoryAccessMode: params.repositoryAccessMode, updatedAt: new Date()})
-    .where(eq(integrationConnections.id, params.id))
-    .returning();
-  return row ? toIntegrationConnection(row) : undefined;
-}
-
-export type UpdateIntegrationConnectionRepositoryAccessModeFn =
-  typeof updateIntegrationConnectionRepositoryAccessMode;
 
 async function writeConnectionAvailableEvent(
   executor: IntegrationDb | IntegrationTx,

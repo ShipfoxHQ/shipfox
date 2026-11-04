@@ -46,7 +46,6 @@ function connection(
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-    repositoryAccessMode: overrides.repositoryAccessMode ?? 'selected',
   };
 }
 

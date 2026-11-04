@@ -22,7 +22,6 @@ function connectionFor(provider: string, lifecycleStatus: 'active' | 'disabled' 
     slug: 'acme',
     displayName: 'Acme',
     lifecycleStatus,
-    repositoryAccessMode: 'all',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

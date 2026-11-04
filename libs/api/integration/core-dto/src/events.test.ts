@@ -1,6 +1,4 @@
 import {
-  CONNECTION_REPOSITORY_ACCESS_CHANGED,
-  connectionRepositoryAccessChangedSchema,
   INTEGRATION_CONNECTION_AVAILABLE,
   INTEGRATION_CONNECTION_DELETED,
   INTEGRATION_EVENT_RECEIVED,
@@ -13,7 +11,6 @@ import {
   integrationSourceRepositoryUpdatedSchema,
   integrationsEventSchemas,
 } from './events.js';
-import {integrationConnectionRepositoryAccessRepositorySchema} from './schemas/integrations.js';
 
 const validConnectionAvailable = {
   provider: 'linear',
@@ -62,15 +59,6 @@ const validRepositoryUpdated = {
     name: 'platform-renamed',
     defaultBranch: 'main',
   },
-};
-
-const validRepositoryAccessAudit = {
-  actorId: 'user-1',
-  workspaceId: 'ws-1',
-  connectionId: 'conn-1',
-  provider: 'gitea',
-  correlationId: 'request-1',
-  occurredAt: '2026-06-21T00:00:00.000Z',
 };
 
 describe('integrationConnectionAvailableSchema', () => {
@@ -135,23 +123,6 @@ describe('integrationConnectionAvailableSchema', () => {
     const {slug: _slug, ...withoutSlug} = validConnectionAvailable;
 
     expect(() => integrationConnectionAvailableSchema.parse(withoutSlug)).toThrow();
-  });
-});
-
-describe('integrationConnectionRepositoryAccessRepositorySchema', () => {
-  const repository = {
-    external_repository_id: 'gitea:acme/platform',
-    owner: 'acme',
-    name: 'platform',
-    project_id: '00000000-0000-4000-8000-000000000001',
-    project_name: 'Platform',
-    project_slug: 'platform',
-  };
-
-  it('accepts project identity', () => {
-    expect(integrationConnectionRepositoryAccessRepositorySchema.parse(repository)).toEqual(
-      repository,
-    );
   });
 });
 
@@ -251,23 +222,6 @@ describe('integrationSourceRepositoryUpdatedSchema', () => {
   });
 });
 
-describe('connectionRepositoryAccessChangedSchema', () => {
-  it('parses a valid repository access audit payload unchanged', () => {
-    const input = {...validRepositoryAccessAudit, mode: 'selected'};
-
-    expect(connectionRepositoryAccessChangedSchema.parse(input)).toEqual(input);
-  });
-
-  it('rejects an invalid repository access mode', () => {
-    expect(() =>
-      connectionRepositoryAccessChangedSchema.parse({
-        ...validRepositoryAccessAudit,
-        mode: 'invalid',
-      }),
-    ).toThrow();
-  });
-});
-
 describe('integrationConnectionDeletedSchema', () => {
   it('accepts the connection that was deleted', () => {
     const payload = {
@@ -301,7 +255,6 @@ describe('integrationsEventSchemas', () => {
 
     expect(registeredTypes).toEqual(
       [
-        CONNECTION_REPOSITORY_ACCESS_CHANGED,
         INTEGRATION_CONNECTION_AVAILABLE,
         INTEGRATION_CONNECTION_DELETED,
         INTEGRATION_EVENT_RECEIVED,

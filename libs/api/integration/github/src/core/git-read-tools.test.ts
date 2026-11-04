@@ -277,7 +277,6 @@ async function openSession(toolId: string, request: ReturnType<typeof vi.fn>) {
       slug: 'github-main',
       displayName: 'GitHub',
       lifecycleStatus: 'active' as const,
-      repositoryAccessMode: 'selected' as const,
       createdAt: new Date(),
       updatedAt: new Date(),
     },

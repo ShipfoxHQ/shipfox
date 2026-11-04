@@ -225,7 +225,6 @@ async function callTool(
       slug: 'github-main',
       displayName: 'GitHub',
       lifecycleStatus: 'active' as const,
-      repositoryAccessMode: 'selected' as const,
       createdAt: new Date(),
       updatedAt: new Date(),
     },

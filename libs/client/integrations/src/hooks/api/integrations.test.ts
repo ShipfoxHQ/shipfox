@@ -15,10 +15,8 @@ import {
   createLinearInstall,
   createNotionInstall,
   createSlackInstall,
-  listIntegrationConnectionRepositoryAccess,
   listSourceConnections,
   replacePosthogApiKey,
-  updateIntegrationConnectionRepositoryAccess,
 } from './integrations.js';
 
 function connection(overrides: Partial<IntegrationConnectionDto> = {}): IntegrationConnectionDto {
@@ -137,76 +135,6 @@ describe('listSourceConnections', () => {
     expect(result.map((connection) => connection.id)).toEqual([
       '33333333-3333-4333-8333-333333333333',
     ]);
-  });
-});
-
-describe('repository access transport', () => {
-  test('loads and maps the composed repository access read model', async () => {
-    let requestedUrl = '';
-    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
-      requestedUrl = input instanceof Request ? input.url : String(input);
-      return Promise.resolve(
-        jsonResponse({
-          mode: 'selected',
-          repositories: [
-            {
-              external_repository_id: 'acme/platform',
-              owner: 'acme',
-              name: 'platform',
-              project_id: '33333333-3333-4333-8333-333333333333',
-              project_name: 'Platform',
-              project_slug: 'platform',
-            },
-          ],
-          next_cursor: null,
-        }),
-      );
-    });
-    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
-
-    const result = await listIntegrationConnectionRepositoryAccess({
-      connectionId: '11111111-1111-4111-8111-111111111111',
-      cursor: 'next-page',
-    });
-
-    expect(requestedUrl).toBe(
-      'https://api.example.test/integration-connections/11111111-1111-4111-8111-111111111111/repository-access?cursor=next-page',
-    );
-    expect(result).toEqual({
-      mode: 'selected',
-      repositories: [
-        {
-          externalRepositoryId: 'acme/platform',
-          owner: 'acme',
-          name: 'platform',
-          projectId: '33333333-3333-4333-8333-333333333333',
-          projectName: 'Platform',
-          projectSlug: 'platform',
-        },
-      ],
-    });
-  });
-
-  test('updates repository access mode through the idempotent route', async () => {
-    const requests: Request[] = [];
-    const fetchImpl = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const request = new Request(input, init);
-      requests.push(request);
-      return Promise.resolve(jsonResponse({mode: 'all'}));
-    });
-    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
-
-    const mode = await updateIntegrationConnectionRepositoryAccess({
-      connectionId: '11111111-1111-4111-8111-111111111111',
-      mode: 'all',
-    });
-
-    expect(mode).toBe('all');
-    expect(requests[0]?.method).toBe('PUT');
-    expect(requests[0]?.url).toBe(
-      'https://api.example.test/integration-connections/11111111-1111-4111-8111-111111111111/repository-access',
-    );
-    expect(await requests[0]?.json()).toEqual({mode: 'all'});
   });
 });
 
