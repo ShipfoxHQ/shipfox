@@ -5,7 +5,11 @@ import {
 } from '@shipfox/api-integration-azure-devops-dto';
 import type {IntegrationCapabilityDto} from '@shipfox/api-integration-core-dto';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
-import {type ConnectAzureDevOpsConnectionInput, handleAzureDevOpsConnect} from '#core/connect.js';
+import {
+  type ConnectAzureDevOpsConnectionInput,
+  type ConnectAzureDevOpsConnectionResult,
+  handleAzureDevOpsConnect,
+} from '#core/connect.js';
 import {azureDevOpsConnectionExternalUrl} from '#core/connection-url.js';
 import type {
   AzureDevOpsClientFactory,
@@ -25,7 +29,7 @@ export interface CreateAzureDevOpsConnectionRoutesOptions {
   }) => Promise<AzureDevOpsIntegrationConnection | undefined>;
   connectAzureDevOpsConnection: (
     input: ConnectAzureDevOpsConnectionInput,
-  ) => Promise<AzureDevOpsIntegrationConnection>;
+  ) => Promise<ConnectAzureDevOpsConnectionResult>;
   discardAzureDevOpsConnection: (connection: AzureDevOpsIntegrationConnection) => Promise<void>;
 }
 

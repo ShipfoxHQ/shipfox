@@ -228,6 +228,8 @@ describe('AzureDevOpsAgentToolsProvider', () => {
     } as never);
 
     expect(result.isError).toBeUndefined();
-    expect(adoClient.createPullRequest).toHaveBeenCalled();
+    expect(adoClient.createPullRequest).toHaveBeenCalledWith(
+      expect.objectContaining({sourceBranch: 'refs/heads/feat/x'}),
+    );
   });
 });

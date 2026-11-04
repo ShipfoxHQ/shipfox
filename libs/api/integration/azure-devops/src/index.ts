@@ -12,7 +12,10 @@ import {repositoryScopeResources} from '@shipfox/api-integration-spi';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createAzureDevOpsApiClient} from '#api/client.js';
 import {AzureDevOpsAgentToolsProvider} from '#core/agent-tools-provider.js';
-import type {ConnectAzureDevOpsConnectionInput} from '#core/connect.js';
+import type {
+  ConnectAzureDevOpsConnectionInput,
+  ConnectAzureDevOpsConnectionResult,
+} from '#core/connect.js';
 import {azureDevOpsConnectionExternalUrl} from '#core/connection-url.js';
 import {
   type AzureDevOpsClientFactory,
@@ -47,7 +50,10 @@ export {
   azureDevOpsAgentToolSelectionCatalog,
 } from '#core/agent-tools.js';
 export {AzureDevOpsAgentToolsProvider} from '#core/agent-tools-provider.js';
-export type {ConnectAzureDevOpsConnectionInput} from '#core/connect.js';
+export type {
+  ConnectAzureDevOpsConnectionInput,
+  ConnectAzureDevOpsConnectionResult,
+} from '#core/connect.js';
 export {handleAzureDevOpsConnect} from '#core/connect.js';
 export {
   type AzureDevOpsClientFactory,
@@ -80,7 +86,7 @@ export interface CreateAzureDevOpsIntegrationProviderOptions {
   }) => Promise<AzureDevOpsIntegrationConnection | undefined>;
   connectAzureDevOpsConnection: (
     input: ConnectAzureDevOpsConnectionInput,
-  ) => Promise<AzureDevOpsIntegrationConnection>;
+  ) => Promise<ConnectAzureDevOpsConnectionResult>;
   discardAzureDevOpsConnection: (connection: AzureDevOpsIntegrationConnection) => Promise<void>;
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
   publishSourcePush: PublishSourcePushFn;

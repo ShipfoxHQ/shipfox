@@ -21,6 +21,13 @@ export interface ConnectAzureDevOpsConnectionInput {
   workspaceId: string;
   organization: string;
   displayName: string;
+  /** Used only when the connection is new; a reconnect keeps the user name it already has. */
+  webhookUsername: string;
+}
+
+export interface ConnectAzureDevOpsConnectionResult {
+  connection: AzureDevOpsIntegrationConnection;
+  /** The stored Service Hook user name: the new one, or the one the connection already had. */
   webhookUsername: string;
 }
 
@@ -36,7 +43,7 @@ export interface HandleAzureDevOpsConnectParams {
   }) => Promise<AzureDevOpsIntegrationConnection | undefined>;
   connectAzureDevOpsConnection: (
     input: ConnectAzureDevOpsConnectionInput,
-  ) => Promise<AzureDevOpsIntegrationConnection>;
+  ) => Promise<ConnectAzureDevOpsConnectionResult>;
   /** Removes a connection this call just created, when its secrets could not be stored. */
   discardAzureDevOpsConnection: (connection: AzureDevOpsIntegrationConnection) => Promise<void>;
 }
@@ -49,7 +56,8 @@ export interface AzureDevOpsConnectResult {
 /**
  * Connects an Azure DevOps organization with a token. The token is checked against the
  * organization before anything is stored, and stored only in workspace secrets. Every connect
- * issues fresh Service Hook credentials, so connecting again also rotates the hook password.
+ * issues a new Service Hook password. The hook user name is set once per connection and never
+ * rotated, so a reconnect whose secret write fails leaves the old user name and password working.
  */
 export async function handleAzureDevOpsConnect(
   params: HandleAzureDevOpsConnectParams,
@@ -65,13 +73,12 @@ export async function handleAzureDevOpsConnect(
     throw new AzureDevOpsOrganizationAlreadyLinkedError(organization);
   }
 
-  const webhookUsername = `shipfox-${randomBytes(6).toString('hex')}`;
   const webhookPassword = randomBytes(32).toString('base64url');
-  const connection = await params.connectAzureDevOpsConnection({
+  const {connection, webhookUsername} = await params.connectAzureDevOpsConnection({
     workspaceId: params.workspaceId,
     organization,
     displayName: `Azure DevOps ${organization}`,
-    webhookUsername,
+    webhookUsername: `shipfox-${randomBytes(6).toString('hex')}`,
   });
 
   try {
@@ -88,7 +95,7 @@ export async function handleAzureDevOpsConnect(
   } catch (error) {
     // Secrets live in another module, so they cannot join the connection transaction. Without
     // them a new connection could never authenticate; remove it so the user can simply retry.
-    // A reconnect of an existing connection keeps it, with its previous secrets.
+    // A reconnect keeps the connection, its unchanged hook user name and its previous secrets.
     if (!existing) await params.discardAzureDevOpsConnection(connection);
     throw error;
   }

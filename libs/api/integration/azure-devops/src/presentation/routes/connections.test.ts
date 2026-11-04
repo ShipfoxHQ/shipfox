@@ -8,7 +8,10 @@ import {ConnectionSlugConflictError} from '@shipfox/api-integration-spi';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {AzureDevOpsApiClient} from '#api/client.js';
-import type {ConnectAzureDevOpsConnectionInput} from '#core/connect.js';
+import type {
+  ConnectAzureDevOpsConnectionInput,
+  ConnectAzureDevOpsConnectionResult,
+} from '#core/connect.js';
 import type {AzureDevOpsIntegrationConnection} from '#core/credentials.js';
 import {AzureDevOpsIntegrationProviderError} from '#core/errors.js';
 import {createAzureDevOpsIntegrationProvider} from '#index.js';
@@ -58,7 +61,7 @@ interface CreateTestAppOptions {
   client?: AzureDevOpsApiClient;
   existingConnection?: AzureDevOpsIntegrationConnection | undefined;
   connectAzureDevOpsConnection?:
-    | ((input: ConnectAzureDevOpsConnectionInput) => Promise<AzureDevOpsIntegrationConnection>)
+    | ((input: ConnectAzureDevOpsConnectionInput) => Promise<ConnectAzureDevOpsConnectionResult>)
     | undefined;
 }
 
@@ -71,13 +74,14 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
     connectAzureDevOpsConnection:
       options.connectAzureDevOpsConnection ??
       vi.fn((input: ConnectAzureDevOpsConnectionInput) =>
-        Promise.resolve(
-          azureDevOpsConnection({
+        Promise.resolve({
+          connection: azureDevOpsConnection({
             workspaceId: input.workspaceId,
             externalAccountId: input.organization,
             displayName: input.displayName,
           }),
-        ),
+          webhookUsername: input.webhookUsername,
+        }),
       ),
     discardAzureDevOpsConnection: vi.fn(() => Promise.resolve()),
     // Provider-level mounting includes webhook routes; these tests exercise only connections.

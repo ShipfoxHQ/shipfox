@@ -33,7 +33,9 @@ function setup(adoClient = client()) {
   const secrets = memorySecrets();
   const createClient = vi.fn(() => adoClient);
   const connection = azureDevOpsConnection({workspaceId});
-  const connectAzureDevOpsConnection = vi.fn(() => Promise.resolve(connection));
+  const connectAzureDevOpsConnection = vi.fn((input: {webhookUsername: string}) =>
+    Promise.resolve({connection, webhookUsername: input.webhookUsername}),
+  );
   const getExistingAzureDevOpsConnection = vi.fn(
     (_input: {
       organization: string;

@@ -30,7 +30,7 @@ describe('azure devops connections persistence', () => {
     );
   });
 
-  test('reconnecting the same connection rotates the webhook user name in place', async () => {
+  test('reconnecting the same connection keeps its webhook user name, in place', async () => {
     const connectionId = randomUUID();
     await upsertAzureDevOpsConnection({
       connectionId,
@@ -44,7 +44,7 @@ describe('azure devops connections persistence', () => {
       webhookUsername: 'b',
     });
 
-    expect(updated.webhookUsername).toBe('b');
+    expect(updated.webhookUsername).toBe('a');
     expect(await db().select().from(azureDevOpsConnections)).toHaveLength(1);
   });
 

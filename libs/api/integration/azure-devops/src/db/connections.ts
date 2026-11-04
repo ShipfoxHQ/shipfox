@@ -39,7 +39,9 @@ export async function upsertAzureDevOpsConnection(
       // connect of the same organization from another workspace updates nothing here, and the
       // empty RETURNING rolls that transaction back instead of taking the organization over.
       setWhere: eq(azureDevOpsConnections.connectionId, params.connectionId),
-      set: {webhookUsername: params.webhookUsername, updatedAt: now},
+      // The hook user name is set once: a reconnect keeps it, so Service Hooks configured in
+      // Azure DevOps keep working if storing the new password fails.
+      set: {updatedAt: now},
     })
     .returning();
 

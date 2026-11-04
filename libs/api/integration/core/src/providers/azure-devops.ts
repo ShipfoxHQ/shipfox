@@ -1,6 +1,7 @@
 import type {
   AzureDevOpsSecretsStore,
   ConnectAzureDevOpsConnectionInput,
+  ConnectAzureDevOpsConnectionResult,
 } from '@shipfox/api-integration-azure-devops';
 import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
@@ -13,6 +14,7 @@ import {
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
+import {enqueueIntegrationSecretCleanup} from '#db/secret-cleanups.js';
 import {
   publishIntegrationEventReceived,
   publishSourcePush,
@@ -60,7 +62,7 @@ async function loadAzureDevOpsModuleParts(
 
   async function connectAzureDevOpsConnection(
     input: ConnectAzureDevOpsConnectionInput,
-  ): Promise<CoreIntegrationConnection<'azure-devops'>> {
+  ): Promise<ConnectAzureDevOpsConnectionResult> {
     return await retryConnectionSlugCollision(() =>
       db().transaction(async (tx) => {
         const baseSlug = slugifyConnectionSlug(`azure_devops_${input.organization}`, {
@@ -87,7 +89,7 @@ async function loadAzureDevOpsModuleParts(
           },
           {tx},
         );
-        await upsertAzureDevOpsConnection(
+        const row = await upsertAzureDevOpsConnection(
           {
             connectionId: connection.id,
             organization: input.organization,
@@ -95,7 +97,10 @@ async function loadAzureDevOpsModuleParts(
           },
           {tx},
         );
-        return connection as CoreIntegrationConnection<'azure-devops'>;
+        return {
+          connection: connection as CoreIntegrationConnection<'azure-devops'>,
+          webhookUsername: row.webhookUsername,
+        };
       }),
     );
   }
@@ -103,8 +108,11 @@ async function loadAzureDevOpsModuleParts(
   async function discardAzureDevOpsConnection(
     connection: CoreIntegrationConnection<'azure-devops'>,
   ): Promise<void> {
+    // Same order as the delete route: a failed secret write may still have committed part of
+    // the secrets, so a durable cleanup is queued in the transaction that removes the connection.
     await db().transaction(async (tx) => {
       await deleteAzureDevOpsConnectionByConnectionId(connection.id, {tx});
+      await enqueueIntegrationSecretCleanup({connection}, {tx});
       await deleteIntegrationConnection({id: connection.id}, {tx});
     });
   }

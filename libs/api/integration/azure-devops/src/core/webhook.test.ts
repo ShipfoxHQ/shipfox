@@ -201,12 +201,24 @@ describe('handleAzureDevOpsWebhook', () => {
 
     expect(publishSourcePush).toHaveBeenCalledTimes(2);
     const calls = publishSourcePush.mock.calls as unknown as Array<
-      [{deliveryId: string; push: {ref: string; headCommitSha: string; isDefaultBranch: boolean}}]
+      [
+        {
+          deliveryId: string;
+          rawPayload: {id: string; resource: {refUpdates: Array<{name: string}>}};
+          push: {ref: string; headCommitSha: string; isDefaultBranch: boolean};
+        },
+      ]
     >;
     expect(calls.map(([call]) => call.deliveryId)).toEqual([
       `${notification.id}:refs/heads/main`,
       `${notification.id}:refs/tags/v1.2.0`,
     ]);
+    // Each push carries only its own ref, so a push-triggered workflow sees one ref per run.
+    expect(calls.map(([call]) => call.rawPayload.resource.refUpdates.map((u) => u.name))).toEqual([
+      ['refs/heads/main'],
+      ['refs/tags/v1.2.0'],
+    ]);
+    expect(calls[0]?.[0].rawPayload.id).toBe(notification.id);
     expect(calls[1]?.[0].push).toEqual(
       expect.objectContaining({
         ref: 'refs/tags/v1.2.0',

@@ -65,9 +65,11 @@ export async function handleAzureDevOpsWebhook(
 }
 
 /**
- * Publishes every ref a push updated as a typed source push. One notification can carry several
- * refs (branches and tags pushed together); each gets its own delivery id so retries of the
- * notification stay de-duplicated per ref. Null when the payload cannot be a typed push.
+ * Publishes every ref a push updated as its own source push. One notification can carry several
+ * refs (branches and tags pushed together). `publishSourcePush` writes both the typed push and
+ * the generic event that triggers read, so each ref gets a payload narrowed to that ref, the way
+ * GitHub sends one push event per ref, and its own delivery id so retries stay de-duplicated per
+ * ref. Null when the payload cannot be a typed push.
  */
 async function handlePush(
   params: HandleAzureDevOpsWebhookParams,
@@ -115,7 +117,7 @@ function publishRefUpdate(
     connectionName: params.connection.displayName,
     deliveryId,
     receivedAt: params.receivedAt,
-    rawPayload: params.rawPayload,
+    rawPayload: payloadForRef(params.rawPayload, resource.refUpdates.length, update),
     resource: repositoryEventResource({
       externalRepositoryId,
       fullName: `${repository.project.name}/${repository.name}`,
@@ -180,6 +182,21 @@ function eventResource(
     });
   }
   return undefined;
+}
+
+/** The raw notification with `resource.refUpdates` narrowed to one ref; unchanged for one ref. */
+function payloadForRef(
+  rawPayload: unknown,
+  refCount: number,
+  update: AzureDevOpsPushResourceDto['refUpdates'][number],
+): unknown {
+  const envelope = asRecord(rawPayload);
+  const resource = asRecord(envelope?.resource);
+  if (refCount === 1 || !envelope || !resource) return rawPayload;
+  // Keep the provider's own entry, with any fields the schema does not model.
+  const rawUpdates = Array.isArray(resource.refUpdates) ? resource.refUpdates : [];
+  const rawUpdate = rawUpdates.find((entry) => asRecord(entry)?.name === update.name) ?? update;
+  return {...envelope, resource: {...resource, refUpdates: [rawUpdate]}};
 }
 
 function stripRefsHeads(ref: string): string {
