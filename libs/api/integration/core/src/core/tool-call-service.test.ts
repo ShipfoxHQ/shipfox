@@ -1142,7 +1142,11 @@ describe('callIntegrationTool', () => {
 
     expect(unknownResult).toEqual({
       outcome: 'error',
-      error: {code: 'unknown', message: 'Integration tool call failed'},
+      error: {
+        code: 'unknown',
+        message: 'Integration tool call failed',
+        mayHaveReachedProvider: true,
+      },
     });
     expect(serviceMocks.loggerError).toHaveBeenCalledWith(
       expect.objectContaining({err: unknownError, errorCode: 'unknown'}),
@@ -1158,6 +1162,47 @@ describe('callIntegrationTool', () => {
         fingerprint: ['integration.agent-tool', 'github', 'unknown', 'none'],
       }),
     );
+  });
+
+  it('does not say an unclassified failure before the provider call may have reached it', async () => {
+    const openError = new Error('session failed to open');
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {
+          agent_tools: {
+            catalog: () => [catalogTool()],
+            selectionCatalog: () => ({selectors: []}),
+            openSession: () => Promise.reject(openError),
+          },
+        },
+      },
+    ]);
+
+    const result = await callIntegrationTool({...createInput(), registry});
+
+    expect(result).toEqual({
+      outcome: 'error',
+      error: {code: 'unknown', message: 'Integration tool call failed'},
+    });
+  });
+
+  it('does not say a provider-rejected result with an unrecognized code may have reached it', async () => {
+    const result = await callIntegrationTool(
+      createInput({
+        result: {
+          isError: true,
+          content: [{type: 'text', text: 'Rejected'}],
+          structuredContent: {code: 'something-new'},
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      outcome: 'error',
+      error: {code: 'unknown', message: 'Rejected'},
+    });
   });
 
   it('keeps equivalent failures grouped without fragmenting by tool id', async () => {

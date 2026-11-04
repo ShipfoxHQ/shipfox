@@ -1661,6 +1661,19 @@ describe('integrations inter-module callTool', () => {
     });
   });
 
+  it('propagates that an unclassified failure may have reached the provider', async () => {
+    const client = createToolCallClient({callError: new Error('connection reset')});
+
+    const result = await client.callTool(toolCallInput);
+
+    expect(result).toEqual({
+      outcome: 'error',
+      code: 'unknown',
+      message: 'Integration tool call failed',
+      mayHaveReachedProvider: true,
+    });
+  });
+
   it('falls back to a null structured result for text-only provider results', async () => {
     const client = createToolCallClient({
       result: {content: [{type: 'text', text: 'dispatched'}]},

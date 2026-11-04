@@ -62,6 +62,11 @@ export interface IntegrationToolCallError {
   message: string;
   retryAfterSeconds?: number | undefined;
   status?: number | undefined;
+  /**
+   * Set on an `unknown` error thrown once the call was handed to the provider, so the provider
+   * may have applied it. Absent when the failure came earlier or the provider rejected the call.
+   */
+  mayHaveReachedProvider?: true | undefined;
 }
 
 export type IntegrationToolCallOutcome =
@@ -103,6 +108,7 @@ export interface IntegrationToolCallInput extends IntegrationToolTargetInput {
 interface ToolSessionState {
   session: AgentToolSession<CallToolResult> | undefined;
   openingSession: Promise<AgentToolSession<CallToolResult>> | undefined;
+  callStarted: boolean;
 }
 
 async function executeIntegrationTool(
@@ -128,6 +134,7 @@ async function executeIntegrationTool(
   });
   state.session = await raceWithSignal(state.openingSession, input.signal);
   if (input.signal?.aborted) return {outcome: 'error', error: abortOutcome(input.signal)};
+  state.callStarted = true;
   const result = await raceWithSignal(
     state.session.call({toolId: input.tool.id, arguments: input.arguments}),
     input.signal,
@@ -212,7 +219,11 @@ function handleIntegrationToolError(
     }
     return withAuthorization({outcome: 'error', error: abortOutcome(input.signal)}, authorization);
   }
-  const errorRecord = errorResult(error);
+  const classified = errorResult(error);
+  const errorRecord: IntegrationToolCallError =
+    classified.code === 'unknown' && state.callStarted
+      ? {...classified, mayHaveReachedProvider: true}
+      : classified;
   logIntegrationToolError(input, error, errorRecord, log, report);
   return withAuthorization({outcome: 'error', error: errorRecord}, authorization);
 }
@@ -222,7 +233,11 @@ export async function callIntegrationTool(
 ): Promise<IntegrationToolCallOutcome> {
   const log = input.logger ?? logger;
   const report = input.reportError ?? reportError;
-  const state: ToolSessionState = {session: undefined, openingSession: undefined};
+  const state: ToolSessionState = {
+    session: undefined,
+    openingSession: undefined,
+    callStarted: false,
+  };
   let authorization: IntegrationToolCallAuthorization | undefined;
 
   try {

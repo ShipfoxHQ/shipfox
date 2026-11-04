@@ -935,6 +935,7 @@ type CallToolOutput =
       message: string;
       retryAfterSeconds?: number | undefined;
       status?: number | undefined;
+      mayHaveReachedProvider?: true | undefined;
     };
 
 function toCallToolOutput(outcome: IntegrationToolCallOutcome): CallToolOutput {
@@ -952,6 +953,9 @@ function toCallToolOutput(outcome: IntegrationToolCallOutcome): CallToolOutput {
           ? {}
           : {retryAfterSeconds: outcome.error.retryAfterSeconds}),
         ...(outcome.error.status === undefined ? {} : {status: outcome.error.status}),
+        ...(outcome.error.mayHaveReachedProvider === undefined
+          ? {}
+          : {mayHaveReachedProvider: true}),
       };
 }
 
