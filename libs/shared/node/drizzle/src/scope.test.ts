@@ -35,17 +35,15 @@ async function createTables(database: ReturnType<typeof drizzle>): Promise<void>
     )`);
 }
 
-// The marker is blocked once PostgreSQL lists an advisory lock request it has not granted.
-async function waitForBlockedLock(pool: Pool): Promise<void> {
+// A statement is blocked once PostgreSQL lists a lock request it has not granted.
+async function waitForBlockedStatement(pool: Pool): Promise<void> {
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
-    const {rows} = await pool.query(
-      "select 1 from pg_locks where locktype = 'advisory' and not granted",
-    );
+    const {rows} = await pool.query('select 1 from pg_locks where not granted');
     if (rows.length > 0) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error('The marker never waited for the write lock');
+  throw new Error('No statement waited for a lock');
 }
 
 describe('deleted scope markers', () => {
@@ -176,7 +174,7 @@ describe('deleted scope markers', () => {
         await recordDeletedScope(tx, deletedScopes, {scope, reason: 'project_deleted'});
         events.push('marker recorded');
       });
-      await waitForBlockedLock(pool);
+      await waitForBlockedStatement(pool);
       expect(events).toEqual([]);
 
       finishWrite();
@@ -214,6 +212,42 @@ describe('deleteInBatches', () => {
       const remaining = await database.select().from(rows);
       expect(remaining).toHaveLength(3);
       expect(remaining.every((row) => row.projectId === other)).toBe(true);
+    });
+  });
+
+  it('keeps going when a concurrent update moves every selected row', async () => {
+    await withFreshDatabase(async (pool) => {
+      const database = drizzle(pool);
+      await createTables(database);
+      const target = randomUUID();
+      await database.insert(rows).values(Array.from({length: 5}, () => ({projectId: target})));
+      let commitUpdate: () => void = () => undefined;
+      const updateMayCommit = new Promise<void>((resolve) => {
+        commitUpdate = resolve;
+      });
+      let updateHoldsRows: () => void = () => undefined;
+      const updateStarted = new Promise<void>((resolve) => {
+        updateHoldsRows = resolve;
+      });
+      // Rewriting a row gives it a new physical row id, so the delete below finds none of its picks.
+      const update = database.transaction(async (tx) => {
+        await tx.update(rows).set({projectId: sql`project_id`});
+        updateHoldsRows();
+        await updateMayCommit;
+      });
+      await updateStarted;
+
+      const deletion = deleteInBatches({
+        db: database,
+        table: rows,
+        where: eq(rows.projectId, target),
+      });
+      await waitForBlockedStatement(pool);
+      commitUpdate();
+      await update;
+
+      expect(await deletion).toBe(5);
+      expect(await database.select().from(rows)).toEqual([]);
     });
   });
 
