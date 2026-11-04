@@ -28,7 +28,7 @@ export type RunDeliveryWorkflows = Pick<WorkflowsModuleClient, 'getWorkflowRunOv
 
 type RunOverview = NonNullable<Awaited<ReturnType<RunDeliveryWorkflows['getWorkflowRunOverview']>>>;
 
-const TERMINAL_JOB_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'skipped']);
+export const TERMINAL_JOB_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'skipped']);
 const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'cancelled']);
 
 export type RunDelivery =

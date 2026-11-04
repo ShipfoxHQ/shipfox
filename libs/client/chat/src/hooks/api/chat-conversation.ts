@@ -1,6 +1,11 @@
 import type {AgentPageContext} from '@shipfox/client-shell/runtime';
-import {useCallback, useEffect, useMemo, useState} from 'react';
-import {lastItemSeq, mergeItemPages, withLiveItems} from '#core/conversation.js';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {
+  type ConversationItem,
+  lastItemSeq,
+  mergeItemPages,
+  withLiveItems,
+} from '#core/conversation.js';
 import {buildTranscript} from '#core/transcript.js';
 import {
   currentTurn,
@@ -78,21 +83,40 @@ function isTabFocused(): boolean {
   return document.visibilityState === 'visible' && document.hasFocus();
 }
 
+function subscribeToTabFocus(onChange: () => void) {
+  window.addEventListener('focus', onChange);
+  window.addEventListener('blur', onChange);
+  document.addEventListener('visibilitychange', onChange);
+  return () => {
+    window.removeEventListener('focus', onChange);
+    window.removeEventListener('blur', onChange);
+    document.removeEventListener('visibilitychange', onChange);
+  };
+}
+
 /** Whether the reader is looking at this tab. A hidden or background tab is not. */
 function useTabFocused(): boolean {
-  const [focused, setFocused] = useState(isTabFocused);
+  return useSyncExternalStore(subscribeToTabFocus, isTabFocused, () => false);
+}
+
+/**
+ * The detail isn't polled while a stream is open, so a result that arrives on the stream reads
+ * the detail again. Otherwise its run would keep its active-run pill until the turn ends.
+ */
+function useRefreshOnRunResult(params: {
+  items: readonly ConversationItem[];
+  queued: readonly ConversationItem[];
+  refetch: () => unknown;
+}) {
+  const {items, queued, refetch} = params;
+  const results = [...items, ...queued].filter(
+    (item) => item.content?.type === 'run_result',
+  ).length;
+  const seen = useRef(results);
   useEffect(() => {
-    const update = () => setFocused(isTabFocused());
-    window.addEventListener('focus', update);
-    window.addEventListener('blur', update);
-    document.addEventListener('visibilitychange', update);
-    return () => {
-      window.removeEventListener('focus', update);
-      window.removeEventListener('blur', update);
-      document.removeEventListener('visibilitychange', update);
-    };
-  }, []);
-  return focused;
+    if (results > seen.current) void refetch();
+    seen.current = results;
+  }, [results, refetch]);
 }
 
 /**
@@ -205,6 +229,8 @@ export function useChatConversation({
     stopRequested: turn !== undefined && stopTurnId === turn.id,
     reconnecting: liveTurn.reconnecting,
   });
+
+  useRefreshOnRunResult({items, queued, refetch: detailQuery.refetch});
 
   const runningTurnId = turn?.status === 'running' ? turn.id : undefined;
   const transcript = useMemo(

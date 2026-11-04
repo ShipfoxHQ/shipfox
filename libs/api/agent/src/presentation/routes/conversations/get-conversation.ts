@@ -13,7 +13,7 @@ import {
 } from '#presentation/dto/conversation.js';
 import {requireWebConversation, translateConversationRouteError} from './access.js';
 
-/** Without a workflows client, a conversation starts no runs, so it has no active ones. */
+/** Without a workflows client, this route can't read a conversation's runs, so it reports none. */
 export function createGetConversationRoute(workflows: RunDeliveryWorkflows | undefined) {
   return defineRoute({
     method: 'GET',

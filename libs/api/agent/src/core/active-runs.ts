@@ -1,6 +1,10 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {listActiveRunLinks, listDeliveredRunAttempts} from '#db/run-links.js';
-import {type RunDeliveryWorkflows, readRunDelivery} from './deliver-run-results.js';
+import {
+  type RunDeliveryWorkflows,
+  readRunDelivery,
+  TERMINAL_JOB_STATUSES,
+} from './deliver-run-results.js';
 
 export interface ActiveRun {
   workflowRunId: string;
@@ -16,16 +20,14 @@ export interface ActiveRun {
 
 type RunOverview = NonNullable<Awaited<ReturnType<RunDeliveryWorkflows['getWorkflowRunOverview']>>>;
 
-const FINISHED_JOB_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'skipped']);
-
 /** A large run lists no jobs, but its counts cover every one. */
 function jobProgress(jobs: RunOverview['jobs']): {finished: number; total: number} {
   if (jobs.kind === 'complete') {
-    const finished = jobs.items.filter((job) => FINISHED_JOB_STATUSES.has(job.status)).length;
+    const finished = jobs.items.filter((job) => TERMINAL_JOB_STATUSES.has(job.status)).length;
     return {finished, total: jobs.total};
   }
   const finished = jobs.status_counts
-    .filter((entry) => FINISHED_JOB_STATUSES.has(entry.status))
+    .filter((entry) => TERMINAL_JOB_STATUSES.has(entry.status))
     .reduce((sum, entry) => sum + entry.count, 0);
   return {finished, total: jobs.total};
 }

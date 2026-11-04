@@ -59,7 +59,7 @@ describe('ChatActiveRuns', () => {
     const user = userEvent.setup();
     await renderActiveRuns([1, 2, 3, 4, 5].map(activeRun));
 
-    await user.click(screen.getByRole('button', {name: 'Show 2 more runs'}));
+    await user.click(screen.getByRole('button', {name: '+2 more runs'}));
 
     const more = await screen.findByRole('list', {name: 'More active runs'});
     const links = within(more).getAllByRole('link');

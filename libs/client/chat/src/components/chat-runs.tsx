@@ -53,6 +53,9 @@ export function ChatRunCard({
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-sm text-foreground-neutral-base">
                     {runLabel(result)}
+                    {result.attempt !== undefined && result.attempt > 1
+                      ? ` · Attempt ${result.attempt}`
+                      : null}
                     {status ? (
                       <span className="text-foreground-neutral-muted">{` · ${runStatusLabel(status)}`}</span>
                     ) : null}
@@ -138,7 +141,8 @@ function MoreActiveRuns({
   onNavigate: (event: MouseEvent<HTMLElement>) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label = runs.length === 1 ? 'Show 1 more run' : `Show ${runs.length} more runs`;
+  // The name starts with the visible `+N`, so voice control can reach it by what it shows.
+  const label = runs.length === 1 ? '+1 more run' : `+${runs.length} more runs`;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

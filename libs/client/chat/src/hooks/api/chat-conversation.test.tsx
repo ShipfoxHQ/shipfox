@@ -69,17 +69,22 @@ function arrangeApi() {
   return {reads};
 }
 
-function render(params: {latestVisible: boolean}) {
+/** Lets a mark-read request that should not happen reach the fake API before the assertion. */
+async function flushPendingWork() {
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+}
+
+function render(params: {latestVisible: boolean; active?: boolean}) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const wrapper = ({children}: {children: ReactNode}) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
   return renderHook(
-    (props: {latestVisible: boolean}) =>
+    (props: {latestVisible: boolean; active?: boolean}) =>
       useChatConversation({
         projectId: PROJECT_ID,
         conversationId: CONVERSATION_ID,
-        active: true,
+        active: props.active ?? true,
         latestVisible: props.latestVisible,
         onCreated: () => undefined,
       }),
@@ -115,6 +120,7 @@ describe('useChatConversation read state', () => {
 
     const {result} = render({latestVisible: true});
     await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushPendingWork();
     expect(reads).toEqual([]);
 
     arrangeTab({visible: true, focused: true});
@@ -131,6 +137,18 @@ describe('useChatConversation read state', () => {
 
     const {result} = render({latestVisible: true});
     await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushPendingWork();
+
+    expect(reads).toEqual([]);
+  });
+
+  test('leaves a reply unread while the panel is closed', async () => {
+    const {reads} = arrangeApi();
+    arrangeTab({visible: true, focused: true});
+
+    const {result} = render({latestVisible: true, active: false});
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushPendingWork();
 
     expect(reads).toEqual([]);
   });
@@ -141,6 +159,7 @@ describe('useChatConversation read state', () => {
 
     const {result, rerender} = render({latestVisible: false});
     await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushPendingWork();
     expect(reads).toEqual([]);
 
     rerender({latestVisible: true});

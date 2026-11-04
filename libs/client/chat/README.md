@@ -18,13 +18,14 @@ Chat with Shippy, the project agent, in a panel beside project pages.
   `Run started` row with the run number and a link, and it never joins a group
   of reads.
 - **Run cards**: each result a run attempt delivers is one card with the run's
-  status, name, number, and `Open run`, so a rerun adds a card of its own. A
+  status, name, number, and `Open run`, so a rerun adds a card of its own,
+  labeled with its attempt. A
   settled run reads `Listening`, with `Work finished. Still listening for review
   feedback.` A result shows as soon as it is delivered, before a turn claims it.
 - **Active runs**: under the header, the runs the conversation started whose
   latest attempt has no result yet. A run leaves once it settles or ends, so the
   chat never says `Running` beside a finished result. Hovering or focusing a run
-  shows its status, attempt, start time, and finished jobs. Above three, the
+  shows its status, start time, and finished jobs, and the attempt of a rerun. Above three, the
   rest collapse into `+N`, which opens a list of them.
 - **Turn states**: thinking, a slow start, stopping, reconnecting, queued
   messages, stopped replies, failures with Retry or Continue, denied messages
@@ -41,7 +42,7 @@ pnpm add @shipfox/client-chat
 
 The package is part of the `libs/client` workspace. It depends on
 `client-agent`, `client-api`, `client-logs`, `client-projects`, `client-shell`,
-and `client-ui`. A composition includes it through `defaultFeatures()` in
+`client-ui`, and `client-workflows`. A composition includes it through `defaultFeatures()` in
 `@shipfox/client-features`.
 
 ## Usage
@@ -71,7 +72,7 @@ registered when it was sent.
   conversations have an unread reply, which Shippy shows as a badge.
 - The conversation list is read again every 30 seconds for unread replies, on
   every project page, and not in a hidden tab. When it shows that the open
-  conversation moved on, the conversation is read again, so a closed panel
+  conversation moved on, its details and items are fetched again, so a closed panel
   follows a late reply.
 - A reply is marked read only when the panel is open, its latest item is
   scrolled into view, and the tab is visible and focused. A hidden or background

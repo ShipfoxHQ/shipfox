@@ -45,9 +45,9 @@ the launcher shows a badge on any project page while the panel is closed.
 - **Keyframes.** The shell renders them in a hoisted React `style` element, so every composing
   application gets them without importing a stylesheet.
 - **A closed dock.** It keeps the stream of a turn that runs, so `working` ends when the reply does.
-  It doesn't poll the open conversation while closed, and it never marks a reply read. It reads the
-  conversation list every 30 seconds for the unread count, and not in a hidden tab, because a result
-  can arrive days later.
+  It doesn't poll the open conversation while closed, and it never marks a reply read. Because a result
+  can arrive days later, it reads the conversation list every 30 seconds for the unread count. A
+  hidden tab doesn't poll.
 - **Read.** A reply is read once its latest item is in view in an open panel, in a visible and
   focused tab, so a hidden tab can't clear unread.
 - **Greeting.** In floating mode, the first project page in a browser shows a bubble beside Shippy.
