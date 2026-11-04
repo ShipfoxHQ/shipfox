@@ -2,13 +2,13 @@ import {
   type BrowserStorageKey,
   createTypedBrowserStorage,
   localStorageOrUndefined,
-  type TypedBrowserStorage,
 } from '@shipfox/client-ui';
 import {useMediaQuery} from '@shipfox/react-ui/hooks/useMediaQuery';
-import {atom, useAtom} from 'jotai';
+import {useAtom} from 'jotai';
 import type {PropsWithChildren} from 'react';
 import {createContext, useContext, useMemo} from 'react';
 import type {ClientFeature, ProjectDockContribution} from '#contract.js';
+import {persistedAtom} from '#runtime/persisted-atom.js';
 
 /** Below this width the dock is a full-screen sheet and Shippy stays in the tab bar. */
 export const PROJECT_DOCK_QUERY = '(min-width: 976px)';
@@ -33,21 +33,6 @@ const projectDockOpenKey = {
     return raw === 'false' ? false : undefined;
   },
 } satisfies BrowserStorageKey<boolean>;
-
-function persistedAtom<T>(
-  storage: TypedBrowserStorage<T>,
-  fallback: T,
-  canRestore: () => boolean = () => true,
-) {
-  const writtenAtom = atom<T | undefined>(undefined);
-  return atom(
-    (get) => get(writtenAtom) ?? (canRestore() ? storage.read() : undefined) ?? fallback,
-    (_get, set, value: T) => {
-      storage.write(value);
-      set(writtenAtom, value);
-    },
-  );
-}
 
 const shippyPlacementAtom = persistedAtom(
   createTypedBrowserStorage(localStorageOrUndefined, shippyPlacementKey),

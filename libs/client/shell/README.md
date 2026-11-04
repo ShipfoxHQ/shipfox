@@ -132,6 +132,15 @@ composition and collision rules.
   without a contribution. A failed dock loses its launcher and strip, and the shell retries it on
   navigation up to three times per project. See
   [ADR 0026](../../../docs/adr/0026-project-dock-contribution.md).
+- `useShippyStatus()` lets the dock publish what the agent is doing until it unmounts, and
+  `useCurrentShippyStatus()` reads it, or `idle` when no dock publishes. Floating Shippy plays the
+  state from one sprite sheet with CSS `steps()`: `idle` flicks its tail about every 12 seconds,
+  `working` blinks the cursor on the hoodie and bobs the head, and `reply_ready` waves once.
+  `failed` stays still. Motion stops under `prefers-reduced-motion`, pauses in a hidden tab, and
+  never runs on the discreet face.
+- The first time a browser shows floating Shippy, a greeting bubble sits beside it. `Say hello`
+  opens the panel and `Not now` dismisses it. It never returns, and opening the panel by any route
+  counts as meeting Shippy, so a project that opens with the panel open never shows it.
 - `useAgentPageContext()` publishes the current page until it unmounts, and
   `useCurrentAgentPageContext()` reads it. Call it once per page, not from a nested layout. Pass
   `undefined` while the page can't name its resource. `runNumber` and `name` only label the page

@@ -154,7 +154,7 @@ function MainLayoutStory({
   showSessionBanner: boolean;
   withHeaderAction: boolean;
   hideProjectNavigation: boolean;
-  projectDock?: 'floating' | 'tab_bar' | 'open' | undefined;
+  projectDock?: 'floating' | 'greeting' | 'tab_bar' | 'open' | undefined;
   tallContentFrame?: boolean | undefined;
 }) {
   const queryClient = useMemo(
@@ -168,6 +168,9 @@ function MainLayoutStory({
   const store = useMemo(() => {
     window.localStorage.removeItem('shipfox.shippy.placement');
     window.localStorage.removeItem('shipfox.projectDock.open');
+    // Only the greeting story meets Shippy for the first time.
+    if (projectDock === 'greeting') window.localStorage.removeItem('shipfox.shippy.greeted');
+    else window.localStorage.setItem('shipfox.shippy.greeted', 'true');
     if (projectDock === 'tab_bar') {
       window.localStorage.setItem('shipfox.shippy.placement', 'tab_bar');
     }
@@ -307,7 +310,10 @@ export const ProjectDockFloating: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     const shippy = await canvas.findByRole('button', {name: 'Open Shippy, your project agent'});
-    expect(shippy.querySelector('img')).toHaveAttribute('data-pose', 'body');
+    expect(shippy.querySelector('[data-slot="shippy-sprite"]')).toHaveAttribute(
+      'data-state',
+      'idle',
+    );
     const next = canvas.getByRole('button', {name: 'Next'}).getBoundingClientRect();
     const launcher = shippy.getBoundingClientRect();
     expect(next.bottom).toBeLessThanOrEqual(launcher.top);
@@ -317,7 +323,7 @@ export const ProjectDockFloating: Story = {
 const assertMainStopsAboveShippy: Story['play'] = async ({canvasElement}) => {
   const canvas = within(canvasElement);
   const shippy = await canvas.findByRole('button', {name: 'Open Shippy, your project agent'});
-  expect(shippy.querySelector('img')).toHaveAttribute('data-pose', 'body');
+  expect(shippy.querySelector('[data-slot="shippy-sprite"]')).toBeInTheDocument();
   const main = canvas.getByRole('main').getBoundingClientRect();
   expect(main.bottom).toBeLessThanOrEqual(shippy.getBoundingClientRect().top);
 };
@@ -325,6 +331,19 @@ const assertMainStopsAboveShippy: Story['play'] = async ({canvasElement}) => {
 export const ProjectDockTallContentFrame: Story = {
   args: {withSessionBanner: false, projectDock: 'floating', tallContentFrame: true},
   play: assertMainStopsAboveShippy,
+};
+
+export const ProjectDockGreeting: Story = {
+  args: {withSessionBanner: false, projectDock: 'greeting'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const shippy = await canvas.findByRole('button', {name: 'Open Shippy, your project agent'});
+    expect(await canvas.findByRole('region', {name: "Hi, I'm Shippy."})).toBeVisible();
+    expect(shippy.querySelector('[data-slot="shippy-sprite"]')).toHaveAttribute(
+      'data-state',
+      'greeting',
+    );
+  },
 };
 
 export const ProjectDockTabBar: Story = {
