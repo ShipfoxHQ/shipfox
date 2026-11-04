@@ -250,7 +250,8 @@ describe('assertProjectSourceAdmits', () => {
       expect(resolveConnectionById).toHaveBeenCalledWith({connectionId: codeConnectionId});
     });
 
-    test('does not resolve a repository checkout without a default checkout', async () => {
+    test('admits a repository checkout on the default connection while it is active', async () => {
+      lifecycleStatus = 'active';
       const model = workflowModel({
         jobs: {
           build: {
@@ -261,6 +262,53 @@ describe('assertProjectSourceAdmits', () => {
       });
 
       await expect(admits(model)).resolves.toBeUndefined();
+      expect(resolveConnectionById).toHaveBeenCalledWith({connectionId: codeConnectionId});
+    });
+
+    test('rejects a repository checkout whose default connection is inactive', async () => {
+      const model = workflowModel({
+        jobs: {
+          build: {
+            checkout: false,
+            steps: [{checkout: checkout({repository: 'acme/app', path: 'src'})}],
+          },
+        },
+      });
+
+      await expect(admits(model)).rejects.toEqual(
+        new SourceConnectionUnavailableError(projectId, codeConnectionId, 'error'),
+      );
+    });
+
+    test('leaves a repository checkout to checkout time when there is no default connection', async () => {
+      listSourceControlConnectionIds.mockResolvedValue({connectionIds: []});
+      const model = workflowModel({
+        jobs: {
+          build: {
+            checkout: false,
+            steps: [{checkout: checkout({repository: 'acme/app', path: 'src'})}],
+          },
+        },
+      });
+
+      await expect(admits(model)).resolves.toBeUndefined();
+      expect(resolveConnectionById).not.toHaveBeenCalled();
+    });
+
+    test('does not resolve a repository checkout that names its connection', async () => {
+      const model = workflowModel({
+        jobs: {
+          build: {
+            checkout: false,
+            steps: [
+              {checkout: checkout({repository: 'acme/app', connection: 'other', path: 'src'})},
+            ],
+          },
+        },
+      });
+
+      await expect(admits(model)).resolves.toBeUndefined();
+      expect(resolveConnectionById).not.toHaveBeenCalled();
     });
 
     test('still admits a checkout that names the project', async () => {
