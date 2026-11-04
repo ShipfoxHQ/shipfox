@@ -434,17 +434,39 @@ describe('createLinearApiClient.getIdentity', () => {
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
   });
 
-  it('maps non-auth GraphQL errors to malformed-provider-response', async () => {
-    mocks.post.mockReturnValue(
-      resolves({
-        errors: [{message: 'validation detail', extensions: {type: 'invalid'}}],
-      }),
-    );
+  it.each([
+    ['an invalid input type', {type: 'invalid input'}],
+    ['a user error', {userError: true}],
+  ])('maps a GraphQL refusal with %s to malformed-provider-response', async (_name, extensions) => {
+    mocks.post.mockReturnValue(resolves({errors: [{message: 'validation detail', extensions}]}));
     const client = createLinearApiClient();
 
     const result = client.getIdentity({accessToken: 'linear-token'});
 
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
+  it.each([
+    ['no extensions', undefined],
+    ['an unrecognized type', {type: 'internal server error'}],
+  ])('maps a GraphQL execution error with %s to provider-unavailable', async (_name, extensions) => {
+    mocks.post.mockReturnValue(resolves({errors: [{message: 'resolver failed', extensions}]}));
+    const client = createLinearApiClient();
+
+    const result = client.getIdentity({accessToken: 'linear-token'});
+
+    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
+  });
+
+  it('maps a GraphQL rate limit error to rate-limited', async () => {
+    mocks.post.mockReturnValue(
+      resolves({errors: [{message: 'slow down', extensions: {code: 'RATELIMITED'}}]}),
+    );
+    const client = createLinearApiClient();
+
+    const result = client.getIdentity({accessToken: 'linear-token'});
+
+    await expect(result).rejects.toMatchObject({reason: 'rate-limited'});
   });
 
   it('maps GraphQL responses without data to malformed-provider-response', async () => {
@@ -628,7 +650,7 @@ describe('createLinearApiClient.hasAgentActivity', () => {
 
     const result = client.hasAgentActivity({accessToken: 'linear-token', id: 'activity-1'});
 
-    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
   });
 
   it('rejects when Linear returns no data', async () => {
