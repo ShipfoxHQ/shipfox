@@ -34,8 +34,9 @@ The shell mounts the component on project pages, beside `main`, inside a reporti
 **The dock publishes Shippy's status, and Shippy greets a new browser once.** The launcher shows what
 the agent is doing, but the conversation state lives in the dock. The dock publishes a status
 through `useShippyStatus`, and the launcher reads it with `useCurrentShippyStatus`. The shell keeps
-one value, which clears when the dock unmounts, so an unmounted or failed dock leaves Shippy idle.
-The status holds `state` today, and the unread count joins it later.
+one value, which clears when the dock unmounts, so Shippy shows `idle` when no dock publishes. A dock
+that fails to render still hides the launcher. The status holds `state` today, and the unread count
+joins it later.
 
 - **States.** `idle`, `working`, `reply_ready`, and `failed`. Floating Shippy plays them from one
   sprite sheet with CSS `steps()`, through a `data-state` attribute and no timers. `failed` shows

@@ -28,7 +28,10 @@ export interface UseChatConversationParams {
   projectId: string;
   /** Undefined for a conversation that the first message creates. */
   conversationId: string | undefined;
-  /** Reads pause while the panel is closed, except the stream of a turn that still runs. */
+  /**
+   * Reads pause while the panel is closed, except the stream, which follows a turn that runs or an
+   * input or retry that waits.
+   */
   active: boolean;
   onCreated: (conversationId: string) => void;
 }
