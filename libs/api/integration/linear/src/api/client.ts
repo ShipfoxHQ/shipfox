@@ -27,7 +27,12 @@ const AUTH_ERROR_TYPES = new Set([
   'authorization error',
 ]);
 const RATE_LIMIT_ERROR_TYPES = new Set(['ratelimited', 'rate limited', 'usage limit exceeded']);
-const REFUSAL_ERROR_TYPES = new Set(['invalid input', 'feature not accessible', 'forbidden']);
+const REFUSAL_ERROR_TYPES = new Set([
+  'invalid input',
+  'feature not accessible',
+  'forbidden',
+  'user error',
+]);
 
 const SCOPE_SEPARATOR_RE = /[,\s]+/;
 

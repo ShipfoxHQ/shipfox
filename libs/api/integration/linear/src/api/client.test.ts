@@ -436,6 +436,9 @@ describe('createLinearApiClient.getIdentity', () => {
 
   it.each([
     ['an invalid input type', {type: 'invalid input'}],
+    ['a feature not accessible type', {type: 'feature not accessible'}],
+    ['a forbidden type', {type: 'forbidden'}],
+    ['a user error type', {type: 'user error'}],
     ['a user error', {userError: true}],
   ])('maps a GraphQL refusal with %s to malformed-provider-response', async (_name, extensions) => {
     mocks.post.mockReturnValue(resolves({errors: [{message: 'validation detail', extensions}]}));
