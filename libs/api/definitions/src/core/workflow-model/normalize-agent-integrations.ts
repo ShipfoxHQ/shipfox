@@ -199,7 +199,10 @@ export function resolveAgentToolConnection(params: {
   return new Map(catalog.selectors.map((selector) => [selector.token, selector]));
 }
 
-/** Checks selectors against the provider catalog; write tools need `allowWrite`. */
+/**
+ * Checks selectors against the provider catalog. A selection that `exclude` empties is refused,
+ * and write tools need `allowWrite`.
+ */
 export function validateAgentToolSelection(params: {
   include: readonly string[];
   exclude?: readonly string[];
@@ -213,7 +216,8 @@ export function validateAgentToolSelection(params: {
   if (params.exclude !== undefined) {
     validateSelection({...params, field: 'exclude', tokens: params.exclude});
   }
-  validateWriteSelection(params);
+  if (!selectsKnownTokensOnly(params)) return;
+  validateEffectiveSelection(params);
 }
 
 function validateSelection(params: {
@@ -242,7 +246,17 @@ function validateSelection(params: {
   });
 }
 
-function validateWriteSelection(params: {
+function selectsKnownTokensOnly(params: {
+  include: readonly string[];
+  exclude?: readonly string[];
+  selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
+}): boolean {
+  return [...params.include, ...(params.exclude ?? [])].every((token) =>
+    params.selectorsByToken.has(token),
+  );
+}
+
+function validateEffectiveSelection(params: {
   include: readonly string[];
   exclude?: readonly string[];
   allowWrite: boolean;
@@ -251,16 +265,30 @@ function validateWriteSelection(params: {
   details?: Readonly<Record<string, unknown>>;
   issues: WorkflowModelValidationIssue[];
 }): void {
-  if (params.allowWrite) return;
-
   const excluded = new Set(
     (params.exclude ?? []).flatMap((token) => grantedTokens(token, params.selectorsByToken)),
   );
+  const remaining = (token: string) =>
+    grantedTokens(token, params.selectorsByToken).filter((granted) => !excluded.has(granted));
+
+  if (params.include.every((token) => remaining(token).length === 0)) {
+    params.issues.push(
+      issue({
+        code: 'integration-no-tools-selected',
+        message:
+          'Integration selection leaves no tools after exclude removes what include selects.',
+        path: params.selectorPath('include'),
+        details: {...params.details},
+      }),
+    );
+    return;
+  }
+  if (params.allowWrite) return;
+
   const writeTokens = dedupe(
     params.include.filter((token) =>
-      grantedTokens(token, params.selectorsByToken).some(
-        (granted) =>
-          !excluded.has(granted) && params.selectorsByToken.get(granted)?.sensitivity === 'write',
+      remaining(token).some(
+        (granted) => params.selectorsByToken.get(granted)?.sensitivity === 'write',
       ),
     ),
   );
