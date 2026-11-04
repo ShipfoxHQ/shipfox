@@ -171,7 +171,7 @@ function InstalledRow({
             </DropdownMenuItem>
             {workspaceSlug ? (
               <>
-                {connection.capabilities.includes('source_control') ? (
+                {connection.provider === 'github' ? (
                   <DropdownMenuItem asChild>
                     <Link
                       to="/w/$workspaceSlug/settings/integrations/$connectionSlug"

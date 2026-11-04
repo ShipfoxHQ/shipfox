@@ -212,7 +212,7 @@ interface ProviderAccessNoticeCopy {
 }
 
 // Where the outer repository list is managed is provider-specific. Providers without an entry
-// get no notice; the panel copy above stays provider-neutral.
+// get no notice.
 const PROVIDER_ACCESS_NOTICES: Record<string, ProviderAccessNoticeCopy> = {
   github: {
     title: 'Repository access is set on GitHub',

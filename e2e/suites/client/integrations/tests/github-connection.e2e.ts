@@ -9,10 +9,12 @@ test('settings points a GitHub connection at its installation on GitHub', async 
     name: 'GitHub Connection Settings Workspace',
   });
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+  const installationId = Number.parseInt(uniqueId.slice(0, 7), 16) + 1;
+  const accountLogin = `e${uniqueId.slice(0, 5)}`;
   const connection = await createGithubConnection({
     workspaceId,
-    installationId: Number.parseInt(uniqueId.slice(0, 7), 16) + 1,
-    accountLogin: `e${uniqueId.slice(0, 5)}`,
+    installationId,
+    accountLogin,
     displayName: `GitHub Settings ${uniqueId}`,
     installerUserId: crypto.randomUUID(),
   });
@@ -20,5 +22,8 @@ test('settings points a GitHub connection at its installation on GitHub', async 
   await connectionDetails.goto(workspaceSlug, connection.slug);
 
   await expect(connectionDetails.heading()).toBeVisible();
-  await expect(connectionDetails.providerNotice()).toBeVisible();
+  await expect(connectionDetails.providerNotice()).toHaveAttribute(
+    'href',
+    `https://github.com/organizations/${accountLogin}/settings/installations/${installationId}`,
+  );
 });

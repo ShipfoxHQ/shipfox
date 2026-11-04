@@ -426,6 +426,23 @@ describe('IntegrationGallery — installed section', () => {
     expect(externalAction).toHaveAttribute('rel', 'noreferrer noopener');
   });
 
+  test('offers no repository access page for a provider without a notice', async () => {
+    renderGallery(
+      {},
+      {
+        connections: [
+          {...githubConnection, provider: 'gitea', display_name: 'acme-gitea', slug: 'gitea_acme'},
+        ],
+      },
+    );
+
+    await openActions('Open acme-gitea integration actions');
+
+    expect(
+      screen.queryByRole('menuitem', {name: 'Manage repository access'}),
+    ).not.toBeInTheDocument();
+  });
+
   test('uses generic external copy without provider metadata and omits it without a URL', async () => {
     const gallery = renderGallery({}, {providers: [], connections: [githubConnection]});
 
