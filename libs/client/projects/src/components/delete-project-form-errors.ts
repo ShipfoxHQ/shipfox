@@ -12,6 +12,9 @@ export function deleteProjectErrorToFormError(error: unknown): DeleteProjectForm
     if (error.code === 'default-project-undeletable') {
       return {kind: 'form', message: "The default project can't be deleted."};
     }
+    if (error.code === 'impersonation-not-permitted') {
+      return {kind: 'form', message: 'Only a workspace member can delete a project.'};
+    }
     if (error.status === 403) {
       return {kind: 'form', message: 'Only workspace admins can delete this project.'};
     }

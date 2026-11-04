@@ -119,8 +119,8 @@ function DeleteProjectForm({
     >
       <ModalBody className="gap-group">
         <Text size="sm">
-          Active runs and agent turns stop now. Slack threads and Linear sessions of its
-          conversations get no further reply.
+          Active runs and agent turns stop. Slack threads and Linear sessions of its conversations
+          get no further reply.
           {project.source.kind === 'linked'
             ? " The linked repository isn't changed, and its .shipfox/ folder stays."
             : null}
@@ -163,9 +163,17 @@ function DeleteProjectForm({
         <Button type="button" variant="secondary" disabled={isPending} onClick={onCancel}>
           Cancel
         </Button>
-        <form.Subscribe selector={(state) => state.values.name === project.name}>
-          {(nameMatches) => (
-            <Button type="submit" variant="danger" isLoading={isPending} disabled={!nameMatches}>
+        {/* The submit runs past the mutation into the navigation, so the button waits for both. */}
+        <form.Subscribe
+          selector={(state) => [state.values.name === project.name, state.isSubmitting] as const}
+        >
+          {([nameMatches, isSubmitting]) => (
+            <Button
+              type="submit"
+              variant="danger"
+              isLoading={isPending || isSubmitting}
+              disabled={!nameMatches || isSubmitting}
+            >
               Delete project
             </Button>
           )}

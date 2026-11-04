@@ -134,6 +134,10 @@ describe('ProjectSettingsPage', () => {
     const confirm = within(dialog).getByRole('button', {name: 'Delete project'});
     expect(confirm).toBeDisabled();
     fireEvent.change(within(dialog).getByLabelText(TYPE_PLATFORM_RE), {
+      target: {value: 'platform'},
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(TYPE_PLATFORM_RE), {
       target: {value: 'Platform'},
     });
     fireEvent.click(confirm);
