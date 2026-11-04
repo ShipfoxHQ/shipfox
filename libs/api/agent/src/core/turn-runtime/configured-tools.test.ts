@@ -88,7 +88,7 @@ const grant = {
   ],
 };
 
-async function setup(options: {refuseGrant?: boolean} = {}) {
+async function setup(options: {refuseGrant?: boolean; connectionSlug?: string} = {}) {
   const workspaceId = crypto.randomUUID();
   const projectId = crypto.randomUUID();
   const {conversation} = await conversationFactory.create({workspaceId, projectId});
@@ -112,7 +112,11 @@ async function setup(options: {refuseGrant?: boolean} = {}) {
             },
           ),
         )
-      : Promise.resolve({integrations: [grant]}),
+      : Promise.resolve({
+          integrations: [
+            {...grant, connectionSlug: options.connectionSlug ?? grant.connectionSlug},
+          ],
+        }),
   );
   const integrations = {
     callTool,
@@ -212,6 +216,20 @@ describe('tools granted by an agent file', () => {
       (tool: {name: string}) => tool.name === 'github_main__issue_label',
     );
     expect(label.description).toContain('Set `method` to one of: list, add.');
+  });
+
+  it('keeps tools of a long connection slug apart', async () => {
+    const longSlug = 'a'.repeat(80);
+    const {items, readEntry} = await setup({connectionSlug: longSlug});
+
+    const [system] = await items();
+    const entry = await readEntry(system as ConversationItem);
+
+    const names: string[] = entry.message.toolsAdded.map((tool: {name: string}) => tool.name);
+    const granted = names.filter((name) => name.startsWith('a'));
+    expect(granted).toHaveLength(3);
+    expect(new Set(granted).size).toBe(3);
+    expect(granted.every((name) => name.length <= 64)).toBe(true);
   });
 
   it('leaves out a tool whose result a conversation cannot read', async () => {

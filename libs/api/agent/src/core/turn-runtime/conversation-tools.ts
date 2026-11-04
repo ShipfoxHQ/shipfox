@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import type {Tool} from '@earendil-works/pi-ai';
 import {sanitizeAgentIntegrationConnectionSlug} from '@shipfox/api-agent-dto';
 import {
@@ -33,6 +34,7 @@ export interface ConversationToolSet {
 
 /** Most model providers cap a tool name at this length. */
 const MAX_TOOL_NAME_LENGTH = 64;
+const DIGEST_LENGTH = 8;
 
 function toDefinition(name: string, description: string, schema: Record<string, unknown>): Tool {
   // pi-ai types parameters with a schema builder, but providers only read the JSON Schema.
@@ -140,12 +142,15 @@ async function listConfiguredIntegrationTools(params: {
   }
 }
 
-/** Names a model can call. The connection keeps two connections of one provider apart. */
+/**
+ * Names a model can call. The connection keeps two connections of one provider apart. A name over
+ * the cap ends in a digest of the full name, so two long names never collapse into one.
+ */
 function integrationToolName(connectionSlug: string, toolId: string): string {
-  return `${sanitizeAgentIntegrationConnectionSlug(connectionSlug)}__${toolId}`.slice(
-    0,
-    MAX_TOOL_NAME_LENGTH,
-  );
+  const full = `${sanitizeAgentIntegrationConnectionSlug(connectionSlug)}__${toolId}`;
+  if (full.length <= MAX_TOOL_NAME_LENGTH) return full;
+  const digest = createHash('sha256').update(full).digest('hex').slice(0, DIGEST_LENGTH);
+  return `${full.slice(0, MAX_TOOL_NAME_LENGTH - DIGEST_LENGTH - 1)}_${digest}`;
 }
 
 function describeTool(description: string, methods: readonly {id: string}[] | undefined): string {
