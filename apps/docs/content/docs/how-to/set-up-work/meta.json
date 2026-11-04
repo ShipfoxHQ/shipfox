@@ -3,6 +3,7 @@
   "pages": [
     "create-project",
     "move-config-to-repository",
+    "limit-project-access",
     "manage-integration-connections",
     "configure-model-providers",
     "secrets-and-variables",

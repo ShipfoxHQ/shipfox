@@ -36,6 +36,7 @@ import * as createProjectRouteModule from "@shipfox/client-projects/routes/creat
 import * as projectIndexRouteModule from "@shipfox/client-projects/routes/project-index";
 import * as projectSettingsIndexRouteModule from "@shipfox/client-projects/routes/project-settings-index";
 import * as projectSettingsRouteModule from "@shipfox/client-projects/routes/project-settings";
+import * as projectAccessSettingsRouteModule from "@shipfox/client-projects/routes/project-access-settings";
 import * as runPermalinkRouteModule from "@shipfox/client-workflows/routes/run-permalink";
 import * as automationsRouteModule from "@shipfox/client-workflows/routes/automations";
 import * as automationsFilesRouteModule from "@shipfox/client-workflows/routes/automations-files";
@@ -109,6 +110,14 @@ const skeleton = buildAnchorSkeleton({
       "icon": "settings3Line",
       "order": 50,
       "scope": "workspace"
+    },
+    {
+      "id": "settings.project-access",
+      "scope": "project",
+      "pathSegment": "access",
+      "label": "Access",
+      "icon": "shieldKeyholeLine",
+      "order": 60
     },
     {
       "id": "settings.members",
@@ -383,6 +392,12 @@ const projectSettingsRoute = createRoute({
   ...routeOptions(projectSettingsRouteModule.default, "@shipfox/client-projects/routes/project-settings", "/w/$workspaceSlug/p/$projectSlug/settings/general"),
 });
 
+const projectAccessSettingsRoute = createRoute({
+  getParentRoute: () => skeleton.projectSettings,
+  path: "/access",
+  ...routeOptions(projectAccessSettingsRouteModule.default, "@shipfox/client-projects/routes/project-access-settings", "/w/$workspaceSlug/p/$projectSlug/settings/access"),
+});
+
 const runPermalinkRoute = createRoute({
   getParentRoute: () => skeleton.rootRoute,
   path: "/runs/$workflowRunId",
@@ -497,7 +512,7 @@ const generalRoute = createRoute({
   ...routeOptions(generalRouteModule.default, "@shipfox/client-workspace-settings/routes/general", "/w/$workspaceSlug/settings/general"),
 });
 
-const projectSettings = skeleton.projectSettings.addChildren([projectSettingsIndexRoute, projectSettingsRoute]);
+const projectSettings = skeleton.projectSettings.addChildren([projectSettingsIndexRoute, projectSettingsRoute, projectAccessSettingsRoute]);
 const projectLayout = skeleton.projectLayout.addChildren([projectIndexRoute, automationsRoute, automationsFilesRoute, runsRoute, runDetailRoute, jobDetailRoute,
   projectSettings]);
 const workspaceSettings = skeleton.workspaceSettings.addChildren([integrationsSettingsRoute, connectionDetailsRoute, agentsSettingsRoute, agentAccessSettingsRoute, runnersSettingsRoute, provisionersSettingsRoute, secretsSettingsRoute, variablesSettingsRoute, eventsSettingsRoute, workspaceSettingsIndexRoute, workspaceSettingsMembersRoute, generalRoute]);

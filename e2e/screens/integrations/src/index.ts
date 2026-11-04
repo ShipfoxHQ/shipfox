@@ -3,6 +3,8 @@ import type {Page} from '@shipfox/playwright';
 
 type Locator = ReturnType<Page['locator']>;
 type FixtureUse<T> = (fixture: T) => Promise<void>;
+const ONLY_THESE_CONNECTIONS_RE = /Only these connections/u;
+const SELECTED_SCOPE_RE = /^Selected/u;
 
 export class IntegrationsCatalogueScreen {
   private readonly shell: SettingsShell;
@@ -244,6 +246,66 @@ export class ConnectionDetailsScreen {
   }
 }
 
+export class ProjectAccessScreen {
+  private readonly toast: Toast;
+
+  constructor(private readonly page: Page) {
+    this.toast = new Toast(page);
+  }
+
+  async goto(workspaceSlug: string, projectSlug: string): Promise<void> {
+    await this.page.goto(`/w/${workspaceSlug}/p/${projectSlug}/settings/access`);
+  }
+
+  heading(): Locator {
+    return this.page.getByRole('heading', {name: 'Access'});
+  }
+
+  onlyTheseConnections(): Locator {
+    return this.page.getByRole('radio', {name: ONLY_THESE_CONNECTIONS_RE});
+  }
+
+  connection(name: string): Locator {
+    return this.page.getByRole('checkbox', {name, exact: true});
+  }
+
+  resourceScope(connectionName: string): Locator {
+    return this.page.getByRole('combobox', {name: `Repositories on ${connectionName}`});
+  }
+
+  async limitToSelected(connectionName: string): Promise<void> {
+    await this.resourceScope(connectionName).click();
+    await this.page.getByRole('option', {name: SELECTED_SCOPE_RE}).click();
+  }
+
+  selectedRepositories(connectionName: string): Locator {
+    return this.page.getByRole('list', {name: `Selected repositories on ${connectionName}`});
+  }
+
+  async selectRepository(repositoryName: string): Promise<void> {
+    await this.page.getByRole('button', {name: 'Select repositories'}).click();
+    const dialog = this.page.getByRole('dialog');
+    await dialog.getByRole('checkbox', {name: repositoryName, exact: true}).check();
+    await dialog.getByRole('button', {name: 'Done'}).click();
+  }
+
+  async save(): Promise<void> {
+    const saveResponse = this.page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        new URL(response.url()).pathname.endsWith('/access'),
+    );
+    const [response] = await Promise.all([
+      saveResponse,
+      this.page.getByRole('button', {name: 'Save changes'}).click(),
+    ]);
+    if (!response.ok()) {
+      throw new Error(`Saving project access failed with status ${response.status()}`);
+    }
+    await this.toast.expectVisible('Access saved.');
+  }
+}
+
 export class SentryCallbackScreen {
   constructor(private readonly page: Page) {}
 
@@ -305,6 +367,7 @@ export class GithubCallbackScreen {
 export interface IntegrationsScreenFixtures {
   integrationsCatalogue: IntegrationsCatalogueScreen;
   connectionDetails: ConnectionDetailsScreen;
+  projectAccess: ProjectAccessScreen;
   providerInstall: ProviderInstallScreen;
   githubCallback: GithubCallbackScreen;
   sentryCallback: SentryCallbackScreen;
@@ -320,6 +383,9 @@ export const integrationsScreens = {
   },
   connectionDetails: async ({page}: {page: Page}, use: FixtureUse<ConnectionDetailsScreen>) => {
     await use(new ConnectionDetailsScreen(page));
+  },
+  projectAccess: async ({page}: {page: Page}, use: FixtureUse<ProjectAccessScreen>) => {
+    await use(new ProjectAccessScreen(page));
   },
   providerInstall: async ({page}: {page: Page}, use: FixtureUse<ProviderInstallScreen>) => {
     await use(new ProviderInstallScreen(page));
