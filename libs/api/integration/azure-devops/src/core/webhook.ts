@@ -1,4 +1,5 @@
 import {
+  type AzureDevOpsPushResourceDto,
   type AzureDevOpsServiceHookEnvelopeDto,
   azureDevOpsEventRepositorySchema,
   azureDevOpsProviderKind,
@@ -63,34 +64,56 @@ export async function handleAzureDevOpsWebhook(
   return await publishEvent(params);
 }
 
-/** Publishes a push as a typed source-control push. Null when the payload cannot be one. */
+/**
+ * Publishes every ref a push updated as a typed source push. One notification can carry several
+ * refs (branches and tags pushed together); each gets its own delivery id so retries of the
+ * notification stay de-duplicated per ref. Null when the payload cannot be a typed push.
+ */
 async function handlePush(
   params: HandleAzureDevOpsWebhookParams,
 ): Promise<HandleAzureDevOpsWebhookOutcome | null> {
   const parsed = azureDevOpsPushResourceSchema.safeParse(params.envelope.resource);
-  if (!parsed.success) return null;
+  if (!parsed.success || !parsed.data.repository.defaultBranch) return null;
   const resource = parsed.data;
-  const update = resource.refUpdates[0];
-  const defaultBranchRef = resource.repository.defaultBranch;
-  if (!update || !defaultBranchRef) return null;
-  // A push that sets the new object id to all zeros deleted the ref; there is nothing to run.
-  if (ZERO_OBJECT_ID_RE.test(update.newObjectId)) return 'deleted';
+  const updates = resource.refUpdates.filter(
+    (update) => !ZERO_OBJECT_ID_RE.test(update.newObjectId),
+  );
+  // A ref whose new object id is all zeros was deleted; there is nothing to run for it.
+  if (updates.length === 0) return 'deleted';
 
+  let published = false;
+  for (const update of updates) {
+    const deliveryId =
+      resource.refUpdates.length === 1
+        ? params.envelope.id
+        : `${params.envelope.id}:${update.name}`;
+    const result = await publishRefUpdate(params, resource, update, deliveryId);
+    published ||= result.published;
+  }
+  return published ? 'published' : 'duplicate';
+}
+
+function publishRefUpdate(
+  params: HandleAzureDevOpsWebhookParams,
+  resource: AzureDevOpsPushResourceDto,
+  update: AzureDevOpsPushResourceDto['refUpdates'][number],
+  deliveryId: string,
+) {
   const repository = resource.repository;
   const externalRepositoryId = buildProviderRepositoryId(
     azureDevOpsProviderKind,
     `${repository.project.id}/${repository.id}`,
   );
   const ref = stripRefsHeads(update.name);
-  const defaultBranch = stripRefsHeads(defaultBranchRef);
-  const result = await params.publishSourcePush({
+  const defaultBranch = stripRefsHeads(repository.defaultBranch ?? '');
+  return params.publishSourcePush({
     tx: params.tx,
     provider: azureDevOpsProviderKind,
     source: params.connection.slug,
     workspaceId: params.connection.workspaceId,
     connectionId: params.connection.id,
     connectionName: params.connection.displayName,
-    deliveryId: params.envelope.id,
+    deliveryId,
     receivedAt: params.receivedAt,
     rawPayload: params.rawPayload,
     resource: repositoryEventResource({
@@ -105,13 +128,12 @@ async function handlePush(
       isDefaultBranch: ref === defaultBranch,
     },
   });
-  return result.published ? 'published' : 'duplicate';
 }
 
 async function publishEvent(
   params: HandleAzureDevOpsWebhookParams,
 ): Promise<HandleAzureDevOpsWebhookOutcome> {
-  const resource = eventResource(params.envelope.resource);
+  const resource = eventResource(params.envelope);
   const result = await params.publishIntegrationEventReceived({
     tx: params.tx,
     event: {
@@ -132,19 +154,29 @@ async function publishEvent(
 
 /**
  * The repository an event belongs to, so triggers can check a project's access. Pull-request
- * events carry it on the resource; comment events carry it on the commented pull request.
+ * events carry it on the resource, comment events on the commented pull request, and build events
+ * name the repository on the resource and its project only in `resourceContainers`.
  */
-function eventResource(resource: Record<string, unknown>): IntegrationEventResource | undefined {
-  const candidates = [resource.repository, asRecord(resource.pullRequest)?.repository];
+function eventResource(
+  envelope: AzureDevOpsServiceHookEnvelopeDto,
+): IntegrationEventResource | undefined {
+  const candidates = [
+    envelope.resource.repository,
+    asRecord(envelope.resource.pullRequest)?.repository,
+  ];
+  const envelopeProjectId = envelope.resourceContainers?.project?.id;
   for (const candidate of candidates) {
     const parsed = azureDevOpsEventRepositorySchema.safeParse(candidate);
     if (!parsed.success) continue;
+    const repository = parsed.data;
+    const projectId = repository.project?.id ?? envelopeProjectId;
+    if (!projectId) continue;
     return repositoryEventResource({
       externalRepositoryId: buildProviderRepositoryId(
         azureDevOpsProviderKind,
-        `${parsed.data.project.id}/${parsed.data.id}`,
+        `${projectId}/${repository.id}`,
       ),
-      fullName: `${parsed.data.project.name}/${parsed.data.name}`,
+      fullName: `${repository.project?.name ?? projectId}/${repository.name ?? repository.id}`,
     });
   }
   return undefined;

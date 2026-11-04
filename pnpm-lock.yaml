@@ -4183,6 +4183,9 @@ importers:
       '@shipfox/api-integration-azure-devops-dto':
         specifier: workspace:*
         version: link:../azure-devops-dto
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
       '@shipfox/api-integration-spi':
         specifier: workspace:*
         version: link:../spi

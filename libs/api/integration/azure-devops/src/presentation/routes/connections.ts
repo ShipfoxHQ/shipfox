@@ -3,6 +3,7 @@ import {
   createAzureDevOpsConnectionBodySchema,
   createAzureDevOpsConnectionResponseSchema,
 } from '@shipfox/api-integration-azure-devops-dto';
+import type {IntegrationCapabilityDto} from '@shipfox/api-integration-core-dto';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import {type ConnectAzureDevOpsConnectionInput, handleAzureDevOpsConnect} from '#core/connect.js';
 import {azureDevOpsConnectionExternalUrl} from '#core/connection-url.js';
@@ -17,12 +18,15 @@ import {azureDevOpsRouteErrorHandler} from './errors.js';
 export interface CreateAzureDevOpsConnectionRoutesOptions {
   createClient: AzureDevOpsClientFactory;
   secrets: AzureDevOpsSecretsStore;
+  /** The provider's capabilities, derived from its registered adapters. */
+  capabilities: IntegrationCapabilityDto[];
   getExistingAzureDevOpsConnection: (input: {
     organization: string;
   }) => Promise<AzureDevOpsIntegrationConnection | undefined>;
   connectAzureDevOpsConnection: (
     input: ConnectAzureDevOpsConnectionInput,
   ) => Promise<AzureDevOpsIntegrationConnection>;
+  discardAzureDevOpsConnection: (connection: AzureDevOpsIntegrationConnection) => Promise<void>;
 }
 
 export function createAzureDevOpsConnectionRoutes(
@@ -33,7 +37,7 @@ export function createAzureDevOpsConnectionRoutes(
     path: '/connections',
     auth: AUTH_USER,
     description:
-      'Connect an Azure DevOps organization to a workspace with a token, and return the Service Hook credentials once.',
+      'Connect an Azure DevOps organization to a workspace with a token, and return new Service Hook credentials.',
     schema: {
       body: createAzureDevOpsConnectionBodySchema,
       response: {200: createAzureDevOpsConnectionResponseSchema},
@@ -51,10 +55,12 @@ export function createAzureDevOpsConnectionRoutes(
         editedBy: access.userId,
         getExistingAzureDevOpsConnection: options.getExistingAzureDevOpsConnection,
         connectAzureDevOpsConnection: options.connectAzureDevOpsConnection,
+        discardAzureDevOpsConnection: options.discardAzureDevOpsConnection,
       });
 
       return {
         ...toIntegrationConnectionDto(result.connection, {
+          capabilities: options.capabilities,
           externalUrl: azureDevOpsConnectionExternalUrl(result.connection.externalAccountId),
         }),
         service_hook: result.serviceHook,

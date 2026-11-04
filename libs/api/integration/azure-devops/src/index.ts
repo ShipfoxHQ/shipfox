@@ -65,6 +65,7 @@ export {AzureDevOpsSourceControlProvider} from '#core/source-control.js';
 export {createAzureDevOpsWebhookProcessor} from '#core/webhook-processor.js';
 export type {AzureDevOpsConnection, UpsertAzureDevOpsConnectionParams} from '#db/connections.js';
 export {
+  deleteAzureDevOpsConnectionByConnectionId,
   getAzureDevOpsConnectionByConnectionId,
   getAzureDevOpsConnectionByOrganization,
   upsertAzureDevOpsConnection,
@@ -80,6 +81,7 @@ export interface CreateAzureDevOpsIntegrationProviderOptions {
   connectAzureDevOpsConnection: (
     input: ConnectAzureDevOpsConnectionInput,
   ) => Promise<AzureDevOpsIntegrationConnection>;
+  discardAzureDevOpsConnection: (connection: AzureDevOpsIntegrationConnection) => Promise<void>;
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
   publishSourcePush: PublishSourcePushFn;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
@@ -102,15 +104,18 @@ export function createAzureDevOpsIntegrationProvider(
     getIntegrationConnectionById: options.getIntegrationConnectionById,
   });
 
+  const adapters = {
+    source_control: sourceControl,
+    agent_tools: new AzureDevOpsAgentToolsProvider({createClient, credentials}),
+  };
+  const capabilities = Object.keys(adapters) as Array<keyof typeof adapters>;
+
   return {
     provider: azureDevOpsProviderKind,
     displayName: 'Azure DevOps',
     eventCatalog: azureDevOpsEventCatalog,
     ...repositoryScopeResources(sourceControl),
-    adapters: {
-      source_control: sourceControl,
-      agent_tools: new AzureDevOpsAgentToolsProvider({createClient, credentials}),
-    },
+    adapters,
     connectionExternalUrl(connection: {externalAccountId: string}): Promise<string | undefined> {
       return Promise.resolve(azureDevOpsConnectionExternalUrl(connection.externalAccountId));
     },
@@ -130,8 +135,10 @@ export function createAzureDevOpsIntegrationProvider(
       createAzureDevOpsConnectionRoutes({
         createClient,
         secrets: options.secrets,
+        capabilities,
         getExistingAzureDevOpsConnection: options.getExistingAzureDevOpsConnection,
         connectAzureDevOpsConnection: options.connectAzureDevOpsConnection,
+        discardAzureDevOpsConnection: options.discardAzureDevOpsConnection,
       }),
       createAzureDevOpsWebhookRoutes({processor: webhookProcessor}),
     ],

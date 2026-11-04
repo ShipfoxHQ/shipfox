@@ -17,20 +17,27 @@ export function isAzureDevOpsWebhookEventName(value: string): value is AzureDevO
   return azureDevOpsWebhookEventNames.some((name) => name === value);
 }
 
-/** Every Service Hook notification shares this envelope; `id` is stable across delivery retries. */
+/**
+ * Every Service Hook notification shares this envelope. `id` is stable across delivery retries.
+ * `resourceContainers.project` names the project of every event, including build events whose
+ * repository carries no project of its own.
+ */
 export const azureDevOpsServiceHookEnvelopeSchema = z.object({
   id: z.string().min(1),
   eventType: z.string().min(1),
   resource: z.record(z.string(), z.unknown()),
+  resourceContainers: z.object({project: z.object({id: z.string().min(1)}).optional()}).optional(),
 });
 export type AzureDevOpsServiceHookEnvelopeDto = z.infer<
   typeof azureDevOpsServiceHookEnvelopeSchema
 >;
 
-const repositorySchema = z.object({
+const projectSchema = z.object({id: z.string().min(1), name: z.string().min(1)});
+
+const pushRepositorySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  project: z.object({id: z.string().min(1), name: z.string().min(1)}),
+  project: projectSchema,
   defaultBranch: z.string().min(1).optional(),
 });
 
@@ -44,10 +51,18 @@ export const azureDevOpsPushResourceSchema = z.object({
       }),
     )
     .min(1),
-  repository: repositorySchema,
+  repository: pushRepositorySchema,
   pushedBy: z.object({uniqueName: z.string().optional()}).optional(),
 });
 export type AzureDevOpsPushResourceDto = z.infer<typeof azureDevOpsPushResourceSchema>;
 
-/** The repository of a pull-request, comment or build event, when the payload names one. */
-export const azureDevOpsEventRepositorySchema = repositorySchema;
+/**
+ * The repository of a pull-request, comment or build event. Build events name only the
+ * repository; their project comes from the envelope's `resourceContainers`.
+ */
+export const azureDevOpsEventRepositorySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).optional(),
+  project: projectSchema.optional(),
+});
+export type AzureDevOpsEventRepositoryDto = z.infer<typeof azureDevOpsEventRepositorySchema>;

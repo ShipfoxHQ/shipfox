@@ -34,7 +34,12 @@ function setup(adoClient = client()) {
   const createClient = vi.fn(() => adoClient);
   const connection = azureDevOpsConnection({workspaceId});
   const connectAzureDevOpsConnection = vi.fn(() => Promise.resolve(connection));
-  const getExistingAzureDevOpsConnection = vi.fn(() => Promise.resolve(undefined));
+  const getExistingAzureDevOpsConnection = vi.fn(
+    (_input: {
+      organization: string;
+    }): Promise<ReturnType<typeof azureDevOpsConnection> | undefined> => Promise.resolve(undefined),
+  );
+  const discardAzureDevOpsConnection = vi.fn(() => Promise.resolve());
   const params = {
     createClient,
     secrets,
@@ -43,8 +48,16 @@ function setup(adoClient = client()) {
     token: 'the-pat',
     getExistingAzureDevOpsConnection,
     connectAzureDevOpsConnection,
+    discardAzureDevOpsConnection,
   };
-  return {params, secrets, connection, createClient, connectAzureDevOpsConnection};
+  return {
+    params,
+    secrets,
+    connection,
+    createClient,
+    connectAzureDevOpsConnection,
+    discardAzureDevOpsConnection,
+  };
 }
 
 describe('handleAzureDevOpsConnect', () => {
@@ -60,6 +73,25 @@ describe('handleAzureDevOpsConnect', () => {
     expect(connectAzureDevOpsConnection).toHaveBeenCalledWith(
       expect.objectContaining({organization: 'contoso', displayName: 'Azure DevOps contoso'}),
     );
+    // The cross-workspace guard compares the stored, lower-cased name.
+    expect(params.getExistingAzureDevOpsConnection).toHaveBeenCalledWith({organization: 'contoso'});
+  });
+
+  it('removes a new connection again when its secrets cannot be stored', async () => {
+    const {params, secrets, connection, discardAzureDevOpsConnection} = setup();
+    secrets.setSecrets.mockRejectedValueOnce(new Error('secrets unavailable'));
+
+    await expect(handleAzureDevOpsConnect(params)).rejects.toThrow('secrets unavailable');
+    expect(discardAzureDevOpsConnection).toHaveBeenCalledWith(connection);
+  });
+
+  it('keeps an existing connection when reconnecting fails to store secrets', async () => {
+    const {params, secrets, connection, discardAzureDevOpsConnection} = setup();
+    params.getExistingAzureDevOpsConnection.mockResolvedValue(connection);
+    secrets.setSecrets.mockRejectedValueOnce(new Error('secrets unavailable'));
+
+    await expect(handleAzureDevOpsConnect(params)).rejects.toThrow('secrets unavailable');
+    expect(discardAzureDevOpsConnection).not.toHaveBeenCalled();
   });
 
   it('stores the token and a fresh hook password in the connection secrets and returns the hook setup once', async () => {

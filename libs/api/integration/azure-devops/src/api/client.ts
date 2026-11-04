@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer';
+import {AZURE_DEVOPS_ORGANIZATION_PATTERN} from '@shipfox/api-integration-azure-devops-dto';
 import {
   decodeRepositoryFileText,
   type FileEntryType,
@@ -11,8 +12,6 @@ const API_VERSION = '7.1';
 const CONNECTION_DATA_API_VERSION = '7.1-preview';
 const TRAILING_SLASHES_RE = /\/+$/;
 const COMMIT_SHA_RE = /^[0-9a-f]{40}$/i;
-// Azure DevOps organization names: letters, digits and hyphens, not starting or ending with a hyphen.
-const ORGANIZATION_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,48}[A-Za-z0-9])?$/;
 const HEADS_PREFIX = 'refs/heads/';
 const TAGS_PREFIX = 'refs/tags/';
 const GIT_SYMLINK_MODE = '120000';
@@ -119,7 +118,7 @@ export interface AzureDevOpsApiClient {
 export function createAzureDevOpsApiClient(
   options: AzureDevOpsClientOptions,
 ): AzureDevOpsApiClient {
-  if (!ORGANIZATION_RE.test(options.organization)) {
+  if (!AZURE_DEVOPS_ORGANIZATION_PATTERN.test(options.organization)) {
     throw new AzureDevOpsIntegrationProviderError(
       'provider-rejected',
       `Azure DevOps organization name is invalid: ${options.organization}`,
@@ -347,10 +346,8 @@ class HttpAzureDevOpsApiClient implements AzureDevOpsApiClient {
   ): Promise<{objectId: string; peeledObjectId: string | null}> {
     const searchParams: Record<string, string> = {filter};
     if (peelTags) searchParams.peelTags = 'true';
-    const data = await this.json(`${repositoryPath(input)}/refs`, {
-      searchParams,
-      notFoundReason: 'ref-not-found',
-    });
+    // A 404 here means the repository is missing; a missing ref is an empty `value` list below.
+    const data = await this.json(`${repositoryPath(input)}/refs`, {searchParams});
     const wanted = `refs/${filter}`;
     for (const ref of listValue(data, 'ref list')) {
       if (!isRecord(ref) || ref.name !== wanted) continue;
@@ -375,8 +372,16 @@ class HttpAzureDevOpsApiClient implements AzureDevOpsApiClient {
     }
     try {
       return await response.json();
-    } catch {
-      throw malformed('Azure DevOps response was not valid JSON');
+    } catch (error) {
+      // The body is read after the headers arrive, so the request timeout can still fire here.
+      if (isAbortError(error)) {
+        throw new AzureDevOpsIntegrationProviderError('timeout', 'Azure DevOps request timed out');
+      }
+      if (error instanceof SyntaxError) throw malformed('Azure DevOps response was not valid JSON');
+      throw new AzureDevOpsIntegrationProviderError(
+        'provider-unavailable',
+        `Azure DevOps response could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -434,7 +439,7 @@ async function sendRequest(url: URL, init: RequestInit): Promise<Response> {
   } catch (error) {
     // A bare `fetch` has no request timeout; AbortSignal.timeout turns an unresponsive Azure DevOps
     // into a fast `timeout` instead of holding the worker open.
-    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    if (isAbortError(error)) {
       throw new AzureDevOpsIntegrationProviderError('timeout', 'Azure DevOps request timed out');
     }
     throw new AzureDevOpsIntegrationProviderError(
@@ -664,6 +669,10 @@ function retryAfterSeconds(response: Response): number | undefined {
 
 function isJsonContentType(contentType: string | null): boolean {
   return contentType?.toLowerCase().includes('application/json') === true;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
 }
 
 function malformed(message: string): AzureDevOpsIntegrationProviderError {

@@ -154,4 +154,80 @@ describe('AzureDevOpsAgentToolsProvider', () => {
       structuredContent: {code: 'not-found'},
     });
   });
+
+  it('opens a ready pull request when is_draft is false', async () => {
+    const {opened, adoClient} = await session();
+
+    await opened.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        project: 'Fabrikam',
+        repo: 'platform',
+        source_branch: 'feat/ID-1-thing',
+        target_branch: 'main',
+        title: 'ID-1 Add the thing',
+        is_draft: false,
+      },
+    } as never);
+
+    expect(adoClient.createPullRequest).toHaveBeenCalledWith(
+      expect.objectContaining({isDraft: false}),
+    );
+  });
+
+  it.each([
+    '__proto__',
+    'constructor',
+    'toString',
+  ])('rejects the inherited name %s as an unknown parameter', async (name) => {
+    const {opened, adoClient} = await session();
+    const args = JSON.parse(
+      `{"project":"Fabrikam","repo":"platform","pull_request_id":1,"${name}":{}}`,
+    ) as Record<string, unknown>;
+
+    const result = await opened.call({toolId: 'get_pull_request', arguments: args} as never);
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toBe(`Unknown parameter: ${name}`);
+    expect(adoClient.getPullRequest).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'refs/tags/v1',
+    'refs/pull/7/merge',
+  ])('rejects the non-branch ref %s as a pull request branch', async (ref) => {
+    const {opened, adoClient} = await session();
+
+    const result = await opened.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        project: 'Fabrikam',
+        repo: 'platform',
+        source_branch: ref,
+        target_branch: 'main',
+        title: 'x',
+      },
+    } as never);
+
+    expect(result.isError).toBe(true);
+    expect(adoClient.createPullRequest).not.toHaveBeenCalled();
+  });
+
+  it('accepts a full refs/heads branch name', async () => {
+    const {opened, adoClient} = await session();
+
+    const result = await opened.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        project: 'Fabrikam',
+        repo: 'platform',
+        source_branch: 'refs/heads/feat/x',
+        target_branch: 'main',
+        title: 'x',
+      },
+    } as never);
+
+    expect(result.isError).toBeUndefined();
+    expect(adoClient.createPullRequest).toHaveBeenCalled();
+  });
 });

@@ -120,6 +120,27 @@ describe('HttpAzureDevOpsApiClient', () => {
       ).toThrow(AzureDevOpsIntegrationProviderError);
       expect(fetchMock).not.toHaveBeenCalled();
     });
+
+    it('accepts organization names under 50 characters and rejects 50 or more', () => {
+      const credential = {kind: 'pat' as const, token: 'test-pat'};
+
+      expect(() =>
+        createAzureDevOpsApiClient({organization: 'a'.repeat(49), credential}),
+      ).not.toThrow();
+      expect(() => createAzureDevOpsApiClient({organization: 'a'.repeat(50), credential})).toThrow(
+        AzureDevOpsIntegrationProviderError,
+      );
+    });
+
+    it('maps a timeout while reading the response body to the timeout reason', async () => {
+      const timeout = new Error('body timed out');
+      timeout.name = 'TimeoutError';
+      const response = jsonResponse({count: 0, value: []});
+      vi.spyOn(response, 'json').mockRejectedValue(timeout);
+      fetchMock.mockResolvedValue(response);
+
+      await expect(patClient().listRepositories()).rejects.toMatchObject({reason: 'timeout'});
+    });
   });
 
   describe('connection data', () => {
@@ -222,6 +243,14 @@ describe('HttpAzureDevOpsApiClient', () => {
 
       await expect(patClient().getBranch({...REPO, branch: 'main'})).rejects.toMatchObject({
         reason: 'ref-not-found',
+      });
+    });
+
+    it('maps a 404 from the refs endpoint to repository-not-found', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({message: 'TF401019'}, {status: 404}));
+
+      await expect(patClient().getBranch({...REPO, branch: 'main'})).rejects.toMatchObject({
+        reason: 'repository-not-found',
       });
     });
 

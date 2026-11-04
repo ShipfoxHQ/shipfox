@@ -7,6 +7,7 @@ import {config} from '#config.js';
 import type {IntegrationCapability} from '#core/entities/provider.js';
 import {getIntegrationProviderCapabilities} from '#core/providers/registry.js';
 import {
+  deleteIntegrationConnection,
   getIntegrationConnectionById,
   resolveUniqueConnectionSlug,
   upsertIntegrationConnection,
@@ -39,6 +40,7 @@ async function loadAzureDevOpsModuleParts(
 ): Promise<IntegrationModuleParts> {
   const {
     createAzureDevOpsIntegrationProvider,
+    deleteAzureDevOpsConnectionByConnectionId,
     getAzureDevOpsConnectionByOrganization,
     upsertAzureDevOpsConnection,
     db: azureDevOpsDb,
@@ -98,10 +100,20 @@ async function loadAzureDevOpsModuleParts(
     );
   }
 
+  async function discardAzureDevOpsConnection(
+    connection: CoreIntegrationConnection<'azure-devops'>,
+  ): Promise<void> {
+    await db().transaction(async (tx) => {
+      await deleteAzureDevOpsConnectionByConnectionId(connection.id, {tx});
+      await deleteIntegrationConnection({id: connection.id}, {tx});
+    });
+  }
+
   const integrationProvider = createAzureDevOpsIntegrationProvider({
     secrets,
     getExistingAzureDevOpsConnection,
     connectAzureDevOpsConnection,
+    discardAzureDevOpsConnection,
     publishSourcePush,
     publishIntegrationEventReceived,
     recordDeliveryOnly,

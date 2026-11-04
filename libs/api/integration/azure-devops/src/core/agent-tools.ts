@@ -120,7 +120,8 @@ export function validateAzureDevOpsToolArguments(
   const properties = tool.inputSchema.properties;
   if (!isRecord(properties)) return undefined;
   for (const [name, value] of Object.entries(args)) {
-    const schema = properties[name];
+    // Own properties only: `__proto__` or `constructor` must not pass as a known parameter.
+    const schema = Object.hasOwn(properties, name) ? properties[name] : undefined;
     if (!isRecord(schema)) return `Unknown parameter: ${name}`;
     const invalid = validateArgument(name, value, schema);
     if (invalid !== undefined) return invalid;
@@ -162,8 +163,8 @@ function validateStringArgument(
   if (NAME_FIELDS.has(name) && !isSafeName(value)) {
     return `Parameter ${name} must be a single project or repository name`;
   }
-  if (BRANCH_FIELDS.has(name) && !isSafeCheckoutRef(value)) {
-    return `Parameter ${name} must be a valid branch name`;
+  if (BRANCH_FIELDS.has(name) && !isBranchName(value)) {
+    return `Parameter ${name} must be a branch name, such as main or refs/heads/main`;
   }
   return undefined;
 }
@@ -180,6 +181,13 @@ export function integerArgument(args: Record<string, unknown>, name: string): nu
     throw new TypeError(`Parameter ${name} must be a positive integer`);
   }
   return value;
+}
+
+// A pull request joins branches. Any other full ref (`refs/tags/...`, `refs/pull/...`) would be
+// rewritten to a nonexistent `refs/heads/refs/...` branch, so it is rejected instead.
+function isBranchName(value: string): boolean {
+  if (!isSafeCheckoutRef(value)) return false;
+  return !value.startsWith('refs/') || value.startsWith('refs/heads/');
 }
 
 function isSafeName(value: string): boolean {

@@ -4,6 +4,8 @@
 "@shipfox/api-integration-core": minor
 "@shipfox/api-integration-core-dto": minor
 "@shipfox/api-integration-webhook-dto": patch
+"@shipfox/api-server": patch
+"@shipfox/actions": minor
 "@shipfox/client-integrations": minor
 "@shipfox/react-ui": minor
 "@shipfox/integration-icons": minor

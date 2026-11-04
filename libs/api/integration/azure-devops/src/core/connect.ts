@@ -37,6 +37,8 @@ export interface HandleAzureDevOpsConnectParams {
   connectAzureDevOpsConnection: (
     input: ConnectAzureDevOpsConnectionInput,
   ) => Promise<AzureDevOpsIntegrationConnection>;
+  /** Removes a connection this call just created, when its secrets could not be stored. */
+  discardAzureDevOpsConnection: (connection: AzureDevOpsIntegrationConnection) => Promise<void>;
 }
 
 export interface AzureDevOpsConnectResult {
@@ -72,16 +74,24 @@ export async function handleAzureDevOpsConnect(
     webhookUsername,
   });
 
-  await params.secrets.setSecrets({
-    workspaceId: connection.workspaceId,
-    namespace: azureDevOpsSecretsNamespace(connection.id),
-    values: {
-      [CREDENTIAL_KIND_KEY]: credential.kind,
-      [CREDENTIAL_TOKEN_KEY]: credential.token,
-      [WEBHOOK_PASSWORD_KEY]: webhookPassword,
-    },
-    editedBy: params.editedBy,
-  });
+  try {
+    await params.secrets.setSecrets({
+      workspaceId: connection.workspaceId,
+      namespace: azureDevOpsSecretsNamespace(connection.id),
+      values: {
+        [CREDENTIAL_KIND_KEY]: credential.kind,
+        [CREDENTIAL_TOKEN_KEY]: credential.token,
+        [WEBHOOK_PASSWORD_KEY]: webhookPassword,
+      },
+      editedBy: params.editedBy,
+    });
+  } catch (error) {
+    // Secrets live in another module, so they cannot join the connection transaction. Without
+    // them a new connection could never authenticate; remove it so the user can simply retry.
+    // A reconnect of an existing connection keeps it, with its previous secrets.
+    if (!existing) await params.discardAzureDevOpsConnection(connection);
+    throw error;
+  }
 
   return {
     connection,

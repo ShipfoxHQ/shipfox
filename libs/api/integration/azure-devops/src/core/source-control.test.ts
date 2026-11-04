@@ -7,6 +7,13 @@ import type {
 import {AzureDevOpsIntegrationProviderError} from './errors.js';
 import {AzureDevOpsSourceControlProvider} from './source-control.js';
 
+const randomUUIDMock = vi.hoisted(() => vi.fn<() => string>());
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>();
+  randomUUIDMock.mockImplementation(() => actual.randomUUID());
+  return {...actual, randomUUID: randomUUIDMock};
+});
+
 const PROJECT_ID = '6ce954b1-ce1f-45d1-b94d-e6bf2464ba2c';
 const REPOSITORY_ID = '5febef5a-833d-4e14-b9c0-14cb638f91e6';
 const EXTERNAL_ID = `azure-devops:${PROJECT_ID}/${REPOSITORY_ID}`;
@@ -599,7 +606,12 @@ describe('AzureDevOpsSourceControlProvider', () => {
       ).rejects.toMatchObject({reason: 'provider-rejected'});
     });
 
-    it('returns a fresh generation and never echoes a rejected generation', async () => {
+    it('never hands back the generation git rejected, even when the next random id repeats it', async () => {
+      // Two real UUIDs never collide, so the guard is only exercised by forcing a repeat.
+      randomUUIDMock
+        .mockReturnValueOnce('gen-rejected')
+        .mockReturnValueOnce('gen-rejected')
+        .mockReturnValueOnce('gen-fresh');
       const {provider} = providerWith(adoClient());
       const input = {
         connection: connection(),
@@ -613,8 +625,8 @@ describe('AzureDevOpsSourceControlProvider', () => {
         rejectedGeneration: first.generation,
       });
 
-      expect(second.generation).toBeDefined();
-      expect(second.generation).not.toBe(first.generation);
+      expect(first.generation).toBe('gen-rejected');
+      expect(second.generation).toBe('gen-fresh');
     });
   });
 });

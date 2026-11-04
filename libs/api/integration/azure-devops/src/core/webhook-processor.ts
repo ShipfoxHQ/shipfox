@@ -99,8 +99,9 @@ async function processAzureDevOpsWebhookRequest(
 
 /**
  * Service Hooks do not sign payloads. Each connection gets its own basic-auth user and password
- * for its hook; both must match. Every failure looks the same to the caller, so a probe cannot
- * tell an unknown connection from a wrong password.
+ * for its hook; both must match, compared in constant time. Every failure returns the same
+ * response; response timing still differs between an unknown connection id (no secret lookup)
+ * and a wrong password. Connection ids are random UUIDs, so that difference reveals no secret.
  */
 async function authenticate(
   options: CreateAzureDevOpsWebhookProcessorOptions,

@@ -185,4 +185,70 @@ describe('handleAzureDevOpsWebhook', () => {
     expect(publishSourcePush).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
+
+  it('publishes every ref of a push that updates several, each with its own delivery id', async () => {
+    const tagCommit = 'c'.repeat(40);
+    const notification = pushNotification({
+      refUpdates: [
+        {name: 'refs/heads/main', newObjectId: COMMIT_SHA},
+        {name: 'refs/tags/v1.2.0', newObjectId: tagCommit},
+        {name: 'refs/heads/gone', newObjectId: '0'.repeat(40)},
+      ],
+    });
+    const {params, publishSourcePush} = setup(notification);
+
+    expect(await handleAzureDevOpsWebhook(params)).toBe('published');
+
+    expect(publishSourcePush).toHaveBeenCalledTimes(2);
+    const calls = publishSourcePush.mock.calls as unknown as Array<
+      [{deliveryId: string; push: {ref: string; headCommitSha: string; isDefaultBranch: boolean}}]
+    >;
+    expect(calls.map(([call]) => call.deliveryId)).toEqual([
+      `${notification.id}:refs/heads/main`,
+      `${notification.id}:refs/tags/v1.2.0`,
+    ]);
+    expect(calls[1]?.[0].push).toEqual(
+      expect.objectContaining({
+        ref: 'refs/tags/v1.2.0',
+        headCommitSha: tagCommit,
+        isDefaultBranch: false,
+      }),
+    );
+  });
+
+  it('reports a duplicate only when every ref of the push was already published', async () => {
+    const {params, publishSourcePush} = setup(
+      pushNotification({
+        refUpdates: [
+          {name: 'refs/heads/main', newObjectId: COMMIT_SHA},
+          {name: 'refs/heads/other', newObjectId: COMMIT_SHA},
+        ],
+      }),
+    );
+    publishSourcePush
+      .mockResolvedValueOnce({published: false})
+      .mockResolvedValueOnce({published: true});
+
+    expect(await handleAzureDevOpsWebhook(params)).toBe('published');
+  });
+
+  it('takes the project of a build event from the envelope resource containers', async () => {
+    const notification = {
+      id: crypto.randomUUID(),
+      eventType: 'build.complete',
+      resource: {result: 'failed', repository: {id: REPOSITORY_ID, type: 'TfsGit'}},
+      resourceContainers: {project: {id: PROJECT_ID}},
+    };
+    const {params, publishIntegrationEventReceived} = setup(notification);
+
+    await handleAzureDevOpsWebhook(params);
+
+    expect(publishIntegrationEventReceived).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          resource: expect.objectContaining({externalId: EXTERNAL_ID}),
+        }),
+      }),
+    );
+  });
 });

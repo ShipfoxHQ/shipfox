@@ -5,54 +5,72 @@ import {createAzureDevOpsWebhookProcessor} from '#core/webhook-processor.js';
 import {azureDevOpsConnection, memorySecrets, pushNotification} from '#test/index.js';
 import {createAzureDevOpsWebhookRoutes} from './webhooks.js';
 
-const USERNAME = 'shipfox-abc123';
-const PASSWORD = 'correct-horse-battery-staple-0123456789';
+interface HookCredentials {
+  username: string;
+  password: string;
+}
+
+const FIRST: HookCredentials = {
+  username: 'shipfox-aaaaaa',
+  password: 'first-correct-horse-battery-staple-01',
+};
+const SECOND: HookCredentials = {
+  username: 'shipfox-bbbbbb',
+  password: 'second-correct-horse-battery-staple-02',
+};
 
 async function createTestApp() {
-  const connection = azureDevOpsConnection();
+  const first = azureDevOpsConnection();
+  const second = azureDevOpsConnection({externalAccountId: 'fabrikam'});
+  const hooks = new Map([
+    [first.id, FIRST],
+    [second.id, SECOND],
+  ]);
   const secrets = memorySecrets();
-  await secrets.setSecrets({
-    workspaceId: connection.workspaceId,
-    namespace: connection.id,
-    values: {webhook_password: PASSWORD},
-  });
+  for (const connection of [first, second]) {
+    await secrets.setSecrets({
+      workspaceId: connection.workspaceId,
+      namespace: connection.id,
+      values: {webhook_password: hooks.get(connection.id)?.password ?? ''},
+    });
+  }
   const publishSourcePush = vi.fn(() => Promise.resolve({published: true}));
-  const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
-  const recordDeliveryOnly = vi.fn(() => Promise.resolve({claimed: true}));
   const getIntegrationConnectionById = vi.fn((id: string) =>
-    Promise.resolve(id === connection.id ? connection : undefined),
+    Promise.resolve([first, second].find((connection) => connection.id === id)),
   );
   const processor = createAzureDevOpsWebhookProcessor({
     coreDb: () => ({transaction: (fn: (tx: unknown) => Promise<unknown>) => fn({})}) as never,
     secrets,
     publishSourcePush,
-    publishIntegrationEventReceived,
-    recordDeliveryOnly,
+    publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: true})),
+    recordDeliveryOnly: vi.fn(() => Promise.resolve({claimed: true})),
     getIntegrationConnectionById,
-    getAzureDevOpsConnection: (id) =>
-      Promise.resolve(
-        id === connection.id
+    getAzureDevOpsConnection: (id) => {
+      const hook = hooks.get(id);
+      return Promise.resolve(
+        hook
           ? {
               id: crypto.randomUUID(),
-              connectionId: connection.id,
+              connectionId: id,
               organization: 'contoso',
-              webhookUsername: USERNAME,
+              webhookUsername: hook.username,
               createdAt: new Date(),
               updatedAt: new Date(),
             }
           : undefined,
-      ),
+      );
+    },
   });
   const app: FastifyInstance = await createApp({
     routes: [createAzureDevOpsWebhookRoutes({processor})],
     swagger: false,
   });
   await app.ready();
-  return {app, connection, publishSourcePush};
+  return {app, first, second, publishSourcePush};
 }
 
-function basic(username: string, password: string): string {
-  return `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+function basic(credentials: HookCredentials): string {
+  return `Basic ${Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64')}`;
 }
 
 describe('Azure DevOps webhook route', () => {
@@ -77,41 +95,59 @@ describe('Azure DevOps webhook route', () => {
   }
 
   it('accepts a notification with the connection hook credentials and publishes the push', async () => {
-    const {app, connection, publishSourcePush} = await createTestApp();
+    const {app, first, publishSourcePush} = await createTestApp();
 
-    const res = await post(
-      app,
-      connection.id,
-      JSON.stringify(pushNotification()),
-      basic(USERNAME, PASSWORD),
-    );
+    const res = await post(app, first.id, JSON.stringify(pushNotification()), basic(FIRST));
 
     expect(res.statusCode).toBe(204);
     expect(publishSourcePush).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a wrong password with 401 and publishes nothing', async () => {
-    const {app, connection, publishSourcePush} = await createTestApp();
+    const {app, first, publishSourcePush} = await createTestApp();
 
     const res = await post(
       app,
-      connection.id,
+      first.id,
       JSON.stringify(pushNotification()),
-      basic(USERNAME, 'wrong'),
+      basic({username: FIRST.username, password: 'wrong'}),
     );
 
     expect(res.statusCode).toBe(401);
     expect(publishSourcePush).not.toHaveBeenCalled();
   });
 
-  it('rejects the right credentials sent to another connection id', async () => {
+  it('rejects the right password with a wrong user name', async () => {
+    const {app, first, publishSourcePush} = await createTestApp();
+
+    const res = await post(
+      app,
+      first.id,
+      JSON.stringify(pushNotification()),
+      basic({username: 'shipfox-zzzzzz', password: FIRST.password}),
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(publishSourcePush).not.toHaveBeenCalled();
+  });
+
+  it("rejects one connection's credentials sent to another connection", async () => {
+    const {app, second, publishSourcePush} = await createTestApp();
+
+    const res = await post(app, second.id, JSON.stringify(pushNotification()), basic(FIRST));
+
+    expect(res.statusCode).toBe(401);
+    expect(publishSourcePush).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown connection id', async () => {
     const {app, publishSourcePush} = await createTestApp();
 
     const res = await post(
       app,
       crypto.randomUUID(),
       JSON.stringify(pushNotification()),
-      basic(USERNAME, PASSWORD),
+      basic(FIRST),
     );
 
     expect(res.statusCode).toBe(401);
@@ -119,17 +155,17 @@ describe('Azure DevOps webhook route', () => {
   });
 
   it('rejects a request without authorization', async () => {
-    const {app, connection} = await createTestApp();
+    const {app, first} = await createTestApp();
 
-    const res = await post(app, connection.id, JSON.stringify(pushNotification()));
+    const res = await post(app, first.id, JSON.stringify(pushNotification()));
 
     expect(res.statusCode).toBe(401);
   });
 
   it('rejects a body that is not a Service Hook notification with 400', async () => {
-    const {app, connection, publishSourcePush} = await createTestApp();
+    const {app, first, publishSourcePush} = await createTestApp();
 
-    const res = await post(app, connection.id, '{"hello":"world"}', basic(USERNAME, PASSWORD));
+    const res = await post(app, first.id, '{"hello":"world"}', basic(FIRST));
 
     expect(res.statusCode).toBe(400);
     expect(publishSourcePush).not.toHaveBeenCalled();
@@ -138,7 +174,7 @@ describe('Azure DevOps webhook route', () => {
   it('rejects a connection id that is not a uuid', async () => {
     const {app} = await createTestApp();
 
-    const res = await post(app, 'not-a-uuid', '{}', basic(USERNAME, PASSWORD));
+    const res = await post(app, 'not-a-uuid', '{}', basic(FIRST));
 
     expect(res.statusCode).toBe(400);
   });

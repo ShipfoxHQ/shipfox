@@ -38,5 +38,6 @@ function azureDevOpsConnectErrorMessage(error: unknown): string {
     }
     return error.message;
   }
+  if (error instanceof Error) return error.message;
   return 'Something went wrong. Try again.';
 }

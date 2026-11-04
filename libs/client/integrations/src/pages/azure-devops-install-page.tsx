@@ -7,6 +7,7 @@ import {Header, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {Link, useNavigate} from '@tanstack/react-router';
 import {useState} from 'react';
+import {CopyableValue} from '#components/webhook/copyable-value.js';
 import type {AzureDevOpsServiceHookSetup} from '#core/models.js';
 import {useCreateAzureDevOpsConnectionMutation} from '#hooks/api/integrations.js';
 import {azureDevOpsConnectErrorToFormError} from './azure-devops-form-errors.js';
@@ -61,18 +62,13 @@ export function AzureDevOpsInstallPage() {
           </Text>
         </header>
         <Callout type="warning">
-          Copy the password now. Shipfox shows it only once; connect again to get a new one.
+          Copy the password now. Shipfox shows it only once. Connecting again issues a new one and
+          the hooks you configured stop working until you update them.
         </Callout>
         <div className="flex flex-col gap-group">
-          <FormField label="URL" id="azure-devops-hook-url">
-            <FormFieldInput readOnly value={serviceHook.url} />
-          </FormField>
-          <FormField label="Basic authentication user name" id="azure-devops-hook-username">
-            <FormFieldInput readOnly value={serviceHook.username} />
-          </FormField>
-          <FormField label="Basic authentication password" id="azure-devops-hook-password">
-            <FormFieldInput readOnly value={serviceHook.password} />
-          </FormField>
+          <CopyableValue label="URL" value={serviceHook.url} />
+          <CopyableValue label="Basic authentication user name" value={serviceHook.username} />
+          <CopyableValue label="Basic authentication password" value={serviceHook.password} />
         </div>
         <div className="flex items-center gap-cluster">
           <Button
