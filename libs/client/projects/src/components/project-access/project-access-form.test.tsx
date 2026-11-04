@@ -52,6 +52,11 @@ const connections = [
   connection(SLACK_ID, 'slack', ['interaction']),
 ];
 
+const erroredSlack: IntegrationConnection = {
+  ...connection(SLACK_ID, 'slack', ['interaction']),
+  lifecycleStatus: 'error',
+};
+
 const managedAccess: ProjectAccess = {
   projectId: PROJECT_ID,
   configSource: {
@@ -116,35 +121,37 @@ describe('ProjectAccessForm', () => {
     expect(screen.getByRole('checkbox', {name: 'Slack, acme'})).not.toBeChecked();
   });
 
-  test('offers an inactive connection only to remove it', () => {
-    const errored = {
-      ...connection(SLACK_ID, 'slack', ['interaction']),
-      lifecycleStatus: 'error' as const,
-    };
-    const listedSlack = {
-      connectionId: SLACK_ID,
-      provider: 'slack',
-      displayName: 'acme',
-      resources: 'all' as const,
-    };
-    const renderWith = (listed: ProjectAccess['connections']) =>
-      render(
-        <QueryClientProvider client={new QueryClient()}>
-          <ProjectAccessForm
-            project={project()}
-            access={{...managedAccess, connections: listed}}
-            connections={[connections[0] as IntegrationConnection, errored]}
-          />
-        </QueryClientProvider>,
-      );
+  test('hides an inactive connection the project does not list', () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProjectAccessForm
+          project={project()}
+          access={{...managedAccess, connections: []}}
+          connections={[connections[0] as IntegrationConnection, erroredSlack]}
+        />
+      </QueryClientProvider>,
+    );
 
-    const unlisted = renderWith([]);
-    const hidden = screen.queryByRole('checkbox', {name: 'Slack, acme'});
-    unlisted.unmount();
-    renderWith([listedSlack]);
+    expect(screen.getByRole('checkbox', {name: 'GitHub, acme'})).toBeVisible();
+    expect(screen.queryByRole('checkbox', {name: 'Slack, acme'})).not.toBeInTheDocument();
+  });
 
-    expect(hidden).not.toBeInTheDocument();
-    expect(screen.getByRole('checkbox', {name: 'Slack, acme'})).toBeChecked();
+  test('keeps a checked connection removable after it turns inactive', () => {
+    const queryClient = new QueryClient();
+    const access: ProjectAccess = {...managedAccess, connections: []};
+    const form = (workspaceConnections: IntegrationConnection[]) => (
+      <QueryClientProvider client={queryClient}>
+        <ProjectAccessForm project={project()} access={access} connections={workspaceConnections} />
+      </QueryClientProvider>
+    );
+    const {rerender} = render(form(connections));
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Slack, acme'}));
+
+    rerender(form([connections[0] as IntegrationConnection, erroredSlack]));
+
+    const slack = screen.getByRole('checkbox', {name: 'Slack, acme'});
+    expect(slack).toBeChecked();
+    expect(slack).toBeEnabled();
   });
 
   test('says that access limits workloads, not who sees the project', () => {
