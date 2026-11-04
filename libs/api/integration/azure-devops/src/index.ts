@@ -6,4 +6,11 @@ export {
   type AzureDevOpsRepository,
   createAzureDevOpsApiClient,
 } from '#api/client.js';
+export {
+  type AzureDevOpsClientFactory,
+  type AzureDevOpsConnectionCredentials,
+  type AzureDevOpsIntegrationConnection,
+  azureDevOpsProviderKind,
+} from '#core/credentials.js';
 export {AzureDevOpsIntegrationProviderError} from '#core/errors.js';
+export {AzureDevOpsSourceControlProvider} from '#core/source-control.js';
