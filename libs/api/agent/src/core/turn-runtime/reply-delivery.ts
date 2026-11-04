@@ -22,6 +22,7 @@ import type {TurnFailureCode} from './failure-codes.js';
 import {CONTEXT_OVERFLOW_NOTICE, sealTurnNotice} from './turn-lifecycle.js';
 
 export const STOPPED_REPLY_TEXT = 'Stopped.';
+const NO_TEXT_REPLY_TEXT = 'Done.';
 export const REPLY_UNDELIVERABLE_NOTICE_CODE = 'reply-undeliverable';
 
 const FAILURE_REPLY_TEXT: Record<TurnFailureCode, string> = {
@@ -52,8 +53,7 @@ type InteractionIntegrations = Pick<
 
 interface Reply {
   replyId: string;
-  /** Absent when the turn has nothing to say. */
-  message?: {kind: 'response' | 'error'; text: string} | undefined;
+  message: {kind: 'response' | 'error'; text: string};
 }
 
 function agentName(conversation: Conversation): string {
@@ -113,10 +113,8 @@ async function turnReply(conversation: Conversation, turnId: string): Promise<Re
     const partial = answer?.aborted ? answer.text : '';
     return {replyId, message: {kind: 'response', text: partial || STOPPED_REPLY_TEXT}};
   }
-  return {
-    replyId,
-    message: answer?.text ? {kind: 'response', text: answer.text} : undefined,
-  };
+  // A turn that only ran tools still ends with a reply, or the surface keeps the last tool call.
+  return {replyId, message: {kind: 'response', text: answer?.text || NO_TEXT_REPLY_TEXT}};
 }
 
 async function denialReply(conversation: Conversation): Promise<Reply | undefined> {
@@ -136,7 +134,7 @@ async function sendReply(params: {
   conversation: Conversation;
   integrations: InteractionIntegrations;
   replyId: string;
-  message: NonNullable<Reply['message']>;
+  message: Reply['message'];
   origin: {connectionId: string; key: string; provider: string};
 }): Promise<void> {
   const {conversation, message, origin, replyId} = params;
@@ -213,7 +211,7 @@ async function clearProgress(params: {
  * Sends what a turn produced back through the provider that started the conversation, then
  * clears its progress. With a `turnId` it sends that finished turn's answer, or its failure or
  * stop. Without one it tells the person about a denial, which opened no turn. A turn with no
- * text sends nothing, and a reply already handled is not sent again. An undeliverable reply is
+ * text sends a short confirmation, and a reply already handled is not sent again. An undeliverable reply is
  * recorded and never retried. Web conversations are read by the client, so they do nothing.
  */
 export async function deliverConversationReply(params: {
@@ -244,21 +242,13 @@ export async function deliverConversationReply(params: {
 
   try {
     if (!(await hasReplyDelivery(reply.replyId))) {
-      if (reply.message) {
-        await sendReply({
-          conversation,
-          integrations: params.integrations,
-          replyId: reply.replyId,
-          message: reply.message,
-          origin,
-        });
-      } else {
-        await recordReplyDelivery({
-          replyId: reply.replyId,
-          conversationId: conversation.id,
-          outcome: 'skipped',
-        });
-      }
+      await sendReply({
+        conversation,
+        integrations: params.integrations,
+        replyId: reply.replyId,
+        message: reply.message,
+        origin,
+      });
     }
   } finally {
     // Also after a failed send and a repeat, so the status never outlives the turn.
