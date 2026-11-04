@@ -151,11 +151,31 @@ export interface TriggerEventMatchedWorkflowResult {
   diagnostic: TriggerEventDecisionDiagnostic | null;
 }
 
+export type TriggerEventAgentDecisionOutcome =
+  | 'owner'
+  | 'default'
+  | 'ambiguous'
+  | 'dropped'
+  | 'filter-error';
+
+/** Which agent took a Slack or Linear request, or why none did. */
+export interface TriggerEventAgentDecision {
+  id: string;
+  /** Null for a dropped interaction, which reached no agent. */
+  agentKey: string | null;
+  projectId: string | null;
+  /** Whether a matched `on:` rule produced the decision, rather than conversation ownership. */
+  fromRule: boolean;
+  decision: TriggerEventAgentDecisionOutcome;
+  reason: string | null;
+}
+
 export interface TriggerEventDetail extends TriggerEventSummary {
   connectionName: string | null;
   payload: Record<string, unknown> | null;
   processingDiagnostic: TriggerEventProcessingDiagnostic | null;
   decisions: TriggerEventMatchedWorkflowResult[];
+  agentDecisions: TriggerEventAgentDecision[];
 }
 
 export interface TriggerEventFacetItem {

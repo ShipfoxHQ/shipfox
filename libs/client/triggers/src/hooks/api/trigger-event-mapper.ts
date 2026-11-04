@@ -8,6 +8,8 @@ import type {
   TriggerEventListResponseDto,
 } from '@shipfox/api-triggers-dto';
 import type {
+  TriggerEventAgentDecision,
+  TriggerEventAgentDecisionOutcome,
   TriggerEventDecisionDiagnostic,
   TriggerEventDetail,
   TriggerEventFacetItem,
@@ -50,10 +52,28 @@ type WorkflowDecisionDto = TriggerDecisionDto & {
   decision: Exclude<TriggerDecisionDto['decision'], 'owner' | 'default' | 'dropped' | 'ambiguous'>;
 };
 
-// Agent routing decisions answer a different question than a matched workflow, and the event
-// view has no place for them yet.
+type AgentDecisionDto = TriggerDecisionDto & {
+  subscription_kind: 'agent';
+  decision: TriggerEventAgentDecisionOutcome;
+};
+
 function isWorkflowDecision(decision: TriggerDecisionDto): decision is WorkflowDecisionDto {
   return decision.subscription_kind !== 'agent';
+}
+
+function isAgentDecision(decision: TriggerDecisionDto): decision is AgentDecisionDto {
+  return decision.subscription_kind === 'agent';
+}
+
+function toAgentDecision(decision: AgentDecisionDto): TriggerEventAgentDecision {
+  return {
+    id: decision.id,
+    agentKey: decision.decision === 'dropped' ? null : decision.subscription_name,
+    projectId: decision.project_id,
+    fromRule: decision.subscription_id !== null,
+    decision: decision.decision,
+    reason: decision.reason,
+  };
 }
 
 function toMatchedWorkflowResult(decision: WorkflowDecisionDto): TriggerEventMatchedWorkflowResult {
@@ -82,6 +102,7 @@ export function toTriggerEventDetail(response: TriggerEventDetailResponseDto): T
     payload: response.payload,
     processingDiagnostic: response.processing_diagnostic ?? null,
     decisions: response.decisions.filter(isWorkflowDecision).map(toMatchedWorkflowResult),
+    agentDecisions: response.decisions.filter(isAgentDecision).map(toAgentDecision),
   };
 }
 

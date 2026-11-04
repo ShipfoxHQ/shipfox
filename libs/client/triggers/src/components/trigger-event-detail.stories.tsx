@@ -29,7 +29,9 @@ function createStoryQueryClient() {
     defaultOptions: {queries: {staleTime: Number.POSITIVE_INFINITY, retry: false}},
   });
   queryClient.setQueryData(projectsQueryKeys.list(WORKSPACE_ID), {
-    pages: [{projects: [{id: PROJECT_ID, slug: 'checkout-api'}], nextCursor: null}],
+    pages: [
+      {projects: [{id: PROJECT_ID, slug: 'checkout-api', name: 'Checkout API'}], nextCursor: null},
+    ],
     pageParams: [undefined],
   });
   return queryClient;
@@ -245,7 +247,74 @@ const scrollingEventDto: TriggerEventDetailResponseDto = {
   },
 };
 
+const agentDecisionBase = {
+  received_event_id: '19191919-1919-4919-8919-191919191919',
+  subscription_kind: 'agent',
+  workflow_definition_id: null,
+  project_id: PROJECT_ID,
+  workflow_run_id: null,
+  job_id: null,
+  matcher_kind: null,
+  matcher_ordinal: null,
+  run_id: null,
+  run_name: null,
+  reason: null,
+  created_at: '2026-06-25T19:30:02.000Z',
+} as const;
+
+const ambiguousAgentEventDto: TriggerEventDetailResponseDto = {
+  ...routedEventDto,
+  id: '19191919-1919-4919-8919-191919191919',
+  event_ref: 'slack:delivery-186:app_mention',
+  provider: 'slack',
+  source: 'slack',
+  event: 'app_mention',
+  delivery_id: 'delivery-186',
+  matched_count: 0,
+  payload: {event: {type: 'app_mention', channel: 'C04PAYMENTS', text: 'Why did the refund fail?'}},
+  decisions: [
+    {
+      ...agentDecisionBase,
+      id: '20202020-2020-4020-8020-202020202020',
+      subscription_id: '21212121-2121-4121-8121-212121212121',
+      subscription_name: 'payments',
+      decision: 'owner',
+    },
+    {
+      ...agentDecisionBase,
+      id: '22222222-2222-4222-8222-222222222223',
+      subscription_id: '23232323-2323-4323-8323-232323232323',
+      subscription_name: 'shippy',
+      decision: 'ambiguous',
+    },
+  ],
+};
+
+const droppedFollowUpEventDto: TriggerEventDetailResponseDto = {
+  ...ambiguousAgentEventDto,
+  id: '24242424-2424-4424-8424-242424242424',
+  event_ref: 'slack:delivery-187:message',
+  event: 'message',
+  delivery_id: 'delivery-187',
+  outcome: 'discarded',
+  payload: {event: {type: 'message', channel: 'C04PAYMENTS', thread_ts: '1730000000.000100'}},
+  decisions: [
+    {
+      ...agentDecisionBase,
+      id: '25252525-2525-4525-8525-252525252525',
+      received_event_id: '24242424-2424-4424-8424-242424242424',
+      subscription_id: null,
+      subscription_name: 'none',
+      project_id: null,
+      decision: 'dropped',
+      reason: 'no-owner',
+    },
+  ],
+};
+
 const routedEvent = toTriggerEventDetail(routedEventDto);
+const ambiguousAgentEvent = toTriggerEventDetail(ambiguousAgentEventDto);
+const droppedFollowUpEvent = toTriggerEventDetail(droppedFollowUpEventDto);
 const discardedEvent = toTriggerEventDetail(discardedEventDto);
 const failedFilterEvent = toTriggerEventDetail(failedFilterEventDto);
 const groupedErrorsEvent = toTriggerEventDetail(groupedErrorsEventDto);
@@ -320,6 +389,20 @@ export const UnavailableDetails: Story = {
   args: {event: unavailableDetailsEvent},
   play: async (ctx) => {
     await captureDetail(ctx, 'Trigger Event Detail Unavailable Details');
+  },
+};
+
+export const AmbiguousAgent: Story = {
+  args: {event: ambiguousAgentEvent},
+  play: async (ctx) => {
+    await captureDetail(ctx, 'Trigger Event Detail Ambiguous Agent');
+  },
+};
+
+export const DroppedFollowUp: Story = {
+  args: {event: droppedFollowUpEvent},
+  play: async (ctx) => {
+    await captureDetail(ctx, 'Trigger Event Detail Dropped Follow-up');
   },
 };
 

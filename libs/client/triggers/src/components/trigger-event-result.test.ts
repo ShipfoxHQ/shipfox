@@ -10,6 +10,10 @@ describe('triggerEventResult', () => {
     );
   });
 
+  test('routed with no matched workflow reads as sent to an agent', () => {
+    expect(triggerEventResult({outcome: 'routed', matchedCount: 0}).label).toBe('Sent to an agent');
+  });
+
   test('routed uses the info badge and is not failed', () => {
     const result = triggerEventResult({outcome: 'routed', matchedCount: 1});
 

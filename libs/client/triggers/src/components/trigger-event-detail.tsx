@@ -32,6 +32,7 @@ import {
   type TriggerEventIssueAction,
 } from '#core/trigger-event-issues.js';
 import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';
+import {AgentRouting} from './agent-routing.js';
 import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';
 
@@ -145,6 +146,7 @@ export function TriggerEventDetailView({
         className="flex min-h-0 flex-1 flex-col gap-group overflow-y-auto scrollbar [&>*]:shrink-0"
       >
         <EventIssueCallout event={event} workspaceSlug={workspaceSlug} />
+        <AgentRouting workspaceId={workspaceId} decisions={event.agentDecisions} />
         <EventRuns workspaceId={workspaceId} workspaceSlug={workspaceSlug} event={event} />
         <EventPayload payload={formattedPayload} />
       </div>

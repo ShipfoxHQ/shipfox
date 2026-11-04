@@ -47,6 +47,7 @@ function event(overrides: Partial<TriggerEventDetail> = {}): TriggerEventDetail 
     payload: {},
     processingDiagnostic: null,
     decisions: [decision()],
+    agentDecisions: [],
     ...overrides,
   };
 }
