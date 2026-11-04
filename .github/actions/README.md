@@ -39,3 +39,9 @@ because it only holds part of it. It doesn't mount the `node_modules` disk.
 
 To reset a disk, bump the `v1` in its key. Blacksmith evicts a disk after 7
 days without use.
+
+The image jobs in `ci.yml` keep Docker layers on one builder disk per image and
+architecture through `useblacksmith/setup-docker-builder`. Each main build adds
+layers that later builds never reuse, so `publish-images` caps the builder
+cache at 15 GB before the post step commits the disk. BuildKit evicts the least recently
+and least often used records first.

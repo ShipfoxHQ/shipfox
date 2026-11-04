@@ -838,6 +838,20 @@ jobs:
           fi
           oras tag "$APPLICATION_IMAGE_REPOSITORY@$digest" "revision-$GITHUB_SHA"
 
+      # Each main build leaves gigabytes of per-commit layers that later builds
+      # never reuse, and the builder only drops layers after 8 days unused.
+      # Capping the cache before the post step commits the disk evicts the least
+      # recently and least often used records first, so the pnpm store mount and
+      # base layers stay. fstrim releases the freed blocks on the sticky disk.
+      - name: Prune Docker builder cache
+        if: needs.release-mode.outputs.mode != 'version-only-main'
+        # A failed step makes the builder skip its commit, which keeps the
+        # previous disk instead of committing an uncapped one.
+        continue-on-error: true
+        run: |
+          docker buildx prune --force --verbose --max-used-space 15gb
+          sudo fstrim -v /var/lib/buildkit || echo "::warning::fstrim failed; freed blocks stay on the sticky disk"
+
   # The bake runs alongside the required checks because the AMI snapshot dominates CI time.
   # Only the manifest waits for the checks, and the planner ignores unpublished pairs.
   plan-runner-image-candidate:
