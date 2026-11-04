@@ -1,4 +1,4 @@
-import {useProjectsInfiniteQuery} from '@shipfox/client-projects';
+import {useProjectQuery, useProjectsInfiniteQuery} from '@shipfox/client-projects';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Panel, PanelBody, PanelHeader, PanelTitle} from '@shipfox/react-ui/panel';
 import {Text} from '@shipfox/react-ui/typography';
@@ -47,15 +47,23 @@ function AgentRoutingWithProjects({
       ),
     [projectsQuery.data],
   );
-  return <AgentRoutingList decisions={decisions} projectNames={projectNames} />;
+  return (
+    <AgentRoutingList
+      decisions={decisions}
+      projectNames={projectNames}
+      projectDetailLookupEnabled={!projectsQuery.isPending}
+    />
+  );
 }
 
 function AgentRoutingList({
   decisions,
   projectNames,
+  projectDetailLookupEnabled = false,
 }: {
   decisions: readonly TriggerEventAgentDecision[];
   projectNames: ReadonlyMap<string, string>;
+  projectDetailLookupEnabled?: boolean;
 }) {
   const sorted = [...decisions].sort(
     (left, right) => decisionOrder[left.decision] - decisionOrder[right.decision],
@@ -71,38 +79,63 @@ function AgentRoutingList({
       </PanelHeader>
       <PanelBody>
         <ul>
-          {sorted.map((decision) => {
-            const status = agentDecisionStatus(decision, winner);
-            const projectName = decision.projectId ? projectNames.get(decision.projectId) : null;
-            return (
-              <li
-                key={decision.id}
-                className="border-b border-border-neutral-base px-row py-row last:border-b-0"
-              >
-                <div className="flex min-w-0 items-start gap-inline">
-                  <Icon
-                    name="cornerDownRightLine"
-                    className="size-14 shrink-0 text-foreground-neutral-disabled"
-                    aria-hidden="true"
-                  />
-                  <div className="flex min-w-0 flex-col gap-tight">
-                    <Text size="sm" className="min-w-0 truncate text-foreground-neutral-base">
-                      {decision.agentKey === null ? 'No agent' : agentName(decision.agentKey)}
-                      {projectName ? (
-                        <span className="text-foreground-neutral-muted"> · {projectName}</span>
-                      ) : null}
-                    </Text>
-                    <Text size="xs" className={status.className}>
-                      {status.label}
-                    </Text>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
+          {sorted.map((decision) => (
+            <AgentDecisionRow
+              key={decision.id}
+              decision={decision}
+              winner={winner}
+              listedProjectName={
+                decision.projectId ? projectNames.get(decision.projectId) : undefined
+              }
+              projectDetailLookupEnabled={projectDetailLookupEnabled}
+            />
+          ))}
         </ul>
       </PanelBody>
     </Panel>
+  );
+}
+
+function AgentDecisionRow({
+  decision,
+  winner,
+  listedProjectName,
+  projectDetailLookupEnabled,
+}: {
+  decision: TriggerEventAgentDecision;
+  winner: TriggerEventAgentDecision | undefined;
+  listedProjectName: string | undefined;
+  projectDetailLookupEnabled: boolean;
+}) {
+  // The project list holds one page, so a project beyond it is read on its own.
+  const projectQuery = useProjectQuery(
+    projectDetailLookupEnabled && !listedProjectName
+      ? (decision.projectId ?? undefined)
+      : undefined,
+  );
+  const projectName = listedProjectName ?? projectQuery.data?.name;
+  const status = agentDecisionStatus(decision, winner);
+  return (
+    <li className="border-b border-border-neutral-base px-row py-row last:border-b-0">
+      <div className="flex min-w-0 items-start gap-inline">
+        <Icon
+          name="cornerDownRightLine"
+          className="size-14 shrink-0 text-foreground-neutral-disabled"
+          aria-hidden="true"
+        />
+        <div className="flex min-w-0 flex-col gap-tight">
+          <Text size="sm" className="min-w-0 truncate text-foreground-neutral-base">
+            {decision.agentKey === null ? 'No agent' : agentName(decision.agentKey)}
+            {projectName ? (
+              <span className="text-foreground-neutral-muted"> · {projectName}</span>
+            ) : null}
+          </Text>
+          <Text size="xs" className={status.className}>
+            {status.label}
+          </Text>
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -124,7 +157,10 @@ function agentDecisionStatus(
         className: muted,
       };
     case 'default':
-      return {label: 'Answered as the default agent, because no rule matched', className: muted};
+      return {
+        label: 'Answered as the default agent, because no rule took this request',
+        className: muted,
+      };
     case 'ambiguous': {
       const winnerName = winner?.agentKey ? agentName(winner.agentKey) : 'another agent';
       return {

@@ -182,6 +182,23 @@ describe('TriggerEventDetailView', () => {
     expect(screen.queryByText('Workflow activity')).not.toBeInTheDocument();
   });
 
+  test('reads the project of an agent decision that is not in the project list page', async () => {
+    renderDetailView(
+      makeEvent({
+        provider: 'slack',
+        source: 'slack',
+        event: 'app_mention',
+        decisions: [agentDecision()],
+      }),
+      vi.fn(),
+      {includeListProject: false, includeDetailProject: true},
+    );
+
+    expect(await screen.findByRole('listitem')).toHaveTextContent(
+      'Shippy · Checkout APIAnswered as the default agent, because no rule took this request',
+    );
+  });
+
   test('shows a follow-up with no owner as dropped', async () => {
     renderDetailView(
       makeEvent({
