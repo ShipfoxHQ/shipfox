@@ -1,5 +1,5 @@
 import {assertScopeWritable, recordDeletedScope} from '@shipfox/node-drizzle';
-import {and, eq, inArray, isNull, sql} from 'drizzle-orm';
+import {and, eq, inArray, isNull, or, sql} from 'drizzle-orm';
 import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import {db, type Transaction} from './db.js';
 import {attemptStreams, toAttemptStream} from './schema/attempt-streams.js';
@@ -65,18 +65,20 @@ export async function deleteStreamsWithAccounting(
   if (streams.length === 0) return;
   const jobIds = [...new Set(streams.map((stream) => stream.jobId))];
   await db().transaction(async (tx) => {
-    for (const stream of streams) {
-      await tx
-        .delete(attemptStreams)
-        .where(
-          and(
-            eq(attemptStreams.id, stream.id),
-            stream.objectKey === null
-              ? isNull(attemptStreams.objectKey)
-              : eq(attemptStreams.objectKey, stream.objectKey),
+    await tx
+      .delete(attemptStreams)
+      .where(
+        or(
+          ...streams.map((stream) =>
+            and(
+              eq(attemptStreams.id, stream.id),
+              stream.objectKey === null
+                ? isNull(attemptStreams.objectKey)
+                : eq(attemptStreams.objectKey, stream.objectKey),
+            ),
           ),
-        );
-    }
+        ),
+      );
     await tx
       .delete(jobAccounting)
       .where(

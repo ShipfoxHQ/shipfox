@@ -5,6 +5,8 @@ import {headObject, putObjectBytes} from '#api/object-storage.js';
 import {config} from '#config.js';
 import {logObjectKey} from '#core/entities/log-object.js';
 import {db} from '#db/db.js';
+import {deleteStreamsWithAccounting} from '#db/deleted-scopes.js';
+import {attemptStreams} from '#db/schema/attempt-streams.js';
 import {logsDeletedScopes} from '#db/schema/deleted-scopes.js';
 import {getOrCreateAttemptStream} from '#db/streams.js';
 import {jobAccountingFactory} from '#test/factories/job-accounting.js';
@@ -127,5 +129,18 @@ describe('purgeDeletedProject', () => {
     await purgeDeletedProject(identity);
 
     await expect(purgeDeletedProject(identity)).resolves.toBeUndefined();
+  });
+
+  it('keeps a stream that compaction published after it was read', async () => {
+    const identity = newIdentity();
+    const stream = await arrangeClosedStream(identity);
+    await db()
+      .update(attemptStreams)
+      .set({objectKey: 'published-meanwhile'})
+      .where(eq(attemptStreams.id, stream.id));
+
+    await deleteStreamsWithAccounting([stream]);
+
+    expect(await findStream(identity)).not.toBeNull();
   });
 });

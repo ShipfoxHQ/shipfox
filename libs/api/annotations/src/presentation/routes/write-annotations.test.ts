@@ -2,6 +2,7 @@ import {AUTH_LEASED_JOB} from '@shipfox/api-auth-context';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
+import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {annotations} from '#db/schema/annotations.js';
 import {fakeLeaseTokenAuthMethod, mintLeaseToken} from '#test/index.js';
 import {writeAnnotationsRoute} from './write-annotations.js';
@@ -13,12 +14,16 @@ function annotationsUrl(): string {
 function mintTestLeaseToken(params: {
   jobId?: string;
   jobExecutionId?: string;
+  workspaceId?: string;
+  projectId?: string;
   stepId?: string;
   attempt?: number;
 }): Promise<string> {
   return mintLeaseToken({
     jobId: params.jobId ?? crypto.randomUUID(),
     jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
+    ...(params.workspaceId ? {workspaceId: params.workspaceId} : {}),
+    ...(params.projectId ? {projectId: params.projectId} : {}),
     ...(params.stepId
       ? {currentStepId: params.stepId, currentStepAttempt: params.attempt ?? 1}
       : {}),
@@ -87,6 +92,28 @@ describe('POST /runs/jobs/current/annotations', () => {
       context: 'deploy',
       body: 'done',
     });
+  });
+
+  it('answers not-found for a project that was deleted', async () => {
+    const stepId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId, workspaceId, projectId});
+    await recordProjectDeleted({workspaceId, projectId}, 'project_deleted');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: annotationsUrl(),
+      headers: {authorization: `Bearer ${token}`},
+      payload: {
+        step_id: stepId,
+        attempt: 1,
+        annotations: [{context: 'deploy', style: 'success', op: 'replace', body: 'late'}],
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('project-not-found');
   });
 
   it('rejects writes for a step outside the leased execution', async () => {

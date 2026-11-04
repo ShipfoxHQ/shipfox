@@ -11,6 +11,7 @@ import {compactedTailObjectKey, deleteObject} from '#api/object-storage.js';
 import {appendLogs} from '#core/append-logs.js';
 import {insertChunk} from '#db/chunks.js';
 import {db} from '#db/db.js';
+import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {attemptStreams} from '#db/schema/attempt-streams.js';
 import {getOrCreateAttemptStream} from '#db/streams.js';
 import {createLogsInterModulePresentation} from '#presentation/inter-module.js';
@@ -358,6 +359,29 @@ describe('logs inter-module presentation', () => {
       isInterModuleKnownError(logsInterModuleContract.methods.appendServerRecords, error),
     ).toBe(true);
     expect(error).toMatchObject({code: 'lease-stream-mismatch', details: {}});
+  });
+
+  it('maps a deleted project to the project-deleted known error', async () => {
+    const ctx = newCtx();
+    const logs = buildSealedLogsClient();
+    await recordProjectDeleted(
+      {workspaceId: ctx.workspaceId, projectId: ctx.projectId},
+      'project_deleted',
+    );
+
+    const error = await logs
+      .appendServerRecords({
+        ...ctx,
+        attempt: 1,
+        records: [{v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'late\n'}],
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(
+      isInterModuleKnownError(logsInterModuleContract.methods.appendServerRecords, error),
+    ).toBe(true);
+    expect(error).toMatchObject({code: 'project-deleted', details: {}});
+    expect(await findStream({...ctx, attempt: 1})).toBeNull();
   });
 
   it('keeps a valid oversized batch distinct from malformed records', async () => {
