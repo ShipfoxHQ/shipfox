@@ -162,6 +162,8 @@ turbo type --filter=@shipfox/node-module
 turbo test --filter=@shipfox/node-module
 ```
 
+The publisher registry tests need the local PostgreSQL 18 service. Start it with `docker compose up -d`.
+
 ## License
 
 MIT

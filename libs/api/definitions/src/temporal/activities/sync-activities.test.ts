@@ -571,7 +571,12 @@ describe('definition sync activities', () => {
         .select()
         .from(workflowDefinitions)
         .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
-      const outboxBefore = await db().select().from(definitionsOutbox);
+      const projectOutbox = () =>
+        db()
+          .select({id: definitionsOutbox.id})
+          .from(definitionsOutbox)
+          .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+      const outboxBefore = await projectOutbox();
       const source = sourceControl({
         listFiles: vi.fn(() => Promise.resolve({files: [], nextCursor: null})),
       });
@@ -599,7 +604,7 @@ describe('definition sync activities', () => {
         .from(workflowDefinitions)
         .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
       expect(after).toEqual(before);
-      expect(await db().select().from(definitionsOutbox)).toHaveLength(outboxBefore.length);
+      expect(await projectOutbox()).toEqual(outboxBefore);
     });
 
     it('stores action snapshots and re-applies a definition when only action code changes', async () => {
