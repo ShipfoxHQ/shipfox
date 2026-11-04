@@ -235,10 +235,15 @@ describe('integrationsInterModuleContract', () => {
     'repository-ambiguous',
     'repository-authorization-unavailable',
     'repository-authorization-target-invalid',
+    'connection-not-allowed',
+    'project-not-found',
   ] as const)('defines the %s checkout failure', (code) => {
-    const schema = integrationsInterModuleContract.methods.createCheckoutSpec.errors[code];
+    const spec = integrationsInterModuleContract.methods.createCheckoutSpec.errors[code];
+    const credentials =
+      integrationsInterModuleContract.methods.createCheckoutCredentials.errors[code];
 
-    expect(schema.parse({})).toEqual({});
+    expect(spec.parse({})).toEqual({});
+    expect(credentials.parse({})).toEqual({});
   });
 
   test('requires the provider-resolved checkout target in a checkout spec', () => {
