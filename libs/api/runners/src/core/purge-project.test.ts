@@ -129,6 +129,7 @@ describe('purgeUnfinishedDeletedProjects', () => {
     await purgeUnfinishedDeletedProjects();
 
     expect(await pendingJobsOf(projectId)).toHaveLength(1);
+    await db().delete(pendingJobExecutions).where(eq(pendingJobExecutions.projectId, projectId));
   });
 
   it('does not purge a project again once it is purged', async () => {
