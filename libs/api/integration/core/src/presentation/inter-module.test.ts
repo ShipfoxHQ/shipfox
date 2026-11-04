@@ -1179,6 +1179,7 @@ describe('integrations inter-module callTool', () => {
         projectId: 'project-1',
         conversationId: 'conversation-1',
         turnId: 'turn-1',
+        agentKey: 'shippy',
         callItemId: 'item-1',
         grantedByAgent: true,
       },
