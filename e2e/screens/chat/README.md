@@ -9,12 +9,17 @@ Typed browser page objects for the Shippy chat panel on project pages.
 
 ## Installation and setup
 
-The package is private to this repository, so a suite depends on it as a workspace package, next to the E2E test tools:
+The package is private to this repository, so a suite depends on it as a workspace package, next to the E2E test tools and the Playwright peer:
 
 ```json
-"@shipfox/e2e-screens-chat": "workspace:*",
-"@shipfox/e2e-kit": "workspace:*",
-"@shipfox/e2e-core": "workspace:*"
+{
+  "devDependencies": {
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-kit": "workspace:*",
+    "@shipfox/e2e-screens-chat": "workspace:*",
+    "@shipfox/playwright": "workspace:*"
+  }
+}
 ```
 
 The consumer must configure its API and client URLs through the E2E kit before running a suite.

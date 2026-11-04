@@ -64,8 +64,9 @@ export class ChatPanelScreen {
     return this.messages().getByRole('button', {name: label});
   }
 
+  /** The failed turn's notice in the transcript. The live region repeats its title. */
   failureNotice(): Locator {
-    return this.panel().getByText("Shippy couldn't reply.");
+    return this.messages().getByText("Shippy couldn't reply.");
   }
 
   retryButton(): Locator {

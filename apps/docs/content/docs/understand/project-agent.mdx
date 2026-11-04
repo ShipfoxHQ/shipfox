@@ -39,8 +39,9 @@ A conversation with the project agent is not an
 carries one agent's reasoning between steps. A conversation belongs to you and
 to the project, and it lasts until you delete it.
 
-The agent uses the model its agent file sets, or else the workspace's default
-model, the one an agent step gets when its workflow names none.
+The agent resolves its provider and model the way an agent step does. An agent
+file that sets them wins. Otherwise the workspace's default provider applies,
+with the model that provider is configured to use by default.
 [Model providers](/reference/model-providers) lists the providers and models.
 The tokens the agent uses count like every other agent's.
 
