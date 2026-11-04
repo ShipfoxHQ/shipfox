@@ -257,12 +257,8 @@
           "name": "agent_conversation_items_conversation_id_agent_conversations_id_fk",
           "tableFrom": "agent_conversation_items",
           "tableTo": "agent_conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -755,12 +751,8 @@
           "name": "agent_reply_deliveries_conversation_id_agent_conversations_id_fk",
           "tableFrom": "agent_reply_deliveries",
           "tableTo": "agent_conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1046,12 +1038,8 @@
           "name": "agent_tool_call_starts_turn_id_agent_turns_id_fk",
           "tableFrom": "agent_tool_call_starts",
           "tableTo": "agent_turns",
-          "columnsFrom": [
-            "turn_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["turn_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1059,11 +1047,7 @@
       "compositePrimaryKeys": {
         "agent_tool_call_starts_pkey": {
           "name": "agent_tool_call_starts_pkey",
-          "columns": [
-            "turn_id",
-            "model_call_index",
-            "call_index"
-          ]
+          "columns": ["turn_id", "model_call_index", "call_index"]
         }
       },
       "uniqueConstraints": {},
@@ -1113,12 +1097,8 @@
           "name": "agent_turn_stream_chunks_turn_id_agent_turns_id_fk",
           "tableFrom": "agent_turn_stream_chunks",
           "tableTo": "agent_turns",
-          "columnsFrom": [
-            "turn_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["turn_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1126,11 +1106,7 @@
       "compositePrimaryKeys": {
         "agent_turn_stream_chunks_pkey": {
           "name": "agent_turn_stream_chunks_pkey",
-          "columns": [
-            "turn_id",
-            "model_call_index",
-            "chunk_seq"
-          ]
+          "columns": ["turn_id", "model_call_index", "chunk_seq"]
         }
       },
       "uniqueConstraints": {},
@@ -1250,12 +1226,8 @@
           "name": "agent_turns_conversation_id_agent_conversations_id_fk",
           "tableFrom": "agent_turns",
           "tableTo": "agent_conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1271,10 +1243,7 @@
     "public.agent_model_provider_config_kind": {
       "name": "agent_model_provider_config_kind",
       "schema": "public",
-      "values": [
-        "builtin",
-        "custom"
-      ]
+      "values": ["builtin", "custom"]
     }
   },
   "schemas": {},
