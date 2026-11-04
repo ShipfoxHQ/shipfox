@@ -9,7 +9,11 @@ export {
   startSlackApiMock,
 } from './slack-api.js';
 export {
+  buildAgentSessionStoppedEnvelope,
   buildAppMentionEnvelope,
+  buildMessageEnvelope,
+  postSlackAgentSessionStopped,
   postSlackAppMention,
+  postSlackMessage,
   signSlackHeaders,
 } from './slack-events.js';

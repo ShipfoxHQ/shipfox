@@ -1,0 +1,91 @@
+---
+title: "Talk to Shippy in Slack"
+sidebarTitle: "Talk to Shippy"
+description: "Ask Shippy about workflows and runs from a Slack channel, a thread, or Slack's agent view, and get the answer in the same place."
+---
+
+Use this guide to ask Shippy a question from Slack. Shippy answers where you
+asked: in a thread under your message, or in the agent view.
+
+## Before you begin
+
+You need:
+
+- A [Slack integration connection](/integrations/slack/setup) in the
+  workspace.
+- An integration connection made before agents must
+  [reconnect](/how-to/set-up-work/manage-integration-connections#reconnect-an-integration-connection)
+  first. Its page in **Settings → Integrations** shows **New permissions
+  needed** until then. Shippy stays silent in that Slack workspace until the
+  reconnect.
+
+## Ask in a channel
+
+<Steps>
+  <Step>
+
+    **Invite the app**
+
+    In the channel, run `/invite @Shipfox`. Shippy only reads channels the
+    app belongs to.
+  </Step>
+  <Step>
+
+    **Mention the app**
+
+    Write a message that mentions `@Shipfox`, such as `@Shipfox why did the
+    last deploy run fail?`. The app reacts with 👀 as soon as it receives the
+    message.
+  </Step>
+  <Step>
+
+    **Read the answer in the thread**
+
+    Shippy replies in a thread under your message, with its own name and
+    avatar. A link to a run opens the run page in Shipfox.
+  </Step>
+</Steps>
+
+## Continue in the thread
+
+Reply in the thread to continue the conversation. No mention is needed. Shippy
+remembers the thread. Another person can join the same thread.
+
+A thread that Shippy didn't answer is not a conversation. Mention the app in
+it to start one.
+
+## Ask in the agent view
+
+Open Shipfox from the **Agents** entry in the Slack sidebar or top bar, or in
+split view beside a channel. Type your question.
+
+- Each session is its own conversation.
+- Shippy knows which channel you were viewing when you wrote.
+- Shippy shows a status while it works. Use the stop control to end a reply.
+- A direct message to the app works the same way.
+
+## Which agent answers
+
+One Slack app serves the whole workspace, so you always mention the app, never
+a single agent. Shipfox picks the agent:
+
+1. A custom agent whose rules claim the channel.
+2. Otherwise, the Shippy of the workspace's default project.
+
+Every agent reaches only its own project. For a question about another project,
+bind that project's agent to the channel through its `on:` rules.
+
+## Where the conversation lives
+
+The conversation stays in Slack. It doesn't appear in the Shipfox chat, not even
+for workspace admins. The work stays visible. A run that Shippy starts from
+Slack appears on the Runs page, started by Shippy in Slack.
+
+Shippy never answers a post made by an app, including its own replies. People
+from another Slack workspace, through Slack Connect, can't use it.
+
+## Troubleshoot a missing answer
+
+Open **Settings → Events** and find the Slack event. Its decision shows which
+agent took the message, or why none did. See [Troubleshoot events that do not
+start a run](/how-to/run-and-troubleshoot/event-routing#if-the-event-was-a-message-for-an-agent).

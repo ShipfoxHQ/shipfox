@@ -46,6 +46,33 @@ Use the [Integrations reference](/integrations) for provider event catalogs.
 Use [Expressions](/reference/expressions) for filter syntax and the [Contexts
 reference](/reference/contexts#context-availability) for available data.
 
+## If the event was a message for an agent
+
+A Slack mention, a thread reply, an agent view message, or a Linear agent
+session goes to an agent. The event records an `agent` decision next to any
+workflow decisions:
+
+| Decision | Meaning |
+| --- | --- |
+| **Default** | No agent claimed the request. The Shippy of the workspace's default project answered. |
+| **Owner** | The conversation already had an agent, or an agent's `on:` rule claimed the request. |
+| **Ambiguous** | The rule matched, but another agent's rule claimed the request first. |
+| **Dropped** | No agent took the message. The reason says why. |
+
+A dropped message has one of these reasons:
+
+- `no-owner`: a thread reply or a stop with no conversation. Mention the app
+  to start one.
+- `no-project`: the workspace has no project.
+- `project-access`: the project's access excludes the integration connection.
+- `project-deleted`: the project is gone.
+
+A message with no `agent` decision was not a request. Posts made by an app,
+including Shippy's own replies, and messages from Slack Connect users never
+reach an agent.
+
+Workflows are unaffected. A trigger on the same event still starts its run.
+
 ## If evaluation or run creation failed
 
 A **Failed** result means Shipfox received the event. It could not finish the

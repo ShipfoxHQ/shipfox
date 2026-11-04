@@ -55,6 +55,15 @@ export type SlackApiMockCall =
       channel: string | undefined;
       threadTs: string | undefined;
       text: string | undefined;
+      /** The name an agent posts under, through `chat:write.customize`. */
+      username?: string | undefined;
+    }
+  | {
+      kind: 'agents.sessions.setStatus';
+      authorization: string | undefined;
+      channelId: string | undefined;
+      threadTs: string | undefined;
+      status: string | undefined;
     }
   | {
       kind: 'chat.update';
@@ -270,6 +279,7 @@ const SLACK_METHOD_HANDLERS: Readonly<Record<string, (context: SlackRequestConte
   'chat.postMessage': handlePostMessage,
   'chat.update': handleUpdateMessage,
   'reactions.add': handleAddReaction,
+  'agents.sessions.setStatus': handleSetSessionStatus,
   'chat.scheduleMessage': handleScheduleMessage,
   'chat.scheduledMessages.list': handleScheduledMessagesList,
   'canvases.create': handleCreateCanvas,
@@ -457,12 +467,14 @@ function handlePostMessage(context: SlackRequestContext): void {
   const text = context.body.get('text') ?? undefined;
   const channel = context.body.get('channel') ?? undefined;
   const threadTs = context.body.get('thread_ts') ?? undefined;
+  const username = context.body.get('username') ?? undefined;
   context.calls.push({
     kind: 'chat.postMessage',
     authorization: context.authorization,
     channel,
     threadTs,
     text,
+    ...(username === undefined ? {} : {username}),
   });
   if (context.failures.postMessage !== null) {
     sendJson(context.response, 200, {ok: false, error: context.failures.postMessage});
@@ -540,6 +552,22 @@ function handleAddReaction(context: SlackRequestContext): void {
     ];
   }
   recordWrite(context, {kind: 'reactions.add', target: `${channel}/${timestamp}`});
+  sendJson(context.response, 200, {ok: true});
+}
+
+/** The agent view status. The fake accepts any session, because Slack creates them on the fly. */
+function handleSetSessionStatus(context: SlackRequestContext): void {
+  const channelId = context.body.get('channel_id') ?? undefined;
+  const threadTs = context.body.get('thread_ts') ?? undefined;
+  const status = context.body.get('status') ?? undefined;
+  context.calls.push({
+    kind: 'agents.sessions.setStatus',
+    authorization: context.authorization,
+    channelId,
+    threadTs,
+    status,
+  });
+  recordWrite(context, {kind: 'agents.sessions.setStatus', target: `${channelId}/${threadTs}`});
   sendJson(context.response, 200, {ok: true});
 }
 

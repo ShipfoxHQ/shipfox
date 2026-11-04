@@ -44,6 +44,7 @@ describe('portsFromBase', () => {
       slackApi: 20_012,
       otelTemporalMetrics: 20_013,
       discordApi: 20_020,
+      linearApi: 20_023,
     });
   });
 });
@@ -79,6 +80,7 @@ describe('standardAppEnv', () => {
     assert.equal(env.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS, 'host.docker.internal:host-gateway');
     assert.equal(env.SHIPFOX_DOCS_PORT, '20004');
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:20010/mcp');
+    assert.equal(env.LINEAR_API_BASE_URL, 'http://127.0.0.1:20023');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:20011');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:20012');
     assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:20020');
