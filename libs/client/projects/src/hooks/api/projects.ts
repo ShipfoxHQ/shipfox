@@ -471,12 +471,15 @@ export function useDeleteProjectMutation() {
           queryKey: projectsQueryKeys.detail(command.projectId),
           refetchType: 'none',
         }),
-        // Slug availability reads every cached list, inactive ones included.
+        // Slug availability and the first-project check read cached lists, inactive ones included.
         queryClient.invalidateQueries({
           queryKey: [...projectsQueryKeys.all, 'list', command.workspaceId],
           refetchType: 'all',
         }),
-        queryClient.invalidateQueries({queryKey: projectsQueryKeys.exists(command.workspaceId)}),
+        queryClient.invalidateQueries({
+          queryKey: projectsQueryKeys.exists(command.workspaceId),
+          refetchType: 'all',
+        }),
       ]);
     },
   });

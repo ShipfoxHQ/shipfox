@@ -22,12 +22,12 @@ describe('deleteProjectErrorToFormError', () => {
     expect(result).toEqual({kind: 'form', message: "The default project can't be deleted."});
   });
 
-  test('maps an impersonated session to the member requirement', () => {
+  test('maps an impersonated session to the impersonation refusal', () => {
     const result = deleteProjectErrorToFormError(apiError(403, 'impersonation-not-permitted'));
 
     expect(result).toEqual({
       kind: 'form',
-      message: 'Only a workspace member can delete a project.',
+      message: 'Project deletion is unavailable while impersonating.',
     });
   });
 

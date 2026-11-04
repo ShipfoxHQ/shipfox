@@ -13,7 +13,7 @@ export function deleteProjectErrorToFormError(error: unknown): DeleteProjectForm
       return {kind: 'form', message: "The default project can't be deleted."};
     }
     if (error.code === 'impersonation-not-permitted') {
-      return {kind: 'form', message: 'Only a workspace member can delete a project.'};
+      return {kind: 'form', message: 'Project deletion is unavailable while impersonating.'};
     }
     if (error.status === 403) {
       return {kind: 'form', message: 'Only workspace admins can delete this project.'};
