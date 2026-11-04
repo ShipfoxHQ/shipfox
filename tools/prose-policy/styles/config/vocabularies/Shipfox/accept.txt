@@ -93,6 +93,7 @@ Diataxis
 Mise
 Conductor
 ShipfoxHQ
+Shippy
 provisioner
 provisioners
 runner

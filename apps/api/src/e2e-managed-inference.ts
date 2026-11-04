@@ -132,7 +132,13 @@ interface ScriptedReply {
   text?: string;
   tool?: string;
   args?: Record<string, unknown>;
+  /** Holds a streamed text reply open after its text, so a test can stop it mid-reply. */
+  hold_ms?: number;
+  /** Fails this one request, so a test can retry the turn and get the next reply. */
+  error?: {status: number; message: string};
 }
+
+const MAX_SCRIPTED_HOLD_MS = 120_000;
 
 interface ScriptedEntry {
   promptContains: string;
@@ -171,6 +177,8 @@ interface CredentialState {
   scriptedAttempt: ScriptedAttempt | undefined;
   /** Set when the project's requests go to OpenRouter, with the identity its usage is recorded under. */
   openRouterIdentity: InferenceUsageIdentity | undefined;
+  /** The catalog model OpenRouter serves for a conversation whose own model has no OpenRouter ID. */
+  openRouterModel: string | undefined;
   lastTouchedAt: number;
 }
 
@@ -188,7 +196,8 @@ interface InferenceState {
   readonly tombstones: Map<string, CredentialState>;
   readonly scripts: Map<string, ScriptedProject>;
   readonly openRouter: OpenRouterBackend | undefined;
-  readonly openRouterProjects: Set<string>;
+  /** Each OpenRouter project, with the model that serves its conversations, if it names one. */
+  readonly openRouterProjects: Map<string, {conversationModel: string | undefined}>;
   /** What OpenRouter reported for each project's completions, in USD. */
   readonly openRouterCosts: Map<string, {costUsd: number; requests: number}>;
   recordInferenceSegment: RecordInferenceSegment | undefined;
@@ -214,7 +223,7 @@ export function createE2eManagedInferenceProvider(
     tombstones: new Map(),
     scripts: new Map(),
     openRouter: options.openRouter,
-    openRouterProjects: new Set(),
+    openRouterProjects: new Map(),
     openRouterCosts: new Map(),
     recordInferenceSegment: undefined,
     stats: {
@@ -275,12 +284,10 @@ function resolveE2eCredentials(
   if (credentialState.model !== model.id) {
     throw new Error('E2E managed provider model changed during credential renewal');
   }
-  if (
-    credentialState.openRouterIdentity !== undefined &&
-    !Object.hasOwn(OPENROUTER_MODEL_IDS, model.id)
-  ) {
-    throw new Error(`E2E managed provider has no OpenRouter model for ${model.id}`);
-  }
+  credentialState.openRouterModel =
+    credentialState.openRouterIdentity === undefined
+      ? undefined
+      : openRouterModelFor({state, projectId, subject: params.subject, model: model.id});
   if (credentialState.projectId !== projectId) {
     throw new Error('E2E managed provider project changed during credential renewal');
   }
@@ -313,6 +320,25 @@ function resolveE2eCredentials(
   };
 }
 
+/** The catalog model to send to OpenRouter in place of `model`, or undefined to send it as is. */
+function openRouterModelFor(params: {
+  state: InferenceState;
+  projectId: string;
+  subject: InferenceSubject;
+  model: string;
+}): string | undefined {
+  if (Object.hasOwn(OPENROUTER_MODEL_IDS, params.model)) return undefined;
+  // A conversation runs on the workspace default, which is never an OpenRouter model here.
+  const conversationModel =
+    params.subject.kind === 'conversation'
+      ? params.state.openRouterProjects.get(params.projectId)?.conversationModel
+      : undefined;
+  if (conversationModel === undefined) {
+    throw new Error(`E2E managed provider has no OpenRouter model for ${params.model}`);
+  }
+  return conversationModel;
+}
+
 function createCredentialState(params: {
   state: InferenceState;
   params: Parameters<ManagedModelProvider['resolveCredentials']>[0];
@@ -331,6 +357,7 @@ function createCredentialState(params: {
     model: params.params.model,
     projectId,
     scriptedAttempt,
+    openRouterModel: undefined,
     openRouterIdentity: openRouter
       ? subjectUsageIdentity({
           workspaceId: params.params.workspaceId,
@@ -423,14 +450,47 @@ function parseScriptReply(value: unknown): ScriptedReply {
   if (!isRecord(value)) {
     throw new ClientError('Invalid scripted provider reply', 'invalid-script', {status: 400});
   }
-  if (typeof value.text === 'string') return {text: value.text};
+  if (typeof value.text === 'string') {
+    if (value.hold_ms === undefined) return {text: value.text};
+    if (
+      typeof value.hold_ms !== 'number' ||
+      !Number.isInteger(value.hold_ms) ||
+      value.hold_ms < 0 ||
+      value.hold_ms > MAX_SCRIPTED_HOLD_MS
+    ) {
+      throw new ClientError('Invalid scripted provider hold', 'invalid-script', {status: 400});
+    }
+    return {text: value.text, hold_ms: value.hold_ms};
+  }
+  if (isRecord(value.error)) {
+    const {status, message} = value.error;
+    if (
+      typeof status !== 'number' ||
+      !Number.isInteger(status) ||
+      status < 400 ||
+      status > 599 ||
+      typeof message !== 'string'
+    ) {
+      throw new ClientError('Invalid scripted provider error', 'invalid-script', {status: 400});
+    }
+    return {error: {status, message}};
+  }
   if (typeof value.tool === 'string') {
     return {
       tool: value.tool,
       args: isRecord(value.args) ? value.args : {},
     };
   }
-  throw new ClientError('A scripted provider reply needs text or tool', 'invalid-script', {
+  throw new ClientError('A scripted provider reply needs text, tool, or error', 'invalid-script', {
+    status: 400,
+  });
+}
+
+function openRouterConversationModel(value: unknown): string | undefined {
+  const model = isRecord(value) ? value.conversation_model : undefined;
+  if (model === undefined) return undefined;
+  if (typeof model === 'string' && Object.hasOwn(OPENROUTER_MODEL_IDS, model)) return model;
+  throw new ClientError('The conversation model has no OpenRouter model', 'invalid-script', {
     status: 400,
   });
 }
@@ -529,7 +589,9 @@ function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
               status: 409,
             });
           }
-          state.openRouterProjects.add(projectId);
+          state.openRouterProjects.set(projectId, {
+            conversationModel: openRouterConversationModel(request.body),
+          });
           reply.code(201);
           return {project_id: projectId};
         },
@@ -639,9 +701,13 @@ function respondToInferenceRequest(params: {
         },
       });
     }
+    const {openRouterModel} = credentialState;
     return forwardToOpenRouter({
       backend: params.state.openRouter,
-      body: params.body,
+      body:
+        openRouterModel !== undefined && isRecord(params.body)
+          ? {...params.body, model: openRouterModel}
+          : params.body,
       identity: credentialState.openRouterIdentity,
       record: params.state.recordInferenceSegment,
       recordCost: ({projectId, costUsd}) => {
@@ -761,6 +827,7 @@ function respondWithScriptedOpenAiCompletion(
     hijack(): unknown;
     raw: {
       end(chunk?: string): unknown;
+      on(event: 'close', listener: () => void): unknown;
       write(chunk: string): unknown;
       writeHead(statusCode: number, headers: Record<string, string>): unknown;
     };
@@ -805,12 +872,6 @@ function respondWithScriptedOpenAiCompletion(
   }
 
   attempt.cursor += 1;
-  const completion = scriptedCompletion({
-    model,
-    reply: replyDefinition,
-    requestIndex,
-    subjectId: subjectKey(credentialState.subject),
-  });
   attempt.project.requests.push({
     index: requestIndex,
     project_id: credentialState.projectId,
@@ -818,8 +879,19 @@ function respondWithScriptedOpenAiCompletion(
     model,
     prompt,
     surprise: false,
-    served_reply: replyDefinition.text ?? `tool:${replyDefinition.tool}`,
+    served_reply: servedReply(replyDefinition),
     created_at: new Date().toISOString(),
+  });
+  if (replyDefinition.error !== undefined) {
+    return reply.code(replyDefinition.error.status).send({
+      error: {message: replyDefinition.error.message, type: 'scripted_error'},
+    });
+  }
+  const completion = scriptedCompletion({
+    model,
+    reply: replyDefinition,
+    requestIndex,
+    subjectId: subjectKey(credentialState.subject),
   });
 
   if (!bodyBoolean(body, 'stream')) return reply.send(completion);
@@ -871,13 +943,36 @@ function respondWithScriptedOpenAiCompletion(
       ],
     })}\n\n`,
   );
-  reply.raw.write(
-    `data: ${JSON.stringify({
-      ...base,
-      choices: [{index: 0, delta: {}, finish_reason: 'stop'}],
-    })}\n\n`,
-  );
-  return reply.raw.end('data: [DONE]\n\n');
+  const finish = () => {
+    reply.raw.write(
+      `data: ${JSON.stringify({
+        ...base,
+        choices: [{index: 0, delta: {}, finish_reason: 'stop'}],
+      })}\n\n`,
+    );
+    reply.raw.end('data: [DONE]\n\n');
+  };
+  return holdThen({raw: reply.raw, holdMs: replyDefinition.hold_ms, finish});
+}
+
+function servedReply(reply: ScriptedReply): string {
+  if (reply.error !== undefined) return `error:${reply.error.status}`;
+  return reply.text ?? `tool:${reply.tool}`;
+}
+
+/** Runs `finish` after the hold, unless the caller hangs up first, as a stopped turn does. */
+function holdThen(params: {
+  raw: {on(event: 'close', listener: () => void): unknown};
+  holdMs: number | undefined;
+  finish: () => void;
+}): undefined {
+  if (!params.holdMs) {
+    params.finish();
+    return undefined;
+  }
+  const timer = setTimeout(params.finish, params.holdMs);
+  params.raw.on('close', () => clearTimeout(timer));
+  return undefined;
 }
 
 function respondWithOpenAiCompletion(

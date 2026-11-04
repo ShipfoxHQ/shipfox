@@ -1,0 +1,9 @@
+description: A question about what a workflow does goes to the workflow tools, and the answer comes from its source.
+workflows:
+  report: weekly-report.yml
+messages:
+  - body: What does the Weekly report workflow do?
+expect:
+  tools_called: [get_workflow_definition_source]
+  tools_not_called: [start_workflow_run]
+  reply_matches: [acme-weekly-reports]

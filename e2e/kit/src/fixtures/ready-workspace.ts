@@ -8,6 +8,7 @@ export interface ReadyWorkspace {
   workspaceId: string;
   workspaceSlug: string;
   projectId: string;
+  projectSlug: string;
   sessionToken: string;
 }
 
@@ -52,6 +53,7 @@ async function createReadyWorkspace(params: {
     workspaceId: workspace.id,
     workspaceSlug: workspace.slug,
     projectId: project.id,
+    projectSlug: project.slug,
     sessionToken: session.token,
   };
 }

@@ -1,0 +1,15 @@
+description: On a run page, "this" means that run, even when another run failed too.
+workflows:
+  cache: cache-warmup.yml
+  preview: deploy-preview.yml
+runs:
+  - {name: preview, workflow: preview, status: failed}
+  - {name: cache, workflow: cache, status: failed}
+messages:
+  - body: Why did this fail?
+    page_context: {page: run, run_id: $runs.preview, status: failed}
+expect:
+  tools_not_called: [start_workflow_run]
+  tool_input_contains: [$runs.preview]
+  reply_matches: [certificate]
+  reply_not_matches: ['space left', 'disk']

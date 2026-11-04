@@ -1,0 +1,13 @@
+name: Nightly build
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+jobs:
+  build:
+    checkout: false
+    steps:
+      - name: Build
+        run: |
+          echo "error: build script exited with code 2"
+          exit 2

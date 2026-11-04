@@ -400,7 +400,10 @@ A case with agent steps puts their model replies in `scripted.yaml`, next to
 managed provider for the case's project, and refuses a case with agent steps
 but no script. Each entry has a `match` with
 `prompt_contains` and a list of `replies`, each a `text` or a `tool` call with
-`args`. A step attempt's first request picks the first entry whose text it
+`args`. A `text` reply can set `hold_ms`, up to 120000, to hold its stream open
+after the text, so a test can stop it mid-reply. An `error` reply with a
+`status` from 400 to 599 and a `message` fails that one request, so a test can
+retry the turn and get the next reply. A step attempt's first request picks the first entry whose text it
 contains. So an entry that continues a shared session goes before the entry
 that started it. Each later request of that attempt reads the entry's next
 reply. A pi step with declared outputs ends once it sets every output, and one
@@ -534,6 +537,37 @@ the case leaves out take the manifest default. The comparison allows filled
 lines. The runner makes the dry run itself, through the proxy after the session
 ends, so it never appears in the agent's call log.
 
+The Shippy suite measures the built-in project agent's prompt with real models.
+Each case in `cases/shippy/` arranges a workspace, a project, and a local runner,
+creates the case's shell-step workflows, and runs the case's `runs` to the
+status each one names, so Shippy reads real runs and logs. It then sends the
+case's `messages` as one web conversation, waiting for each turn to end. A
+message's `page_context` is sent as the chat panel sends it, and `$runs.<name>`
+in it becomes the ID of that seeded run. Shippy answers through the OpenRouter
+backend, so it needs `E2E_OPENROUTER_API_KEY` for the harness, and it runs in
+live mode only. A conversation runs on the provider's default model, which
+OpenRouter doesn't serve, so the case's project registers `--agent-model` as its
+conversation model, `gpt-6-luna` by default:
+
+```sh
+E2E_OPENROUTER_API_KEY=<key> mise run evals -- --suite shippy --case names-seeded-failure --repeat 3
+```
+
+A repeat passes when every turn succeeded and every check of `expect` holds:
+
+| Field | Check |
+| --- | --- |
+| `tools_called` | Shippy called each tool at least once. |
+| `tools_not_called` | Shippy never called the tool. |
+| `tool_input_contains` | Some tool call's arguments contain the text. `$runs.<name>` becomes the run's ID. |
+| `reply_matches`, `reply_not_matches` | The last turn's reply matches, or doesn't match, the case-insensitive pattern. |
+| `no_new_runs` | No run started in the project during the conversation. |
+
+Each case runs `k` times unless `--repeat` is set, and each repeat writes its
+result, with the turns, tool calls, reply, checks, and the conversation's
+items, to `results/<run-id>/<case>/<repeat>.json`. Only a repeat that could not
+run makes the exit code non-zero. Shippy results are local-only for now.
+
 Evaluations also export to Langfuse when `LANGFUSE_PUBLIC_KEY` and
 `LANGFUSE_SECRET_KEY` are set. `LANGFUSE_BASE_URL` selects the region and
 defaults to the EU cloud. Each `<suite>/<mode>` is one experiment, and each
@@ -592,12 +626,14 @@ only: the run's outputs, the recorded writes, and the hidden tests. The
 `summary.md` of a run lists each case's passes out of its repeats under
 "Passes per case".
 
-`.github/workflows/evals.yml` runs the live templates suite and the onboarding
-suite every night, and on dispatch. A dispatch takes the suite (`templates`,
-`onboarding`, or `both`), a case filter, a repeat count, the onboarding models,
-and `max_cost_usd`, which defaults to 10 and goes to `--max-cost-usd` on every
-suite, so a run of both suites can spend twice that. Without a repeat count, templates run 3 times and each onboarding case
-runs its own `k`. A pull request from this repository that gets the
+`.github/workflows/evals.yml` runs the live templates suite, the onboarding
+suite, and the Shippy suite every night, and on dispatch. A dispatch takes the
+suite (`templates`, `onboarding`, `shippy`, or `all`), a case filter, a repeat
+count, the agent and simulator models, and `max_cost_usd`, which defaults to 10
+and goes to `--max-cost-usd` on every suite, so a run of all suites can spend
+three times that. Without a repeat count, templates run 3 times and each
+onboarding and Shippy case runs its own `k`. The agent model applies to the
+onboarding and Shippy suites. A pull request from this repository that gets the
 `onboarding-evals` label runs the onboarding suite, and a new label event
 replaces the previous run for that pull request. Each run posts every
 `summary.md` to the job summary and uploads `results/` as the
@@ -606,7 +642,7 @@ replaces the previous run for that pull request. Each run posts every
 | Secret | Used for |
 | --- | --- |
 | `EVALS_ANTHROPIC_API_KEY` | The onboarding agent and simulated user |
-| `EVALS_OPENROUTER_API_KEY` | Live template runs, passed to the stack as `E2E_OPENROUTER_API_KEY` |
+| `EVALS_OPENROUTER_API_KEY` | Live template and Shippy runs, passed to the stack as `E2E_OPENROUTER_API_KEY` |
 | `EVALS_LANGFUSE_PUBLIC_KEY`, `EVALS_LANGFUSE_SECRET_KEY` | The Langfuse export. Without them, only local results are written. |
 | `EVALS_LANGFUSE_BASE_URL` | The Langfuse region. Optional, defaults to the EU cloud. |
 

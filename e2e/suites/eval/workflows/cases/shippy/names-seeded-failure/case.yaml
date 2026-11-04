@@ -1,0 +1,12 @@
+description: Shippy reads the logs and names the removed package, not the generic exit or the retries.
+workflows:
+  install: install-dependencies.yml
+runs:
+  - {name: install, workflow: install, status: failed}
+messages:
+  - body: Why did the latest Install dependencies run fail?
+expect:
+  tools_called: [get_step_logs]
+  tools_not_called: [start_workflow_run]
+  reply_matches: [billing-client]
+  reply_not_matches: ['time ?out']

@@ -303,6 +303,60 @@ describe('OpenRouter backend', () => {
     ).toThrow('no OpenRouter model for e2e-renewable-pi');
   });
 
+  it("serves a conversation on the project's conversation model", async () => {
+    const upstream = await startUpstream((_request, response) => {
+      response.writeHead(200, {'content-type': 'application/json'});
+      response.end(
+        JSON.stringify({
+          id: 'gen-1',
+          choices: [{index: 0, message: {role: 'assistant', content: 'from openrouter'}}],
+          usage: {prompt_tokens: 10, completion_tokens: 5},
+        }),
+      );
+    });
+    const subject = {
+      kind: 'conversation' as const,
+      projectId: PROJECT_ID,
+      conversationId: '00000000-0000-4000-8000-00000000000b',
+      agentKey: 'shippy',
+    };
+    const {app, recorded, runtime} = await startOpenRouterProject(upstream.baseUrl, subject, {
+      conversationModel: 'gpt-6-luna',
+      model: 'e2e-renewable-pi',
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: COMPLETIONS_URL,
+      headers: {authorization: `Bearer ${runtime.credentials.api_key}`},
+      payload: {model: 'e2e-renewable-pi', messages: [{role: 'user', content: 'hi'}]},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(upstream.requests[0]?.body.model).toBe('openai/gpt-6-luna');
+    expect(inferenceSegmentInputSchema.parse(recorded[0])).toMatchObject({model: 'gpt-6-luna'});
+  });
+
+  it('refuses a conversation model without an OpenRouter mapping', async () => {
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key', {
+      openRouter: {apiKey: API_KEY},
+    });
+    if (fixture === undefined) throw new Error('fixture should be configured');
+    const app = await createApp({
+      auth: fixture.module.auth ?? [],
+      routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
+      swagger: false,
+    });
+
+    const registration = await app.inject({
+      method: 'POST',
+      url: '/managed-inference/openrouter',
+      payload: {project_id: PROJECT_ID, conversation_model: 'e2e-renewable-pi'},
+    });
+
+    expect(registration.statusCode).toBe(400);
+  });
+
   it('rejects a model without an OpenRouter mapping', async () => {
     const upstream = await startUpstream((_request, response) => response.end('{}'));
     const {fixture} = await startOpenRouterProject(upstream.baseUrl);
@@ -399,6 +453,7 @@ async function startOpenRouterProject(
     stepAttemptId: STEP_ATTEMPT_ID,
     jobIdentity: JOB_IDENTITY,
   },
+  options: {conversationModel?: string; model?: string} = {},
 ) {
   const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key', {
     openRouter: {apiKey: API_KEY, baseUrl},
@@ -419,13 +474,13 @@ async function startOpenRouterProject(
   const registration = await app.inject({
     method: 'POST',
     url: '/managed-inference/openrouter',
-    payload: {project_id: PROJECT_ID},
+    payload: {project_id: PROJECT_ID, conversation_model: options.conversationModel},
   });
   expect(registration.statusCode).toBe(201);
   const runtime = await fixture.provider.resolveCredentials({
     workspaceId: WORKSPACE_ID,
     subject,
-    model: 'gpt-6-luna',
+    model: options.model ?? 'gpt-6-luna',
   });
   expect(runtime.api).toBe('openai-completions');
   return {app, fixture, recorded, runtime};
