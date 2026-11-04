@@ -59,6 +59,7 @@
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-shell": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
+    "@shipfox/client-workflows": "workspace:*",
     "@shipfox/policy-notice": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",

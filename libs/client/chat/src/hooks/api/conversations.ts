@@ -36,6 +36,11 @@ import {
 
 /** How often a conversation with no open stream is read again, as run pages do. */
 export const CONVERSATION_POLL_INTERVAL_MS = 5_000;
+/**
+ * How often the conversation list is read again for unread replies. Every project page polls it,
+ * because a result can arrive days later, so it is slow, and a hidden tab doesn't poll.
+ */
+export const CONVERSATION_LIST_POLL_INTERVAL_MS = 30_000;
 const CONVERSATION_PAGE_SIZE = 50;
 const ITEMS_PAGE_SIZE = 100;
 
@@ -91,6 +96,8 @@ export function conversationListQueryOptions(projectId: string) {
     queryFn: ({pageParam, signal}) => listConversations({projectId, cursor: pageParam, signal}),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page: ConversationList) => page.nextCursor,
+    refetchInterval: CONVERSATION_LIST_POLL_INTERVAL_MS,
+    refetchIntervalInBackground: false,
   });
 }
 

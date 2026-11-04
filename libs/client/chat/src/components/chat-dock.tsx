@@ -11,7 +11,7 @@ import {
 } from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {type KeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState} from 'react';
-import type {ConversationSummary} from '#core/conversation.js';
+import type {ConversationList, ConversationSummary} from '#core/conversation.js';
 import {hasCustomAgents} from '#core/project-agents.js';
 import {
   CONTEXT_OVERFLOW_NOTICE_CODE,
@@ -27,6 +27,7 @@ import {
   isConversationNotFound,
   isMessageTooLong,
   useConversationListQuery,
+  useConversationRefresh,
   useDeleteConversationMutation,
 } from '#hooks/api/conversations.js';
 import {
@@ -50,6 +51,7 @@ import {
   FirstUse,
   PanelLoading,
 } from './chat-panel.js';
+import {ChatActiveRuns} from './chat-runs.js';
 import {ChatTranscript} from './chat-transcript.js';
 import {pageContextLabel, suggestedPrompts} from './page-context.js';
 
@@ -115,6 +117,72 @@ function storedAgentKey(params: {
   return (detail ?? conversations.find((c) => c.id === conversationId))?.agentKey;
 }
 
+/**
+ * Unread replies across the project, from the slow list poll that runs while the panel is closed.
+ * The open conversation's own read is fresher, so it decides for that one.
+ */
+function unreadStatus(params: {
+  detail: ConversationSummary | undefined;
+  conversations: readonly ConversationSummary[];
+  conversationId: string | undefined;
+  unreadCount: number;
+}): {unread: boolean; unreadElsewhere: boolean; count: number} {
+  const {detail, conversations, conversationId, unreadCount} = params;
+  const listed = conversations.find((c) => c.id === conversationId);
+  const elsewhere = Math.max(0, unreadCount - (listed?.unread ? 1 : 0));
+  const unread = detail?.unread ?? listed?.unread ?? false;
+  return {unread, unreadElsewhere: elsewhere > 0, count: elsewhere + (unread ? 1 : 0)};
+}
+
+/**
+ * The closed panel doesn't poll its conversation, so a late result would wait for the panel to
+ * open. Once the list shows the conversation moved on, it is read again, which also follows a
+ * reply that started.
+ */
+function useFollowListedActivity(params: {
+  conversationId: string | undefined;
+  listedSeq: number | undefined;
+  readSeq: number | undefined;
+}) {
+  const {conversationId, listedSeq, readSeq} = params;
+  const refresh = useConversationRefresh(conversationId);
+  useEffect(() => {
+    if (listedSeq === undefined || readSeq === undefined || listedSeq <= readSeq) return;
+    void refresh();
+  }, [listedSeq, readSeq, refresh]);
+}
+
+/** Publishes what Shippy shows on every project page, with the project's unread count. */
+function usePublishShippyStatus(params: {
+  chat: ChatConversation;
+  conversations: readonly ConversationSummary[];
+  conversationId: string | undefined;
+  /** The unread count covers every page, so the first one carries it. */
+  firstListPage: ConversationList | undefined;
+}) {
+  const {chat, conversations, conversationId, firstListPage} = params;
+  const unread = unreadStatus({
+    detail: chat.detail,
+    conversations,
+    conversationId,
+    unreadCount: firstListPage?.unreadCount ?? 0,
+  });
+  useShippyStatus({
+    state: shippyStateOf({
+      activity: chat.activity,
+      turn: chat.turn,
+      unread: unread.unread,
+      unreadElsewhere: unread.unreadElsewhere,
+    }),
+    unread: unread.count,
+  });
+  useFollowListedActivity({
+    conversationId,
+    listedSeq: conversations.find((c) => c.id === conversationId)?.lastSeq,
+    readSeq: chat.detail?.lastSeq,
+  });
+}
+
 /** `Esc` stops a reply. Otherwise it closes the panel, when the composer is empty. */
 function escapeHandler(params: {
   panelRef: RefObject<HTMLDivElement | null>;
@@ -147,6 +215,7 @@ function ProjectChat({project}: {project: Project}) {
   const pageContext = useCurrentAgentPageContext();
   const [selection, setSelection] = useState<Selection>(undefined);
   const [view, setView] = useState<'chat' | 'history'>('chat');
+  const [latestVisible, setLatestVisible] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -159,6 +228,7 @@ function ProjectChat({project}: {project: Project}) {
     projectId: project.id,
     conversationId,
     active: open,
+    latestVisible,
     onCreated: setSelection,
   });
   const models = useChatModelAvailability(workspace.id);
@@ -176,12 +246,11 @@ function ProjectChat({project}: {project: Project}) {
     chat.turn?.status === 'failed' && !replying ? turnFailure(chat.turn.failureCode) : undefined;
   const {reset, newAgentKey, activeAgent, agentGone} = agentSelection;
   const blocked = chat.notFound || failure?.kind === 'too-long' || !models.hasModel || agentGone;
-  useShippyStatus({
-    state: shippyStateOf({
-      activity: chat.activity,
-      turn: chat.turn,
-      unread: chat.detail?.unread ?? false,
-    }),
+  usePublishShippyStatus({
+    chat,
+    conversations,
+    conversationId,
+    firstListPage: listQuery.data?.pages[0],
   });
   const announcement = useAnnouncement({
     replying,
@@ -243,15 +312,22 @@ function ProjectChat({project}: {project: Project}) {
         onKeyDown={onKeyDown}
         announcement={announcement}
         header={
-          <ChatPanelHeader
-            title={title}
-            view={view}
-            onToggleHistory={() =>
-              setView((current) => (current === 'history' ? 'chat' : 'history'))
-            }
-            onNewConversation={startNewConversation}
-            onClose={() => setOpen(false)}
-          />
+          <>
+            <ChatPanelHeader
+              title={title}
+              view={view}
+              onToggleHistory={() =>
+                setView((current) => (current === 'history' ? 'chat' : 'history'))
+              }
+              onNewConversation={startNewConversation}
+              onClose={() => setOpen(false)}
+            />
+            <ChatActiveRuns
+              runs={view === 'chat' ? chat.detail?.activeRuns : undefined}
+              workspaceSlug={workspace.slug}
+              projectSlug={project.slug}
+            />
+          </>
         }
         body={
           view === 'history' ? (
@@ -300,6 +376,7 @@ function ProjectChat({project}: {project: Project}) {
                 newConversation={conversationId === undefined}
                 agentSelection={agentSelection}
                 onPrompt={sendPrompt}
+                onLatestVisibleChange={setLatestVisible}
               />
             </>
           )
@@ -365,6 +442,7 @@ function ConversationBody({
   newConversation,
   agentSelection,
   onPrompt,
+  onLatestVisibleChange,
 }: {
   chat: ChatConversation;
   models: ChatModelAvailability;
@@ -378,6 +456,7 @@ function ConversationBody({
   newConversation: boolean;
   agentSelection: ReturnType<typeof useAgentSelection>;
   onPrompt: (prompt: string) => Promise<void>;
+  onLatestVisibleChange: (visible: boolean) => void;
 }) {
   const replying = isReplyActive(chat.activity);
   if (!models.hasModel) return <NoModelState workspaceSlug={workspaceSlug} />;
@@ -403,6 +482,7 @@ function ConversationBody({
       projectSlug={projectSlug}
       activity={chat.activity}
       olderHistory={chat.olderHistory}
+      onLatestVisibleChange={onLatestVisibleChange}
       renderNotice={(entry) => (
         <TurnNoticeCallout
           notice={entry.notice}

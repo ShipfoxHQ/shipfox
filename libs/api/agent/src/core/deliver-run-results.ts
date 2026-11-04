@@ -28,7 +28,7 @@ export type RunDeliveryWorkflows = Pick<WorkflowsModuleClient, 'getWorkflowRunOv
 
 type RunOverview = NonNullable<Awaited<ReturnType<RunDeliveryWorkflows['getWorkflowRunOverview']>>>;
 
-const TERMINAL_JOB_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'skipped']);
+export const TERMINAL_JOB_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'skipped']);
 const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'cancelled']);
 
 export type RunDelivery =
@@ -83,6 +83,9 @@ export function runResultEntry(params: {
     status: delivery.status,
     job_keys: finished.map((job) => job.key),
     outputs,
+    run_number: run.number,
+    name: run.name,
+    attempt: attempt.attempt,
   };
   const data = wrapUntrustedText({
     source: `run:${run.id}`,
@@ -175,6 +178,7 @@ export async function deliverRunResults(params: {
         conversationId: check.conversationId,
         workflowRunId,
         checkRequestedAt: check.checkRequestedAt,
+        latestAttemptId: overview?.attempt.id,
       });
       continue;
     }

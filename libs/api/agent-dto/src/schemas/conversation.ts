@@ -66,9 +66,15 @@ export type CreateConversationBodyDto = z.infer<typeof createConversationBodySch
 export const conversationRunResultDtoSchema = z.object({
   workflow_run_id: z.string().uuid(),
   run_attempt_id: z.string().uuid(),
+  /** `settled` while a listener holds the run open, or the status the attempt ended with. */
   status: z.string(),
   job_keys: z.array(z.string()),
   outputs: z.record(z.string(), z.unknown()).nullable(),
+  // Results stored before these fields existed have none of them.
+  run_number: z.number().int().positive().optional(),
+  /** What the run is called, which is the workflow's name unless it set a run name. */
+  name: z.string().optional(),
+  attempt: z.number().int().positive().optional(),
 });
 
 export type ConversationRunResultDto = z.infer<typeof conversationRunResultDtoSchema>;
@@ -141,8 +147,25 @@ export const conversationLatestTurnDtoSchema = conversationActiveTurnDtoSchema.e
 
 export type ConversationLatestTurnDto = z.infer<typeof conversationLatestTurnDtoSchema>;
 
+/** A run the conversation started whose latest attempt has no result yet. */
+export const conversationActiveRunDtoSchema = z.object({
+  workflow_run_id: z.string().uuid(),
+  run_number: z.number().int().positive(),
+  name: z.string(),
+  attempt: z.number().int().positive(),
+  status: z.string(),
+  /** Null while the attempt waits to start. */
+  started_at: z.string().datetime().nullable(),
+  jobs_finished: z.number().int().min(0),
+  jobs_total: z.number().int().min(0),
+});
+
+export type ConversationActiveRunDto = z.infer<typeof conversationActiveRunDtoSchema>;
+
 export const conversationDetailDtoSchema = conversationSummaryDtoSchema.extend({
   active_turn: conversationActiveTurnDtoSchema.nullable(),
+  /** Oldest first. */
+  active_runs: z.array(conversationActiveRunDtoSchema),
   /** The most recent turn, finished or not, so a reader can show why a reply failed. */
   latest_turn: conversationLatestTurnDtoSchema.nullable(),
 });

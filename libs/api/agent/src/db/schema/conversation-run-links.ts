@@ -7,6 +7,8 @@ import {conversations} from './conversations.js';
  * A workflow run a conversation started, which delivers its result to that conversation.
  * `workflow_run_id` is an opaque foreign id. `check_requested_at` says the run changed since the
  * last delivery check, and a check clears it only when the value is still the one it saw.
+ * `latest_attempt_id` is the attempt that check saw. A link whose attempt has no result yet is an
+ * active-run candidate, which the read confirms with Workflows. It is null until a check sees one.
  */
 export const conversationRunLinks = pgTable(
   'conversation_run_links',
@@ -17,6 +19,7 @@ export const conversationRunLinks = pgTable(
     workflowRunId: uuid('workflow_run_id').notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     checkRequestedAt: timestamp('check_requested_at', {withTimezone: true}),
+    latestAttemptId: uuid('latest_attempt_id'),
   },
   (table) => [
     primaryKey({

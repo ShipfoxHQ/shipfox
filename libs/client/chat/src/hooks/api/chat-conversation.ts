@@ -1,6 +1,11 @@
 import type {AgentPageContext} from '@shipfox/client-shell/runtime';
-import {useCallback, useEffect, useMemo, useState} from 'react';
-import {lastItemSeq, mergeItemPages, withLiveItems} from '#core/conversation.js';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {
+  type ConversationItem,
+  lastItemSeq,
+  mergeItemPages,
+  withLiveItems,
+} from '#core/conversation.js';
 import {buildTranscript} from '#core/transcript.js';
 import {
   currentTurn,
@@ -33,6 +38,8 @@ export interface UseChatConversationParams {
    * input or retry that waits.
    */
   active: boolean;
+  /** Whether the latest item is scrolled into view, which a read needs. */
+  latestVisible: boolean;
   onCreated: (conversationId: string) => void;
 }
 
@@ -72,21 +79,66 @@ function useStreamRecovery(params: {
   }, [failedAt, turnRunning, refetch]);
 }
 
-/** Marks the conversation read while the user can see it. */
+function isTabFocused(): boolean {
+  return document.visibilityState === 'visible' && document.hasFocus();
+}
+
+function subscribeToTabFocus(onChange: () => void) {
+  window.addEventListener('focus', onChange);
+  window.addEventListener('blur', onChange);
+  document.addEventListener('visibilitychange', onChange);
+  return () => {
+    window.removeEventListener('focus', onChange);
+    window.removeEventListener('blur', onChange);
+    document.removeEventListener('visibilitychange', onChange);
+  };
+}
+
+/** Whether the reader is looking at this tab. A hidden or background tab is not. */
+function useTabFocused(): boolean {
+  return useSyncExternalStore(subscribeToTabFocus, isTabFocused, () => false);
+}
+
+/**
+ * The detail isn't polled while a stream is open, so a result that arrives on the stream reads
+ * the detail again. Otherwise its run would keep its active-run pill until the turn ends.
+ */
+function useRefreshOnRunResult(params: {
+  items: readonly ConversationItem[];
+  queued: readonly ConversationItem[];
+  refetch: () => unknown;
+}) {
+  const {items, queued, refetch} = params;
+  const results = [...items, ...queued].filter(
+    (item) => item.content?.type === 'run_result',
+  ).length;
+  const seen = useRef(results);
+  useEffect(() => {
+    if (results > seen.current) void refetch();
+    seen.current = results;
+  }, [results, refetch]);
+}
+
+/**
+ * Marks the conversation read once the reader sees its latest item: the panel is open, the
+ * latest item is scrolled into view, and the tab is focused. A hidden tab never clears unread.
+ */
 function useMarkRead(params: {
   projectId: string;
   conversationId: string | undefined;
   unread: boolean;
   lastSeq: number;
   active: boolean;
+  latestVisible: boolean;
 }) {
-  const {projectId, conversationId, unread, lastSeq, active} = params;
+  const {projectId, conversationId, unread, lastSeq, active, latestVisible} = params;
+  const focused = useTabFocused();
   const {mutate} = useMarkConversationReadMutation(projectId);
   useEffect(() => {
-    if (!active || !unread || !conversationId || lastSeq === 0) return;
-    if (document.visibilityState !== 'visible') return;
+    if (!active || !latestVisible || !focused) return;
+    if (!unread || !conversationId || lastSeq === 0) return;
     mutate({conversationId, lastReadSeq: lastSeq});
-  }, [active, unread, conversationId, lastSeq, mutate]);
+  }, [active, latestVisible, focused, unread, conversationId, lastSeq, mutate]);
 }
 
 /** Follows the active turn while one runs or an input waits, and reads it again when it ends. */
@@ -133,6 +185,7 @@ export function useChatConversation({
   projectId,
   conversationId,
   active,
+  latestVisible,
   onCreated,
 }: UseChatConversationParams) {
   const [streamOpen, setStreamOpen] = useState(false);
@@ -177,6 +230,8 @@ export function useChatConversation({
     reconnecting: liveTurn.reconnecting,
   });
 
+  useRefreshOnRunResult({items, queued, refetch: detailQuery.refetch});
+
   const runningTurnId = turn?.status === 'running' ? turn.id : undefined;
   const transcript = useMemo(
     () => buildTranscript({items, queued, partialText, runningTurnId}),
@@ -201,6 +256,7 @@ export function useChatConversation({
     unread: detailQuery.data?.unread ?? false,
     lastSeq,
     active,
+    latestVisible,
   });
 
   const send = useCallback(

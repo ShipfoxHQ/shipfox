@@ -4,6 +4,7 @@ import {
   noticeItem,
   OLD_TURN_ID,
   rowsItem,
+  runResultItem,
   TURN_ID,
   toolCall,
   toolResult,
@@ -36,6 +37,36 @@ function startResult(toolCallId: string, result: Record<string, unknown>, isErro
 }
 
 describe('buildTranscript', () => {
+  test('shows a run result as a card in timeline order, and a rerun as a second card', () => {
+    const entries = buildTranscript({
+      items: [
+        userItem(1, 'Implement it'),
+        runResultItem({seq: 2, status: 'settled'}),
+        rowsItem({seq: 3, turnId: TURN_ID, rows: [agentRow('The pull request is open.')]}),
+        runResultItem({seq: 4, status: 'succeeded', attempt: 2}),
+      ],
+      queued: [],
+      partialText: '',
+      runningTurnId: undefined,
+    });
+
+    expect(kinds(entries)).toEqual(['user', 'run-result', 'agent', 'run-result']);
+    expect(
+      entries.flatMap((entry) => (entry.kind === 'run-result' ? [entry.result.attempt] : [])),
+    ).toEqual([1, 2]);
+  });
+
+  test('shows a delivered result before a turn claims it', () => {
+    const entries = buildTranscript({
+      items: [userItem(1, 'Implement it')],
+      queued: [runResultItem({seq: null, status: 'failed'})],
+      partialText: '',
+      runningTurnId: undefined,
+    });
+
+    expect(kinds(entries)).toEqual(['user', 'run-result']);
+  });
+
   test('shows a started run on its own row, apart from the reads around it', () => {
     const entries = buildTranscript({
       items: [

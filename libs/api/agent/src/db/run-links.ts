@@ -1,5 +1,5 @@
 import type {Buffer} from 'node:buffer';
-import {and, eq, isNotNull, lt, sql} from 'drizzle-orm';
+import {and, asc, eq, inArray, isNotNull, isNull, lt, or, sql} from 'drizzle-orm';
 import type {ConversationItemMeta} from '#core/entities/conversation.js';
 import {db} from './db.js';
 import {conversationItems} from './schema/conversation-items.js';
@@ -110,14 +110,25 @@ export interface NewRunResultEntry {
   meta: ConversationItemMeta;
 }
 
-/** Clears the request, but only when it still has the value the check saw. */
+/**
+ * Clears the request, but only when it still has the value the check saw. It records the attempt
+ * the check saw, so the link reads as active until that attempt has a result.
+ */
 function clearCheck(
   tx: Pick<ReturnType<typeof db>, 'update'>,
-  params: {conversationId: string; workflowRunId: string; checkRequestedAt: string},
+  params: {
+    conversationId: string;
+    workflowRunId: string;
+    checkRequestedAt: string;
+    latestAttemptId?: string | undefined;
+  },
 ) {
   return tx
     .update(conversationRunLinks)
-    .set({checkRequestedAt: null})
+    .set({
+      checkRequestedAt: null,
+      ...(params.latestAttemptId === undefined ? {} : {latestAttemptId: params.latestAttemptId}),
+    })
     .where(
       and(
         eq(conversationRunLinks.conversationId, params.conversationId),
@@ -170,16 +181,69 @@ export async function queueRunResult(params: {
         .set({lastActivityAt: sql`NOW()`})
         .where(eq(conversations.id, params.conversationId));
     }
-    await clearCheck(tx, params);
+    await clearCheck(tx, {...params, latestAttemptId: params.entry.runAttemptId});
     return inserted.length > 0;
   });
 }
 
-/** Clears checks that have nothing to deliver yet, or whose run no longer exists. */
+/**
+ * Clears checks that have nothing to deliver yet, or whose run no longer exists. A run that
+ * exists passes its latest attempt.
+ */
 export async function clearRunLinkCheck(params: {
   conversationId: string;
   workflowRunId: string;
   checkRequestedAt: string;
+  latestAttemptId?: string | undefined;
 }): Promise<void> {
   await clearCheck(db(), params);
+}
+
+/** How many active runs a conversation read reports. A conversation rarely has more than a few. */
+export const ACTIVE_RUN_LINK_LIMIT = 20;
+
+/**
+ * Runs of a conversation whose latest known attempt has no result in it yet, oldest first. A link
+ * no check has seen yet counts, because its run just started.
+ */
+export async function listActiveRunLinks(conversationId: string): Promise<string[]> {
+  const delivered = db()
+    .select({id: conversationItems.id})
+    .from(conversationItems)
+    .where(
+      and(
+        eq(conversationItems.conversationId, conversationRunLinks.conversationId),
+        eq(conversationItems.runAttemptId, conversationRunLinks.latestAttemptId),
+      ),
+    );
+  const rows = await db()
+    .select({workflowRunId: conversationRunLinks.workflowRunId})
+    .from(conversationRunLinks)
+    .where(
+      and(
+        eq(conversationRunLinks.conversationId, conversationId),
+        or(isNull(conversationRunLinks.latestAttemptId), sql`NOT EXISTS (${delivered})`),
+      ),
+    )
+    .orderBy(asc(conversationRunLinks.createdAt), asc(conversationRunLinks.workflowRunId))
+    .limit(ACTIVE_RUN_LINK_LIMIT);
+  return rows.map((row) => row.workflowRunId);
+}
+
+/** The attempts among these that already delivered a result to the conversation. */
+export async function listDeliveredRunAttempts(params: {
+  conversationId: string;
+  runAttemptIds: readonly string[];
+}): Promise<Set<string>> {
+  if (params.runAttemptIds.length === 0) return new Set();
+  const rows = await db()
+    .select({runAttemptId: conversationItems.runAttemptId})
+    .from(conversationItems)
+    .where(
+      and(
+        eq(conversationItems.conversationId, params.conversationId),
+        inArray(conversationItems.runAttemptId, [...params.runAttemptIds]),
+      ),
+    );
+  return new Set(rows.flatMap((row) => (row.runAttemptId ? [row.runAttemptId] : [])));
 }

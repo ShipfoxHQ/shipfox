@@ -75,6 +75,7 @@ export {
   WorkflowRunOverviewJob,
   workflowRunTriggerLabel,
 } from '#core/workflow-run.js';
+export {WorkflowStatusIcon} from './components/workflow-status/workflow-status-icon.js';
 export {
   type DefinitionsAtRefErrorCopy,
   definitionsAtRefErrorCopy,

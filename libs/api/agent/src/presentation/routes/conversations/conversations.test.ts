@@ -547,6 +547,7 @@ describe('conversation routes', () => {
         last_seq: 0,
         active_turn: null,
         latest_turn: null,
+        active_runs: [],
       });
     });
 

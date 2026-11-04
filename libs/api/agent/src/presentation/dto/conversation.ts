@@ -1,5 +1,6 @@
 import {parseSessionRecord} from '@shipfox/agent-transcript';
 import {
+  type ConversationActiveRunDto,
   type ConversationActiveTurnDto,
   type ConversationItemContentDto,
   type ConversationItemDto,
@@ -8,6 +9,7 @@ import {
   conversationRunResultDtoSchema,
   conversationTurnNoticeDtoSchema,
 } from '@shipfox/api-agent-dto';
+import type {ActiveRun} from '#core/active-runs.js';
 import {isRecord, parseConversationEntry} from '#core/conversation-entries.js';
 import {isConversationUnread} from '#core/conversations.js';
 import {
@@ -113,5 +115,18 @@ export function toConversationLatestTurnDto(turn: AgentTurn): ConversationLatest
     model: turn.model,
     provider: turn.provider,
     finished_at: turn.finishedAt?.toISOString() ?? null,
+  };
+}
+
+export function toConversationActiveRunDto(run: ActiveRun): ConversationActiveRunDto {
+  return {
+    workflow_run_id: run.workflowRunId,
+    run_number: run.runNumber,
+    name: run.name,
+    attempt: run.attempt,
+    status: run.status,
+    started_at: run.startedAt,
+    jobs_finished: run.jobsFinished,
+    jobs_total: run.jobsTotal,
   };
 }
