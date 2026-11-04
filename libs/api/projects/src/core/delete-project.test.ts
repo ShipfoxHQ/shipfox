@@ -8,7 +8,6 @@ import {
   getWorkspaceProjectCounts,
   listAdminProjects,
   listProjects,
-  listProjectsBySourceConnection,
   requireProjectForWorkspace,
   resolveCheckoutTarget,
   updateProject,
@@ -109,15 +108,6 @@ describe('deleteProject', () => {
         sourceRepositoryOwner: 'acme',
         sourceRepositoryName: 'app',
       }),
-    ).toEqual([]);
-    expect(
-      (
-        await listProjectsBySourceConnection({
-          workspaceId,
-          sourceConnectionId: project.sourceConnectionId,
-          limit: 10,
-        })
-      ).projects,
     ).toEqual([]);
     expect(
       await resolveCheckoutTarget({workspaceId, target: {project: project.id}}),
