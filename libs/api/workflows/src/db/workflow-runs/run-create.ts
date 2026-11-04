@@ -19,6 +19,7 @@ import {
   createAgentToolMaterializationSnapshot,
   loadAgentToolMaterializationContext,
 } from '#core/agent-tools.js';
+import {loadNoDefaultCheckout} from '#core/default-checkout.js';
 import type {
   SecretInputReference,
   TriggerPayload,
@@ -35,7 +36,6 @@ import {
   WorkflowRunTreeLimitExceededError,
   WorkflowSourceSnapshotTooLargeError,
 } from '#core/errors.js';
-import {loadManagedSource} from '#core/managed-source.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
 import {
   collectRunRequirements,
@@ -120,8 +120,9 @@ export async function createWorkflowRun(
     model: params.model,
     context: agentToolContext,
   });
-  const managedSource = await loadManagedSource({
+  const noDefaultCheckout = await loadNoDefaultCheckout({
     projects: params.projects,
+    integrations: params.integrations,
     projectId: params.projectId,
   });
   const result = await db().transaction((tx) =>
@@ -132,7 +133,7 @@ export async function createWorkflowRun(
         triggerReference,
         agentToolContext,
         agentToolMaterialization,
-        managedSource,
+        noDefaultCheckout,
       },
       tx,
     ),
@@ -198,7 +199,7 @@ interface CreateWorkflowRunTransactionContext {
   readonly triggerReference: Awaited<ReturnType<typeof resolveWorkflowRunTriggerReference>>;
   readonly agentToolContext: Awaited<ReturnType<typeof loadAgentToolMaterializationContext>>;
   readonly agentToolMaterialization: ReturnType<typeof createAgentToolMaterializationSnapshot>;
-  readonly managedSource: boolean;
+  readonly noDefaultCheckout: boolean;
 }
 
 async function createWorkflowRunInTransaction(
@@ -470,7 +471,7 @@ async function materializeCreatedWorkflowRun(
     definitionId: params.definitionId,
     agentToolContext: context.agentToolContext,
     agentToolSnapshot: context.agentToolMaterialization,
-    managedSource: context.managedSource,
+    noDefaultCheckout: context.noDefaultCheckout,
   });
   await persistMaterializedRunGraph(tx, {
     run,

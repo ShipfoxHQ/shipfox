@@ -197,6 +197,7 @@ describe('defaultModules', () => {
             resolveConnection: vi.fn(),
             resolveConnectionById: vi.fn(),
             resolveSourceControlConnection: vi.fn(),
+            listSourceControlConnectionIds: vi.fn(),
             getScopeConnection: vi.fn(),
             resolveScopeResource: vi.fn(),
             resolveSourceRef: vi.fn(),

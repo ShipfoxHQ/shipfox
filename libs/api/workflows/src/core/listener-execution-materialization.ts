@@ -52,7 +52,7 @@ export interface MaterializeListenerExecutionParams {
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
-  readonly managedSource?: boolean | undefined;
+  readonly noDefaultCheckout?: boolean | undefined;
 }
 
 export interface MaterializedListenerExecution {
@@ -129,7 +129,7 @@ export async function materializeListenerExecution(
       definitionId: params.run.definitionId,
       agentToolContext: params.agentToolContext,
       agentToolSnapshot: params.agentToolSnapshot,
-      managedSource: params.managedSource,
+      noDefaultCheckout: params.noDefaultCheckout,
     });
   } catch (error) {
     if (!isPermanentListenerMaterializationError(error)) throw error;

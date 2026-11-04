@@ -1,3 +1,4 @@
+import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
 import {createIntegrationProviderRegistry} from '#core/providers/registry.js';
 import {integrationConnectionFactory} from '#test/factories/connection.js';
 import {
@@ -130,6 +131,19 @@ describe('findSoleSourceControlConnection', () => {
   });
 });
 
+function managedPolicy(connections: ProjectAccessPolicy['connections']): ProjectAccessPolicy {
+  return {
+    projectId: crypto.randomUUID(),
+    configSource: {
+      managed: true,
+      connectionId: crypto.randomUUID(),
+      externalRepositoryId: 'managed:project',
+      lookupName: null,
+    },
+    connections,
+  };
+}
+
 describe('resolveDefaultConnection', () => {
   it("uses a linked project's source connection even when the workspace has several", async () => {
     const workspaceId = crypto.randomUUID();
@@ -146,7 +160,11 @@ describe('resolveDefaultConnection', () => {
       slug: 'gitea',
     });
 
-    const resolved = await resolveDefaultConnection({sourceConnection: source, registry});
+    const resolved = await resolveDefaultConnection({
+      sourceConnection: source,
+      loadPolicy: async () => managedPolicy('all'),
+      registry,
+    });
 
     expect(resolved?.id).toBe(source.id);
   });
@@ -166,7 +184,11 @@ describe('resolveDefaultConnection', () => {
       slug: 'github',
     });
 
-    const resolved = await resolveDefaultConnection({sourceConnection: hidden, registry});
+    const resolved = await resolveDefaultConnection({
+      sourceConnection: hidden,
+      loadPolicy: async () => managedPolicy('all'),
+      registry,
+    });
 
     expect(resolved?.id).toBe(github.id);
   });
@@ -193,13 +215,75 @@ describe('resolveDefaultConnection', () => {
     });
 
     await expect(
-      resolveDefaultConnection({sourceConnection: hidden, registry}),
+      resolveDefaultConnection({
+        sourceConnection: hidden,
+        loadPolicy: async () => managedPolicy('all'),
+        registry,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('uses the one source-control connection the managed project lists, among several', async () => {
+    const workspaceId = crypto.randomUUID();
+    const hidden = await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'managed-vcs',
+      externalAccountId: workspaceId,
+      slug: 'shipfox-managed',
+    });
+    await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'acme',
+      slug: 'github',
+    });
+    const gitea = await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'gitea',
+      externalAccountId: 'acme',
+      slug: 'gitea',
+    });
+
+    const resolved = await resolveDefaultConnection({
+      sourceConnection: hidden,
+      loadPolicy: async () => managedPolicy([{connectionId: gitea.id, resources: 'all'}]),
+      registry,
+    });
+
+    expect(resolved?.id).toBe(gitea.id);
+  });
+
+  it('does not fall back to the workspace sole connection when the project lists a list', async () => {
+    const workspaceId = crypto.randomUUID();
+    const hidden = await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'managed-vcs',
+      externalAccountId: workspaceId,
+      slug: 'shipfox-managed',
+    });
+    await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'acme',
+      slug: 'github',
+    });
+
+    await expect(
+      resolveDefaultConnection({
+        sourceConnection: hidden,
+        loadPolicy: async () => managedPolicy([]),
+        registry,
+      }),
     ).resolves.toBeUndefined();
   });
 
   it('has no default when the source connection is gone', async () => {
     await expect(
-      resolveDefaultConnection({sourceConnection: undefined, registry}),
+      resolveDefaultConnection({
+        sourceConnection: undefined,
+        loadPolicy: async () => managedPolicy('all'),
+        registry,
+      }),
     ).resolves.toBeUndefined();
   });
 });

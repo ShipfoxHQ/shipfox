@@ -1,4 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {projectFactory} from '#test/factories/project.js';
 import {createStepCheckoutSpec, renewStepCheckoutCredentials} from './checkout.js';
@@ -29,18 +30,23 @@ function devRun(commit: string): {origin: 'dev'; devSource: WorkflowRunDevSource
 
 const getProjectById = vi.fn();
 const resolveCheckoutTarget = vi.fn();
+const getProjectAccessPolicy = vi.fn();
 const projects = {
   getProjectById,
+  getProjectAccessPolicy,
   resolveCheckoutTarget,
-} as Pick<ProjectsModuleClient, 'getProjectById' | 'resolveCheckoutTarget'>;
+} as Pick<
+  ProjectsModuleClient,
+  'getProjectById' | 'getProjectAccessPolicy' | 'resolveCheckoutTarget'
+>;
 
 const resolveConnection = vi.fn();
-const resolveSourceControlConnection = vi.fn();
+const listSourceControlConnectionIds = vi.fn();
 const createCheckoutSpec = vi.fn();
 const createCheckoutCredentials = vi.fn();
 const integrations = {
   resolveConnection,
-  resolveSourceControlConnection,
+  listSourceControlConnectionIds,
   createCheckoutSpec,
   createCheckoutCredentials,
 } as Pick<
@@ -48,7 +54,7 @@ const integrations = {
   | 'createCheckoutSpec'
   | 'createCheckoutCredentials'
   | 'resolveConnection'
-  | 'resolveSourceControlConnection'
+  | 'listSourceControlConnectionIds'
 >;
 
 describe('renewStepCheckoutCredentials', () => {
@@ -96,7 +102,8 @@ describe('createStepCheckoutSpec', () => {
     getProjectById.mockReset();
     resolveCheckoutTarget.mockReset();
     resolveConnection.mockReset();
-    resolveSourceControlConnection.mockReset();
+    getProjectAccessPolicy.mockReset();
+    listSourceControlConnectionIds.mockReset().mockResolvedValue({connectionIds: []});
     createCheckoutSpec.mockReset();
     createCheckoutCredentials.mockReset();
   });
@@ -901,6 +908,9 @@ describe('createStepCheckoutSpec', () => {
   });
 
   describe('on a managed project', () => {
+    const codeConnectionId = crypto.randomUUID();
+    const app = {kind: 'repository', externalId: 'github:77', lookupName: 'acme/app'};
+
     const managedProject = () =>
       projectFactory.build({
         sourceExternalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
@@ -908,12 +918,38 @@ describe('createStepCheckoutSpec', () => {
         sourceRepositoryName: 'config',
       });
 
-    function checkoutManaged(project: ReturnType<typeof managedProject>, step: Step) {
+    function allowAccess(
+      project: ReturnType<typeof managedProject>,
+      connections: ProjectAccessPolicy['connections'],
+      sourceControlConnectionIds: string[] = [codeConnectionId],
+    ) {
+      getProjectById.mockResolvedValue({project});
+      listSourceControlConnectionIds.mockResolvedValue({connectionIds: sourceControlConnectionIds});
+      getProjectAccessPolicy.mockResolvedValue({
+        policy: {
+          projectId: project.id,
+          configSource: {
+            managed: true,
+            connectionId: project.sourceConnectionId,
+            externalRepositoryId: project.sourceExternalRepositoryId,
+            lookupName: null,
+          },
+          connections,
+        } satisfies ProjectAccessPolicy,
+      });
+    }
+
+    function checkoutManaged(
+      project: ReturnType<typeof managedProject>,
+      step: Step,
+      triggerReference?: WorkflowRunTriggerReference | null,
+    ) {
       return createStepCheckoutSpec({
         run: syncedRun,
         step,
         workspaceId: project.workspaceId,
         projectId: project.id,
+        triggerReference,
         integrations: integrations as IntegrationsModuleClient,
         projects: projects as ProjectsModuleClient,
       });
@@ -921,13 +957,7 @@ describe('createStepCheckoutSpec', () => {
 
     it("checks out a repository on the workspace's only source-control connection", async () => {
       const project = managedProject();
-      const connectionId = crypto.randomUUID();
-      getProjectById.mockResolvedValue({project});
-      resolveSourceControlConnection.mockResolvedValue({
-        id: connectionId,
-        provider: 'github',
-        slug: 'github',
-      });
+      allowAccess(project, 'all');
       createCheckoutSpec.mockResolvedValue({
         repositoryUrl: 'https://github.com/acme/app.git',
         ref: 'main',
@@ -935,22 +965,40 @@ describe('createStepCheckoutSpec', () => {
 
       await checkoutManaged(project, checkoutStep({repository: 'acme/app'}));
 
-      expect(resolveSourceControlConnection).toHaveBeenCalledWith({
+      expect(listSourceControlConnectionIds).toHaveBeenCalledWith({
         workspaceId: project.workspaceId,
       });
       expect(createCheckoutSpec).toHaveBeenCalledWith({
         workspaceId: project.workspaceId,
-        connectionId,
+        connectionId: codeConnectionId,
         projectId: project.id,
         target: {kind: 'name', owner: 'acme', name: 'app'},
         permissions: {contents: 'read'},
       });
     });
 
+    it('checks out a repository on the one connection its access lists', async () => {
+      const project = managedProject();
+      allowAccess(
+        project,
+        [{connectionId: codeConnectionId, resources: 'all'}],
+        [crypto.randomUUID(), codeConnectionId],
+      );
+      createCheckoutSpec.mockResolvedValue({
+        repositoryUrl: 'https://github.com/acme/app.git',
+        ref: 'main',
+      });
+
+      await checkoutManaged(project, checkoutStep({repository: 'acme/app'}));
+
+      expect(createCheckoutSpec).toHaveBeenCalledWith(
+        expect.objectContaining({connectionId: codeConnectionId}),
+      );
+    });
+
     it('asks for a connection when the workspace has none or several', async () => {
       const project = managedProject();
-      getProjectById.mockResolvedValue({project});
-      resolveSourceControlConnection.mockResolvedValue(null);
+      allowAccess(project, 'all', []);
 
       const act = checkoutManaged(project, checkoutStep({repository: 'acme/app'}));
 
@@ -964,7 +1012,7 @@ describe('createStepCheckoutSpec', () => {
     it('prefers a named connection over the default', async () => {
       const project = managedProject();
       const connectionId = crypto.randomUUID();
-      getProjectById.mockResolvedValue({project});
+      allowAccess(project, 'all');
       resolveConnection.mockResolvedValue({id: connectionId, provider: 'github', slug: 'gh'});
       createCheckoutSpec.mockResolvedValue({
         repositoryUrl: 'https://github.com/acme/app.git',
@@ -973,15 +1021,14 @@ describe('createStepCheckoutSpec', () => {
 
       await checkoutManaged(project, checkoutStep({connection: 'gh', repository: 'acme/app'}));
 
-      expect(resolveSourceControlConnection).not.toHaveBeenCalled();
       expect(createCheckoutSpec).toHaveBeenCalledWith(
         expect.objectContaining({connectionId, target: {kind: 'name', owner: 'acme', name: 'app'}}),
       );
     });
 
-    it('refuses a checkout that names no repository, because there is no default one', async () => {
+    it('refuses a checkout that names no repository when its access names no single one', async () => {
       const project = managedProject();
-      getProjectById.mockResolvedValue({project});
+      allowAccess(project, 'all');
 
       const act = checkoutManaged(project, checkoutStep({path: 'src'}));
 
@@ -991,7 +1038,7 @@ describe('createStepCheckoutSpec', () => {
 
     it('refuses a bare repository name, because there is no source owner to default to', async () => {
       const project = managedProject();
-      getProjectById.mockResolvedValue({project});
+      allowAccess(project, [{connectionId: codeConnectionId, resources: [app]}]);
 
       const act = checkoutManaged(project, checkoutStep({repository: 'app'}));
 
@@ -999,7 +1046,133 @@ describe('createStepCheckoutSpec', () => {
         name: 'CheckoutConfigInvalidError',
         detail: expect.stringContaining('owner/name'),
       });
-      expect(resolveSourceControlConnection).not.toHaveBeenCalled();
+      expect(createCheckoutSpec).not.toHaveBeenCalled();
+    });
+
+    describe('when its access names exactly one repository', () => {
+      const pushed = (project: ReturnType<typeof managedProject>, repositoryId: string) => ({
+        ...triggerReferenceFor(project.id),
+        project: null,
+        connectionId: codeConnectionId,
+        externalRepositoryId: repositoryId,
+        repository: 'acme/app',
+      });
+
+      function useOneRepository() {
+        const project = managedProject();
+        allowAccess(project, [{connectionId: codeConnectionId, resources: [app]}]);
+        createCheckoutSpec.mockResolvedValue({
+          repositoryUrl: 'https://github.com/acme/app.git',
+          ref: 'main',
+        });
+        return project;
+      }
+
+      it('checks it out with no checkout target, at the commit pushed to it', async () => {
+        const project = useOneRepository();
+
+        await checkoutManaged(project, checkoutStep({}), pushed(project, app.externalId));
+
+        expect(resolveCheckoutTarget).not.toHaveBeenCalled();
+        expect(createCheckoutSpec).toHaveBeenCalledWith({
+          workspaceId: project.workspaceId,
+          connectionId: codeConnectionId,
+          projectId: project.id,
+          target: {kind: 'external-id', externalRepositoryId: app.externalId},
+          ref: 'a'.repeat(40),
+          permissions: {contents: 'read'},
+        });
+      });
+
+      it('checks out its default branch for a change to the managed config', async () => {
+        const project = useOneRepository();
+
+        await checkoutManaged(project, checkoutStep({}), null);
+
+        const [call] = createCheckoutSpec.mock.calls[0] ?? [];
+        expect(call).toMatchObject({
+          target: {kind: 'external-id', externalRepositoryId: app.externalId},
+        });
+        expect(call).not.toHaveProperty('ref');
+      });
+
+      it('ignores the dev commit of the managed config', async () => {
+        const project = useOneRepository();
+
+        await createStepCheckoutSpec({
+          run: devRun('d'.repeat(40)),
+          step: checkoutStep({}),
+          workspaceId: project.workspaceId,
+          projectId: project.id,
+          integrations: integrations as IntegrationsModuleClient,
+          projects: projects as ProjectsModuleClient,
+        });
+
+        expect(createCheckoutSpec.mock.calls[0]?.[0]).not.toHaveProperty('ref');
+      });
+
+      it('ignores a commit pushed to another repository', async () => {
+        const project = useOneRepository();
+
+        await checkoutManaged(project, checkoutStep({}), pushed(project, 'github:99'));
+
+        expect(createCheckoutSpec.mock.calls[0]?.[0]).not.toHaveProperty('ref');
+      });
+    });
+  });
+
+  describe('revision of a repository checkout', () => {
+    const connectionId = crypto.randomUUID();
+    const commit = 'e'.repeat(40);
+
+    function pushedTo(
+      overrides: Partial<WorkflowRunTriggerReference>,
+    ): WorkflowRunTriggerReference {
+      return {
+        project: null,
+        connectionId,
+        externalRepositoryId: 'github:500',
+        repository: 'Acme/Tools',
+        ref: 'refs/heads/feature',
+        commit,
+        actor: null,
+        ...overrides,
+      };
+    }
+
+    async function checkoutTools(triggerReference: WorkflowRunTriggerReference) {
+      const project = projectFactory.build({sourceConnectionId: connectionId});
+      getProjectById.mockResolvedValue({project});
+      createCheckoutSpec.mockResolvedValue({
+        repositoryUrl: 'https://github.com/acme/tools.git',
+        ref: 'main',
+      });
+      await createStepCheckoutSpec({
+        run: syncedRun,
+        step: checkoutStep({repository: 'acme/tools'}),
+        workspaceId: project.workspaceId,
+        projectId: project.id,
+        triggerReference,
+        integrations: integrations as IntegrationsModuleClient,
+        projects: projects as ProjectsModuleClient,
+      });
+      return createCheckoutSpec.mock.calls[0]?.[0];
+    }
+
+    it('uses the commit pushed to a repository that is not a config source', async () => {
+      await expect(checkoutTools(pushedTo({}))).resolves.toMatchObject({ref: commit});
+    });
+
+    it('uses the default branch for a push to another repository of the connection', async () => {
+      const call = await checkoutTools(pushedTo({repository: 'acme/other'}));
+
+      expect(call).not.toHaveProperty('ref');
+    });
+
+    it('uses the default branch for a push on another connection', async () => {
+      const call = await checkoutTools(pushedTo({connectionId: crypto.randomUUID()}));
+
+      expect(call).not.toHaveProperty('ref');
     });
   });
 

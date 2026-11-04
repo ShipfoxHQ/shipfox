@@ -387,6 +387,8 @@ describe('workflow run queries', () => {
 
       const triggerReference = {
         project: {id: 'project-1'},
+        connectionId: triggerConnectionId,
+        externalRepositoryId: 'github:42',
         repository: 'acme/api',
         ref: 'refs/heads/main',
         commit: 'a'.repeat(40),

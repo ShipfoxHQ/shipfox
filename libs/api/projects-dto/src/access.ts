@@ -214,6 +214,23 @@ export function defaultCheckoutRepository(
   return {connectionId, externalRepositoryId: only.externalId};
 }
 
+/**
+ * The connection a job or tool uses when it names none. A linked project uses its config source
+ * connection. A managed project uses the one source-control connection it lists, or, with all
+ * connections, the workspace's only source-control connection. Otherwise there is none.
+ */
+export function defaultConnectionId(
+  policy: ProjectAccessPolicy,
+  {sourceControlConnectionIds}: {sourceControlConnectionIds: readonly string[]},
+): string | null {
+  if (!policy.configSource.managed) return policy.configSource.connectionId;
+  if (policy.connections !== 'all') {
+    return soleListedConnection(policy, {sourceControlConnectionIds});
+  }
+  const [only, ...others] = sourceControlConnectionIds;
+  return only !== undefined && others.length === 0 ? only : null;
+}
+
 export type ProjectAccessViolation =
   | {code: 'too-many-connections'; limit: number}
   | {code: 'too-many-resources'; limit: number}

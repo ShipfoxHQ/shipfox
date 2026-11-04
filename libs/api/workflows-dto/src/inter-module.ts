@@ -77,6 +77,8 @@ const sourceConnectionUnavailableDetailsSchema = z.object({
 });
 const workflowRunTriggerReferenceSchema = z.object({
   project: z.object({id: idSchema}).nullable(),
+  connectionId: idSchema.optional(),
+  externalRepositoryId: z.string().min(1).optional(),
   repository: z.string().nullable(),
   ref: z.string().nullable(),
   commit: z.string().nullable(),

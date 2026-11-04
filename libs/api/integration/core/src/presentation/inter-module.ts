@@ -7,12 +7,16 @@ import {
   PROVIDER_MESSAGE_MAX_LENGTH,
 } from '@shipfox/api-integration-core-dto/inter-module';
 import {agentToolResultKind} from '@shipfox/api-integration-spi';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
   type InterModuleMethodContract,
   type InterModulePresentation,
+  isInterModuleKnownError,
 } from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -26,6 +30,7 @@ import {
 } from '#core/agent-tool-selection.js';
 import {
   findSoleSourceControlConnection,
+  listActiveSourceControlConnections,
   resolveDefaultConnection,
 } from '#core/default-source-connection.js';
 import {
@@ -185,6 +190,43 @@ export function createIntegrationsInterModulePresentation(params: {
     registry: params.registry,
     getConnection: params.sourceControl.getConnection,
   });
+  async function resolveDefaultConnectionForProject(input: {
+    method: InterModuleMethodContract;
+    workspaceId: string;
+    projectId: string;
+    sourceConnectionId: string | undefined;
+  }) {
+    if (input.sourceConnectionId === undefined) return undefined;
+    const sourceConnection = await getConnectionById(input.sourceConnectionId);
+    return await resolveDefaultConnection({
+      sourceConnection,
+      registry: params.registry,
+      loadPolicy: async () => {
+        if (!params.projects) {
+          throw new Error('Resolving the default connection requires the Projects client');
+        }
+        try {
+          const {policy} = await params.projects.getProjectAccessPolicy({
+            workspaceId: input.workspaceId,
+            projectId: input.projectId,
+          });
+          return policy;
+        } catch (error) {
+          if (
+            isInterModuleKnownError(
+              projectsInterModuleContract.methods.getProjectAccessPolicy,
+              error,
+            )
+          ) {
+            throw createInterModuleKnownError(input.method, 'project-not-found', {
+              projectId: input.projectId,
+            });
+          }
+          throw error;
+        }
+      },
+    });
+  }
   async function loadResolveAgentToolsContext(
     method: InterModuleMethodContract,
     input: {workspaceId: string; projectId: string},
@@ -203,9 +245,11 @@ export function createIntegrationsInterModulePresentation(params: {
         params.registry,
         params.builtinConnections,
       )(input.workspaceId),
-      resolveDefaultConnection({
-        sourceConnection: await getConnectionById(project.sourceConnectionId),
-        registry: params.registry,
+      resolveDefaultConnectionForProject({
+        method,
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        sourceConnectionId: project.sourceConnectionId,
       }),
     ]);
     const connectionAccess = await resolveSnapshotAccess({
@@ -374,6 +418,13 @@ export function createIntegrationsInterModulePresentation(params: {
         registry: params.registry,
       });
       return resolved ? {id: resolved.id, provider: resolved.provider, slug: resolved.slug} : null;
+    },
+    listSourceControlConnectionIds: async ({workspaceId}) => {
+      const connections = await listActiveSourceControlConnections({
+        workspaceId,
+        registry: params.registry,
+      });
+      return {connectionIds: connections.map(({id}) => id)};
     },
     resolveConnectionById: async ({connectionId}) => {
       const resolved = await getConnectionById(connectionId);
@@ -552,12 +603,11 @@ export function createIntegrationsInterModulePresentation(params: {
             params.registry,
             params.builtinConnections,
           )(input.workspaceId),
-          resolveDefaultConnection({
-            sourceConnection:
-              input.defaultConnectionId === undefined
-                ? undefined
-                : await getConnectionById(input.defaultConnectionId),
-            registry: params.registry,
+          resolveDefaultConnectionForProject({
+            method: contract.methods.getAgentToolsContext,
+            workspaceId: input.workspaceId,
+            projectId: input.projectId,
+            sourceConnectionId: input.defaultConnectionId,
           }),
         ]);
         const connectionAccess = await resolveSnapshotAccess({

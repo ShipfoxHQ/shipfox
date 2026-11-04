@@ -374,6 +374,14 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       input: z.object({workspaceId: id}),
       output: connection.nullable(),
     },
+    /**
+     * The ids of the workspace's active source-control connections, the hidden managed one
+     * excluded. A project's default checkout and default connection depend on them.
+     */
+    listSourceControlConnectionIds: {
+      input: z.object({workspaceId: id}),
+      output: z.object({connectionIds: z.array(id)}),
+    },
     resolveConnectionById: {
       input: z.object({connectionId: id}),
       output: connectionById.nullable(),

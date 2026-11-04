@@ -27,7 +27,7 @@ export async function materializeWorkflowRunJobs(params: {
   definitionId: string;
   agentToolContext?: AgentToolMaterializationContext | undefined;
   agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
-  managedSource?: boolean | undefined;
+  noDefaultCheckout?: boolean | undefined;
 }): Promise<readonly MaterializedWorkflowJob[]> {
   const context = assembleCreationContext({
     run: params.run,
@@ -42,7 +42,7 @@ export async function materializeWorkflowRunJobs(params: {
     definitionId: params.definitionId,
     agentToolContext: params.agentToolContext,
     agentToolSnapshot: params.agentToolSnapshot,
-    managedSource: params.managedSource,
+    noDefaultCheckout: params.noDefaultCheckout,
   });
 }
 

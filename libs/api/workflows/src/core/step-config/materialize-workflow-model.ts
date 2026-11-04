@@ -57,7 +57,7 @@ export interface MaterializeWorkflowModelParams {
   readonly definitionId?: string | undefined;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
-  readonly managedSource?: boolean | undefined;
+  readonly noDefaultCheckout?: boolean | undefined;
 }
 
 export async function materializeWorkflowModel(
@@ -70,7 +70,7 @@ export async function materializeWorkflowModel(
     definitionId = model.name,
     agentToolContext,
     agentToolSnapshot,
-    managedSource,
+    noDefaultCheckout,
   } = params;
   const jobsById = new Map(model.jobs.map((job) => [job.id, job]));
 
@@ -102,7 +102,7 @@ export async function materializeWorkflowModel(
                 definitionId,
                 agentToolContext,
                 agentToolSnapshot,
-                managedSource,
+                noDefaultCheckout,
               }),
       };
     }),

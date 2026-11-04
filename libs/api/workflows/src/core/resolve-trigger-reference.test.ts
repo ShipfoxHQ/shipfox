@@ -61,6 +61,8 @@ describe('resolveWorkflowRunTriggerReference', () => {
       }),
     ).resolves.toEqual({
       project: {id: 'project-1'},
+      connectionId,
+      externalRepositoryId: reference.externalRepositoryId,
       repository: 'acme/api',
       ref: reference.ref,
       commit: 'a'.repeat(40),

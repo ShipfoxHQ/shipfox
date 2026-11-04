@@ -1,5 +1,6 @@
 import {
   defaultCheckoutRepository,
+  defaultConnectionId,
   evaluateConnectionAccess,
   evaluateResourceAccess,
   findProjectAccessViolations,
@@ -490,5 +491,44 @@ describe('findProjectAccessViolations', () => {
     expect(findProjectAccessViolations(policy)).toEqual([
       {code: 'too-many-resources', limit: MAX_PROJECT_ACCESS_RESOURCES},
     ]);
+  });
+});
+
+describe('defaultConnectionId', () => {
+  const sourceControlConnectionIds = [GITHUB_ACME, GITHUB_OSS];
+
+  test('is the config source connection of a linked project', () => {
+    const policy = linkedPolicy([scope(GITHUB_OSS, 'all')]);
+
+    expect(defaultConnectionId(policy, {sourceControlConnectionIds})).toBe(GITHUB_ACME);
+  });
+
+  test('is the one source-control connection a managed project lists', () => {
+    const policy = managedPolicy([scope(GITHUB_OSS, 'all'), scope(LINEAR, 'all')]);
+
+    expect(defaultConnectionId(policy, {sourceControlConnectionIds})).toBe(GITHUB_OSS);
+  });
+
+  test('is none when a managed project lists two source-control connections', () => {
+    const policy = managedPolicy([scope(GITHUB_ACME, 'all'), scope(GITHUB_OSS, 'all')]);
+
+    expect(defaultConnectionId(policy, {sourceControlConnectionIds})).toBeNull();
+  });
+
+  test('is none when a managed project lists no source-control connection', () => {
+    const policy = managedPolicy([scope(LINEAR, 'all')]);
+
+    expect(defaultConnectionId(policy, {sourceControlConnectionIds: [GITHUB_ACME]})).toBeNull();
+  });
+
+  test('is the workspace only source-control connection with all connections', () => {
+    expect(
+      defaultConnectionId(managedPolicy('all'), {sourceControlConnectionIds: [GITHUB_OSS]}),
+    ).toBe(GITHUB_OSS);
+  });
+
+  test('is none with all connections when the workspace has none or several', () => {
+    expect(defaultConnectionId(managedPolicy('all'), {sourceControlConnectionIds: []})).toBeNull();
+    expect(defaultConnectionId(managedPolicy('all'), {sourceControlConnectionIds})).toBeNull();
   });
 });
