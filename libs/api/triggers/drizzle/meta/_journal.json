@@ -43,6 +43,13 @@
       "when": 1793662035936,
       "tag": "0005_agent_decisions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793663035936,
+      "tag": "0006_event_resource",
+      "breakpoints": true
     }
   ]
 }

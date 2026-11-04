@@ -3,6 +3,7 @@ import {sql} from 'drizzle-orm';
 import {index, integer, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {TriggerEventProcessingDiagnostic} from '#core/entities/diagnostic.js';
 import {
+  type TriggerEventResource,
   type TriggerReceivedEvent,
   type TriggerReceivedEventSummary,
   triggerEventOrigins,
@@ -32,6 +33,8 @@ export const triggersReceivedEvents = pgTable(
     outcome: text('outcome', {enum: triggerEventOutcomes}).notNull().default('received'),
     matchedCount: integer('matched_count').notNull().default(0),
     payload: jsonb('payload').$type<Record<string, unknown>>(),
+    // What a replay checks against the project's access; the payload is provider-specific.
+    resource: jsonb('resource').$type<TriggerEventResource>(),
     processingDiagnostic: jsonb('processing_diagnostic').$type<TriggerEventProcessingDiagnostic>(),
     receivedAt: timestamp('received_at', {withTimezone: true}).notNull(),
     processedAt: timestamp('processed_at', {withTimezone: true}),
@@ -74,6 +77,7 @@ export function toTriggerReceivedEvent(row: TriggerReceivedEventDb): TriggerRece
     outcome: row.outcome,
     matchedCount: row.matchedCount,
     payload: row.payload,
+    resource: row.resource,
     processingDiagnostic: row.processingDiagnostic,
     receivedAt: row.receivedAt,
     processedAt: row.processedAt,

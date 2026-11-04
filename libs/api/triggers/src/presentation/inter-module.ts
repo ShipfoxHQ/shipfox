@@ -32,6 +32,7 @@ import {
   CheckWorkflowEventIdsNotAllowedError,
   DevRunDefinitionInvalidError,
   DevRunInputsNotAllowedError,
+  DevRunProjectAccessError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,
   DevRunReplayEventNotFoundError,
@@ -86,6 +87,7 @@ export function createTriggersInterModulePresentation(params: {
           ...input,
           definitions: params.definitions,
           workflows: params.workflows,
+          projects: params.projects,
         });
       } catch (error) {
         throw toCreateDevRunKnownError(error, input.projectId);
@@ -101,6 +103,7 @@ export function createTriggersInterModulePresentation(params: {
           ...input,
           definitions: params.definitions,
           workflows: params.workflows,
+          projects: params.projects,
         });
       } catch (error) {
         throw toCheckDevRunKnownError(error, input.projectId);
@@ -291,6 +294,9 @@ function toCheckDevRunKnownError(error: unknown, projectId: string): unknown {
   if (error instanceof DevRunTriggerFilteredError) {
     return createInterModuleKnownError(method, 'trigger-filtered', {reason: error.reason});
   }
+  if (error instanceof DevRunProjectAccessError) {
+    return createInterModuleKnownError(method, 'trigger-filtered', {reason: error.denial});
+  }
   if (error instanceof DevRunDefinitionInvalidError) {
     return createInterModuleKnownError(method, 'invalid-definition', {errors: error.errors});
   }
@@ -373,6 +379,9 @@ function toCreateDevRunKnownError(error: unknown, projectId: string): unknown {
   }
   if (error instanceof DevRunTriggerFilteredError) {
     return createInterModuleKnownError(method, 'trigger-filtered', {reason: error.reason});
+  }
+  if (error instanceof DevRunProjectAccessError) {
+    return createInterModuleKnownError(method, 'trigger-filtered', {reason: error.denial});
   }
 
   return (

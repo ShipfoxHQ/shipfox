@@ -8,13 +8,18 @@ export interface GithubPushPayloadOptions {
   ref: string;
   defaultBranch: string;
   sha: string;
+  repositoryFullName?: string;
 }
 
 export function githubPushPayload(options: GithubPushPayloadOptions) {
   return {
     ref: options.ref,
     after: options.sha,
-    repository: {id: options.repositoryId, default_branch: options.defaultBranch},
+    repository: {
+      id: options.repositoryId,
+      default_branch: options.defaultBranch,
+      ...(options.repositoryFullName === undefined ? {} : {full_name: options.repositoryFullName}),
+    },
     installation: {id: options.installationId},
   };
 }

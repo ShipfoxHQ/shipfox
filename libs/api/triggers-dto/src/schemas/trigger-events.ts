@@ -100,6 +100,8 @@ export const triggerDecisionDiagnosticDtoSchema = z.discriminatedUnion('code', [
   z.strictObject({version: diagnosticVersionSchema, code: z.literal('workspace-deleted')}),
   z.strictObject({version: diagnosticVersionSchema, code: z.literal('definition-not-found')}),
   z.strictObject({version: diagnosticVersionSchema, code: z.literal('project-mismatch')}),
+  z.strictObject({version: diagnosticVersionSchema, code: z.literal('project-access')}),
+  z.strictObject({version: diagnosticVersionSchema, code: z.literal('project-deleted')}),
   z.strictObject({
     version: diagnosticVersionSchema,
     code: z.literal('source-connection-unavailable'),

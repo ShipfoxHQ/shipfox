@@ -197,10 +197,13 @@ export const interactionRoutingResultSchema = z.discriminatedUnion('outcome', [
     projectId: z.string().uuid(),
     agentKey: z.string().min(1),
   }),
-  /** No agent took the interaction. */
+  /**
+   * No agent took the interaction. `project-access` means the project's access excludes the
+   * connection, and `project-deleted` means the project is gone. Neither is worth a replay.
+   */
   z.object({
     outcome: z.literal('dropped'),
-    reason: z.enum(['no-owner', 'no-project']),
+    reason: z.enum(['no-owner', 'no-project', 'project-access', 'project-deleted']),
   }),
 ]);
 export type InteractionRoutingResult = z.infer<typeof interactionRoutingResultSchema>;

@@ -4,7 +4,7 @@ import type {
   TriggerEventProcessingDiagnostic,
 } from '#core/entities/diagnostic.js';
 import type {JobListenerSubscription} from '#core/entities/job-listener-subscription.js';
-import type {TriggerEventOrigin} from '#core/entities/received-event.js';
+import type {TriggerEventOrigin, TriggerEventResource} from '#core/entities/received-event.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {db} from './db.js';
 import {triggersDecisions} from './schema/decisions.js';
@@ -23,6 +23,7 @@ export interface InsertReceivedEventParams {
   connectionId: string | null;
   connectionName: string | null;
   payload: Record<string, unknown> | null;
+  resource?: TriggerEventResource | null | undefined;
   receivedAt: Date;
 }
 
@@ -43,6 +44,7 @@ export async function insertReceivedEvent(params: InsertReceivedEventParams): Pr
       connectionId: params.connectionId,
       connectionName: params.connectionName,
       payload: params.payload,
+      resource: params.resource ?? null,
       receivedAt: params.receivedAt,
     })
     .onConflictDoNothing({target: triggersReceivedEvents.eventRef})
@@ -211,6 +213,83 @@ async function upsertFailedDecision(
       ],
       set: {
         decision,
+        reason: params.reason,
+        diagnostic: params.diagnostic,
+        runId: null,
+        runName: null,
+      },
+      setWhere: ne(triggersDecisions.decision, 'triggered'),
+    });
+}
+
+export interface UpsertFilteredDecisionParams {
+  receivedEventId: string;
+  subscription: TriggerSubscription;
+  reason: string;
+  diagnostic: TriggerDecisionDiagnostic;
+}
+
+// The project's access refused the event before its filter ran. A run an earlier attempt created
+// stays recorded.
+export async function upsertFilteredDecision(params: UpsertFilteredDecisionParams): Promise<void> {
+  await db()
+    .insert(triggersDecisions)
+    .values({
+      receivedEventId: params.receivedEventId,
+      subscriptionKind: 'trigger',
+      subscriptionId: params.subscription.id,
+      subscriptionName: params.subscription.name,
+      workflowDefinitionId: params.subscription.workflowDefinitionId,
+      projectId: params.subscription.projectId,
+      decision: 'filtered',
+      reason: params.reason,
+      diagnostic: params.diagnostic,
+    })
+    .onConflictDoUpdate({
+      target: [
+        triggersDecisions.receivedEventId,
+        triggersDecisions.subscriptionKind,
+        triggersDecisions.subscriptionId,
+      ],
+      set: {
+        decision: 'filtered',
+        reason: params.reason,
+        diagnostic: params.diagnostic,
+        runId: null,
+        runName: null,
+      },
+      setWhere: ne(triggersDecisions.decision, 'triggered'),
+    });
+}
+
+export interface UpsertListenerFilteredDecisionParams {
+  receivedEventId: string;
+  subscription: JobListenerSubscription;
+  reason: string;
+  diagnostic: TriggerDecisionDiagnostic;
+}
+
+export async function upsertListenerFilteredDecision(
+  params: UpsertListenerFilteredDecisionParams,
+): Promise<void> {
+  await db()
+    .insert(triggersDecisions)
+    .values({
+      ...listenerDecisionIdentity(params),
+      projectId: params.subscription.projectId,
+      decision: 'filtered',
+      reason: params.reason,
+      diagnostic: params.diagnostic,
+    })
+    .onConflictDoUpdate({
+      target: [
+        triggersDecisions.receivedEventId,
+        triggersDecisions.subscriptionKind,
+        triggersDecisions.subscriptionId,
+      ],
+      set: {
+        projectId: params.subscription.projectId,
+        decision: 'filtered',
         reason: params.reason,
         diagnostic: params.diagnostic,
         runId: null,
@@ -441,6 +520,9 @@ export interface UpsertDevFilteredDecisionParams {
   receivedEventId: string;
   triggerKey: string;
   workflowDefinitionId: string;
+  /** Why the replay was refused when the filter was not the cause. */
+  reason?: string | undefined;
+  diagnostic?: TriggerDecisionDiagnostic | undefined;
 }
 
 export async function upsertDevFilteredDecision(
@@ -452,8 +534,8 @@ export async function upsertDevFilteredDecision(
       decision: 'filtered',
       runId: null,
       runName: null,
-      reason: null,
-      diagnostic: null,
+      reason: params.reason ?? null,
+      diagnostic: params.diagnostic ?? null,
     },
     {preserveTriggered: true},
   );

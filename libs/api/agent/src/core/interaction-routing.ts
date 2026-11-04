@@ -1,6 +1,11 @@
 import {createHash} from 'node:crypto';
 import type {InteractionRoutingResult} from '@shipfox/api-agent-dto/inter-module';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {evaluateConnectionAccess} from '@shipfox/api-projects-dto';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {
   findIntegrationConversation,
   insertIntegrationConversation,
@@ -36,7 +41,7 @@ export interface RouteInteractionParams {
 }
 
 export interface RouteInteractionDeps {
-  projects: Pick<ProjectsModuleClient, 'getDefaultProject'>;
+  projects: Pick<ProjectsModuleClient, 'getDefaultProject' | 'getProjectAccessPolicy'>;
   /** Tells the conversation to look at its inputs again. It never throws. */
   wake: (conversationId: string) => Promise<void>;
 }
@@ -57,11 +62,18 @@ export async function routeInteraction(
     connectionId: params.connectionId,
     key: interaction.conversationKey,
   });
-  if (owner) return await deliverToOwner({params, owner, messageId, wake: deps.wake});
+  if (owner) {
+    const denial = await projectDenial({params, projectId: owner.projectId, deps});
+    if (denial) return {outcome: 'dropped', reason: denial};
+    return await deliverToOwner({params, owner, messageId, wake: deps.wake});
+  }
   if (interaction.role !== 'request') return {outcome: 'dropped', reason: 'no-owner'};
 
   const {project} = await deps.projects.getDefaultProject({workspaceId: params.workspaceId});
   if (!project) return {outcome: 'dropped', reason: 'no-project'};
+  // No other project answers when this one can't.
+  const denial = await projectDenial({params, projectId: project.id, deps});
+  if (denial) return {outcome: 'dropped', reason: denial};
 
   const key = await conversationDataKey(params.workspaceId);
   const conversationId = await newConversationRecordId();
@@ -98,6 +110,33 @@ export async function routeInteraction(
 
   await deps.wake(conversation.id);
   return routed('default', conversation);
+}
+
+/**
+ * Why the project can't take an interaction from the connection. A deleted project and an
+ * excluded connection are final, so neither is an error. A failure to read the policy is thrown for
+ * the event to replay.
+ */
+async function projectDenial(args: {
+  params: RouteInteractionParams;
+  projectId: string;
+  deps: Pick<RouteInteractionDeps, 'projects'>;
+}): Promise<'project-access' | 'project-deleted' | undefined> {
+  try {
+    const {policy} = await args.deps.projects.getProjectAccessPolicy({
+      workspaceId: args.params.workspaceId,
+      projectId: args.projectId,
+    });
+    const decision = evaluateConnectionAccess(policy, {connectionId: args.params.connectionId});
+    return decision.allowed ? undefined : 'project-access';
+  } catch (error) {
+    if (
+      isInterModuleKnownError(projectsInterModuleContract.methods.getProjectAccessPolicy, error)
+    ) {
+      return 'project-deleted';
+    }
+    throw error;
+  }
 }
 
 async function deliverToOwner(args: {

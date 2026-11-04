@@ -15,6 +15,16 @@ const isoDateTimeSchema = z.string().datetime();
 const requiredUnknownSchema = z.custom<unknown>((value) => value !== undefined);
 const nullableConnectionNameSchema = nonEmptyStringSchema.nullish().default(null);
 
+// The resource an event belongs to, such as the repository of a push. Triggers compare it with a
+// project's access. Providers without a resource kind leave it out, and so do events stored before
+// this field existed.
+export const integrationEventResourceSchema = z.object({
+  kind: nonEmptyStringSchema,
+  externalId: nonEmptyStringSchema,
+  lookupName: nonEmptyStringSchema,
+});
+export type IntegrationEventResource = z.infer<typeof integrationEventResourceSchema>;
+
 export const integrationEventReceivedSchema = z.object({
   provider: nonEmptyStringSchema,
   source: nonEmptyStringSchema,
@@ -26,6 +36,7 @@ export const integrationEventReceivedSchema = z.object({
   connectionName: nullableConnectionNameSchema,
   deliveryId: nonEmptyStringSchema,
   receivedAt: isoDateTimeSchema,
+  resource: integrationEventResourceSchema.optional(),
   payload: requiredUnknownSchema,
 });
 export type IntegrationEventReceivedEvent = z.infer<typeof integrationEventReceivedSchema>;

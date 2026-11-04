@@ -1,4 +1,5 @@
 import type {IntegrationEventReceivedEvent} from '@shipfox/api-integration-core-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {DomainEvent} from '@shipfox/node-outbox';
@@ -9,6 +10,7 @@ export function createOnIntegrationEventReceived(
   workflows: WorkflowsModuleClient,
   secrets?: Pick<SecretsInterModuleClient, 'getSecret'>,
   agentRouting?: {integrations: AgentRoutingIntegrations; agent: AgentRoutingClient},
+  projects?: Pick<ProjectsModuleClient, 'getProjectAccessPolicies'>,
 ) {
   return async function onIntegrationEventReceived(
     envelope: IntegrationEventReceivedEvent,
@@ -17,6 +19,7 @@ export function createOnIntegrationEventReceived(
     await dispatchIntegrationEvent({
       workflows,
       secrets,
+      projects,
       integrations: agentRouting?.integrations,
       agent: agentRouting?.agent,
       eventRef: event.id,
@@ -27,6 +30,7 @@ export function createOnIntegrationEventReceived(
       deliveryId: envelope.deliveryId,
       connectionId: envelope.connectionId,
       connectionName: envelope.connectionName ?? null,
+      resource: envelope.resource ?? null,
       payload: envelope.payload,
       receivedAt: new Date(envelope.receivedAt),
     });

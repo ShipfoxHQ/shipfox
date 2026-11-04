@@ -1,5 +1,6 @@
 import type {
   IntegrationEventReceivedEvent,
+  IntegrationEventResource,
   SourcePushPayload,
   SourceRepositoryIdentity,
 } from '@shipfox/api-integration-core-dto';
@@ -35,6 +36,7 @@ export type PublishSourcePushFn = (params: {
   deliveryId: string;
   receivedAt: string;
   rawPayload: unknown;
+  resource?: IntegrationEventResource | undefined;
   push: SourcePushPayload;
 }) => Promise<{published: boolean}>;
 
@@ -48,6 +50,7 @@ export type PublishSourceRepositoryUpdatedFn = (params: {
   deliveryId: string;
   receivedAt: string;
   rawPayload: unknown;
+  resource?: IntegrationEventResource | undefined;
   event: string;
   repositories: SourceRepositoryIdentity[];
 }) => Promise<{published: boolean}>;

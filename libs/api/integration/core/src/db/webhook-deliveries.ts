@@ -3,6 +3,7 @@ import {
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   INTEGRATION_SOURCE_REPOSITORY_UPDATED,
   type IntegrationEventReceivedEvent,
+  type IntegrationEventResource,
   type IntegrationsEventMap,
   type SourcePushPayload,
   type SourceRepositoryIdentity,
@@ -87,6 +88,7 @@ interface PublishSourceEventsParams {
   deliveryId: string;
   receivedAt: string;
   rawPayload: unknown;
+  resource?: IntegrationEventResource | undefined;
   event: string;
   typedEvents: IntegrationOutboxEvent[];
 }
@@ -125,6 +127,7 @@ async function publishSourceEvents(
         connectionName: params.connectionName,
         deliveryId: params.deliveryId,
         receivedAt: params.receivedAt,
+        ...(params.resource === undefined ? {} : {resource: params.resource}),
         payload: params.rawPayload,
       },
     },
@@ -144,6 +147,7 @@ export interface PublishSourcePushParams {
   deliveryId: string;
   receivedAt: string;
   rawPayload: unknown;
+  resource?: IntegrationEventResource | undefined;
   push: SourcePushPayload;
 }
 
@@ -163,6 +167,7 @@ export function publishSourcePush(params: PublishSourcePushParams): Promise<{pub
     deliveryId: params.deliveryId,
     receivedAt: params.receivedAt,
     rawPayload: params.rawPayload,
+    resource: params.resource,
     event: 'push',
     typedEvents: [
       {
@@ -190,6 +195,7 @@ export interface PublishSourceRepositoryUpdatedParams {
   deliveryId: string;
   receivedAt: string;
   rawPayload: unknown;
+  resource?: IntegrationEventResource | undefined;
   event: string;
   repositories: SourceRepositoryIdentity[];
 }
@@ -211,6 +217,7 @@ export async function publishSourceRepositoryUpdated(
     deliveryId: params.deliveryId,
     receivedAt: params.receivedAt,
     rawPayload: params.rawPayload,
+    resource: params.resource,
     event: params.event,
     typedEvents: params.repositories.map(
       (repository): IntegrationOutboxEvent => ({

@@ -1,13 +1,18 @@
 import {createHash, randomUUID} from 'node:crypto';
 import type {ActionUploadDto, TriggerDto} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getTriggerEventById} from '#db/event-queries.js';
 import {devRunsCount} from '#metrics/instance.js';
 import type {evaluateTriggerFilter} from './config.js';
+import type {TriggerEventResource} from './entities/received-event.js';
 import {
   DevRunDefinitionInvalidError,
   DevRunInputsNotAllowedError,
+  DevRunProjectAccessError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,
   DevRunReplayEventNotFoundError,
@@ -16,6 +21,7 @@ import {
   DevRunTriggerFilteredError,
   DevRunTriggerNotFoundError,
 } from './errors.js';
+import {eventDenial} from './event-project-access.js';
 import {matchTriggerEvent} from './match-trigger-event.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {
@@ -27,6 +33,8 @@ import {
 export interface CreateDevRunParams {
   definitions: DefinitionsInterModuleClient;
   workflows: WorkflowsModuleClient;
+  /** Refuses a replayed event outside the project's access. Without it nothing is refused. */
+  projects?: Pick<ProjectsModuleClient, 'getProjectAccessPolicy'> | undefined;
   workspaceId: string;
   projectId: string;
   /** Branch or tag name the definition is read from. Optional for local content. */
@@ -99,6 +107,7 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
     connectionId: built.replaySource?.connectionId ?? null,
     connectionName: built.replaySource?.connectionName ?? null,
     payload: built.replaySource?.payload ?? null,
+    resource: built.replaySource?.resource ?? null,
     receivedAt: new Date(),
   };
 
@@ -108,6 +117,14 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
     await refusal.discarded();
     recordDevRunMetric(built.triggerKind, 'filtered', definitionSource);
     throw new DevRunTriggerFilteredError(built.reason);
+  }
+
+  if (built.kind === 'access-denied') {
+    const refusal = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
+    await refusal.devAccessFiltered(params.triggerKey, resolved.workflow.id, built.denial);
+    await refusal.discarded();
+    recordDevRunMetric(built.triggerKind, 'filtered', definitionSource);
+    throw new DevRunProjectAccessError(built.denial);
   }
 
   if (built.kind === 'filter-error') {
@@ -181,6 +198,7 @@ export async function checkDevRun(params: CreateDevRunParams): Promise<DevRunChe
   const built = await buildDevRunTrigger(trigger, params, {allowShapeOnly: true});
   recordDevRunMetric(built.triggerKind, 'dry-run', params.content === undefined ? 'ref' : 'local');
 
+  if (built.kind === 'access-denied') throw new DevRunProjectAccessError(built.denial);
   if (built.kind === 'filtered' || built.kind === 'filter-error') {
     throw new DevRunTriggerFilteredError(built.reason);
   }
@@ -307,6 +325,7 @@ interface ReplaySource {
   connectionId: string | null;
   connectionName: string | null;
   payload: Record<string, unknown>;
+  resource: TriggerEventResource | null;
   replayOfEventId: string;
 }
 
@@ -340,19 +359,28 @@ interface FilterErrorDevRunTrigger extends DevRunTriggerBase {
   >['diagnostic'];
 }
 
+interface AccessDeniedDevRunTrigger extends DevRunTriggerBase {
+  kind: 'access-denied';
+  denial: 'project-access' | 'project-deleted';
+}
+
 interface ShapeOnlyDevRunTrigger extends DevRunTriggerBase {
   kind: 'shape-only';
 }
 
 type DevRunTriggerBuild =
   | BuiltDevRunTrigger
+  | AccessDeniedDevRunTrigger
   | FilteredDevRunTrigger
   | FilterErrorDevRunTrigger
   | ShapeOnlyDevRunTrigger;
 
 function buildDevRunTrigger(
   trigger: TriggerDto,
-  params: Pick<CreateDevRunParams, 'inputs' | 'replayEventId' | 'userId' | 'workspaceId'>,
+  params: Pick<
+    CreateDevRunParams,
+    'inputs' | 'projectId' | 'projects' | 'replayEventId' | 'userId' | 'workspaceId'
+  >,
   options: {allowShapeOnly?: boolean},
 ): DevRunTriggerBuild | Promise<DevRunTriggerBuild> {
   if (trigger.source === 'manual') {
@@ -410,7 +438,10 @@ function buildMissingReplayEventTrigger(
 
 async function buildReplayTrigger(
   trigger: TriggerDto,
-  params: Pick<CreateDevRunParams, 'inputs' | 'replayEventId' | 'workspaceId'>,
+  params: Pick<
+    CreateDevRunParams,
+    'inputs' | 'projectId' | 'projects' | 'replayEventId' | 'workspaceId'
+  >,
   options: {allowShapeOnly?: boolean},
 ): Promise<DevRunTriggerBuild> {
   if (params.inputs !== undefined) {
@@ -452,8 +483,22 @@ async function buildReplayTrigger(
     connectionId: event.connectionId,
     connectionName: event.connectionName,
     payload: event.payload,
+    resource: event.resource,
     replayOfEventId: event.id,
   } satisfies ReplaySource;
+
+  // The access check comes first: a project must not learn from its filter what it can't receive.
+  const denial = await replayDenial(params, sourceEvent);
+  if (denial !== undefined) {
+    return {
+      kind: 'access-denied',
+      triggerKind: 'replay',
+      eventChecked: true,
+      event: sourceEvent.event,
+      replaySource,
+      denial,
+    };
+  }
 
   if (match.result === 'filtered') {
     return {
@@ -495,4 +540,27 @@ async function buildReplayTrigger(
     replaySource,
     triggerConnectionId: event.connectionId ?? undefined,
   };
+}
+
+// A stored event with no connection or resource, such as one received before resources existed,
+// passes.
+async function replayDenial(
+  params: Pick<CreateDevRunParams, 'projectId' | 'projects' | 'workspaceId'>,
+  event: {connectionId: string | null; resource: TriggerEventResource | null},
+): Promise<'project-access' | 'project-deleted' | undefined> {
+  if (params.projects === undefined || event.connectionId === null) return undefined;
+  try {
+    const {policy} = await params.projects.getProjectAccessPolicy({
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
+    return eventDenial(policy, {connectionId: event.connectionId, resource: event.resource});
+  } catch (error) {
+    if (
+      isInterModuleKnownError(projectsInterModuleContract.methods.getProjectAccessPolicy, error)
+    ) {
+      return 'project-deleted';
+    }
+    throw error;
+  }
 }

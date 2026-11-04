@@ -128,11 +128,6 @@ const startWorkflowRunInputSchema = objectSchema(
       maxLength: 1024,
       description: 'Synced workflow configuration path, such as .shipfox/workflows/deploy.yml',
     },
-    project_id: {
-      type: 'string',
-      pattern: UUID_JSON_SCHEMA_PATTERN,
-      description: 'Project UUID that owns the workflow. Defaults to the calling run project.',
-    },
     inputs: {
       type: 'object',
       description: `Trigger inputs as a JSON object, limited to ${SHIPFOX_INPUTS_MAX_BYTES} UTF-8 bytes when serialized.`,
@@ -1080,7 +1075,7 @@ export class ShipfoxAgentToolsProvider
   private async startWorkflowRun(caller: ShipfoxCaller, args: Record<string, unknown>) {
     const refusal = startWorkflowRunRefusal(caller, args);
     if (refusal !== undefined) return refusal;
-    const projectId = stringArgument(args, 'project_id') ?? caller.projectId;
+    const projectId = caller.projectId;
     const workflow = stringArgument(args, 'workflow');
     if (workflow === undefined) throw new Error('Validated workflow argument is missing');
     const idempotencyKey = idempotencyKeyForCall(args, caller);
@@ -1953,8 +1948,6 @@ function validateStartWorkflowRunArguments(args: Record<string, unknown>): strin
     return 'Missing required parameter: workflow';
   if (args.workflow.length > 1024) return 'Parameter workflow must be at most 1024 characters';
   if (!isSafeConfigPath(args.workflow)) return 'Parameter workflow contains a control character';
-  if (args.project_id !== undefined && !isUuid(args.project_id))
-    return 'Parameter project_id must be a UUID';
   const inputError = validateStartWorkflowRunInputs(args);
   if (inputError !== undefined) return inputError;
   if (

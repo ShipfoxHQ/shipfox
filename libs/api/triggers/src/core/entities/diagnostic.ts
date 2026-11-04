@@ -31,7 +31,9 @@ export type TriggerDecisionDiagnostic =
         | 'workspace-deleted'
         | 'definition-not-found'
         | 'project-mismatch'
-        | 'source-connection-unavailable';
+        | 'source-connection-unavailable'
+        | 'project-access'
+        | 'project-deleted';
     }
   | {
       version: 1;

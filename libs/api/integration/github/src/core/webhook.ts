@@ -9,11 +9,13 @@ import {
 import {
   buildProviderRepositoryId,
   type GetIntegrationConnectionByIdFn,
+  type IntegrationEventResource,
   type IntegrationTx,
   type PublishIntegrationEventReceivedFn,
   type PublishSourcePushFn,
   type PublishSourceRepositoryUpdatedFn,
   type RecordDeliveryOnlyFn,
+  repositoryEventResource,
   type SourcePushPayload,
   type SourceRepositoryIdentity,
   type UpdateIntegrationConnectionLifecycleStatusFn,
@@ -102,6 +104,19 @@ function repositoryIdentity(value: unknown): GithubRepositoryIdentity | undefine
   return {...(id ? {id} : {}), ...(fullName ? {fullName} : {})};
 }
 
+// The repository an event is about, with the id the access check compares. Organization-level
+// events carry none.
+function githubEventResource(payload: unknown): IntegrationEventResource | undefined {
+  if (!isRecord(payload) || !isRecord(payload.repository)) return undefined;
+  const {id, full_name: fullName} = payload.repository;
+  if (typeof id !== 'number' || !Number.isInteger(id)) return undefined;
+  return repositoryEventResource({
+    externalRepositoryId: buildProviderRepositoryId(GITHUB_SOURCE, String(id)),
+    // Access matches the id, so a payload without the name still carries its resource.
+    fullName: typeof fullName === 'string' && fullName.trim() !== '' ? fullName.trim() : String(id),
+  });
+}
+
 function areSameRepositories(
   head: GithubRepositoryIdentity,
   base: GithubRepositoryIdentity,
@@ -171,6 +186,7 @@ async function dispatchGithubEvent(
       deliveryId: params.deliveryId,
       receivedAt: new Date().toISOString(),
       rawPayload: params.payload,
+      resource: githubEventResource(params.payload),
       event: eventName,
       repositories,
     });
@@ -644,6 +660,7 @@ async function publishGithubPush(params: {
         connectionName: params.connection.displayName,
         deliveryId: params.deliveryId,
         receivedAt: new Date().toISOString(),
+        ...resourceField(githubEventResource(params.rawPayload)),
         payload: params.rawPayload,
       },
     });
@@ -674,6 +691,7 @@ async function publishGithubPush(params: {
     deliveryId: params.deliveryId,
     receivedAt: new Date().toISOString(),
     rawPayload: params.rawPayload,
+    resource: githubEventResource(params.rawPayload),
     push,
   });
 
@@ -699,10 +717,15 @@ async function publishGithubEnvelopeOnly(params: {
       connectionName: params.connection.displayName,
       deliveryId: params.deliveryId,
       receivedAt: new Date().toISOString(),
+      ...resourceField(githubEventResource(params.payload)),
       payload: params.payload,
     },
   });
   return {outcome: result.published ? 'published-envelope' : 'duplicate-envelope'};
+}
+
+function resourceField(resource: IntegrationEventResource | undefined) {
+  return resource === undefined ? {} : {resource};
 }
 
 function stripRefsHeads(ref: string): string {

@@ -293,6 +293,22 @@ export function repositoryToScopeResource(repository: RepositorySnapshot): Scope
 }
 
 /**
+ * The resource a source-control event carries, so triggers can filter by repository. `externalId`
+ * is the stored repository id, and `fullName` is the provider's `owner/name`.
+ */
+export function repositoryEventResource(input: {externalRepositoryId: string; fullName: string}): {
+  kind: string;
+  externalId: string;
+  lookupName: string;
+} {
+  return {
+    kind: REPOSITORY_RESOURCE_KIND,
+    externalId: input.externalRepositoryId,
+    lookupName: input.fullName.toLowerCase(),
+  };
+}
+
+/**
  * The scope resources of a source-control provider whose only kind is the repository, on top of
  * its `listRepositories` and `resolveRepository`.
  */

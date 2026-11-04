@@ -23,6 +23,8 @@ export interface ListenerMatcher {
 
 export interface ProjectJobListenerSubscriptionsParams {
   workspaceId: string;
+  /** Absent on events written before the project was recorded. */
+  projectId?: string | undefined;
   workflowRunId: string;
   jobId: string;
   on: readonly ListenerMatcher[] | null;
@@ -60,6 +62,7 @@ async function upsertJobListenerMatcher(
     .insert(jobListenerSubscriptions)
     .values({
       workspaceId: params.workspaceId,
+      projectId: params.projectId ?? null,
       workflowRunId: params.workflowRunId,
       jobId: params.jobId,
       kind,
@@ -76,6 +79,7 @@ async function upsertJobListenerMatcher(
       ],
       set: {
         workspaceId: params.workspaceId,
+        projectId: params.projectId ?? null,
         workflowRunId: params.workflowRunId,
         source: matcher.source,
         event,

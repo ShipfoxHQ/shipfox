@@ -31,6 +31,7 @@ export {
   CheckWorkflowEventIdsNotAllowedError,
   DevRunDefinitionInvalidError,
   DevRunInputsNotAllowedError,
+  DevRunProjectAccessError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,
   DevRunReplayEventNotFoundError,

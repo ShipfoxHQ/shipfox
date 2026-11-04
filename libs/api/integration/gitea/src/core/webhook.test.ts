@@ -106,6 +106,11 @@ describe('handleGiteaWebhook', () => {
     expect(handlers.publishSourcePush).toHaveBeenCalledTimes(1);
     const call = firstPublishSourcePushCall(handlers.publishSourcePush);
     expect(call.tx).toBeDefined();
+    expect(call.resource).toEqual({
+      kind: 'repository',
+      externalId: 'gitea:shipfox/api',
+      lookupName: 'shipfox/api',
+    });
     expect(call).toMatchObject({
       provider: 'gitea',
       source: connection.slug,

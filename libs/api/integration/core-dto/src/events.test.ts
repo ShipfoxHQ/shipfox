@@ -211,6 +211,21 @@ describe('integrationEventReceivedSchema', () => {
     expect(parse).toThrow();
   });
 
+  it('parses an envelope carrying the resource the event is about', () => {
+    const input = {
+      ...validEventReceived,
+      resource: {kind: 'repository', externalId: 'github:1', lookupName: 'acme/app'},
+    };
+
+    expect(integrationEventReceivedSchema.parse(input)).toEqual(input);
+  });
+
+  it('rejects an envelope whose resource is incomplete', () => {
+    const input = {...validEventReceived, resource: {kind: 'repository'}};
+
+    expect(() => integrationEventReceivedSchema.parse(input)).toThrow();
+  });
+
   it('strips unknown envelope keys', () => {
     const input = {...validEventReceived, addedLater: 'ignored'};
 

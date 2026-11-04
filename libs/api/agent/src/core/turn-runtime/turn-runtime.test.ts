@@ -198,6 +198,18 @@ describe('turn runtime', () => {
         {
           projects: {
             getDefaultProject: vi.fn().mockResolvedValue({project: {id: projectId}}),
+            getProjectAccessPolicy: vi.fn().mockResolvedValue({
+              policy: {
+                projectId,
+                configSource: {
+                  managed: true,
+                  connectionId: crypto.randomUUID(),
+                  externalRepositoryId: 'managed:repository',
+                  lookupName: null,
+                },
+                connections: 'all',
+              },
+            }),
           },
           wake: async () => undefined,
         },

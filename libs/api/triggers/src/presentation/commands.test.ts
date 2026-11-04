@@ -233,6 +233,9 @@ describe('trigger command presentation', () => {
       ...input,
       definitions: {},
       workflows: {},
+      projects: expect.objectContaining({
+        requireProjectForWorkspace: mocks.requireProjectForWorkspace,
+      }),
     });
   });
 
@@ -272,6 +275,9 @@ describe('trigger command presentation', () => {
       ...input,
       definitions: {},
       workflows: {},
+      projects: expect.objectContaining({
+        requireProjectForWorkspace: mocks.requireProjectForWorkspace,
+      }),
     });
     expect(mocks.createDevRun).not.toHaveBeenCalled();
   });

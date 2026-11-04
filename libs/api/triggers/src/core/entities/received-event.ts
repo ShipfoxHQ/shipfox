@@ -10,6 +10,13 @@ export const triggerEventOutcomes = [
 ] as const;
 export type TriggerEventOutcome = (typeof triggerEventOutcomes)[number];
 
+/** The thing an event is about, such as a repository. Projects limit their access by it. */
+export interface TriggerEventResource {
+  kind: string;
+  externalId: string;
+  lookupName: string;
+}
+
 export interface TriggerReceivedEvent {
   id: string;
   eventRef: string;
@@ -26,6 +33,8 @@ export interface TriggerReceivedEvent {
   outcome: TriggerEventOutcome;
   matchedCount: number;
   payload: Record<string, unknown> | null;
+  /** Null for events from providers with no resource, and for events stored before it existed. */
+  resource: TriggerEventResource | null;
   processingDiagnostic?: TriggerEventProcessingDiagnostic | null;
   receivedAt: Date;
   processedAt: Date | null;
@@ -51,7 +60,7 @@ export interface TriggerEventReplay {
  */
 export type TriggerReceivedEventSummary = Omit<
   TriggerReceivedEvent,
-  'payload' | 'processingDiagnostic'
+  'payload' | 'processingDiagnostic' | 'resource'
 >;
 
 import type {TriggerEventProcessingDiagnostic} from './diagnostic.js';

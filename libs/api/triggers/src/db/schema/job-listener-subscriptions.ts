@@ -22,6 +22,7 @@ export const jobListenerSubscriptions = pgTable(
   {
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
+    projectId: uuid('project_id'),
     workflowRunId: uuid('workflow_run_id').notNull(),
     jobId: uuid('job_id').notNull(),
     kind: jobListenerMatcherKindEnum('kind').notNull(),
@@ -44,6 +45,7 @@ export const jobListenerSubscriptions = pgTable(
       table.event,
     ),
     index('triggers_job_listener_subscriptions_job_idx').on(table.jobId),
+    index('triggers_job_listener_subscriptions_project_idx').on(table.projectId),
   ],
 );
 
@@ -54,6 +56,7 @@ export function toJobListenerSubscription(row: JobListenerSubscriptionDb): JobLi
   return {
     id: row.id,
     workspaceId: row.workspaceId,
+    projectId: row.projectId,
     workflowRunId: row.workflowRunId,
     jobId: row.jobId,
     kind: row.kind,

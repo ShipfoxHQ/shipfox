@@ -442,7 +442,7 @@ function DecisionRow({
     canRenderRunLink && projectDetailLookupEnabled && !projectSlug ? projectId : undefined,
   );
   const resolvedProjectSlug = projectSlug ?? projectQuery.data?.slug;
-  const status = failedDecisionStatus(decision.decision);
+  const status = failedDecisionStatus(decision);
 
   if (decision.decision !== 'triggered' || !decision.runId || !decision.runName) {
     return (
@@ -507,17 +507,23 @@ function DecisionRow({
   );
 }
 
-function failedDecisionStatus(decision: TriggerEventMatchedWorkflowResult['decision']): {
+function failedDecisionStatus(decision: TriggerEventMatchedWorkflowResult): {
   label: string;
   className: string;
 } {
-  if (decision === 'filtered') {
-    return {label: 'Filter did not match', className: 'text-foreground-neutral-disabled'};
+  if (decision.decision === 'filtered') {
+    return {label: filteredLabel(decision), className: 'text-foreground-neutral-disabled'};
   }
-  if (decision === 'filter-error') {
+  if (decision.decision === 'filter-error') {
     return {label: 'Filter could not be evaluated', className: 'text-foreground-highlight-error'};
   }
   return {label: 'No run created', className: 'text-foreground-highlight-error'};
+}
+
+function filteredLabel(decision: TriggerEventMatchedWorkflowResult): string {
+  if (decision.diagnostic?.code === 'project-access') return 'Filtered by project access';
+  if (decision.diagnostic?.code === 'project-deleted') return 'Project was deleted';
+  return 'Filter did not match';
 }
 
 function EventPayload({payload}: {payload: string}) {

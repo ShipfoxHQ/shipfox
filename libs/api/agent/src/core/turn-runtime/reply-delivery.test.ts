@@ -95,6 +95,18 @@ async function setup(options: Parameters<typeof createFakeIntegrations>[0] = {})
     {
       projects: {
         getDefaultProject: vi.fn().mockResolvedValue({project: {id: projectId}}),
+        getProjectAccessPolicy: vi.fn().mockResolvedValue({
+          policy: {
+            projectId,
+            configSource: {
+              managed: true,
+              connectionId: crypto.randomUUID(),
+              externalRepositoryId: 'managed:repository',
+              lookupName: null,
+            },
+            connections: 'all',
+          },
+        }),
       } as never,
       wake: async () => undefined,
     },
@@ -368,7 +380,23 @@ describe('reply delivery', () => {
           deliveryKey: crypto.randomUUID(),
           interaction: {conversationKey: base.conversationKey, role: 'stop', text: ''},
         },
-        {projects: {} as never, wake: async () => undefined},
+        {
+          projects: {
+            getProjectAccessPolicy: vi.fn().mockResolvedValue({
+              policy: {
+                projectId: crypto.randomUUID(),
+                configSource: {
+                  managed: true,
+                  connectionId: crypto.randomUUID(),
+                  externalRepositoryId: 'managed:repository',
+                  lookupName: null,
+                },
+                connections: 'all',
+              },
+            }),
+          } as never,
+          wake: async () => undefined,
+        },
       );
 
       expect(result).toMatchObject({conversationId});

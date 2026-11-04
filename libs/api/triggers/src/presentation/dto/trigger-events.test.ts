@@ -96,8 +96,12 @@ describe('trigger-events mappers', () => {
   });
 
   test('toTriggerEventDto carries the payload (including null)', () => {
-    const withPayload: TriggerReceivedEvent = {...baseSummary, payload: {ref: 'main'}};
-    const withoutPayload: TriggerReceivedEvent = {...baseSummary, payload: null};
+    const withPayload: TriggerReceivedEvent = {
+      ...baseSummary,
+      payload: {ref: 'main'},
+      resource: null,
+    };
+    const withoutPayload: TriggerReceivedEvent = {...baseSummary, payload: null, resource: null};
 
     expect(toTriggerEventDto(withPayload).payload).toEqual({ref: 'main'});
     expect(toTriggerEventDto(withoutPayload).payload).toBeNull();
@@ -108,8 +112,14 @@ describe('trigger-events mappers', () => {
       ...baseSummary,
       connectionName: 'Acme Production',
       payload: null,
+      resource: null,
     };
-    const unnamed: TriggerReceivedEvent = {...baseSummary, connectionName: null, payload: null};
+    const unnamed: TriggerReceivedEvent = {
+      ...baseSummary,
+      connectionName: null,
+      payload: null,
+      resource: null,
+    };
 
     expect(toTriggerEventDto(named).connection_name).toBe('Acme Production');
     expect(toTriggerEventDto(unnamed).connection_name).toBeNull();
