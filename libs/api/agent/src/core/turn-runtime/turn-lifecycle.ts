@@ -69,8 +69,10 @@ async function pinConversationPrompt(
 ): Promise<void> {
   if (conversation.lastSeq > 0) return;
 
-  const [{project}, integration, agent] = await Promise.all([
-    deps.projects.getProjectById({projectId: conversation.projectId}),
+  // First, because Definitions refuses the agents of a deleted project with an error of its own.
+  const {project} = await deps.projects.getProjectById({projectId: conversation.projectId});
+  if (!project) throw new ConversationProjectDeletedError(conversation.projectId);
+  const [integration, agent] = await Promise.all([
     integrationPromptContext(conversation, deps.integrations),
     resolveConversationAgent(conversation, deps),
   ]);
@@ -80,7 +82,6 @@ async function pinConversationPrompt(
     projectId: conversation.projectId,
     agent,
   });
-  if (!project) throw new ConversationProjectDeletedError(conversation.projectId);
   const itemId = await newConversationRecordId();
   await pinSystemEntry({
     conversationId: conversation.id,

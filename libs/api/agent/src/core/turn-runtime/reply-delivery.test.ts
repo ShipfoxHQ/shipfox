@@ -79,8 +79,10 @@ function createFakeIntegrations(
   return {client, replies, progress, sendInteractionReply, reportInteractionProgress};
 }
 
-async function setup(options: Parameters<typeof createFakeIntegrations>[0] = {}) {
-  const workspaceId = crypto.randomUUID();
+async function setup(
+  options: Parameters<typeof createFakeIntegrations>[0] = {},
+  workspaceId: string = crypto.randomUUID(),
+) {
   const projectId = crypto.randomUUID();
   const connectionId = crypto.randomUUID();
   const conversationKey = 'C1:1700000000.000100';
@@ -362,7 +364,7 @@ describe('reply delivery', () => {
 
     it('leaves the turns of other projects running', async () => {
       const {scope} = await stopped('project_deleted');
-      const other = await setupWithBase();
+      const other = await setupWithBase(scope.workspaceId);
       const otherTurn = await other.begin();
       if (!otherTurn) throw new Error('No turn began');
 
@@ -644,8 +646,8 @@ async function listTurn(turnId: string) {
   return turn;
 }
 
-async function setupWithBase() {
-  const context = await setup();
+async function setupWithBase(workspaceId?: string) {
+  const context = await setup({}, workspaceId);
   return {
     ...context,
     conversation: undefined,

@@ -262,7 +262,9 @@ export async function requestScopeTurnStops(params: {
       .select({id: turns.id, conversationId: turns.conversationId})
       .from(turns)
       .innerJoin(conversations, eq(conversations.id, turns.conversationId))
-      .where(inScope);
+      .where(inScope)
+      // A turn finishing now waits for this stop, so its reply can't be sent before it is suppressed.
+      .for('update', {of: turns});
     if (running.length === 0) return {remaining: 0};
 
     if (params.suppressReplies) {
