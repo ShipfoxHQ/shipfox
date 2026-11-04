@@ -4,6 +4,7 @@
     "create-project",
     "move-config-to-repository",
     "limit-project-access",
+    "delete-project",
     "manage-integration-connections",
     "configure-model-providers",
     "secrets-and-variables",
