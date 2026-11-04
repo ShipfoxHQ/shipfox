@@ -21,6 +21,7 @@ import {
   workspaceProvidersPolicy,
 } from '#config.js';
 import {sessionArtifactStore} from '#core/index.js';
+import {createDeletedProjectPurgeSweeper} from '#core/purge-project.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
 import type {AgentAdmissionPolicy} from '#core/turn-admission.js';
 import {db, migrationsPath} from '#db/index.js';
@@ -176,6 +177,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
     // factory that does not forward the client. Only the job-terminated grace
     // sweep needs the workflows client (it lists the job's step attempts), so
     // that subscriber is gated on the optional argument.
+    services: [createDeletedProjectPurgeSweeper()],
     subscribers: [
       projectsSubscriber(PROJECT_DELETED, onProjectDeleted),
       subscriber(WORKFLOWS_STEP_ATTEMPT_TERMINATED, onStepAttemptTerminated),
