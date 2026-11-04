@@ -225,6 +225,7 @@ const toolCallOutcome = z.discriminatedUnion('outcome', [
     message: z.string(),
     retryAfterSeconds: z.number().int().positive().optional(),
     status: z.number().int().min(100).max(599).optional(),
+    mayHaveReachedProvider: z.literal(true).optional(),
   }),
 ]);
 export const repositoryAuthorizationErrorCodes = {

@@ -337,6 +337,40 @@ describe('tools granted by an agent file', () => {
     expect(readStored.meta).not.toHaveProperty('outcome');
   });
 
+  it('stores a write that failed unclassified after it may have reached the provider as unknown', async () => {
+    const {callTools, run, callTool, items, readEntry} = await setup();
+    await callTools('github_main__issue_comment', {body: 'Looks good'});
+    callTool.mockResolvedValueOnce({
+      outcome: 'error',
+      code: 'unknown',
+      message: 'Integration tool call failed',
+      mayHaveReachedProvider: true,
+    });
+
+    await run();
+
+    const stored = (await items()).at(-1) as ConversationItem;
+    expect(stored.meta).toMatchObject({role: 'toolResult', outcome: 'unknown'});
+    const entry = await readEntry(stored);
+    expect(entry.message.content[0].text).toContain(UNFINISHED_WRITE_OUTCOME_TEXT);
+  });
+
+  it('keeps an unclassified write failure an error when the provider cannot have received it', async () => {
+    const {callTools, run, callTool, items} = await setup();
+    await callTools('github_main__issue_comment', {body: 'Looks good'});
+    callTool.mockResolvedValueOnce({
+      outcome: 'error',
+      code: 'unknown',
+      message: 'Integration tool call failed',
+    });
+
+    await run();
+
+    const stored = (await items()).at(-1) as ConversationItem;
+    expect(stored.meta).toMatchObject({role: 'toolResult', is_error: true});
+    expect(stored.meta).not.toHaveProperty('outcome');
+  });
+
   it('keeps any other failed write result an error', async () => {
     const {callTools, run, callTool, items} = await setup();
     await callTools('github_main__issue_comment', {body: 'Looks good'});

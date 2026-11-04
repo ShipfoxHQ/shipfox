@@ -418,6 +418,22 @@ describe('integrationsInterModuleContract', () => {
     });
   });
 
+  test('accepts an error outcome that may have reached the provider', () => {
+    const output = integrationsInterModuleContract.methods.callTool.output.parse({
+      outcome: 'error',
+      code: 'unknown',
+      message: 'Integration tool call failed',
+      mayHaveReachedProvider: true,
+    });
+
+    expect(output).toEqual({
+      outcome: 'error',
+      code: 'unknown',
+      message: 'Integration tool call failed',
+      mayHaveReachedProvider: true,
+    });
+  });
+
   test('rejects a tool step caller without its identity fields', () => {
     expect(() =>
       integrationsInterModuleContract.methods.callTool.input.parse({

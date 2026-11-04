@@ -132,6 +132,11 @@ function isWriteCall(
   return method === undefined ? true : method.sensitivity === 'write';
 }
 
+/** The provider may have applied a write that timed out or failed unclassified after it was sent. */
+function mayHaveAppliedWrite(outcome: {code: string; mayHaveReachedProvider?: true | undefined}) {
+  return outcome.code === 'provider-timeout' || outcome.mayHaveReachedProvider === true;
+}
+
 /** The agent whose file grants the tools, or none when it has since been deleted. */
 async function readConversationAgent(params: {
   conversation: Conversation;
@@ -236,8 +241,7 @@ async function executeTool(params: {
         sensitivity: entry.tool.sensitivity,
       };
     }
-    // The provider may have applied a write before it timed out.
-    if (isWrite && outcome.code === 'provider-timeout') return UNFINISHED_WRITE_OUTPUT;
+    if (isWrite && mayHaveAppliedWrite(outcome)) return UNFINISHED_WRITE_OUTPUT;
     return {
       text: `${outcome.code}: ${outcome.message}`,
       isError: true,
