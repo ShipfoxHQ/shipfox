@@ -5,6 +5,7 @@ import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/in
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
+  WORKFLOWS_JOB_ACTIVATED,
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
@@ -26,6 +27,7 @@ import {createAgentE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createAgentInterModulePresentation} from '#presentation/inter-module.js';
 import {createAgentRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';
+import {createOnRunLifecycle} from '#presentation/subscribers/on-run-lifecycle.js';
 import {onStepAttemptTerminated} from '#presentation/subscribers/on-step-attempt-terminated.js';
 import {onWorkflowRunTerminated} from '#presentation/subscribers/on-workflow-run-terminated.js';
 import {createConversationActivities} from '#temporal/activities/conversation.js';
@@ -124,6 +126,11 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
   const {projects, integrations, workspaces} = params;
   const runsTurns =
     projects !== undefined && integrations !== undefined && workspaces !== undefined;
+  // A run result joins a conversation, so delivery needs turns to answer it and runs to read.
+  const onRunLifecycle =
+    runsTurns && params.workflows !== undefined
+      ? createOnRunLifecycle({workflows: params.workflows, wake: wakeConversation})
+      : undefined;
 
   return {
     name: 'agent',
@@ -172,6 +179,13 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
       ...(params.workflows === undefined
         ? []
         : [subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated)]),
+      ...(onRunLifecycle === undefined
+        ? []
+        : [
+            subscriber(WORKFLOWS_JOB_ACTIVATED, onRunLifecycle),
+            subscriber(WORKFLOWS_JOB_TERMINATED, onRunLifecycle),
+            subscriber(WORKFLOWS_WORKFLOW_RUN_TERMINATED, onRunLifecycle),
+          ]),
     ],
     workers: [
       {
@@ -205,6 +219,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
                   integrations,
                   projects,
                   definitions: params.definitions,
+                  workflows: params.workflows,
                   workspaces,
                   admission: params.admission,
                   managedProvider: params.managedProvider,

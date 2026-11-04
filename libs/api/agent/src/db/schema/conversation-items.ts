@@ -25,6 +25,8 @@ export const conversationItems = pgTable(
     modelCallIndex: integer('model_call_index'),
     callIndex: integer('call_index'),
     authorUserId: uuid('author_user_id'),
+    // The run attempt a `run_result` entry reports, so one attempt delivers one result.
+    runAttemptId: uuid('run_attempt_id'),
     clientMessageId: uuid('client_message_id'),
     body: bytea('body').notNull(),
     meta: jsonb('meta').$type<ConversationItemMeta>().notNull().default({}),
@@ -41,6 +43,9 @@ export const conversationItems = pgTable(
     uniqueIndex('agent_conversation_items_tool_call_unique')
       .on(table.turnId, table.modelCallIndex, table.callIndex)
       .where(sql`${table.callIndex} is not null`),
+    uniqueIndex('agent_conversation_items_run_attempt_unique')
+      .on(table.conversationId, table.runAttemptId)
+      .where(sql`${table.runAttemptId} is not null`),
     index('agent_conversation_items_queued_idx')
       .on(table.conversationId, table.id)
       .where(sql`${table.seq} is null`),

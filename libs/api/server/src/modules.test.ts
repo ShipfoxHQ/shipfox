@@ -344,6 +344,7 @@ describe('defaultModules', () => {
             carryOverSessions: vi.fn(),
             routeInteraction: vi.fn(),
             claimConversationRunStart: vi.fn(),
+            registerConversationRun: vi.fn(),
           },
         },
       ],

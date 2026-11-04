@@ -323,6 +323,19 @@ export const agentInterModuleContract = defineInterModuleContract({
       input: z.object({workspaceId: z.string().uuid(), conversationId: z.string().uuid()}),
       output: z.object({claimed: z.boolean()}),
     },
+    /**
+     * Links a run to the conversation that started it, so the run's result joins that conversation
+     * when the run settles or ends. A repeat changes nothing. `registered` is false when the
+     * conversation is gone or belongs to another workspace.
+     */
+    registerConversationRun: {
+      input: z.object({
+        workspaceId: z.string().uuid(),
+        conversationId: z.string().uuid(),
+        workflowRunId: z.string().uuid(),
+      }),
+      output: z.object({registered: z.boolean()}),
+    },
     releaseSession: {
       input: z.object({
         sessionId: z.string().uuid(),

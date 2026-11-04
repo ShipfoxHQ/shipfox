@@ -4,6 +4,9 @@ import type {AgentTurnStatus, PageContextDto} from '@shipfox/api-agent-dto';
 /** The `customType` of the entry that tells the timeline why a request got no turn. */
 export const TURN_NOTICE_CUSTOM_TYPE = 'turn_notice';
 
+/** The `customType` of the entry that reports a workflow run's result to the conversation that started it. */
+export const RUN_RESULT_CUSTOM_TYPE = 'run_result';
+
 export type ConversationOriginKind = 'web' | 'integration';
 
 /**

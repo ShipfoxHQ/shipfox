@@ -6,6 +6,7 @@ import {
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {setDefaultHarness} from '#db/index.js';
+import {conversationFactory} from '#test/factories/conversation.js';
 import {agentTestSecretsClient} from '#test/fixtures/secrets-client.js';
 import {createAgentInterModulePresentation} from './inter-module.js';
 
@@ -27,6 +28,27 @@ vi.mock('#core/workspace-agent-defaults-resolver.js', async (importOriginal) => 
 });
 
 describe('agent inter-module presentation', () => {
+  test('links a run to the conversation that started it', async () => {
+    const {conversation} = await conversationFactory.create();
+    const presentation = createAgentInterModulePresentation({secrets: agentTestSecretsClient});
+    const context = {signal: new AbortController().signal};
+    const input = {
+      workspaceId: conversation.workspaceId,
+      conversationId: conversation.id,
+      workflowRunId: crypto.randomUUID(),
+    };
+
+    await expect(presentation.handlers.registerConversationRun(input, context)).resolves.toEqual({
+      registered: true,
+    });
+    await expect(
+      presentation.handlers.registerConversationRun(
+        {...input, workspaceId: crypto.randomUUID()},
+        context,
+      ),
+    ).resolves.toEqual({registered: false});
+  });
+
   beforeEach(() => {
     workspaceDefaultsResolverMocks.getWorkspaceAgentValidationCatalog.mockClear();
   });

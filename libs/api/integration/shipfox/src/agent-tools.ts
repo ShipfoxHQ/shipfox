@@ -87,7 +87,7 @@ export type ShipfoxToolCallResult = {
 };
 
 export interface ShipfoxAgentToolsProviderOptions {
-  agent: Pick<AgentInterModuleClient, 'claimConversationRunStart'>;
+  agent: Pick<AgentInterModuleClient, 'claimConversationRunStart' | 'registerConversationRun'>;
   clientBaseUrl: string;
   annotations: Pick<AnnotationsInterModuleClient, 'listAnnotationsForRunAttempt'>;
   definitions: Pick<
@@ -1101,6 +1101,15 @@ export class ShipfoxAgentToolsProvider
         ...(secretInputs === undefined ? {} : {secretInputs}),
         idempotencyKey,
       });
+      // The runtime links the run, not the model, so every conversation-started run delivers.
+      // A repeated call registers again, which changes nothing.
+      if (caller.callerKind === 'conversation') {
+        await this.options.agent.registerConversationRun({
+          workspaceId: caller.workspaceId,
+          conversationId: caller.conversationId,
+          workflowRunId: started.id,
+        });
+      }
       const overview = await this.options.workflows.getWorkflowRunOverview({
         workspaceId: caller.workspaceId,
         workflowRunId: started.id,
