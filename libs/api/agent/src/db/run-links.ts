@@ -139,12 +139,13 @@ export async function queueRunResult(params: {
   entry: NewRunResultEntry;
 }): Promise<boolean> {
   return await db().transaction(async (tx) => {
-    // The row lock keeps a delete from racing the insert into a conversation that is going away.
+    // An exclusive lock, because a shared one lets two deliveries each wait on the other's
+    // update below. It also keeps a delete from racing the insert into a conversation going away.
     const locked = await tx
       .select({id: conversations.id})
       .from(conversations)
       .where(eq(conversations.id, params.conversationId))
-      .for('share');
+      .for('update');
     if (locked.length === 0) return false;
 
     const inserted = await tx

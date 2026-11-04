@@ -55,10 +55,12 @@ export function readRunDelivery(overview: RunOverview): RunDelivery {
   return oneShotDone && listening ? {kind: 'settled', status: 'settled'} : undefined;
 }
 
-function finishedJobKeys(overview: RunOverview): string[] {
+function finishedJobs(overview: RunOverview): {id: string; key: string}[] {
   const items =
     overview.jobs.kind === 'complete' ? overview.jobs.items : overview.jobs.first_page.items;
-  return items.filter((job) => TERMINAL_JOB_STATUSES.has(job.status)).map((job) => job.key);
+  return items
+    .filter((job) => TERMINAL_JOB_STATUSES.has(job.status))
+    .map((job) => ({id: job.id, key: job.key}));
 }
 
 /**
@@ -74,11 +76,12 @@ export function runResultEntry(params: {
   const {attempt, run} = overview;
   const outputs =
     delivery.kind === 'ended' && delivery.status === 'succeeded' ? attempt.outputs : null;
+  const finished = finishedJobs(overview);
   const details: ConversationRunResultDto = {
     workflow_run_id: run.id,
     run_attempt_id: attempt.id,
     status: delivery.status,
-    job_keys: finishedJobKeys(overview),
+    job_keys: finished.map((job) => job.key),
     outputs,
   };
   const data = wrapUntrustedText({
@@ -91,7 +94,7 @@ export function runResultEntry(params: {
       status: delivery.status,
       status_reason: attempt.status_reason,
       status_reason_message: attempt.status_reason_message,
-      finished_jobs: details.job_keys,
+      finished_jobs: finished,
       outputs,
     }),
     maxBytes: TOOL_RESULT_MAX_BYTES,

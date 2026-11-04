@@ -203,6 +203,18 @@ describe('run result delivery', () => {
       });
     });
 
+    it('gives the model the id of each finished job, so it can read the job', async () => {
+      const {conversation, workflowRunId} = await arrangeLink();
+      const jobs = settledJobs();
+      overviews.set(workflowRunId, runOverview({runId: workflowRunId, jobs}));
+
+      await deliverRunResults({workflowRunId, workflows, wake});
+
+      const [delivered] = await runResults(conversation.id);
+      expect(delivered?.entry.content).toContain(JSON.stringify({id: jobs[0]?.id, key: 'build'}));
+      expect(delivered?.entry.content).not.toContain(jobs[1]?.id);
+    });
+
     it('delivers a settled run without outputs', async () => {
       const {conversation, workflowRunId} = await arrangeLink();
       overviews.set(workflowRunId, runOverview({runId: workflowRunId, jobs: settledJobs()}));
@@ -252,7 +264,13 @@ describe('run result delivery', () => {
 
     it.each([
       ['a one-shot job still running', [jobOverview({key: 'build', status: 'running'})]],
-      ['a skipped listener', [jobOverview({key: 'build'})]],
+      [
+        'a skipped listener',
+        [
+          jobOverview({key: 'build'}),
+          jobOverview({key: 'review', mode: 'listening', status: 'skipped'}),
+        ],
+      ],
     ])('delivers nothing while %s, and clears the check', async (_name, jobs) => {
       const {conversation, workflowRunId} = await arrangeLink();
       overviews.set(workflowRunId, runOverview({runId: workflowRunId, jobs}));

@@ -1,4 +1,4 @@
-import {eq} from 'drizzle-orm';
+import {eq, inArray} from 'drizzle-orm';
 import {conversationFactory} from '#test/factories/conversation.js';
 import {db} from './db.js';
 import {listRunLinkChecks, registerConversationRun, requestRunLinkChecks} from './run-links.js';
@@ -76,8 +76,24 @@ describe('run links', () => {
       await registerConversationRun({...second, workflowRunId});
       await registerConversationRun({...first, workflowRunId: otherRunId});
 
+      await db()
+        .update(conversationRunLinks)
+        .set({checkRequestedAt: null})
+        .where(
+          inArray(conversationRunLinks.conversationId, [
+            first.conversationId,
+            second.conversationId,
+          ]),
+        );
+
       expect(await requestRunLinkChecks(workflowRunId)).toBe(2);
       expect(await requestRunLinkChecks(crypto.randomUUID())).toBe(0);
+
+      const requested = await listRunLinkChecks(workflowRunId);
+      expect(requested.map((check) => check.conversationId).sort()).toEqual(
+        [first.conversationId, second.conversationId].sort(),
+      );
+      expect(await listRunLinkChecks(otherRunId)).toEqual([]);
     });
   });
 });

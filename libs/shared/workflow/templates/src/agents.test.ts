@@ -16,6 +16,7 @@ describe('getBuiltInAgentPrompt', () => {
 
     expect(prompt).toContain('settled');
     expect(prompt).toContain('get_workflow_job');
+    expect(prompt).toContain('pull request link');
   });
 
   it('answers undefined for an unknown agent', () => {
