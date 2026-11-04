@@ -323,16 +323,25 @@ test('the default Shippy answers a Linear agent session and takes its prompts an
   }
 });
 
-/** The project whose Shippy answers requests that no agent claims. */
+/**
+ * The project whose Shippy answers requests that no agent claims. Other specs fill the shared
+ * workspace with projects, so the list is paged until the default one appears.
+ */
 async function defaultProject(params: {workspaceId: string; token: string}) {
   const client = createApiClient({token: params.token});
-  const response = await client.requestJson<ListProjectsResponseDto>(
-    'get',
-    `/projects?workspace_id=${encodeURIComponent(params.workspaceId)}`,
-  );
-  const project = response.projects.find((candidate) => candidate.is_default);
-  if (!project) throw new Error(`Workspace ${params.workspaceId} has no default project`);
-  return project;
+  let cursor: string | null = null;
+  do {
+    const query = new URLSearchParams({workspace_id: params.workspaceId, limit: '100'});
+    if (cursor !== null) query.set('cursor', cursor);
+    const page: ListProjectsResponseDto = await client.requestJson<ListProjectsResponseDto>(
+      'get',
+      `/projects?${query.toString()}`,
+    );
+    const project = page.projects.find((candidate) => candidate.is_default);
+    if (project) return project;
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  throw new Error(`Workspace ${params.workspaceId} has no default project`);
 }
 
 function agentDecisions(event: TriggerEventDetailResponseDto): TriggerDecisionDto[] {
