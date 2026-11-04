@@ -110,6 +110,7 @@ export interface LinearInteractionProviderOptions {
     | 'hasAgentActivity'
     | 'addAgentSessionExternalUrls'
     | 'getAgentSessionIssueId'
+    | 'hasIssueComment'
     | 'createIssueComment'
   >;
   tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
@@ -212,6 +213,7 @@ export class LinearInteractionProvider
       }
       return await this.commentOnIssue({
         accessToken,
+        id: replyId,
         agentSessionId: conversationKey,
         body: text,
         createAsUser: agent.name,
@@ -223,26 +225,43 @@ export class LinearInteractionProvider
 
   /**
    * The fallback when Linear refuses an activity, such as a session it no longer accepts them on.
-   * The comment shows as the agent "via" the app. A refused comment too is undeliverable, with the
-   * activity's reason.
+   * The comment shows as the agent "via" the app. The reply id is the comment id, so a repeat of
+   * a send that landed finds its comment and is delivered. A refused comment too is undeliverable,
+   * with the activity's reason.
    */
   private async commentOnIssue(params: {
     accessToken: string;
+    id: string;
     agentSessionId: string;
     body: string;
     createAsUser: string;
     rejection: string;
   }): Promise<InteractionReplyOutcome> {
-    const {accessToken, agentSessionId, body, createAsUser, rejection} = params;
+    const {accessToken, id, agentSessionId, body, createAsUser, rejection} = params;
     try {
       const issueId = await this.options.linear.getAgentSessionIssueId({
         accessToken,
         agentSessionId,
       });
       if (issueId === null) return {outcome: 'undeliverable', reason: rejection};
-      await this.options.linear.createIssueComment({accessToken, issueId, body, createAsUser});
+      await this.options.linear.createIssueComment({accessToken, id, issueId, body, createAsUser});
     } catch (error) {
       if (!isRejectedByLinear(error)) throw error;
+      // Linear refuses a repeated id, which looks like any other rejection until the id is found.
+      if (error.reason === 'malformed-provider-response') {
+        const delivered = await this.options.linear
+          .hasIssueComment({accessToken, id})
+          .catch((lookupError: unknown) => {
+            if (
+              lookupError instanceof LinearIntegrationProviderError &&
+              lookupError.reason === 'access-denied'
+            ) {
+              return false;
+            }
+            throw lookupError;
+          });
+        if (delivered) return {outcome: 'delivered'};
+      }
       return {outcome: 'undeliverable', reason: rejection};
     }
     return {outcome: 'delivered'};

@@ -43,6 +43,7 @@ function createConnectionContext() {
       hasAgentActivity: vi.fn(),
       addAgentSessionExternalUrls: vi.fn(),
       getAgentSessionIssueId: vi.fn(),
+      hasIssueComment: vi.fn(),
       createIssueComment: vi.fn(),
       getIssueContext: vi.fn(),
     },

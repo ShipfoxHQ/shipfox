@@ -698,6 +698,36 @@ describe('createLinearApiClient.getAgentSessionIssueId', () => {
   });
 });
 
+describe('createLinearApiClient.hasIssueComment', () => {
+  beforeEach(() => {
+    mocks.post.mockReset();
+    mocks.warn.mockReset();
+  });
+
+  it('finds a comment by id', async () => {
+    mocks.post.mockReturnValue(resolves({data: {comment: {id: 'comment-1'}}}));
+    const client = createLinearApiClient();
+
+    const found = await client.hasIssueComment({accessToken: 'linear-token', id: 'comment-1'});
+
+    expect(found).toBe(true);
+  });
+
+  it('reports an unknown id as not found', async () => {
+    mocks.post.mockReturnValue(
+      resolves({
+        data: null,
+        errors: [{message: 'Entity not found: Comment', extensions: {type: 'invalid input'}}],
+      }),
+    );
+    const client = createLinearApiClient();
+
+    const found = await client.hasIssueComment({accessToken: 'linear-token', id: 'comment-1'});
+
+    expect(found).toBe(false);
+  });
+});
+
 describe('createLinearApiClient.createIssueComment', () => {
   beforeEach(() => {
     mocks.post.mockReset();
@@ -710,6 +740,7 @@ describe('createLinearApiClient.createIssueComment', () => {
 
     await client.createIssueComment({
       accessToken: 'linear-token',
+      id: 'comment-1',
       issueId: 'issue-1',
       body: 'The pull request is open.',
       createAsUser: 'Shippy',
@@ -721,7 +752,12 @@ describe('createLinearApiClient.createIssueComment', () => {
     ];
     expect(options.headers).toEqual({authorization: 'Bearer linear-token'});
     expect(options.json.variables).toEqual({
-      input: {issueId: 'issue-1', body: 'The pull request is open.', createAsUser: 'Shippy'},
+      input: {
+        id: 'comment-1',
+        issueId: 'issue-1',
+        body: 'The pull request is open.',
+        createAsUser: 'Shippy',
+      },
     });
   });
 
@@ -731,6 +767,7 @@ describe('createLinearApiClient.createIssueComment', () => {
 
     const result = client.createIssueComment({
       accessToken: 'linear-token',
+      id: 'comment-1',
       issueId: 'issue-1',
       body: 'Done.',
       createAsUser: 'Shippy',

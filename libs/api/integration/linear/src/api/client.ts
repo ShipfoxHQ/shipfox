@@ -68,6 +68,14 @@ const AGENT_SESSION_ISSUE_QUERY = `
   }
 `;
 
+const COMMENT_QUERY = `
+  query ShipfoxComment($id: String!) {
+    comment(id: $id) {
+      id
+    }
+  }
+`;
+
 const COMMENT_CREATE_MUTATION = `
   mutation ShipfoxCommentCreate($input: CommentCreateInput!) {
     commentCreate(input: $input) {
@@ -162,9 +170,13 @@ export interface LinearApiClient {
     accessToken: string;
     agentSessionId: string;
   }): Promise<string | null>;
+  /** Whether Linear holds a comment with this id. */
+  hasIssueComment(input: {accessToken: string; id: string}): Promise<boolean>;
   /** Posts a comment on an issue as the app, shown under `createAsUser` instead of the app. */
   createIssueComment(input: {
     accessToken: string;
+    /** A client-chosen UUID, so the comment can be found again after a send of unknown outcome. */
+    id: string;
     issueId: string;
     body: string;
     createAsUser: string;
@@ -213,6 +225,10 @@ interface LinearAgentSessionUpdateData {
 
 interface LinearAgentSessionIssueData {
   agentSession?: {issue?: {id?: unknown} | null} | null;
+}
+
+interface LinearCommentData {
+  comment?: {id?: unknown} | null;
 }
 
 interface LinearCommentCreateData {
@@ -422,6 +438,29 @@ export function createLinearApiClient(): LinearApiClient {
       return typeof issueId === 'string' ? issueId : null;
     },
 
+    async hasIssueComment(input) {
+      const body = await mapLinearError(
+        'get-comment',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {query: COMMENT_QUERY, variables: {id: input.id}},
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearCommentData>>()
+            .catch((error: unknown) => {
+              // Linear may answer an unknown id with a 400 that carries the GraphQL error.
+              if (error instanceof HTTPError && isNotFoundBody(error.data)) return error.data;
+              throw error;
+            }),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      // Only a recognized not-found answer proves the comment is absent.
+      if (isNotFoundBody(body)) return false;
+      return graphqlData('get-comment', body).comment?.id === input.id;
+    },
+
     async createIssueComment(input) {
       const body = await mapLinearError(
         'create-issue-comment',
@@ -433,6 +472,7 @@ export function createLinearApiClient(): LinearApiClient {
                 query: COMMENT_CREATE_MUTATION,
                 variables: {
                   input: {
+                    id: input.id,
                     issueId: input.issueId,
                     body: input.body,
                     createAsUser: input.createAsUser,

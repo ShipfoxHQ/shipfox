@@ -37,6 +37,7 @@ function setup() {
     Promise.resolve<string | null>('issue-1'),
   );
   const createIssueComment = vi.fn((_input: unknown) => Promise.resolve());
+  const hasIssueComment = vi.fn((_input: unknown) => Promise.resolve(false));
   const provider = new LinearInteractionProvider({
     linear: {
       getIssueContext,
@@ -44,6 +45,7 @@ function setup() {
       hasAgentActivity,
       addAgentSessionExternalUrls,
       getAgentSessionIssueId,
+      hasIssueComment,
       createIssueComment,
     },
     tokenStore: {getAccessToken},
@@ -56,6 +58,7 @@ function setup() {
     hasAgentActivity,
     addAgentSessionExternalUrls,
     getAgentSessionIssueId,
+    hasIssueComment,
     createIssueComment,
   };
 }
@@ -375,6 +378,7 @@ describe('LinearInteractionProvider', () => {
       });
       expect(createIssueComment).toHaveBeenCalledWith({
         accessToken: 'linear-token',
+        id: replyId,
         issueId: 'issue-1',
         body: 'The pull request is open.',
         createAsUser: 'Shippy',
@@ -419,6 +423,39 @@ describe('LinearInteractionProvider', () => {
 
       expect(outcome).toEqual({outcome: 'undeliverable', reason: 'Linear rejected it'});
       expect(createIssueComment).not.toHaveBeenCalled();
+    });
+
+    it('is delivered when a repeat is refused because the comment already exists', async () => {
+      const {provider, createAgentActivity, createIssueComment, hasIssueComment} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+      createIssueComment.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear GraphQL failed'),
+      );
+      hasIssueComment.mockResolvedValue(true);
+
+      const outcome = await provider.sendReply(reply('response', 'Done.'));
+
+      expect(outcome).toEqual({outcome: 'delivered'});
+      expect(hasIssueComment).toHaveBeenCalledWith({accessToken: 'linear-token', id: replyId});
+    });
+
+    it('fails when the comment lookup after a refusal hits an outage so the delivery is retried', async () => {
+      const {provider, createAgentActivity, createIssueComment, hasIssueComment} = setup();
+      createAgentActivity.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear rejected it'),
+      );
+      createIssueComment.mockRejectedValue(
+        new LinearIntegrationProviderError('malformed-provider-response', 'Linear GraphQL failed'),
+      );
+      hasIssueComment.mockRejectedValue(
+        new LinearIntegrationProviderError('provider-unavailable', 'Linear request failed'),
+      );
+
+      const result = provider.sendReply(reply('response', 'Done.'));
+
+      await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
     });
 
     it('fails when the comment hits an outage so the delivery is retried', async () => {
