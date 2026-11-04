@@ -614,7 +614,10 @@ export interface SendInteractionReplyInput<
 > {
   connection: Connection;
   conversationKey: string;
-  /** Stable across retries. */
+  /**
+   * A UUID, stable across retries. A send can land without the caller learning it, so a provider
+   * whose platform accepts a client-chosen id uses this one and reports a repeat as `delivered`.
+   */
   replyId: string;
   kind: InteractionReplyKind;
   /** Markdown. The provider converts it. */

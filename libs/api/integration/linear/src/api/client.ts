@@ -42,6 +42,14 @@ const AGENT_ACTIVITY_CREATE_MUTATION = `
   }
 `;
 
+const AGENT_ACTIVITY_QUERY = `
+  query ShipfoxAgentActivity($id: String!) {
+    agentActivity(id: $id) {
+      id
+    }
+  }
+`;
+
 const AGENT_SESSION_UPDATE_MUTATION = `
   mutation ShipfoxAgentSessionUpdate($id: String!, $input: AgentSessionUpdateInput!) {
     agentSessionUpdate(id: $id, input: $input) {
@@ -114,12 +122,16 @@ export interface LinearApiClient {
   getIdentity(input: {accessToken: string}): Promise<LinearIdentity>;
   createAgentActivity(input: {
     accessToken: string;
+    /** A client-chosen UUID, so the activity can be found again after a send of unknown outcome. */
+    id?: string | undefined;
     agentSessionId: string;
     content: LinearAgentActivityContent;
     /** Linear replaces an ephemeral activity with the next one. */
     ephemeral?: boolean | undefined;
     timeoutMs?: number | undefined;
   }): Promise<void>;
+  /** Whether Linear holds an activity with this id. */
+  hasAgentActivity(input: {accessToken: string; id: string}): Promise<boolean>;
   setAgentSessionExternalUrls(input: {
     accessToken: string;
     agentSessionId: string;
@@ -157,6 +169,10 @@ interface LinearIdentityData {
 
 interface LinearAgentActivityCreateData {
   agentActivityCreate?: {success?: unknown} | null;
+}
+
+interface LinearAgentActivityData {
+  agentActivity?: {id?: unknown} | null;
 }
 
 interface LinearAgentSessionUpdateData {
@@ -278,6 +294,7 @@ export function createLinearApiClient(): LinearApiClient {
                 query: AGENT_ACTIVITY_CREATE_MUTATION,
                 variables: {
                   input: {
+                    ...(input.id === undefined ? {} : {id: input.id}),
                     agentSessionId: input.agentSessionId,
                     content: input.content,
                     ...(input.ephemeral === undefined ? {} : {ephemeral: input.ephemeral}),
@@ -296,6 +313,32 @@ export function createLinearApiClient(): LinearApiClient {
           'Linear did not create the agent activity',
         );
       }
+    },
+
+    async hasAgentActivity(input) {
+      const body = await mapLinearError(
+        'get-agent-activity',
+        () =>
+          ky
+            .post(LINEAR_GRAPHQL_URL, {
+              headers: {authorization: `Bearer ${input.accessToken}`},
+              json: {query: AGENT_ACTIVITY_QUERY, variables: {id: input.id}},
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearGraphqlResponse<LinearAgentActivityData>>(),
+        {classifyHttp4xx: classifyGraphqlHttp4xx},
+      );
+      // Linear answers an unknown id with a GraphQL error, so only a lost authorization throws.
+      if (hasGraphqlErrors(body)) {
+        if (hasAuthGraphqlError(body.errors)) {
+          throw new LinearIntegrationProviderError(
+            'access-denied',
+            'Linear GraphQL request failed',
+          );
+        }
+        return false;
+      }
+      return body.data?.agentActivity?.id === input.id;
     },
 
     async setAgentSessionExternalUrls(input) {
