@@ -1,4 +1,5 @@
 import {DEFINITION_DELETED, DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
+import type {NodePgDatabase} from '@shipfox/node-drizzle';
 import {
   BATCH_SIZE,
   countPendingOutboxRows as countPendingOutboxRowsFromRegistry,
@@ -51,8 +52,30 @@ function drainAll(options?: {partition?: {workerIndex: number; workerCount: numb
   return drainFromRegistry(outboxRegistry, options);
 }
 
-function countPendingOutboxRows() {
-  return countPendingOutboxRowsFromRegistry(outboxRegistry);
+type Transaction = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
+
+// Other test files write to the shared outbox table in parallel, so a whole-table count only holds
+// still inside one snapshot: count, insert, and count again in one repeatable-read transaction.
+async function countPendingRowsAdded(params: {
+  publisherNames: string[];
+  insertRows: (tx: Transaction) => Promise<unknown>;
+}) {
+  return await db().transaction(
+    async (tx) => {
+      const registry = createOutboxRegistry();
+      for (const name of params.publisherNames) {
+        registerInRegistry(registry, {
+          name,
+          table: definitionsOutbox,
+          db: () => tx as unknown as NodePgDatabase<Record<string, unknown>>,
+        });
+      }
+      const before = await countPendingOutboxRowsFromRegistry(registry);
+      await params.insertRows(tx);
+      return (await countPendingOutboxRowsFromRegistry(registry)) - before;
+    },
+    {isolationLevel: 'repeatable read'},
+  );
 }
 
 function markDispatched(source: string, claims: string[] | OutboxDispatchClaim[]) {
@@ -122,20 +145,19 @@ async function insertOutboxRow(params: {
   nextDispatchAt?: Date;
   dispatchedAt?: Date | null;
   deadLetteredAt?: Date | null;
+  database?: Pick<Transaction, 'insert'>;
 }) {
   const id = crypto.randomUUID();
-  await db()
-    .insert(definitionsOutbox)
-    .values({
-      id,
-      eventType: DEFINITION_RESOLVED,
-      orderingKey: params.orderingKey ?? null,
-      payload: {projectId: params.projectId, marker: params.marker},
-      createdAt: params.createdAt,
-      nextDispatchAt: params.nextDispatchAt,
-      dispatchedAt: params.dispatchedAt ?? null,
-      deadLetteredAt: params.deadLetteredAt ?? null,
-    });
+  await (params.database ?? db()).insert(definitionsOutbox).values({
+    id,
+    eventType: DEFINITION_RESOLVED,
+    orderingKey: params.orderingKey ?? null,
+    payload: {projectId: params.projectId, marker: params.marker},
+    createdAt: params.createdAt,
+    nextDispatchAt: params.nextDispatchAt,
+    dispatchedAt: params.dispatchedAt ?? null,
+    deadLetteredAt: params.deadLetteredAt ?? null,
+  });
   return id;
 }
 
@@ -1396,20 +1418,33 @@ describe('definition queries', () => {
     });
 
     test('countPendingOutboxRows counts pending rows but excludes dispatched and dead-lettered rows', async () => {
-      await insertOutboxRow({projectId, marker: 'pending'});
-      await insertOutboxRow({projectId, marker: 'dispatched', dispatchedAt: new Date()});
-      await insertOutboxRow({projectId, marker: 'dead-lettered', deadLetteredAt: new Date()});
-
-      const pendingRows = await countPendingOutboxRows();
+      const pendingRows = await countPendingRowsAdded({
+        publisherNames: ['definitions'],
+        insertRows: async (database) => {
+          await insertOutboxRow({projectId, marker: 'pending', database});
+          await insertOutboxRow({
+            projectId,
+            marker: 'dispatched',
+            dispatchedAt: new Date(),
+            database,
+          });
+          await insertOutboxRow({
+            projectId,
+            marker: 'dead-lettered',
+            deadLetteredAt: new Date(),
+            database,
+          });
+        },
+      });
 
       expect(pendingRows).toBe(1);
     });
 
     test('countPendingOutboxRows sums pending rows across every registered publisher', async () => {
-      registerPublisher({name: 'definitions-second', table: definitionsOutbox, db: () => db()});
-      await insertOutboxRow({projectId, marker: 'pending'});
-
-      const pendingRows = await countPendingOutboxRows();
+      const pendingRows = await countPendingRowsAdded({
+        publisherNames: ['definitions', 'definitions-second'],
+        insertRows: (database) => insertOutboxRow({projectId, marker: 'pending', database}),
+      });
 
       expect(pendingRows).toBe(2);
     });
