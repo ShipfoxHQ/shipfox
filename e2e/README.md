@@ -629,7 +629,7 @@ replaces the previous run for that pull request. Each run posts every
 | Secret | Used for |
 | --- | --- |
 | `EVALS_ANTHROPIC_API_KEY` | The onboarding agent and simulated user |
-| `EVALS_OPENROUTER_API_KEY` | Live template runs, passed to the stack as `E2E_OPENROUTER_API_KEY` |
+| `EVALS_OPENROUTER_API_KEY` | Live template and Shippy runs, passed to the stack as `E2E_OPENROUTER_API_KEY` |
 | `EVALS_LANGFUSE_PUBLIC_KEY`, `EVALS_LANGFUSE_SECRET_KEY` | The Langfuse export. Without them, only local results are written. |
 | `EVALS_LANGFUSE_BASE_URL` | The Langfuse region. Optional, defaults to the EU cloud. |
 

@@ -9,10 +9,12 @@ Typed browser page objects for the Shippy chat panel on project pages.
 
 ## Installation and setup
 
-Install the screen package with the E2E test tools:
+The package is private to this repository, so a suite depends on it as a workspace package, next to the E2E test tools:
 
-```sh
-pnpm add @shipfox/e2e-screens-chat @shipfox/e2e-kit @shipfox/e2e-core
+```json
+"@shipfox/e2e-screens-chat": "workspace:*",
+"@shipfox/e2e-kit": "workspace:*",
+"@shipfox/e2e-core": "workspace:*"
 ```
 
 The consumer must configure its API and client URLs through the E2E kit before running a suite.
@@ -45,6 +47,7 @@ Run the package checks from the repository root:
 turbo check --filter=@shipfox/e2e-screens-chat
 turbo type --filter=@shipfox/e2e-screens-chat
 turbo build --filter=@shipfox/e2e-screens-chat
+turbo depcruise --filter=@shipfox/e2e-screens-chat
 ```
 
 ## License

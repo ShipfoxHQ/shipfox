@@ -39,10 +39,10 @@ A conversation with the project agent is not an
 carries one agent's reasoning between steps. A conversation belongs to you and
 to the project, and it lasts until you delete it.
 
-The agent uses the workspace's default model, the one an agent step gets when
-its workflow names none. [Model providers](/reference/model-providers) lists
-the providers and models. The tokens the agent uses count like every other
-agent's.
+The agent uses the model its agent file sets, or else the workspace's default
+model, the one an agent step gets when its workflow names none.
+[Model providers](/reference/model-providers) lists the providers and models.
+The tokens the agent uses count like every other agent's.
 
 ## How it works
 
@@ -69,7 +69,7 @@ Logs, payloads, and annotations are data it reports on. The agent treats
 instructions it finds inside them as text, not as orders, even when they claim
 to come from Shipfox or from you.
 
-### It starts workflows, and that is all it changes
+### Its built-in tools change one thing: they start workflows
 
 When you ask for work that needs a sandbox, the agent chooses one of the
 project's workflows, fills its inputs from your message, and starts it. Its
@@ -78,15 +78,18 @@ attributed to you. The agent asks back when a required input is missing or the
 request is ambiguous. It names the workflow before it starts it, unless you
 asked for exactly that.
 
-A run the agent started reports back in the conversation once, when the run
-has done its work. That is when the run ended, or when it settled because a
-listening job holds it open, as a workflow that waits for review comments does.
+A run the agent started reports back in the conversation once for each
+attempt, when that attempt has done its work. That is when the run ended, or
+when it settled because a listening job holds it open, as a workflow that waits
+for review comments does.
 The report can arrive hours or days later. The agent then says what the run
 produced, such as a pull request link.
 
 The agent starts only a few runs for one of your messages. When it reaches that
-limit, it stops and asks before it starts more. It never reruns or cancels a
-run, never merges a pull request, and never changes a workflow.
+limit, it stops and asks before it starts more. With its built-in tools, it
+never reruns or cancels a run, never merges a pull request, and never changes a
+workflow. Integration tools that an agent file grants with `allow_write` can
+make the writes those tools allow. See [Teams can add to it](#teams-can-add-to-it).
 
 ### The conversation is yours
 

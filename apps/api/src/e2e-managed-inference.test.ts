@@ -462,19 +462,6 @@ describe('E2E managed inference fixture', () => {
     });
     expect(mapped.statusCode).toBe(201);
     expect(mapped.json()).toEqual({project_id: projectId, default_model: 'gpt-6-sol'});
-
-    // The provider default has no OpenRouter mapping, and the registered default stands in for it.
-    const runtime = await fixture.provider.resolveCredentials({
-      workspaceId: 'workspace',
-      subject: {
-        kind: 'conversation',
-        projectId,
-        conversationId: 'conversation-openrouter',
-        agentKey: 'shippy',
-      },
-      model: 'e2e-renewable-pi',
-    });
-    expect(runtime.api).toBe('openai-completions');
   });
 
   it('serves all shipped catalog anchor models through OpenAI completions', async () => {

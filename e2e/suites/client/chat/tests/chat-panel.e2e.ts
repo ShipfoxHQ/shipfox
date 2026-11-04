@@ -34,7 +34,7 @@ test.describe('Shippy chat panel', () => {
     expect(request?.prompt).toContain('<page_context page="runs"/>');
   });
 
-  test('shows a tool call before the reply', async ({chatPanel, createReadyWorkspace}) => {
+  test('shows a tool call and the reply', async ({chatPanel, createReadyWorkspace}) => {
     const workspace = await createReadyWorkspace({name: 'Chat Tool Workspace'});
     await scriptProject(workspace, [
       {
