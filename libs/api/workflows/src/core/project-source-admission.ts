@@ -1,9 +1,13 @@
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
-import {loadProjectCheckoutDefaults} from './default-checkout.js';
+import {loadProjectCheckoutDefaults, type ProjectCheckoutDefaults} from './default-checkout.js';
 import {SourceConnectionUnavailableError} from './errors.js';
-import {jobChecksOutBareRepository, jobChecksOutProjectSource} from './step-config/index.js';
+import {
+  jobChecksOutBareRepository,
+  jobChecksOutProjectSource,
+  jobUsesDefaultCheckout,
+} from './step-config/index.js';
 
 export interface AssertProjectSourceAdmitsParams {
   model: WorkflowModel;
@@ -39,21 +43,7 @@ export async function assertProjectSourceAdmits(
     projects: params.projects,
     integrations: params.integrations,
   });
-  const noDefaultCheckout = defaults === null || defaults.defaultCheckout === null;
-  const connectionIds = new Set<string>();
-  if (jobs.some((job) => jobChecksOutProjectSource({job, projectId, noDefaultCheckout}))) {
-    // A job that checks out the project by id on a managed project has no default repository.
-    connectionIds.add(defaults?.defaultCheckout?.connectionId ?? project.sourceConnectionId);
-  }
-  // Without a default checkout, a bare `repository` still resolves on the default connection.
-  // The configured one counts inactive connections, which the default itself leaves out.
-  if (
-    noDefaultCheckout &&
-    defaults?.configuredConnectionId != null &&
-    jobs.some(jobChecksOutBareRepository)
-  ) {
-    connectionIds.add(defaults.configuredConnectionId);
-  }
+  const connectionIds = connectionsToAdmit({jobs, projectId, project, defaults});
   for (const connectionId of connectionIds) {
     const connection = await params.integrations.resolveConnectionById({connectionId});
     if (connection === null || connection === undefined) {
@@ -67,4 +57,33 @@ export async function assertProjectSourceAdmits(
       );
     }
   }
+}
+
+/**
+ * The connections the jobs need while the project has no default checkout of its own to name
+ * them. The configured ids count inactive connections, which the active defaults leave out.
+ */
+function connectionsToAdmit(params: {
+  jobs: readonly WorkflowModel['jobs'][number][];
+  projectId: string;
+  project: {sourceConnectionId: string};
+  defaults: ProjectCheckoutDefaults | null;
+}): Set<string> {
+  const {jobs, projectId, project, defaults} = params;
+  const noDefaultCheckout = defaults === null || defaults.defaultCheckout === null;
+  const connectionIds = new Set<string>();
+  if (jobs.some((job) => jobChecksOutProjectSource({job, projectId, noDefaultCheckout}))) {
+    // A job that checks out the project by id on a managed project has no default repository.
+    connectionIds.add(defaults?.defaultCheckout?.connectionId ?? project.sourceConnectionId);
+  }
+  if (!noDefaultCheckout || defaults === null) return connectionIds;
+  // A job that sets no `checkout` would silently skip an inactive default checkout.
+  if (defaults.configuredCheckoutConnectionId !== null && jobs.some(jobUsesDefaultCheckout)) {
+    connectionIds.add(defaults.configuredCheckoutConnectionId);
+  }
+  // A bare `repository` still resolves on the default connection.
+  if (defaults.configuredConnectionId !== null && jobs.some(jobChecksOutBareRepository)) {
+    connectionIds.add(defaults.configuredConnectionId);
+  }
+  return connectionIds;
 }

@@ -253,6 +253,45 @@ describe('assertProjectSourceAdmits', () => {
       expect(resolveConnectionById).toHaveBeenCalledWith({connectionId: codeConnectionId});
     });
 
+    test('rejects a job that sets no checkout while the default checkout connection is inactive', async () => {
+      getProjectAccessPolicy.mockResolvedValue({
+        policy: accessPolicy([
+          {
+            connectionId: codeConnectionId,
+            resources: [{kind: 'repository', externalId: 'github:1', lookupName: 'acme/app'}],
+          },
+        ]),
+      });
+      listSourceControlConnectionIds.mockResolvedValue({
+        connectionIds: [],
+        inactiveConnectionIds: [codeConnectionId],
+      });
+
+      await expect(admits(workflowModel())).rejects.toEqual(
+        new SourceConnectionUnavailableError(projectId, codeConnectionId, 'error'),
+      );
+      expect(resolveConnectionById).toHaveBeenCalledWith({connectionId: codeConnectionId});
+    });
+
+    test('admits a job that opts out of checkout while the default checkout connection is inactive', async () => {
+      getProjectAccessPolicy.mockResolvedValue({
+        policy: accessPolicy([
+          {
+            connectionId: codeConnectionId,
+            resources: [{kind: 'repository', externalId: 'github:1', lookupName: 'acme/app'}],
+          },
+        ]),
+      });
+      listSourceControlConnectionIds.mockResolvedValue({
+        connectionIds: [],
+        inactiveConnectionIds: [codeConnectionId],
+      });
+      const model = workflowModel({jobs: {build: {checkout: false, steps: []}}});
+
+      await expect(admits(model)).resolves.toBeUndefined();
+      expect(resolveConnectionById).not.toHaveBeenCalled();
+    });
+
     test('admits a repository checkout on the default connection while it is active', async () => {
       lifecycleStatus = 'active';
       const model = workflowModel({

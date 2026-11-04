@@ -64,6 +64,7 @@ describe('loadProjectCheckoutDefaults', () => {
       },
       defaultConnectionId: project.sourceConnectionId,
       configuredConnectionId: project.sourceConnectionId,
+      configuredCheckoutConnectionId: project.sourceConnectionId,
     });
     expect(projects.getProjectAccessPolicy).not.toHaveBeenCalled();
   });
@@ -83,6 +84,7 @@ describe('loadProjectCheckoutDefaults', () => {
       },
       defaultConnectionId: codeConnectionId,
       configuredConnectionId: codeConnectionId,
+      configuredCheckoutConnectionId: codeConnectionId,
     });
   });
 
@@ -97,6 +99,7 @@ describe('loadProjectCheckoutDefaults', () => {
       defaultCheckout: null,
       defaultConnectionId: codeConnectionId,
       configuredConnectionId: codeConnectionId,
+      configuredCheckoutConnectionId: null,
     });
   });
 
@@ -115,6 +118,7 @@ describe('loadProjectCheckoutDefaults', () => {
       defaultCheckout: null,
       defaultConnectionId: null,
       configuredConnectionId: codeConnectionId,
+      configuredCheckoutConnectionId: codeConnectionId,
     });
   });
 
