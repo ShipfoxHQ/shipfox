@@ -1929,7 +1929,36 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('does not let exclude mask a write-capable include token', () => {
+  it('accepts a write family when exclude removes every write method', () => {
+    const document = (exclude: string[]): WorkflowDocument => ({
+      name: 'write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Fix.',
+              integrations: [{include: ['check_run_write', 'issue_read'], exclude}],
+            },
+          ],
+        },
+      },
+    });
+
+    const refused = expectInvalid(document(['check_run_write.create']), {
+      integrationValidationContext,
+    });
+    const accepted = normalizeWorkflowDocument(
+      document(['check_run_write.create', 'check_run_write.update']),
+      {integrationValidationContext},
+    );
+
+    expect(refused.issues).toMatchObject([
+      {code: 'integration-write-not-allowed', details: {tokens: ['check_run_write']}},
+    ]);
+    expect(accepted).toBeDefined();
+  });
+
+  it('keeps a write tool that exclude does not name', () => {
     const document: WorkflowDocument = {
       name: 'write integrations',
       jobs: {
@@ -1937,7 +1966,9 @@ describe('normalizeWorkflowDocument', () => {
           steps: [
             {
               prompt: 'Fix.',
-              integrations: [{include: ['issue_write'], exclude: ['issue_write']}],
+              integrations: [
+                {include: ['merge_pull_request', 'create_branch'], exclude: ['create_branch']},
+              ],
             },
           ],
         },
@@ -1946,7 +1977,9 @@ describe('normalizeWorkflowDocument', () => {
 
     const error = expectInvalid(document, {integrationValidationContext});
 
-    expect(error.issues.map((issue) => issue.code)).toEqual(['integration-write-not-allowed']);
+    expect(error.issues).toMatchObject([
+      {code: 'integration-write-not-allowed', details: {tokens: ['merge_pull_request']}},
+    ]);
   });
 
   it('accepts write-capable include tokens when allow_write is true', () => {
