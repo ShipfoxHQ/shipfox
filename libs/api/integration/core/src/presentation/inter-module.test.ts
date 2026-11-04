@@ -4,6 +4,7 @@ import {
   createShipfoxAgentToolsProvider,
   shipfoxAgentToolCatalog,
 } from '@shipfox/api-integration-shipfox';
+import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import type {z} from 'zod';
@@ -804,7 +805,7 @@ describe('integrations inter-module presentation', () => {
       resolveRef: vi.fn(),
     };
 
-    function createManagedClient() {
+    function createManagedClient(connections: ProjectAccessPolicy['connections'] = 'all') {
       const registry = createIntegrationProviderRegistry([
         {
           provider: 'github',
@@ -825,7 +826,24 @@ describe('integrations inter-module presentation', () => {
       });
       const transport = createInMemoryInterModuleTransport();
       const client = transport.createClient(integrationsInterModuleContract);
-      transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
+      transport.register(
+        createIntegrationsInterModulePresentation({
+          registry,
+          sourceControl,
+          projects: createProjectAccessClient([
+            projectAccessPolicy({
+              projectId,
+              configSource: {
+                managed: true,
+                connectionId: crypto.randomUUID(),
+                externalRepositoryId: 'managed:project',
+                lookupName: null,
+              },
+              connections,
+            }),
+          ]),
+        }),
+      );
       transport.seal();
       return client;
     }
@@ -864,6 +882,53 @@ describe('integrations inter-module presentation', () => {
         slug: 'github',
         provider: 'github',
       });
+    });
+
+    it('lists the active source-control connections, without the hidden managed one', async () => {
+      const client = createManagedClient();
+      const {workspaceId: managedWorkspaceId} = await createManagedWorkspace();
+      const github = await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'acme',
+        slug: 'github',
+      });
+      await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'gitea',
+        externalAccountId: 'acme',
+        slug: 'gitea',
+        lifecycleStatus: 'disabled',
+      });
+
+      await expect(
+        client.listSourceControlConnectionIds({workspaceId: managedWorkspaceId}),
+      ).resolves.toEqual({connectionIds: [github.id]});
+    });
+
+    it('defaults to the one source-control connection the project lists', async () => {
+      const {workspaceId: managedWorkspaceId, hidden} = await createManagedWorkspace();
+      await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'acme',
+        slug: 'github',
+      });
+      const listed = await integrationConnectionFactory.create({
+        workspaceId: managedWorkspaceId,
+        provider: 'gitea',
+        externalAccountId: 'acme',
+        slug: 'gitea',
+      });
+      const client = createManagedClient([{connectionId: listed.id, resources: 'all'}]);
+
+      const context = await client.getAgentToolsContext({
+        workspaceId: managedWorkspaceId,
+        defaultConnectionId: hidden.id,
+        projectId,
+      });
+
+      expect(context.defaultConnection).toEqual({id: listed.id, slug: 'gitea', provider: 'gitea'});
     });
 
     it('has no default when the workspace has several source-control connections', async () => {

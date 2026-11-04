@@ -568,7 +568,7 @@ describe('materializeJobExecutionSteps', () => {
       model,
       job,
       context: jobExecutionContext(),
-      managedSource: true,
+      noDefaultCheckout: true,
     });
 
     expect(steps[0]).toMatchObject({type: 'setup', config: {}});
@@ -592,14 +592,14 @@ describe('materializeJobExecutionSteps', () => {
       jobChecksOutProjectSource({
         job: withSteps({...checkout('acme/api'), path: 'api'}),
         projectId,
-        managedSource: true,
+        noDefaultCheckout: true,
       }),
     ).toBe(false);
     expect(
       jobChecksOutProjectSource({
         job: withSteps({...checkout('acme/api'), project: projectId, path: 'api'}),
         projectId,
-        managedSource: true,
+        noDefaultCheckout: true,
       }),
     ).toBe(true);
   });

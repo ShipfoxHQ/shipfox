@@ -1336,8 +1336,22 @@ describe('workflow run queries', () => {
       const projects = {
         getProjectById: vi.fn().mockResolvedValue({
           project: {
+            id: projectId,
+            workspaceId,
             sourceConnectionId: crypto.randomUUID(),
             sourceExternalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
+          },
+        }),
+        getProjectAccessPolicy: vi.fn().mockResolvedValue({
+          policy: {
+            projectId,
+            configSource: {
+              managed: true,
+              connectionId: crypto.randomUUID(),
+              externalRepositoryId: 'managed:project',
+              lookupName: null,
+            },
+            connections: 'all',
           },
         }),
       } as unknown as ProjectsModuleClient;

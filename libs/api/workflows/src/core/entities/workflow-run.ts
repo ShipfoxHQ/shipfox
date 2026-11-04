@@ -62,6 +62,12 @@ export interface WorkflowRunParent {
 
 export interface WorkflowRunTriggerReference {
   project: {id: string} | null;
+  /**
+   * The connection and repository the event came from, whether or not a project uses it as its
+   * config source. Runs created before they were recorded lack them.
+   */
+  connectionId?: string | undefined;
+  externalRepositoryId?: string | undefined;
   repository: string | null;
   ref: string | null;
   commit: string | null;

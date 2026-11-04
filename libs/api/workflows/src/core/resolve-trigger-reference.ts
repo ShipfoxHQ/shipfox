@@ -43,6 +43,8 @@ export async function resolveWorkflowRunTriggerReference(params: {
 
     return {
       project: projectResult.project === null ? null : {id: projectResult.project.id},
+      connectionId: params.triggerConnectionId,
+      externalRepositoryId: reference.externalRepositoryId,
       repository: `${sourceResult.repository.owner}/${sourceResult.repository.name}`,
       ref: reference.ref,
       commit: reference.commit,

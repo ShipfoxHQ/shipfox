@@ -2707,6 +2707,8 @@ describe('Workflows inter-module presentation', () => {
       receivedAt: new Date('2026-07-20T12:00:00.000Z'),
       triggerReference: {
         project: {id: projectId},
+        connectionId,
+        externalRepositoryId,
         repository: 'acme/api',
         ref: 'refs/heads/main',
         commit: 'a'.repeat(40),

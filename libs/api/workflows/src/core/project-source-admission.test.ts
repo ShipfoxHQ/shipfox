@@ -1,4 +1,5 @@
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
 import {workflowModel} from '#test/index.js';
 import {SourceConnectionUnavailableError} from './errors.js';
 import {assertProjectSourceAdmits} from './project-source-admission.js';
@@ -19,10 +20,18 @@ function checkout(overrides: Partial<Checkout> = {}): Checkout {
 
 describe('assertProjectSourceAdmits', () => {
   const projectId = crypto.randomUUID();
+  const workspaceId = crypto.randomUUID();
   const connectionId = crypto.randomUUID();
-  let project: {sourceConnectionId: string; sourceExternalRepositoryId: string} | null;
+  let project: {
+    id: string;
+    workspaceId: string;
+    sourceConnectionId: string;
+    sourceExternalRepositoryId: string;
+  } | null;
   let lifecycleStatus: 'active' | 'disabled' | 'error' | null;
   const getProjectById = vi.fn();
+  const getProjectAccessPolicy = vi.fn();
+  const listSourceControlConnectionIds = vi.fn();
   const resolveConnectionById = vi.fn();
 
   function admits(model: WorkflowModel, jobKeys?: readonly string[]) {
@@ -30,15 +39,22 @@ describe('assertProjectSourceAdmits', () => {
       model,
       jobKeys,
       projectId,
-      projects: {getProjectById},
-      integrations: {resolveConnectionById},
+      projects: {getProjectById, getProjectAccessPolicy},
+      integrations: {resolveConnectionById, listSourceControlConnectionIds},
     });
   }
 
   beforeEach(() => {
-    project = {sourceConnectionId: connectionId, sourceExternalRepositoryId: '1234'};
+    project = {
+      id: projectId,
+      workspaceId,
+      sourceConnectionId: connectionId,
+      sourceExternalRepositoryId: '1234',
+    };
     lifecycleStatus = 'active';
     getProjectById.mockReset().mockImplementation(async () => ({project}));
+    getProjectAccessPolicy.mockReset();
+    listSourceControlConnectionIds.mockReset().mockResolvedValue({connectionIds: []});
     resolveConnectionById
       .mockReset()
       .mockImplementation(async () =>
@@ -181,20 +197,60 @@ describe('assertProjectSourceAdmits', () => {
 
     await expect(admits(model)).resolves.toBeUndefined();
   });
+
   describe('on a managed project', () => {
+    const codeConnectionId = crypto.randomUUID();
+
+    function accessPolicy(connections: ProjectAccessPolicy['connections']): ProjectAccessPolicy {
+      return {
+        projectId,
+        configSource: {
+          managed: true,
+          connectionId,
+          externalRepositoryId: project?.sourceExternalRepositoryId ?? '',
+          lookupName: null,
+        },
+        connections,
+      };
+    }
+
     beforeEach(() => {
       project = {
+        id: projectId,
+        workspaceId,
         sourceConnectionId: connectionId,
         sourceExternalRepositoryId: `managed-vcs:${crypto.randomUUID()}`,
       };
       lifecycleStatus = 'error';
+      listSourceControlConnectionIds.mockResolvedValue({connectionIds: [codeConnectionId]});
+      resolveConnectionById.mockImplementation(async ({connectionId: requested}) => ({
+        id: requested,
+        lifecycleStatus,
+      }));
+      getProjectAccessPolicy.mockResolvedValue({policy: accessPolicy('all')});
     });
 
-    test('has no default checkout to admit', async () => {
+    test('has no default checkout to admit with access to all repositories', async () => {
       await expect(admits(workflowModel())).resolves.toBeUndefined();
     });
 
-    test('does not resolve a repository checkout on the project source connection', async () => {
+    test('rejects the inactive connection of the one repository its access names', async () => {
+      getProjectAccessPolicy.mockResolvedValue({
+        policy: accessPolicy([
+          {
+            connectionId: codeConnectionId,
+            resources: [{kind: 'repository', externalId: 'github:1', lookupName: 'acme/app'}],
+          },
+        ]),
+      });
+
+      await expect(admits(workflowModel())).rejects.toEqual(
+        new SourceConnectionUnavailableError(projectId, codeConnectionId, 'error'),
+      );
+      expect(resolveConnectionById).toHaveBeenCalledWith({connectionId: codeConnectionId});
+    });
+
+    test('does not resolve a repository checkout without a default checkout', async () => {
       const model = workflowModel({
         jobs: {
           build: {
@@ -217,7 +273,9 @@ describe('assertProjectSourceAdmits', () => {
         },
       });
 
-      await expect(admits(model)).rejects.toBeInstanceOf(SourceConnectionUnavailableError);
+      await expect(admits(model)).rejects.toEqual(
+        new SourceConnectionUnavailableError(projectId, connectionId, 'error'),
+      );
     });
   });
 });

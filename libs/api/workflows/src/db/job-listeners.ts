@@ -14,6 +14,7 @@ import {
   type AgentToolMaterializationContext,
   loadAgentToolMaterializationContext,
 } from '#core/agent-tools.js';
+import {loadNoDefaultCheckout} from '#core/default-checkout.js';
 import {
   assertWorkflowExecutionPayloadSize,
   executionPayloadValueByteLength,
@@ -40,7 +41,6 @@ import {
   materializeListenerExecution,
 } from '#core/listener-execution-materialization.js';
 import {planListenerPriorExecutionContext} from '#core/listener-prior-execution-context.js';
-import {loadManagedSource} from '#core/managed-source.js';
 import {
   applyListenerFilterSnapshots,
   assembleListenerSnapshotContext,
@@ -367,7 +367,7 @@ interface ListenerDrainTransactionParams {
   readonly vars: Record<string, string> | undefined;
   readonly variableResolutionError: InterpolationUnresolvableError | undefined;
   readonly agentToolContext: AgentToolMaterializationContext | undefined;
-  readonly managedSource: boolean;
+  readonly noDefaultCheckout: boolean;
 }
 
 export async function drainListenerEventsIntoExecution(
@@ -425,8 +425,9 @@ export async function drainListenerEventsIntoExecution(
           projects: params.projects,
         })
       : undefined;
-  const managedSource = await loadManagedSource({
+  const noDefaultCheckout = await loadNoDefaultCheckout({
     projects: params.projects,
+    integrations: params.integrations,
     projectId: materializationTarget.run.projectId,
   });
 
@@ -439,7 +440,7 @@ export async function drainListenerEventsIntoExecution(
         vars,
         variableResolutionError,
         agentToolContext,
-        managedSource,
+        noDefaultCheckout,
       },
       tx,
     ),
@@ -509,7 +510,7 @@ async function drainListenerEventsInTransaction(
         : undefined),
     agentToolContext: params.agentToolContext,
     agentToolSnapshot: target.attempt.agentToolMaterialization,
-    managedSource: params.managedSource,
+    noDefaultCheckout: params.noDefaultCheckout,
   });
   const execution = await persistMaterializedListenerExecution(tx, {
     jobId: params.drain.jobId,

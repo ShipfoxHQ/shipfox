@@ -193,12 +193,13 @@ export function soleListedConnection(
 export function defaultCheckoutRepository(
   policy: ProjectAccessPolicy,
   {sourceControlConnectionIds}: {sourceControlConnectionIds: readonly string[]},
-): {connectionId: string; externalRepositoryId: string} | null {
+): {connectionId: string; externalRepositoryId: string; lookupName: string | null} | null {
   const {configSource} = policy;
   if (!configSource.managed) {
     return {
       connectionId: configSource.connectionId,
       externalRepositoryId: configSource.externalRepositoryId,
+      lookupName: configSource.lookupName,
     };
   }
 
@@ -211,7 +212,24 @@ export function defaultCheckoutRepository(
   );
   const [only, ...others] = repositories;
   if (!only || others.length > 0 || repositories.length !== scope.resources.length) return null;
-  return {connectionId, externalRepositoryId: only.externalId};
+  return {connectionId, externalRepositoryId: only.externalId, lookupName: only.lookupName};
+}
+
+/**
+ * The connection a job or tool uses when it names none. A linked project uses its config source
+ * connection. A managed project uses the one source-control connection it lists, or, with all
+ * connections, the workspace's only source-control connection. Otherwise there is none.
+ */
+export function defaultConnectionId(
+  policy: ProjectAccessPolicy,
+  {sourceControlConnectionIds}: {sourceControlConnectionIds: readonly string[]},
+): string | null {
+  if (!policy.configSource.managed) return policy.configSource.connectionId;
+  if (policy.connections !== 'all') {
+    return soleListedConnection(policy, {sourceControlConnectionIds});
+  }
+  const [only, ...others] = sourceControlConnectionIds;
+  return only !== undefined && others.length === 0 ? only : null;
 }
 
 export type ProjectAccessViolation =

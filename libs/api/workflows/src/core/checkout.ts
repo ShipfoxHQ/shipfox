@@ -11,6 +11,7 @@ import type {
   WorkflowRunOriginState,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
+import {loadProjectCheckoutDefaults, type ProjectCheckoutDefaults} from './default-checkout.js';
 import {
   CheckoutConfigInvalidError,
   type CheckoutFailureTarget,
@@ -109,38 +110,29 @@ export async function createStepCheckoutSpec({
     throw new CheckoutIntentUnresolvedError({kind: 'project', value: projectId});
   }
 
-  const managedSource = isManagedProject(defaultProject);
-  // A managed project has no default repository and no source owner to default to.
-  if (managedSource && checkout.project === undefined && !checkout.repository?.includes('/')) {
-    throw new CheckoutConfigInvalidError(
-      step.id,
-      'Checkout on a managed project needs a repository written as owner/name',
-    );
-  }
+  // A managed project has no source connection or owner of its own to default to.
+  const managedDefaults = isManagedProject(defaultProject)
+    ? ((await loadProjectCheckoutDefaults({project: defaultProject, projects, integrations})) ??
+      noDefaults)
+    : undefined;
+  if (managedDefaults !== undefined)
+    assertManagedCheckoutTarget(checkout, managedDefaults, step.id);
   const target = await checkoutTarget({
     checkout,
     defaultProjectId: projectId,
     defaultConnectionId: defaultProject.sourceConnectionId,
-    managedSource,
+    managedDefaults,
     integrations,
     workspaceId,
     stepId: step.id,
   });
-  const resolvedTarget =
-    'project' in target
-      ? await projects.resolveCheckoutTarget({
-          workspaceId,
-          target,
-        })
-      : repositoryCheckoutTarget({
-          connectionId: target.connection ?? defaultProject.sourceConnectionId,
-          defaultProject,
-          repository: repositoryTarget(
-            target.repository,
-            defaultOwner(defaultProject.sourceRepositoryOwner, target.repository),
-            step.id,
-          ),
-        });
+  const resolvedTarget = await resolveCheckoutTargetSelection({
+    target,
+    workspaceId,
+    defaultProject,
+    projects,
+    stepId: step.id,
+  });
   if (resolvedTarget === undefined) {
     throw new CheckoutIntentUnresolvedError({
       kind: 'project',
@@ -148,7 +140,10 @@ export async function createStepCheckoutSpec({
     });
   }
   failure.connectionId = resolvedTarget.connectionId;
-  failure.repository = resolvedRepositoryName(resolvedTarget, defaultProject) ?? failure.repository;
+  failure.repository =
+    resolvedRepositoryName(resolvedTarget, defaultProject) ??
+    defaultCheckoutName(target) ??
+    failure.repository;
   const ref = resolveCheckoutRef({checkout, triggerReference, run, resolvedTarget, projectId});
   const permissions = checkout.permissions ?? {contents: 'read'};
   const response = await integrations.createCheckoutSpec({
@@ -165,6 +160,61 @@ export async function createStepCheckoutSpec({
     projectId,
     target: resolvedTarget.target,
     permissions,
+  });
+}
+
+function defaultCheckoutName(target: CheckoutTargetSelection): string | undefined {
+  return 'defaultCheckout' in target ? (target.defaultCheckout.lookupName ?? undefined) : undefined;
+}
+
+function assertManagedCheckoutTarget(
+  checkout: CheckoutConfig,
+  defaults: ProjectCheckoutDefaults,
+  stepId: string,
+): void {
+  if (checkout.project !== undefined) return;
+  if (checkout.repository === undefined && defaults.defaultCheckout === null) {
+    throw new CheckoutConfigInvalidError(
+      stepId,
+      'Checkout on a managed project needs a repository written as owner/name, unless its access names exactly one repository',
+    );
+  }
+  if (checkout.repository !== undefined && !checkout.repository.includes('/')) {
+    throw new CheckoutConfigInvalidError(
+      stepId,
+      'Checkout on a managed project needs a repository written as owner/name',
+    );
+  }
+}
+
+async function resolveCheckoutTargetSelection(params: {
+  target: CheckoutTargetSelection;
+  workspaceId: string;
+  defaultProject: Parameters<typeof repositoryCheckoutTarget>[0]['defaultProject'];
+  projects: ProjectsModuleClient;
+  stepId: string;
+}): Promise<ResolvedCheckoutTarget | undefined> {
+  const {target, defaultProject} = params;
+  if ('project' in target) {
+    return await params.projects.resolveCheckoutTarget({workspaceId: params.workspaceId, target});
+  }
+  if ('defaultCheckout' in target) {
+    return {
+      connectionId: target.defaultCheckout.connectionId,
+      target: {
+        kind: 'external-id',
+        externalRepositoryId: target.defaultCheckout.externalRepositoryId,
+      },
+    };
+  }
+  return repositoryCheckoutTarget({
+    connectionId: target.connection ?? defaultProject.sourceConnectionId,
+    defaultProject,
+    repository: repositoryTarget(
+      target.repository,
+      defaultOwner(defaultProject.sourceRepositoryOwner, target.repository),
+      params.stepId,
+    ),
   });
 }
 
@@ -231,26 +281,27 @@ function resolvedRepositoryName(
   return undefined;
 }
 
+type ResolvedCheckoutTarget = {
+  projectId?: string | undefined;
+  connectionId: string;
+  target:
+    | {kind: 'external-id'; externalRepositoryId: string}
+    | {kind: 'name'; owner: string; name: string};
+};
+
 function resolveCheckoutRef(params: {
   checkout: CheckoutConfig;
   triggerReference: WorkflowRunTriggerReference | null | undefined;
   run: WorkflowRunOriginState;
-  resolvedTarget: {projectId?: string | undefined};
+  resolvedTarget: ResolvedCheckoutTarget;
   projectId: string;
 }): string | undefined {
-  // Explicit step refs win, followed by same-project event commits (including
-  // replays), then the pinned dev commit for the run's own project. Other targets
-  // intentionally use the provider default branch.
-  let triggerCommitRef: string | undefined;
-  const {triggerReference} = params;
-  if (
-    params.resolvedTarget.projectId !== undefined &&
-    triggerReference !== null &&
-    triggerReference !== undefined &&
-    triggerReference.project?.id === params.resolvedTarget.projectId
-  ) {
-    triggerCommitRef = triggerReference.commit ?? undefined;
-  }
+  // Explicit step refs win, followed by the commit of an event from the checked-out repository
+  // (including replays), then the pinned dev commit for the run's own config repository. Other
+  // targets intentionally use the provider default branch.
+  const triggerCommitRef = triggerMatchesTarget(params.triggerReference, params.resolvedTarget)
+    ? (params.triggerReference?.commit ?? undefined)
+    : undefined;
   let devCommitRef: string | undefined;
   if (
     params.run.origin === 'dev' &&
@@ -260,6 +311,29 @@ function resolveCheckoutRef(params: {
     devCommitRef = params.run.devSource.commit;
   }
   return params.checkout.ref ?? triggerCommitRef ?? devCommitRef;
+}
+
+// The event's repository must be the checked-out repository, never just the project's. A run
+// stored before the trigger reference named its connection and repository can only be compared
+// by project.
+function triggerMatchesTarget(
+  triggerReference: WorkflowRunTriggerReference | null | undefined,
+  resolvedTarget: ResolvedCheckoutTarget,
+): boolean {
+  if (triggerReference === null || triggerReference === undefined) return false;
+  const {connectionId, externalRepositoryId} = triggerReference;
+  if (connectionId === undefined || externalRepositoryId === undefined) {
+    return (
+      resolvedTarget.projectId !== undefined &&
+      triggerReference.project?.id === resolvedTarget.projectId
+    );
+  }
+  if (connectionId !== resolvedTarget.connectionId) return false;
+  const {target} = resolvedTarget;
+  if (target.kind === 'external-id') return target.externalRepositoryId === externalRepositoryId;
+  return (
+    triggerReference.repository?.toLowerCase() === `${target.owner}/${target.name}`.toLowerCase()
+  );
 }
 
 type CheckoutSpecResponse = Awaited<ReturnType<IntegrationsModuleClient['createCheckoutSpec']>>;
@@ -331,18 +405,21 @@ function parseCheckoutConfig(step: Step): CheckoutConfig {
 
 type CheckoutTargetSelection =
   | {project: string}
+  | {defaultCheckout: NonNullable<ProjectCheckoutDefaults['defaultCheckout']>}
   | {connection?: string | undefined; repository: string};
+
+const noDefaults: ProjectCheckoutDefaults = {defaultCheckout: null, defaultConnectionId: null};
 
 async function checkoutTarget(params: {
   checkout: CheckoutConfig;
   defaultProjectId: string;
   defaultConnectionId: string;
-  managedSource: boolean;
+  managedDefaults: ProjectCheckoutDefaults | undefined;
   integrations: IntegrationsModuleClient;
   workspaceId: string;
   stepId: string;
 }): Promise<CheckoutTargetSelection> {
-  const {checkout} = params;
+  const {checkout, managedDefaults} = params;
   if (checkout.project !== undefined) return {project: checkout.project};
   if (checkout.repository !== undefined) {
     let connection: string | undefined;
@@ -353,33 +430,27 @@ async function checkoutTarget(params: {
         defaultConnectionId: params.defaultConnectionId,
         slug: checkout.connection,
       });
-    } else if (params.managedSource) {
-      connection = await resolveSoleConnectionId(params);
+    } else if (managedDefaults !== undefined) {
+      connection = defaultConnectionOf(managedDefaults, params.stepId);
     }
     return connection === undefined
       ? {repository: checkout.repository}
       : {connection, repository: checkout.repository};
   }
+  if (managedDefaults?.defaultCheckout) return {defaultCheckout: managedDefaults.defaultCheckout};
   return {project: params.defaultProjectId};
 }
 
 // A managed project has no source connection to default to, so a repository without a connection
-// uses the only one the workspace has.
-async function resolveSoleConnectionId(params: {
-  integrations: IntegrationsModuleClient;
-  workspaceId: string;
-  stepId: string;
-}): Promise<string> {
-  const connection = await params.integrations.resolveSourceControlConnection({
-    workspaceId: params.workspaceId,
-  });
-  if (connection === null) {
+// uses the one its access lists, or the only one the workspace has.
+function defaultConnectionOf(defaults: ProjectCheckoutDefaults, stepId: string): string {
+  if (defaults.defaultConnectionId === null) {
     throw new CheckoutConfigInvalidError(
-      params.stepId,
-      'Checkout on a managed project needs a `connection` when the workspace has none or several source-control connections',
+      stepId,
+      'Checkout on a managed project needs a `connection` when its access lists no single source-control connection and the workspace has none or several',
     );
   }
-  return connection.id;
+  return defaults.defaultConnectionId;
 }
 
 function repositoryTarget(
