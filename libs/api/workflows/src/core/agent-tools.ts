@@ -166,8 +166,8 @@ function agentStepKey(params: {readonly jobKey: string; readonly stepId: string}
 }
 
 /**
- * Asks Integrations for the tools every agent step and action step selects, one call per step.
- * Integrations is the one place selectors are interpreted. A refused selection is kept as the
+ * Asks Integrations for the tools every agent step and action step selects, in one call for the
+ * run. Integrations is the one place selectors are interpreted. A refused selection is kept as the
  * step's outcome, so it fails the step it belongs to and no other.
  */
 async function resolveIntegrationOutcomes(params: {
@@ -190,30 +190,39 @@ async function resolveIntegrationOutcomes(params: {
       }),
     ),
   );
-  await Promise.all(
-    requests.map(async (request) => {
-      try {
-        const {integrations} = await params.integrations.resolveAgentTools({
-          workspaceId: params.workspaceId,
-          projectId: params.projectId,
-          integrations: request.integrations,
-        });
-        outcomes.set(request.key, {kind: 'granted', grants: integrations});
-      } catch (error) {
-        const method = integrationsInterModuleContract.methods.resolveAgentTools;
-        if (!isInterModuleKnownError(method, error)) throw error;
-        if (error.code === 'project-not-found') {
-          throw new AgentIntegrationMaterializationError(
-            `Project ${params.projectId} was not found while materializing agent integrations`,
-          );
-        }
-        outcomes.set(request.key, {
-          kind: 'failed',
-          error: request.failure(error.details.integrationIndex, error.details),
-        });
-      }
-    }),
-  );
+  if (requests.length === 0) return outcomes;
+
+  let results: Awaited<ReturnType<IntegrationsModuleClient['resolveAgentToolsBatch']>>['outcomes'];
+  try {
+    ({outcomes: results} = await params.integrations.resolveAgentToolsBatch({
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+      requests: requests.map(({integrations}) => ({integrations})),
+    }));
+  } catch (error) {
+    const method = integrationsInterModuleContract.methods.resolveAgentToolsBatch;
+    if (isInterModuleKnownError(method, error) && error.code === 'project-not-found') {
+      throw new AgentIntegrationMaterializationError(
+        `Project ${params.projectId} was not found while materializing agent integrations`,
+      );
+    }
+    throw error;
+  }
+  for (const [position, request] of requests.entries()) {
+    const result = results[position];
+    if (result === undefined) {
+      throw new AgentIntegrationMaterializationError('Integrations did not answer every step');
+    }
+    outcomes.set(
+      request.key,
+      result.kind === 'granted'
+        ? {kind: 'granted', grants: result.integrations}
+        : {
+            kind: 'failed',
+            error: request.failure(result.refusal.integrationIndex, result.refusal),
+          },
+    );
+  }
   return outcomes;
 }
 

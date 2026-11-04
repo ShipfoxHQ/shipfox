@@ -182,6 +182,7 @@ describe('defaultModules', () => {
             fetchSourceFile: vi.fn(),
             getAgentToolsContext: vi.fn(),
             resolveAgentTools: vi.fn(),
+            resolveAgentToolsBatch: vi.fn(),
             getConfigSource: vi.fn(),
             getConnectionToolCatalog: vi.fn(),
             listConfigCommits: vi.fn(),

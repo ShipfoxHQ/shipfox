@@ -1,12 +1,13 @@
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
-import {createInterModuleKnownError} from '@shipfox/inter-module';
+import {createInterModuleKnownError, isInterModuleKnownError} from '@shipfox/inter-module';
 import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import {loadAgentToolMaterializationContext} from '#core/agent-tools.js';
 
 type AgentToolsContext = Awaited<ReturnType<IntegrationsModuleClient['getAgentToolsContext']>>;
 type ResolveAgentTools = IntegrationsModuleClient['resolveAgentTools'];
+type ResolveAgentToolsBatch = IntegrationsModuleClient['resolveAgentToolsBatch'];
 type CatalogTool = AgentToolsContext['catalogs'][number]['tools'][number];
 
 const method = integrationsInterModuleContract.methods.resolveAgentTools;
@@ -169,6 +170,34 @@ export function fakeResolveAgentTools(context: FakeContext): ResolveAgentTools {
   }) as ResolveAgentTools;
 }
 
+/**
+ * The batch form of {@link fakeResolveAgentTools}: each request is granted or refused on its own,
+ * as Integrations answers it.
+ */
+export function fakeResolveAgentToolsBatch(context: FakeContext): ResolveAgentToolsBatch {
+  const resolve = fakeResolveAgentTools(context);
+  return (async (input) => {
+    const outcomes = await Promise.all(
+      input.requests.map(async ({integrations}) => {
+        try {
+          const granted = await resolve({
+            workspaceId: input.workspaceId,
+            projectId: input.projectId,
+            integrations,
+          });
+          return {kind: 'granted' as const, integrations: granted.integrations};
+        } catch (error) {
+          if (!isInterModuleKnownError(method, error) || error.code !== 'selection-invalid') {
+            throw error;
+          }
+          return {kind: 'refused' as const, refusal: error.details};
+        }
+      }),
+    );
+    return {outcomes};
+  }) as ResolveAgentToolsBatch;
+}
+
 /** The Integrations output shape of a hand-built materialization context. */
 export function toAgentToolsContext(context: AgentToolMaterializationContext): AgentToolsContext {
   return {
@@ -200,7 +229,7 @@ export async function withIntegrationOutcomes(
     projectId: crypto.randomUUID(),
     integrations: {
       getAgentToolsContext: () => Promise.resolve(agentTools),
-      resolveAgentTools: fakeResolveAgentTools(agentTools),
+      resolveAgentToolsBatch: fakeResolveAgentToolsBatch(agentTools),
     } as unknown as IntegrationsModuleClient,
     projects: {
       getProjectById: () =>
