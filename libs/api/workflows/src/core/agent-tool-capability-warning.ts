@@ -163,9 +163,11 @@ function warningReason(params: {harnessKnown: boolean}): WarningReason {
 }
 
 function isAnnotationBudgetError(error: unknown): boolean {
-  return isInterModuleKnownError(
-    annotationsInterModuleContract.methods.replaceOrRemoveAnnotation,
-    error,
+  return (
+    isInterModuleKnownError(
+      annotationsInterModuleContract.methods.replaceOrRemoveAnnotation,
+      error,
+    ) && error.code !== 'project-deleted'
   );
 }
 

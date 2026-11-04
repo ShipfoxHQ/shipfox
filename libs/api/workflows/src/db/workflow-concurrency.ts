@@ -24,6 +24,7 @@ import {
   recordWorkflowConcurrencyWaiterSuperseded,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
+import {assertProjectWritable} from './deleted-scopes.js';
 import {writeWorkflowsOutboxEvent} from './outbox-writes.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {
@@ -134,6 +135,7 @@ async function admitWorkflowConcurrencyClaimInTransaction(
 ): Promise<AdmitWorkflowConcurrencyClaimResult> {
   const [participant] = await tx
     .select({
+      workspaceId: workflowRuns.workspaceId,
       projectId: workflowRuns.projectId,
       definitionId: workflowRuns.definitionId,
       origin: workflowRuns.origin,
@@ -153,6 +155,10 @@ async function admitWorkflowConcurrencyClaimInTransaction(
       `Workflow run attempt ${params.workflowRunAttemptId} does not belong to run ${params.workflowRunId}`,
     );
   }
+  await assertProjectWritable(tx, {
+    workspaceId: participant.workspaceId,
+    projectId: participant.projectId,
+  });
   const origin = toWorkflowRunOriginState(participant);
   const originScope =
     params.sourceClaim?.originScope ??

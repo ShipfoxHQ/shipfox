@@ -21,6 +21,7 @@ import {
   recordWorkflowRunCreated,
 } from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
+import {assertProjectWritable, rethrowDeletedProject} from '../deleted-scopes.js';
 import {writeWorkflowsOutboxEvents} from '../outbox-writes.js';
 import {type JobExecutionDb, jobExecutions} from '../schema/job-executions.js';
 import {type JobDb, jobs} from '../schema/jobs.js';
@@ -68,6 +69,7 @@ export async function createRerunWorkflowRun(
       params,
       tx,
     );
+    await assertProjectWritable(tx, sourceRow).catch(rethrowDeletedProject(sourceRow.projectId));
 
     const [attemptRow] = await tx
       .select({value: sql<number>`coalesce(max(${workflowRunAttempts.attempt}), 1)`})

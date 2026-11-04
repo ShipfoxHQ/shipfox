@@ -29,6 +29,13 @@
       "when": 1788205093149,
       "tag": "0003_add_line_count_to_attempt_streams",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793778426538,
+      "tag": "0004_deleted_scopes",
+      "breakpoints": true
     }
   ]
 }

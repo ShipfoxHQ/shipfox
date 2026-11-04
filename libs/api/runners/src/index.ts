@@ -2,6 +2,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import {administrationActionEventSchemas} from '@shipfox/api-common-dto';
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import {runnersEventSchemas} from '@shipfox/api-runners-dto';
 import {
   WORKFLOWS_JOB_EXECUTION_QUEUED,
@@ -17,6 +18,7 @@ import {
   createRunnerControlSessionAuthMethod,
   createRunnerRegistrationTokenAuthMethod,
   createRunnerRoutes,
+  onProjectDeleted,
   onWorkflowsJobExecutionQueued,
   onWorkflowsJobExecutionTerminated,
 } from '#presentation/index.js';
@@ -45,7 +47,9 @@ export type {
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<WorkflowsEventMapDto>();
+const subscriber = subscriberFactory<
+  WorkflowsEventMapDto & Pick<ProjectsEventMap, typeof PROJECT_DELETED>
+>();
 
 export function createRunnersModule({
   auth,
@@ -67,6 +71,7 @@ export function createRunnersModule({
     subscribers: [
       subscriber(WORKFLOWS_JOB_EXECUTION_QUEUED, onWorkflowsJobExecutionQueued),
       subscriber(WORKFLOWS_JOB_EXECUTION_TERMINATED, onWorkflowsJobExecutionTerminated),
+      subscriber(PROJECT_DELETED, onProjectDeleted),
     ],
     workers: [
       {

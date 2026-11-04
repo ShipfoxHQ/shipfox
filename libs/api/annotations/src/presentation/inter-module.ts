@@ -4,6 +4,7 @@ import {
   defineInterModulePresentation,
   type InterModulePresentation,
 } from '@shipfox/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {
   AnnotationBodyTooLargeError,
   AnnotationCountLimitExceededError,
@@ -56,6 +57,9 @@ export function createAnnotationsInterModulePresentation(): InterModulePresentat
 
 export function toReplaceOrRemoveAnnotationKnownError(error: unknown): unknown {
   const method = annotationsInterModuleContract.methods.replaceOrRemoveAnnotation;
+  if (error instanceof ScopeDeletedError) {
+    return createInterModuleKnownError(method, 'project-deleted', {});
+  }
   if (error instanceof AnnotationBodyTooLargeError) {
     return createInterModuleKnownError(method, 'annotation-body-too-large', {
       maxBytes: error.maxBytes,

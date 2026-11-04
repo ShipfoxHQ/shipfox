@@ -43,6 +43,7 @@
   "dependencies": {
     "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
+    "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",

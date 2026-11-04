@@ -7,6 +7,7 @@ import {
   offsetGapResponseSchema,
 } from '@shipfox/api-logs-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {appendLogs} from '#core/append-logs.js';
@@ -39,6 +40,9 @@ export function createAppendLogsRoute(workflows: WorkflowsModuleClient) {
       }
       if (error instanceof MalformedLogChunkError) {
         throw new ClientError(error.message, 'malformed-log-chunk', {status: 400});
+      }
+      if (error instanceof ScopeDeletedError) {
+        throw new ClientError('Project was deleted', 'project-not-found', {status: 404});
       }
       if (error instanceof LeaseStreamMismatchError) {
         throw new ClientError(error.message, 'lease-stream-mismatch', {status: 403});

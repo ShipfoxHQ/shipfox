@@ -1,5 +1,6 @@
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {eq} from 'drizzle-orm';
 import {
   AnnotationBodyTooLargeError,
@@ -140,6 +141,11 @@ describe('Annotations inter-module presentation', () => {
   });
 
   test.each([
+    [
+      'project-deleted',
+      () =>
+        new ScopeDeletedError({workspaceId: crypto.randomUUID(), projectId: crypto.randomUUID()}),
+    ],
     ['annotation-body-too-large', () => new AnnotationBodyTooLargeError(10)],
     ['annotation-count-limit-exceeded', () => new AnnotationCountLimitExceededError(10)],
     ['annotation-total-bytes-limit-exceeded', () => new AnnotationTotalBytesLimitExceededError(10)],

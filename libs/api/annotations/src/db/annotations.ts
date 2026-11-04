@@ -1,8 +1,10 @@
 import {type AnnotationStyleDto, READ_ANNOTATIONS_MAX_LIMIT} from '@shipfox/annotations-dto';
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {and, asc, count, eq, gt, inArray, or, type SQL, sql} from 'drizzle-orm';
 import type {Annotation} from '#core/entities/annotation.js';
 import {db} from './db.js';
 import {annotations, toAnnotation} from './schema/annotations.js';
+import {annotationsDeletedScopes} from './schema/deleted-scopes.js';
 
 export const DEFAULT_ANNOTATIONS_READ_LIMIT = READ_ANNOTATIONS_MAX_LIMIT;
 
@@ -249,6 +251,10 @@ export function withAnnotationLock<T>(
           );
       },
       createAnnotation: async (params) => {
+        await assertScopeWritable(tx, annotationsDeletedScopes, {
+          workspaceId: params.workspaceId,
+          projectId: params.projectId,
+        });
         const [row] = await tx.insert(annotations).values(params).returning({
           id: annotations.id,
           context: annotations.context,

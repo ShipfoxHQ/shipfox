@@ -8,6 +8,10 @@ Shipfox API Workflows creates and runs workflow definitions, jobs, executions, s
 - **`runWorkflow`**: Loads a definition and creates a run with its initial graph.
 - **`WorkflowRun`**: Represents a run with UUID identity, status, trigger data, and display fields.
 - **`loadRunningLeasedStep`**: Loads the step state available to a leased runner.
+- **Project deletion**: The `PROJECT_DELETED` subscriber records a deletion marker, which refuses
+  later run creation, reruns, and concurrency claims for the project. It cancels the project's open
+  runs and deletes its finished runs with their children. A run that is still stopping waits for
+  the next delivery.
 
 ## Installation / Setup
 

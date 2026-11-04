@@ -14,6 +14,7 @@ import {
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
 import {db, type Transaction} from './db.js';
+import {assertProjectWritable} from './deleted-scopes.js';
 import {attemptStreams, toAttemptStream} from './schema/attempt-streams.js';
 import {logChunks} from './schema/chunks.js';
 
@@ -82,11 +83,13 @@ export interface GetOrCreateAttemptStreamResult {
  * Scoped by `jobId` from the lease, so a lease never reaches another job's stream.
  * The create path reports whether the row was inserted so callers can record
  * first-open side effects only after their enclosing transaction commits.
+ * Throws `ScopeDeletedError` for a deleted project, so a late write can't recreate its streams.
  */
 export async function getOrCreateAttemptStreamWithStatus(
   tx: Transaction,
   identity: AttemptStreamIdentity,
 ): Promise<GetOrCreateAttemptStreamResult> {
+  await assertProjectWritable(tx, identity);
   const [row] = await tx
     .insert(attemptStreams)
     .values(identity)

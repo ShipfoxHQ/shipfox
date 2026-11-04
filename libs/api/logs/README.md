@@ -33,6 +33,9 @@ This adds:
 - the `logs.stream.closed` publisher and two close subscribers: the step-attempt-terminated
   subscriber that closes each attempt's stream when the runner did not end it in-band, and the
   job-terminated subscriber that force-closes any of a job's still-open streams
+- the project-deleted subscriber that records a deletion marker, which refuses later stream
+  creation for the project, then deletes the project's streams, chunks, accounting, and stored
+  objects
 - the Temporal lifecycle workers that carry a closed stream through to deletion: compaction to a
   gzip object, plus the compaction-reconcile, stale-open-stream reaper, and retention-sweep crons
 
