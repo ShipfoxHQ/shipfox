@@ -107,6 +107,7 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
     connectionId: built.replaySource?.connectionId ?? null,
     connectionName: built.replaySource?.connectionName ?? null,
     payload: built.replaySource?.payload ?? null,
+    resource: built.replaySource?.resource ?? null,
     receivedAt: new Date(),
   };
 
@@ -324,6 +325,7 @@ interface ReplaySource {
   connectionId: string | null;
   connectionName: string | null;
   payload: Record<string, unknown>;
+  resource: TriggerEventResource | null;
   replayOfEventId: string;
 }
 
@@ -481,6 +483,7 @@ async function buildReplayTrigger(
     connectionId: event.connectionId,
     connectionName: event.connectionName,
     payload: event.payload,
+    resource: event.resource,
     replayOfEventId: event.id,
   } satisfies ReplaySource;
 

@@ -1061,6 +1061,8 @@ describe('createDevRun', () => {
       await createDevRun({...params, replayEventId: sourceEvent.id});
 
       expect(startDevRun).toHaveBeenCalledTimes(1);
+      const [journal] = await devEventsForWorkspace(params.workspaceId);
+      expect(journal?.resource).toEqual(appRepository);
     });
 
     test('refuses a replay for a project that no longer exists', async () => {

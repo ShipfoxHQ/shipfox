@@ -288,6 +288,7 @@ export async function upsertListenerFilteredDecision(
         triggersDecisions.subscriptionId,
       ],
       set: {
+        projectId: params.subscription.projectId,
         decision: 'filtered',
         reason: params.reason,
         diagnostic: params.diagnostic,
