@@ -39,13 +39,20 @@ describe('fireManualSubscription (trigger history)', () => {
   test.each([
     ['neither', {}],
     ['both', {userId: crypto.randomUUID(), parentRun: {runId: crypto.randomUUID()}}],
+    [
+      'a parent run and an agent conversation',
+      {
+        parentRun: {runId: crypto.randomUUID()},
+        conversation: {id: crypto.randomUUID(), agentKey: 'shippy', provider: 'slack'},
+      },
+    ],
   ] as const)('rejects %s caller forms without side effects', async (_label, caller) => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
       event: 'fire',
       config: {},
     });
-    const callerError = 'Exactly one of userId or parentRun must be provided';
+    const callerError = 'Exactly one of userId, parentRun, or an agent conversation is required';
 
     await expect(
       fireManualTrigger({
@@ -237,6 +244,45 @@ describe('fireManualSubscription (trigger history)', () => {
     const [call] = runWorkflow.mock.calls;
     expect(call?.[0].triggerPayload).toMatchObject({userId, conversation});
     expect(call?.[0]).not.toHaveProperty('parentRun');
+  });
+
+  test('starts a run for an agent actor with no user', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    const conversation = {id: crypto.randomUUID(), agentKey: 'shippy', provider: 'slack'};
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Run'});
+
+    await fireManualTrigger({
+      workflows,
+      workspaceId: subscription.workspaceId,
+      definitionId: subscription.workflowDefinitionId,
+      conversation,
+    });
+
+    const [call] = runWorkflow.mock.calls;
+    expect(call?.[0].triggerPayload).toMatchObject({conversation});
+    expect(call?.[0].triggerPayload).not.toHaveProperty('userId');
+  });
+
+  test('rejects an agent actor without a provider', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+
+    await expect(
+      fireManualTrigger({
+        workflows,
+        workspaceId: subscription.workspaceId,
+        definitionId: subscription.workflowDefinitionId,
+        conversation: {id: crypto.randomUUID(), agentKey: 'shippy'},
+      }),
+    ).rejects.toThrow('needs the provider of its conversation');
+    expect(runWorkflow).not.toHaveBeenCalled();
   });
 
   test('pins an own __proto__ secret input key', async () => {

@@ -1101,6 +1101,7 @@ export class ShipfoxAgentToolsProvider
         ...(secretInputs === undefined ? {} : {secretInputs}),
         idempotencyKey,
       });
+      const url = workflowRunUrl({clientBaseUrl: this.options.clientBaseUrl, runId: started.id});
       // The runtime links the run, not the model, so every conversation-started run delivers.
       // A repeated call registers again, which changes nothing.
       if (caller.callerKind === 'conversation') {
@@ -1108,6 +1109,7 @@ export class ShipfoxAgentToolsProvider
           workspaceId: caller.workspaceId,
           conversationId: caller.conversationId,
           workflowRunId: started.id,
+          link: {label: started.name, url},
         });
       }
       const overview = await this.options.workflows.getWorkflowRunOverview({
@@ -1120,7 +1122,7 @@ export class ShipfoxAgentToolsProvider
         run_number: overview.run.number,
         name: started.name,
         project_id: projectId,
-        url: workflowRunUrl({clientBaseUrl: this.options.clientBaseUrl, runId: started.id}),
+        url,
         deduplicated: started.deduplicated,
       });
     } catch (error) {
@@ -2242,7 +2244,11 @@ function startWorkflowRunRefusal(
 ): ShipfoxToolCallResult | undefined {
   if (caller.callerKind === undefined)
     return toolError('Shipfox tools require callerKind in workflow caller context');
-  if (caller.callerKind === 'conversation' && caller.actorUserId === undefined) {
+  if (
+    caller.callerKind === 'conversation' &&
+    caller.actorUserId === undefined &&
+    caller.originProvider === undefined
+  ) {
     return toolError(
       'This conversation has no Shipfox user to start a run for',
       'actor-unavailable',
@@ -2267,9 +2273,14 @@ function runBudgetExhausted(): ShipfoxToolCallResult {
 
 function startedBy(caller: ShipfoxCaller) {
   if (caller.callerKind === 'conversation') {
+    // An integration conversation has no Shipfox user, so the agent is the actor.
     return {
-      userId: caller.actorUserId as string,
-      conversation: {id: caller.conversationId, agentKey: caller.agentKey},
+      ...(caller.actorUserId === undefined ? {} : {userId: caller.actorUserId}),
+      conversation: {
+        id: caller.conversationId,
+        agentKey: caller.agentKey,
+        ...(caller.originProvider === undefined ? {} : {provider: caller.originProvider}),
+      },
     };
   }
   return {parentRun: {runId: caller.runId}};

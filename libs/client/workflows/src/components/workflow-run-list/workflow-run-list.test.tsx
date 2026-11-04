@@ -50,6 +50,19 @@ describe('WorkflowRunList', () => {
     );
   });
 
+  test('says by the agent and provider on a run an agent started for no user', async () => {
+    const run = workflowRunListItem({
+      conversation: {agent_key: 'shippy', provider: 'slack', author_user_id: null},
+    });
+
+    renderWithRouter(<WorkflowRunRow run={run} workspaceSlug="acme" projectSlug="checkout-api" />);
+
+    expect(await screen.findByText('by Shippy in Slack')).toBeInTheDocument();
+    expect(screen.getByRole('link')).toHaveAccessibleName(
+      expect.stringContaining('started by Shippy in Slack'),
+    );
+  });
+
   test('resolves a parent link in another project', async () => {
     const parentRunId = '77777777-7777-4777-8777-777777777777';
     const parentProjectId = '99999999-9999-4999-8999-999999999999';

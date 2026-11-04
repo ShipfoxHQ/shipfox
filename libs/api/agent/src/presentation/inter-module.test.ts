@@ -49,6 +49,31 @@ describe('agent inter-module presentation', () => {
     ).resolves.toEqual({registered: false});
   });
 
+  test('shows the run link on the conversation only when one is registered', async () => {
+    const {conversation} = await conversationFactory.create();
+    const reportInteractionProgress = vi.fn().mockResolvedValue({reported: true});
+    const presentation = createAgentInterModulePresentation({
+      secrets: agentTestSecretsClient,
+      integrations: {reportInteractionProgress},
+    });
+    const context = {signal: new AbortController().signal};
+
+    await expect(
+      presentation.handlers.registerConversationRun(
+        {
+          workspaceId: conversation.workspaceId,
+          conversationId: conversation.id,
+          workflowRunId: crypto.randomUUID(),
+          link: {label: 'Deploy', url: 'https://app.shipfox.test/runs/1'},
+        },
+        context,
+      ),
+    ).resolves.toEqual({registered: true});
+
+    // A web conversation has no surface to show the link on.
+    expect(reportInteractionProgress).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     workspaceDefaultsResolverMocks.getWorkspaceAgentValidationCatalog.mockClear();
   });

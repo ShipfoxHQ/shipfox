@@ -606,6 +606,21 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).getByText('Started via Shippy')).toBeInTheDocument();
   });
 
+  test('names the agent and the provider when an agent started the run for no user', async () => {
+    renderSummaryWithRouter({
+      run: workflowRunOverview({
+        conversation: {agent_key: 'shippy', provider: 'slack', author_user_id: null},
+      }),
+      workspaceSlug: 'acme',
+      projectSlug: 'project',
+    });
+
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(within(summary).getByText('Started by Shippy in Slack')).toBeInTheDocument();
+    expect(within(summary).queryByRole('link', {name: SHIPPY_LINK_NAME})).not.toBeInTheDocument();
+  });
+
   test('links a dev replay run to its source event', async () => {
     const EVENT_ID = '88888888-8888-4888-8888-888888888888';
     const run = workflowRunOverview({

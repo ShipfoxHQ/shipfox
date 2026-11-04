@@ -650,6 +650,7 @@ function toAgentToolsCaller(
       turnId: caller.turnId,
       callItemId: caller.callItemId,
       actorUserId: caller.actorUserId,
+      originProvider: caller.originProvider,
     };
   }
 
