@@ -1,6 +1,7 @@
 import type {WorkflowsJobExecutionQueuedEventDto} from '@shipfox/api-workflows-dto';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
+import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {claimPendingJobExecution} from '#db/job-executions.js';
 import {pendingJobExecutions} from '#db/schema/pending-job-executions.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
@@ -53,5 +54,30 @@ describe('onWorkflowsJobExecutionQueued', () => {
         .from(runningJobExecutions)
         .where(eq(runningJobExecutions.jobExecutionId, payload.jobExecutionId)),
     ).toHaveLength(1);
+  });
+
+  it('skips a job of a deleted project', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const jobExecutionId = crypto.randomUUID();
+    await recordProjectDeleted({workspaceId, projectId}, 'project_deleted');
+
+    await onWorkflowsJobExecutionQueued({
+      jobId: crypto.randomUUID(),
+      jobExecutionId,
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
+      workspaceId,
+      projectId,
+      requiredLabels: ['linux'],
+      queuedAt: '2026-08-11T08:00:00.000Z',
+    });
+
+    expect(
+      await db()
+        .select()
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.jobExecutionId, jobExecutionId)),
+    ).toEqual([]);
   });
 });

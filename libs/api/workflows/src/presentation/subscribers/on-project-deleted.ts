@@ -2,8 +2,8 @@ import type {ProjectDeletedEvent} from '@shipfox/api-projects-dto';
 import {purgeDeletedProject} from '#core/purge-project.js';
 
 /**
- * Cancels the project's open runs, then deletes its run history. A run that is still stopping
- * stays, so the event is redelivered until none remains.
+ * Cancels the project's open runs, then deletes its run history. A run that is still open stays,
+ * so the event fails and the outbox retries it, up to its attempt limit.
  */
 export async function onProjectDeleted(event: ProjectDeletedEvent): Promise<void> {
   const {remaining} = await purgeDeletedProject({
@@ -11,6 +11,6 @@ export async function onProjectDeleted(event: ProjectDeletedEvent): Promise<void
     projectId: event.projectId,
   });
   if (remaining > 0) {
-    throw new Error(`Runs of a deleted project are still stopping: ${event.projectId}`);
+    throw new Error(`Runs of a deleted project are still open: ${event.projectId}`);
   }
 }

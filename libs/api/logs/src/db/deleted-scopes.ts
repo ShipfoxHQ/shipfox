@@ -55,7 +55,9 @@ export async function listProjectStreams(
 
 /**
  * Deletes the streams, which cascades to their chunks, and the accounting of the jobs that have
- * no stream left. The caller deletes the stored objects first.
+ * no stream left. The caller deletes the stored objects first. Each delete is guarded on the
+ * observed `object_key`, so a stream that compaction published meanwhile stays for the next pass,
+ * which sweeps its new objects before deleting it.
  */
 export async function deleteStreamsWithAccounting(
   streams: readonly AttemptStream[],
@@ -63,12 +65,18 @@ export async function deleteStreamsWithAccounting(
   if (streams.length === 0) return;
   const jobIds = [...new Set(streams.map((stream) => stream.jobId))];
   await db().transaction(async (tx) => {
-    await tx.delete(attemptStreams).where(
-      inArray(
-        attemptStreams.id,
-        streams.map((stream) => stream.id),
-      ),
-    );
+    for (const stream of streams) {
+      await tx
+        .delete(attemptStreams)
+        .where(
+          and(
+            eq(attemptStreams.id, stream.id),
+            stream.objectKey === null
+              ? isNull(attemptStreams.objectKey)
+              : eq(attemptStreams.objectKey, stream.objectKey),
+          ),
+        );
+    }
     await tx
       .delete(jobAccounting)
       .where(

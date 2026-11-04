@@ -8,7 +8,7 @@ import {stopWork} from './stop-work.js';
 
 /**
  * Blocks later writes for a deleted project, stops its open runs, then deletes its finished runs
- * with their children. A run that is still stopping stays, and the next pass deletes it. Returns
+ * with their children. A run that is still open stays, and the next pass deletes it. Returns
  * how many runs remain, and marks the project purged once none does.
  */
 export async function purgeDeletedProject(params: {

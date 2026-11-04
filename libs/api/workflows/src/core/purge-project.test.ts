@@ -1,4 +1,4 @@
-import {eq} from 'drizzle-orm';
+import {and, eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {workflowsDeletedScopes} from '#db/schema/deleted-scopes.js';
@@ -19,7 +19,12 @@ async function deletedScope(scope: {workspaceId: string; projectId: string}) {
   const [row] = await db()
     .select()
     .from(workflowsDeletedScopes)
-    .where(eq(workflowsDeletedScopes.projectId, scope.projectId));
+    .where(
+      and(
+        eq(workflowsDeletedScopes.workspaceId, scope.workspaceId),
+        eq(workflowsDeletedScopes.projectId, scope.projectId),
+      ),
+    );
   return row;
 }
 
@@ -82,6 +87,7 @@ describe('purgeDeletedProject', () => {
 
     await purgeDeletedProject({workspaceId, projectId});
     const first = await deletedScope({workspaceId, projectId});
+    expect(first).toBeDefined();
     const second = await purgeDeletedProject({workspaceId, projectId});
 
     expect(second).toEqual({remaining: 0});

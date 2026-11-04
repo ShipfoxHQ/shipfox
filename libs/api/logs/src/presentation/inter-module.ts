@@ -4,6 +4,7 @@ import {
   defineInterModulePresentation,
   type InterModulePresentation,
 } from '@shipfox/inter-module';
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {appendServerRecords} from '#core/append-server-records.js';
 import {describeStepLogStream} from '#core/describe-step-log-stream.js';
 import {
@@ -53,6 +54,9 @@ export function toReadStepLogTailKnownError(error: unknown): unknown {
 
 export function toAppendServerRecordsKnownError(error: unknown): unknown {
   const method = logsInterModuleContract.methods.appendServerRecords;
+  if (error instanceof ScopeDeletedError) {
+    return createInterModuleKnownError(method, 'project-deleted', {});
+  }
   if (error instanceof LeaseStreamMismatchError) {
     return createInterModuleKnownError(method, 'lease-stream-mismatch', {});
   }

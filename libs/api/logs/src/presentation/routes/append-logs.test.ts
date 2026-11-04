@@ -2,6 +2,7 @@ import {Buffer} from 'node:buffer';
 import {AUTH_AGENT_LOG_DOWNLOAD, AUTH_USER} from '@shipfox/api-auth-context';
 import {type AuthMethod, closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {appendServerRecords} from '#core/append-server-records.js';
+import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {fakeLeaseTokenAuthMethod, mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {endLine, ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
 import {createTestWorkflowsClient} from '#test/fixtures/workflows-client.js';
@@ -84,6 +85,24 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({committed_length: body.length, capped: false});
+  });
+
+  it('answers not-found for a project that was deleted', async () => {
+    const stepId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const token = await mintTestLeaseToken({stepId, workspaceId, projectId});
+    await recordProjectDeleted({workspaceId, projectId}, 'project_deleted');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: logsUrl(stepId, 1, 0),
+      headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
+      payload: ndjsonBody(outputLine('too late\n')),
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('project-not-found');
   });
 
   it('rejects appends for a step outside the leased execution', async () => {
