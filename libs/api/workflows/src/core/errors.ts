@@ -28,6 +28,14 @@ export class ProjectMismatchError extends Error {
   }
 }
 
+/** The project is deleted, or isn't in the workspace, so it takes no new work. */
+export class ProjectDeletedError extends Error {
+  constructor(readonly projectId: string) {
+    super(`Project is deleted: ${projectId}`);
+    this.name = 'ProjectDeletedError';
+  }
+}
+
 export class WorkspaceSuspendedError extends Error {
   constructor(readonly workspaceId: string) {
     super(`Workspace is suspended: ${workspaceId}`);
@@ -353,6 +361,7 @@ export function isPermanentRunWorkflowError(error: unknown): boolean {
   return (
     error instanceof DefinitionNotFoundError ||
     error instanceof ProjectMismatchError ||
+    error instanceof ProjectDeletedError ||
     error instanceof AgentConfigUnresolvableError ||
     error instanceof AgentIntegrationMaterializationError ||
     error instanceof InterpolationUnresolvableError ||

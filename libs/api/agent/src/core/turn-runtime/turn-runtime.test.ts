@@ -124,7 +124,8 @@ async function setup(body = 'Why did run 7 fail?') {
     body,
   });
   const integrations = createFakeIntegrations();
-  const projects = createTestProjectsClient({projects: new Map([[projectId, {workspaceId}]])});
+  const projectMap = new Map([[projectId, {workspaceId}]]);
+  const projects = createTestProjectsClient({projects: projectMap});
   const workspaces = createTestWorkspacesClient();
   workspaces.state.memberOf.add(workspaceId);
   const deps = {integrations: integrations.client, projects, workspaces: workspaces.client};
@@ -141,6 +142,7 @@ async function setup(body = 'Why did run 7 fail?') {
     ownerUserId,
     integrations,
     workspaces,
+    projectMap,
     deps,
     begin,
     items,
@@ -935,6 +937,76 @@ describe('turn admission', () => {
     await begin();
 
     expect(await listConversationsToRecover(100)).not.toContain(conversation.id);
+  });
+});
+
+describe('deleted project', () => {
+  it('opens no first turn, writes no notice, and settles the inputs', async () => {
+    const {projectMap, projectId, deps, conversation, items} = await setup();
+    projectMap.delete(projectId);
+
+    const turn = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(turn).toBeUndefined();
+    expect((await items()).map((item) => item.meta.role ?? item.meta.custom_type)).toEqual([
+      'user',
+    ]);
+    expect(await listConversationsToRecover(100)).not.toContain(conversation.id);
+  });
+
+  it('checks the project before it asks Definitions for the agents', async () => {
+    const {projectMap, projectId, deps, conversation, items} = await setup();
+    projectMap.delete(projectId);
+    const listProjectAgents = vi.fn().mockRejectedValue(new Error('project-not-found'));
+    const definitions = {listProjectAgents} as never;
+
+    const turn = await beginConversationTurn({
+      conversationId: conversation.id,
+      deps: {...deps, definitions},
+    });
+
+    expect(turn).toBeUndefined();
+    expect(listProjectAgents).not.toHaveBeenCalled();
+    expect((await items()).map((item) => item.meta.role ?? item.meta.custom_type)).toEqual([
+      'user',
+    ]);
+  });
+
+  it('refuses a later turn quietly, after the pinned prompt', async () => {
+    const {begin, projectMap, projectId, deps, conversation, ownerUserId, items} = await setup();
+    const turnId = await begin();
+    await finishConversationTurn({conversationId: conversation.id, turnId, status: 'succeeded'});
+    await postWebConversationMessage({
+      conversation: (await getConversationById(conversation.id)) as never,
+      authorUserId: ownerUserId,
+      clientMessageId: crypto.randomUUID(),
+      body: 'Anyone there?',
+    });
+    projectMap.delete(projectId);
+
+    const next = await beginConversationTurn({conversationId: conversation.id, deps});
+
+    expect(next).toBeUndefined();
+    expect((await items()).map((item) => item.meta.role ?? item.meta.custom_type)).toEqual([
+      'system',
+      'user',
+      'user',
+    ]);
+  });
+
+  it('does not call the admission policy for a deleted project', async () => {
+    const {begin, projectMap, projectId, deps, conversation} = await setup();
+    const turnId = await begin();
+    await finishConversationTurn({conversationId: conversation.id, turnId, status: 'succeeded'});
+    const admit = vi.fn().mockResolvedValue({allowed: true});
+    projectMap.delete(projectId);
+
+    await beginConversationTurn({
+      conversationId: conversation.id,
+      deps: {...deps, admission: {policy: {admit}}},
+    });
+
+    expect(admit).not.toHaveBeenCalled();
   });
 });
 

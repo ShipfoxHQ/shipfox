@@ -88,6 +88,7 @@ export const agentTestClient: AgentInterModuleClient = {
       credentials: {api_key: 'test-agent-credential'},
     });
   },
+  stopWork: vi.fn(),
   claimSession: vi.fn(),
   releaseSession: vi.fn(),
   carryOverSessions: vi.fn(),

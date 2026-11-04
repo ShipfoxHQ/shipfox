@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import type {ManagedModelProvider} from '@shipfox/api-agent-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   WORKFLOWS_JOB_ACTIVATED,
@@ -27,6 +28,7 @@ import {createAgentE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createAgentInterModulePresentation} from '#presentation/inter-module.js';
 import {createAgentRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';
+import {onProjectDeleted} from '#presentation/subscribers/on-project-deleted.js';
 import {createOnRunLifecycle} from '#presentation/subscribers/on-run-lifecycle.js';
 import {onStepAttemptTerminated} from '#presentation/subscribers/on-step-attempt-terminated.js';
 import {onWorkflowRunTerminated} from '#presentation/subscribers/on-workflow-run-terminated.js';
@@ -123,6 +125,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
   const subscriber = subscriberFactory<WorkflowsEventMapDto>();
+  const projectsSubscriber = subscriberFactory<ProjectsEventMap>();
   const {projects, integrations, workspaces} = params;
   const runsTurns =
     projects !== undefined && integrations !== undefined && workspaces !== undefined;
@@ -174,6 +177,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
     // sweep needs the workflows client (it lists the job's step attempts), so
     // that subscriber is gated on the optional argument.
     subscribers: [
+      projectsSubscriber(PROJECT_DELETED, onProjectDeleted),
       subscriber(WORKFLOWS_STEP_ATTEMPT_TERMINATED, onStepAttemptTerminated),
       subscriber(WORKFLOWS_WORKFLOW_RUN_TERMINATED, onWorkflowRunTerminated),
       ...(params.workflows === undefined

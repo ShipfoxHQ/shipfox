@@ -211,6 +211,19 @@ export type InteractionRoutingResult = z.infer<typeof interactionRoutingResultSc
 export const agentInterModuleContract = defineInterModuleContract({
   module: 'agent',
   methods: {
+    /**
+     * Stops every active turn in the scope. A repeat call is safe. `remaining` counts the turns
+     * still running, so a caller repeats until it reads 0. With `project_deleted`, nothing is
+     * posted to the provider the conversation came from.
+     */
+    stopWork: {
+      input: z.object({
+        scope: z.object({workspaceId: z.string().uuid(), projectId: z.string().uuid().optional()}),
+        reason: z.enum(['project_deleted', 'workspace_suspended', 'limit_reached']),
+      }),
+      output: z.object({remaining: z.number().int().nonnegative()}),
+      errors: {},
+    },
     getValidationCatalog: {
       input: z.object({}),
       output: agentValidationCatalogSchema,

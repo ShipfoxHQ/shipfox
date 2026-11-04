@@ -4,6 +4,7 @@ export {
 } from './on-failure-annotations.js';
 export {onJobEventDelivered} from './on-job-event-delivered.js';
 export {onJobStepsSettled} from './on-job-steps-settled.js';
+export {onProjectDeleted} from './on-project-deleted.js';
 export {onRunnerJobClaimed} from './on-runner-job-claimed.js';
 export {onRunnerJobExecutionPlacementDenied} from './on-runner-job-execution-placement-denied.js';
 export {onRunnerJobLeaseExpired} from './on-runner-job-lease-expired.js';

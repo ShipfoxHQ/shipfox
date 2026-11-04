@@ -15,6 +15,7 @@ import type {
   WorkflowSourceSnapshot,
 } from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
+import {assertProjectAdmitsNewRuns} from './project-admission.js';
 import {assertProjectSourceAdmits} from './project-source-admission.js';
 import {modelHasAgentStep} from './step-config/materialize-workflow-model.js';
 
@@ -29,7 +30,7 @@ export interface RunWorkflowParams {
   parentRun?: {runId: string} | undefined;
   triggerIdempotencyKey?: string | undefined;
   integrations?: IntegrationsModuleClient | undefined;
-  projects?: ProjectsModuleClient | undefined;
+  projects: ProjectsModuleClient;
 }
 
 export async function runWorkflow(
@@ -37,6 +38,10 @@ export async function runWorkflow(
   params: RunWorkflowParams & {agent: AgentInterModuleClient},
   options: {secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>} = {},
 ): Promise<WorkflowRunCreationResult> {
+  await assertProjectAdmitsNewRuns(params.projects, {
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+  });
   const {definition} = await definitions.getDefinitionForWorkflowRun({
     definitionId: params.definitionId,
   });
@@ -50,7 +55,7 @@ export async function runWorkflow(
   const startsNewRun =
     params.triggerIdempotencyKey === undefined ||
     !(await workflowRunExistsForIdempotencyKey(params.triggerIdempotencyKey));
-  if (startsNewRun && params.projects !== undefined && params.integrations !== undefined) {
+  if (startsNewRun && params.integrations !== undefined) {
     await assertProjectSourceAdmits({
       model,
       projectId: params.projectId,
@@ -97,7 +102,7 @@ export interface RunDevWorkflowParams {
   triggerConnectionId?: string | undefined;
   inputs?: Record<string, unknown> | undefined;
   integrations?: IntegrationsModuleClient | undefined;
-  projects?: ProjectsModuleClient | undefined;
+  projects: ProjectsModuleClient;
 }
 
 /**
@@ -107,11 +112,15 @@ export interface RunDevWorkflowParams {
  * definition_id so dev runs share the workflow numbering sequence before and
  * after the file merges.
  */
-export function runDevWorkflow(
+export async function runDevWorkflow(
   agent: AgentInterModuleClient,
   params: RunDevWorkflowParams,
   options: {secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>} = {},
 ): Promise<WorkflowRun> {
+  await assertProjectAdmitsNewRuns(params.projects, {
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+  });
   const model = workflowModelFromSnapshot(params.model);
   const resolveAgentDefaults = createAgentDefaultsResolver(
     agent,

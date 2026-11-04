@@ -5,10 +5,15 @@ import {
   agentValidationCatalog,
   agentValidationCatalogV2,
 } from '#test/fixtures/agent-inter-module.js';
+import {
+  projectsAdmittingTestClient,
+  projectsDeletedTestClient,
+} from '#test/fixtures/projects-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import type {TriggerPayload, WorkflowRunDevSource} from './entities/workflow-run.js';
 import {
   DefinitionNotFoundError,
+  ProjectDeletedError,
   ProjectMismatchError,
   SourceConnectionUnavailableError,
 } from './errors.js';
@@ -89,6 +94,7 @@ describe('runWorkflow', () => {
     getWorkspaceModels: vi.fn(),
     resolveAgentConfig: mockResolveAgentConfig,
     resolveRuntimeCredentials: vi.fn(),
+    stopWork: vi.fn(),
     claimSession: vi.fn(),
     releaseSession: vi.fn(),
     carryOverSessions: vi.fn(),
@@ -104,12 +110,32 @@ describe('runWorkflow', () => {
     definitionResponse = null;
   });
 
+  describe('deleted project', () => {
+    test('refuses a run for a job that checks out nothing and calls no tool', async () => {
+      const model = workflowModel({jobs: {build: {checkout: false, steps: [{run: 'make'}]}}});
+      const definition = buildDefinition({projectId, model});
+      definitionResponse = definition;
+
+      await expect(
+        runWorkflow(definitions, {
+          workspaceId,
+          projectId,
+          definitionId: definition.id,
+          triggerPayload: manualPayload(),
+          agent,
+          projects: projectsDeletedTestClient,
+        }),
+      ).rejects.toEqual(new ProjectDeletedError(projectId));
+    });
+  });
+
   test('creates a run from a valid definition with the provided manual trigger payload', async () => {
     const definition = buildDefinition({projectId});
     definitionResponse = definition;
     const triggerPayload = manualPayload();
 
     const run = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,
@@ -139,6 +165,7 @@ describe('runWorkflow', () => {
     definitionResponse = definition;
 
     const run = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,
@@ -163,6 +190,7 @@ describe('runWorkflow', () => {
               sourceExternalRepositoryId: 'acme/api',
             },
           }),
+          requireProjectForWorkspace: async () => ({project: undefined}),
         } as never,
         integrations: {
           resolveConnectionById: async () => ({id: connectionId, lifecycleStatus}),
@@ -258,6 +286,7 @@ describe('runWorkflow', () => {
     };
 
     const run = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,
@@ -277,6 +306,7 @@ describe('runWorkflow', () => {
     definitionResponse = definition;
 
     const run = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,
@@ -295,6 +325,7 @@ describe('runWorkflow', () => {
     definitionResponse = definition;
 
     const first = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,
@@ -302,6 +333,7 @@ describe('runWorkflow', () => {
       agent,
     });
     const second = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,
@@ -318,6 +350,7 @@ describe('runWorkflow', () => {
     const resynced = buildDefinition({projectId, id: crypto.randomUUID(), workflowId: lineageId});
     definitionResponse = resynced;
     const third = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: resynced.id,
@@ -336,6 +369,7 @@ describe('runWorkflow', () => {
 
     await expect(
       runWorkflow(definitions, {
+        projects: projectsAdmittingTestClient,
         workspaceId,
         projectId,
         definitionId: unknownId,
@@ -352,6 +386,7 @@ describe('runWorkflow', () => {
 
     await expect(
       runWorkflow(definitions, {
+        projects: projectsAdmittingTestClient,
         workspaceId,
         projectId,
         definitionId: definition.id,
@@ -366,6 +401,7 @@ describe('runWorkflow', () => {
     definitionResponse = definition;
 
     const run = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,
@@ -387,6 +423,7 @@ describe('runDevWorkflow', () => {
     getWorkspaceModels: vi.fn(),
     resolveAgentConfig: mockResolveAgentConfig,
     resolveRuntimeCredentials: vi.fn(),
+    stopWork: vi.fn(),
     claimSession: vi.fn(),
     releaseSession: vi.fn(),
     carryOverSessions: vi.fn(),
@@ -417,6 +454,7 @@ describe('runDevWorkflow', () => {
 
   function buildDevRun(workflowId: string, triggerPayload: TriggerPayload = devPayload()) {
     return runDevWorkflow(agent, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       workflowId,
@@ -426,6 +464,21 @@ describe('runDevWorkflow', () => {
       triggerPayload,
     });
   }
+
+  test('refuses a run for a deleted project', async () => {
+    await expect(
+      runDevWorkflow(agent, {
+        workspaceId,
+        projectId,
+        workflowId: crypto.randomUUID(),
+        model: createWorkflowModelSnapshot(workflowModel({name: 'Dev Workflow'})),
+        sourceSnapshot: {content: 'name: Dev Workflow\n', format: 'yaml'},
+        devSource,
+        triggerPayload: devPayload(),
+        projects: projectsDeletedTestClient,
+      }),
+    ).rejects.toEqual(new ProjectDeletedError(projectId));
+  });
 
   test('creates a dev run with the lineage id as definition_id and dev provenance', async () => {
     const workflowId = crypto.randomUUID();
@@ -457,6 +510,7 @@ describe('runDevWorkflow', () => {
     });
     definitionResponse = definition;
     const syncedRun = await runWorkflow(definitions, {
+      projects: projectsAdmittingTestClient,
       workspaceId,
       projectId,
       definitionId: definition.id,

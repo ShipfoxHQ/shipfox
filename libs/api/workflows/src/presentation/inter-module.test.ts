@@ -23,6 +23,7 @@ import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/te
 import type {WorkflowRun} from '#core/entities/workflow-run.js';
 import {
   InvalidJobRunnerLabelsError,
+  ProjectDeletedError,
   SourceConnectionUnavailableError,
   WorkflowAdmissionDeniedError,
   WorkflowDiagnosticTooLargeError,
@@ -40,6 +41,7 @@ import {
   ProjectMismatchError,
 } from '#core/index.js';
 import {getWorkflowRunById} from '#db/workflow-runs.js';
+import {projectsDeletedTestClient} from '#test/fixtures/projects-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import {
   createWorkflowsInterModulePresentation,
@@ -1853,6 +1855,7 @@ describe('Workflows inter-module presentation', () => {
           WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES + 1,
         ),
     ],
+    ['project-deleted', () => new ProjectDeletedError(input.projectId)],
     [
       'workflow-execution-payload-too-large',
       () =>
@@ -2180,6 +2183,7 @@ describe('Workflows inter-module presentation', () => {
       definitions: {} as never,
       integrations: {} as never,
       projects: {
+        requireProjectForWorkspace: vi.fn().mockResolvedValue({project: {}}),
         getProjectById: vi.fn().mockResolvedValue({
           project: {
             sourceConnectionId: crypto.randomUUID(),
@@ -2326,6 +2330,7 @@ describe('Workflows inter-module presentation', () => {
             .mockResolvedValue({id: connectionId, lifecycleStatus: params.lifecycleStatus}),
         } as never,
         projects: {
+          requireProjectForWorkspace: vi.fn().mockResolvedValue({project: {}}),
           getProjectById: vi.fn().mockResolvedValue({
             project: {
               id: input.projectId,
@@ -2601,6 +2606,49 @@ describe('Workflows inter-module presentation', () => {
     expect(mocks.deliverEventToListener).toHaveBeenCalled();
   });
 
+  test('refuses a fire delivery to a listening job of a deleted project', async () => {
+    const jobId = '00000000-0000-4000-8000-000000000006';
+    const workspaceId = '00000000-0000-4000-8000-000000000007';
+    const projectId = '00000000-0000-4000-8000-000000000009';
+    mocks.getJobScope.mockResolvedValue({workspaceId, projectId});
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: {} as never,
+      integrations: {} as never,
+      projects: projectsDeletedTestClient,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {
+        getWorkspaceOperatingState: vi.fn().mockResolvedValue({status: 'active'}),
+      } as never,
+    });
+
+    const error = await Promise.resolve(
+      presentation.handlers.deliverEventToJobListener(
+        {
+          jobId,
+          disposition: 'fire',
+          eventRef: crypto.randomUUID(),
+          deliveryId: crypto.randomUUID(),
+          source: 'github',
+          event: 'pull_request',
+          provider: 'github',
+          payload: {},
+          receivedAt: '2026-01-01T00:00:00.000Z',
+        },
+        {signal: new AbortController().signal},
+      ),
+    ).catch((caught: unknown) => caught);
+
+    expect(
+      isInterModuleKnownError(
+        workflowsInterModuleContract.methods.deliverEventToJobListener,
+        error,
+      ) && error.code,
+    ).toBe('project-deleted');
+    expect(mocks.deliverEventToListener).not.toHaveBeenCalled();
+  });
+
   test('persists a null trigger reference when fire delivery has no source connection', async () => {
     const jobId = '00000000-0000-4000-8000-000000000006';
     const workspaceId = '00000000-0000-4000-8000-000000000007';
@@ -2609,7 +2657,7 @@ describe('Workflows inter-module presentation', () => {
       agent: {} as never,
       definitions: {} as never,
       integrations: {} as never,
-      projects: {} as never,
+      projects: {requireProjectForWorkspace: vi.fn().mockResolvedValue({project: {}})} as never,
       runners: {} as never,
       secrets: {} as never,
       workspaces: {
@@ -2654,6 +2702,7 @@ describe('Workflows inter-module presentation', () => {
       }),
     };
     const projects = {
+      requireProjectForWorkspace: vi.fn().mockResolvedValue({project: {}}),
       getProjectBySource: vi.fn().mockResolvedValue({project: {id: projectId}}),
     };
     mocks.getJobScope.mockResolvedValue({workspaceId, projectId: input.projectId});

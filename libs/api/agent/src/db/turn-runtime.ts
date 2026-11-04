@@ -1,5 +1,18 @@
 import type {Buffer} from 'node:buffer';
-import {and, asc, desc, eq, gte, inArray, isNotNull, isNull, notExists, or, sql} from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
 import {
   type AgentTurn,
   type Conversation,
@@ -241,6 +254,74 @@ export async function requestTurnStop(conversationId: string): Promise<boolean> 
     )
     .returning({id: turns.id});
   return rows.length > 0;
+}
+
+/**
+ * Asks every running turn in the scope to stop, and returns how many still run. With `suppress`,
+ * each turn's reply is marked handled first, so nothing is posted back to the provider.
+ */
+export async function requestScopeTurnStops(params: {
+  scope: {workspaceId: string; projectId?: string | undefined};
+  suppressReplies: boolean;
+}): Promise<{remaining: number}> {
+  const {scope} = params;
+  const inScope = and(
+    eq(conversations.workspaceId, scope.workspaceId),
+    scope.projectId === undefined ? undefined : eq(conversations.projectId, scope.projectId),
+    exists(
+      db()
+        .select({one: sql`1`})
+        .from(turns)
+        .where(and(eq(turns.conversationId, conversations.id), eq(turns.status, 'running'))),
+    ),
+  );
+  return await db().transaction(async (tx) => {
+    // Conversations first, in id order, as `finishTurnRow` takes them. A turn finishing now waits
+    // for this stop, so its reply can't be sent before it is suppressed.
+    const locked = await tx
+      .select({id: conversations.id})
+      .from(conversations)
+      .where(inScope)
+      .orderBy(asc(conversations.id))
+      .for('update');
+    if (locked.length === 0) return {remaining: 0};
+    const running = await tx
+      .select({id: turns.id, conversationId: turns.conversationId})
+      .from(turns)
+      .where(
+        and(
+          inArray(
+            turns.conversationId,
+            locked.map(({id}) => id),
+          ),
+          eq(turns.status, 'running'),
+        ),
+      );
+    if (running.length === 0) return {remaining: 0};
+
+    if (params.suppressReplies) {
+      await tx
+        .insert(replyDeliveries)
+        .values(
+          running.map(({id, conversationId}) => ({
+            replyId: id,
+            conversationId,
+            outcome: 'suppressed' as const,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+    await tx
+      .update(turns)
+      .set({stopRequestedAt: sql`COALESCE(${turns.stopRequestedAt}, NOW())`})
+      .where(
+        inArray(
+          turns.id,
+          running.map(({id}) => id),
+        ),
+      );
+    return {remaining: running.length};
+  });
 }
 
 export async function isTurnStopRequested(turnId: string): Promise<boolean> {

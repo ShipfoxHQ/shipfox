@@ -77,6 +77,7 @@ export function createTestAgentClient(params: {
 
   return createFakeInterModuleClients({
     agent: defineInterModulePresentation(agentInterModuleContract, {
+      stopWork: vi.fn(),
       getValidationCatalog: vi.fn(),
       getValidationCatalogV2: vi.fn(),
       getWorkspaceModels: () =>

@@ -326,6 +326,7 @@ const startRunErrors = {
   'admission-denied': admissionDeniedDetailsSchema,
   'definition-not-found': z.object({definitionId: idSchema}),
   'project-mismatch': z.object({}),
+  'project-deleted': z.object({projectId: idSchema}),
   'source-connection-unavailable': z.object({
     projectId: idSchema,
     connectionId: idSchema.nullable(),
@@ -398,6 +399,7 @@ const startDevRunErrors = {
   'workspace-suspended': startRunErrors['workspace-suspended'],
   'workspace-deleted': startRunErrors['workspace-deleted'],
   'admission-denied': startRunErrors['admission-denied'],
+  'project-deleted': startRunErrors['project-deleted'],
   'agent-config-unresolvable': startRunErrors['agent-config-unresolvable'],
   'agent-integration-materialization-failed':
     startRunErrors['agent-integration-materialization-failed'],

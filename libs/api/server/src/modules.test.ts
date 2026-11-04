@@ -338,6 +338,7 @@ describe('defaultModules', () => {
           handlers: {
             getValidationCatalog: vi.fn(),
             getValidationCatalogV2: vi.fn(),
+            stopWork: vi.fn(),
             getWorkspaceModels: vi.fn(),
             resolveAgentConfig: vi.fn(),
             resolveRuntimeCredentials: vi.fn(),
@@ -425,6 +426,7 @@ describe('defaultModules', () => {
             resolveWorkflowRunTriggerReference: vi.fn(),
             startDevRun: vi.fn(),
             cancelWorkflowRun: vi.fn(),
+            stopWork: vi.fn(),
             rerunWorkflowRun: vi.fn(),
             startRunFromTrigger: vi.fn(),
           },
