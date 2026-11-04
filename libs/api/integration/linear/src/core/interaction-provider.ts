@@ -189,8 +189,8 @@ export class LinearInteractionProvider
 
   /**
    * Shows a tool call as an ephemeral `action` activity, which the next activity replaces, and
-   * puts links on the session. `idle` posts nothing: every turn ends with a reply, which clears
-   * the action.
+   * puts links on the session. `idle` posts nothing: every turn ends with a reply, and a delivered
+   * reply clears the action.
    */
   async reportProgress({
     connection,

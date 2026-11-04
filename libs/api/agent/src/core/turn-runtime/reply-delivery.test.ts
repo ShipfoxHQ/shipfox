@@ -23,11 +23,7 @@ import {
 import {routeInteraction} from '../interaction-routing.js';
 import {runModelCall} from './model-call.js';
 import type {CreateModelRuntime, ModelCallRuntime} from './model-runtime.js';
-import {
-  deliverConversationReply,
-  NO_TEXT_REPLY_TEXT,
-  REPLY_UNDELIVERABLE_NOTICE_CODE,
-} from './reply-delivery.js';
+import {deliverConversationReply, REPLY_UNDELIVERABLE_NOTICE_CODE} from './reply-delivery.js';
 import {runToolCall} from './tool-call.js';
 import {beginConversationTurn, finishConversationTurn} from './turn-lifecycle.js';
 
@@ -287,7 +283,7 @@ describe('reply delivery', () => {
     await deliver(turn.turnId);
 
     expect(integrations.replies).toHaveLength(1);
-    expect(integrations.replies[0]).toMatchObject({kind: 'response', text: NO_TEXT_REPLY_TEXT});
+    expect(integrations.replies[0]).toMatchObject({kind: 'response', text: 'Done.'});
     expect(integrations.progress.at(-1)).toMatchObject({state: 'idle'});
   });
 

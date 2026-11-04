@@ -22,7 +22,7 @@ import type {TurnFailureCode} from './failure-codes.js';
 import {CONTEXT_OVERFLOW_NOTICE, sealTurnNotice} from './turn-lifecycle.js';
 
 export const STOPPED_REPLY_TEXT = 'Stopped.';
-export const NO_TEXT_REPLY_TEXT = 'Done.';
+const NO_TEXT_REPLY_TEXT = 'Done.';
 export const REPLY_UNDELIVERABLE_NOTICE_CODE = 'reply-undeliverable';
 
 const FAILURE_REPLY_TEXT: Record<TurnFailureCode, string> = {
