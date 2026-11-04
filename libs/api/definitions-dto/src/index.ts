@@ -45,13 +45,18 @@ export {
   triggerDtoSchema,
 } from '#schemas/index.js';
 export {
+  type AgentRuleDto,
+  agentRuleDtoSchema,
+  DEFINITION_AGENT_RULES_RESOLVED,
   DEFINITION_DELETED,
   DEFINITION_INVALID,
   DEFINITION_RESOLVED,
+  type DefinitionAgentRulesResolvedEvent,
   type DefinitionDeletedEvent,
   type DefinitionInvalidEvent,
   type DefinitionResolvedEvent,
   type DefinitionsEventMap,
+  definitionAgentRulesResolvedEventSchema,
   definitionDeletedEventSchema,
   definitionInvalidEventSchema,
   definitionResolvedEventSchema,

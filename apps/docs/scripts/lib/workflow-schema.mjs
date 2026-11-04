@@ -394,10 +394,26 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
       'provider',
       'thinking',
       'integrations',
+      'on',
     ],
     select: (schema) => properties(schema),
-    nested: {integrations: '#agent-integration-fields'},
-    types: {instructions: 'string | PromptPart[]', integrations: 'Integration[]'},
+    nested: {integrations: '#agent-integration-fields', on: '#agent-rule-fields'},
+    types: {
+      instructions: 'string | PromptPart[]',
+      integrations: 'Integration[]',
+      on: 'Rule[]',
+    },
+  },
+  {
+    id: 'agent-rule-fields',
+    component: 'AgentRuleFields',
+    document: 'agent',
+    path: '.shipfox/agents/<key>.yaml on[*]',
+    example: 'agent-file.yml',
+    exampleFile: '.shipfox/agents/reviewer.yaml',
+    fields: ['source', 'filter'],
+    select: (schema) => properties(object(properties(schema).on).items),
+    required: ['source'],
   },
 ];
 

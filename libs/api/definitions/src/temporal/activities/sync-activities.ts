@@ -22,7 +22,10 @@ import {
   UNRESOLVED_SYNC_REF,
 } from '#core/index.js';
 import type {DefinitionsSourceControl} from '#core/integrations.js';
-import {loadIntegrationValidationContext} from '#core/integrations.js';
+import {
+  loadIntegrationValidationContext,
+  loadInteractionRequestSchemas,
+} from '#core/integrations.js';
 import {
   applyVcsAgentsBatch,
   applyVcsDefinitionsBatch,
@@ -263,6 +266,10 @@ function createFetchAndApplyAgentsActivity(
                   projectId: input.projectId,
                   defaultConnectionId: input.sourceConnectionId,
                 }),
+        loadInteractionRequestSchemas:
+          integrations === undefined
+            ? undefined
+            : async () => await loadInteractionRequestSchemas(integrations),
         onProgress: (path) => Context.current().heartbeat({path}),
       });
 
@@ -271,6 +278,7 @@ function createFetchAndApplyAgentsActivity(
       }
 
       const result = await applyVcsAgentsBatch({
+        workspaceId: input.workspaceId,
         projectId: input.projectId,
         valid: parsed.valid.map((entry) => ({
           key: entry.key,

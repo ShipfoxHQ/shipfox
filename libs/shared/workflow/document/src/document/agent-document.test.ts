@@ -40,10 +40,45 @@ describe('parseAgentDocument', () => {
     expect(document.integrations?.[0]?.include).toEqual(['pull_request_read']);
   });
 
-  it('rejects harness, on, and unknown keys', () => {
-    for (const extra of [{harness: 'pi'}, {on: []}, {key: 'x'}]) {
+  it('rejects harness and unknown keys', () => {
+    for (const extra of [{harness: 'pi'}, {key: 'x'}]) {
       expect(() =>
         parseAgentDocument({description: 'd', instructions: 'i', ...extra}, {key: 'reviewer'}),
+      ).toThrow(InvalidAgentDocumentError);
+    }
+  });
+
+  it('accepts on rules with a source and an optional filter', () => {
+    const document = parseAgentDocument(
+      {
+        description: 'd',
+        instructions: 'i',
+        on: [{source: 'slack', filter: 'request.channel_id == "C04PAYMENTS"'}, {source: 'linear'}],
+      },
+      {key: 'payments'},
+    );
+
+    expect(document.on).toEqual([
+      {source: 'slack', filter: 'request.channel_id == "C04PAYMENTS"'},
+      {source: 'linear'},
+    ]);
+  });
+
+  it('rejects rule fields that only workflow triggers have', () => {
+    for (const extra of [{event: 'app_mention'}, {with: {}}, {secrets: {}}, {config: {}}]) {
+      expect(() =>
+        parseAgentDocument(
+          {description: 'd', instructions: 'i', on: [{source: 'slack', ...extra}]},
+          {key: 'payments'},
+        ),
+      ).toThrow(InvalidAgentDocumentError);
+    }
+  });
+
+  it('rejects a rule without a source and a blank filter', () => {
+    for (const rule of [{filter: 'true'}, {source: ''}, {source: 'slack', filter: ''}]) {
+      expect(() =>
+        parseAgentDocument({description: 'd', instructions: 'i', on: [rule]}, {key: 'payments'}),
       ).toThrow(InvalidAgentDocumentError);
     }
   });
@@ -91,6 +126,7 @@ describe('buildAgentDocumentJsonSchema', () => {
       'integrations',
       'model',
       'name',
+      'on',
       'provider',
       'thinking',
     ]);

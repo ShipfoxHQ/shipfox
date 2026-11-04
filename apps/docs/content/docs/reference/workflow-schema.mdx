@@ -10,6 +10,7 @@ import {
   AgentFileFields,
   AgentIntegrationFields,
   AgentRepositoryContextFields,
+  AgentRuleFields,
   AgentMcpServerFields,
   AgentSessionFields,
   AgentStepFields,
@@ -207,6 +208,22 @@ run it again. The agent gets the result `unknown` and reads the current state
 before it tries again.
 
 <AgentFileFields />
+
+### Agent rules [#agent-rule-fields]
+
+An `on` rule claims requests for the agent. A request is a message that
+starts a conversation, such as a mention in a Slack channel or a Linear
+agent session.
+
+`source` is the slug of an integration connection that lets people talk to
+agents, such as `slack` or `linear`. A rule has no `event`, `with`,
+`secrets`, or `config`, because only requests can match. `filter` is a
+condition like a workflow trigger filter. It reads `request`, where the
+request was made, and `event`, the raw payload. Sync rejects a filter on a
+field that the provider does not set for `request`. A rule that sync rejects
+leaves the agent on its last valid version.
+
+<AgentRuleFields />
 
 ## Related pages
 

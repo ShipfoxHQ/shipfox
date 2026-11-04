@@ -1,3 +1,4 @@
+export type {AgentSubscription} from './agent-subscription.js';
 export type {
   JobListenerMatcherKind,
   JobListenerSubscription,

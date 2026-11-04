@@ -50,6 +50,13 @@
       "when": 1793663035936,
       "tag": "0006_event_resource",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793771051909,
+      "tag": "0007_agent_subscriptions",
+      "breakpoints": true
     }
   ]
 }

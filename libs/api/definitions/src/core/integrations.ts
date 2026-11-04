@@ -77,4 +77,14 @@ export async function loadIntegrationValidationContext({
   };
 }
 
+/** The JSON Schema of `request` for each provider that lets people talk to agents. */
+export async function loadInteractionRequestSchemas(
+  integrations: Pick<IntegrationsModuleClient, 'listInteractionProviders'>,
+): Promise<ReadonlyMap<string, Readonly<Record<string, unknown>>>> {
+  const {providers} = await integrations.listInteractionProviders({});
+  return new Map(
+    providers.map(({provider, requestContextSchema}) => [provider, requestContextSchema]),
+  );
+}
+
 export {integrationsInterModuleContract};

@@ -1,3 +1,4 @@
+export {onDefinitionAgentRulesResolved} from './on-definition-agent-rules-resolved.js';
 export {onDefinitionDeleted} from './on-definition-deleted.js';
 export {onDefinitionResolved} from './on-definition-resolved.js';
 export {createOnIntegrationEventReceived} from './on-integration-event-received.js';

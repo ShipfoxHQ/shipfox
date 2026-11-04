@@ -1,5 +1,6 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
+import {agentSubscriptions} from './schema/agent-subscriptions.js';
 import {triggersCronSchedules} from './schema/cron-schedules.js';
 import {triggersDecisions} from './schema/decisions.js';
 import {jobListenerSubscriptions} from './schema/job-listener-subscriptions.js';
@@ -8,6 +9,7 @@ import {triggersReceivedEvents} from './schema/received-events.js';
 import {triggerSubscriptions} from './schema/subscriptions.js';
 
 export const schema = {
+  agentSubscriptions,
   triggersCronSchedules,
   jobListenerSubscriptions,
   triggerSubscriptions,

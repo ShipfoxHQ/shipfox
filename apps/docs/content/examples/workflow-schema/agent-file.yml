@@ -8,3 +8,8 @@ provider: anthropic
 thinking: high
 integrations:
   - include: [pull_request_read]
+on:
+  - source: slack
+    filter: request.channel_id == "C04PAYMENTS" || request.viewing_channel_id == "C04PAYMENTS"
+  - source: linear
+    filter: "'payments' in request.labels"
