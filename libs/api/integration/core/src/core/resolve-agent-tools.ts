@@ -11,6 +11,7 @@ type AgentToolCatalogMethod = NonNullable<AgentToolCatalogEntry['methods']>[numb
 export type AgentToolsFailureReason =
   | 'connection-missing'
   | 'connection-provider-mismatch'
+  | 'connection-not-allowed'
   | 'source-connection-missing'
   | 'tool-unknown'
   | 'no-tools-selected'
@@ -72,6 +73,8 @@ export interface ResolvedAgentToolsGrant {
 export interface ResolveAgentToolsContext {
   readonly catalogs: AgentToolCatalogs;
   readonly workspaceConnections: WorkspaceConnectionSnapshot;
+  /** Slugs of the connections outside the project's access, which no selection may name. */
+  readonly blockedConnections?: ReadonlySet<string> | undefined;
   /** Null when the project has no connection to default to. */
   readonly defaultConnection: {
     readonly id: string;
@@ -156,6 +159,12 @@ function resolveConnection(params: {
       reason: 'connection-missing',
       connection: connectionSlug,
     });
+  }
+  if (context.blockedConnections?.has(connectionSlug)) {
+    throw new AgentToolsSelectionError(
+      `Integration connection ${connectionSlug} is not in this project's access`,
+      {reason: 'connection-not-allowed', connection: connectionSlug},
+    );
   }
   return {id: connection.id, slug: connectionSlug, provider: connection.provider};
 }

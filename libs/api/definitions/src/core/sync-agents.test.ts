@@ -73,8 +73,11 @@ function integrationContext(
     agentToolSelectionCatalogs: new Map([['github', {selectors}]]),
     agentToolCatalogs: new Map(),
     workspaceConnectionSnapshot: new Map([
-      ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
-      ['hooks', {id: 'connection-2', provider: 'webhook', capabilities: []}],
+      [
+        'github-main',
+        {id: 'connection-1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+      ],
+      ['hooks', {id: 'connection-2', provider: 'webhook', capabilities: [], allowed: true}],
     ]),
     eventCatalogs: new Map(),
     fixedEventProviders: new Set(),

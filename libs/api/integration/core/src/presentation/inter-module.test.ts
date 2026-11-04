@@ -2093,7 +2093,11 @@ describe('integrations template conformance', () => {
   describe('resolveAgentTools', () => {
     const projectId = crypto.randomUUID();
 
-    function createResolver(params: {workspaceId: string; sourceConnectionId?: string}) {
+    function createResolver(params: {
+      workspaceId: string;
+      sourceConnectionId?: string;
+      policies?: Parameters<typeof createProjectAccessClient>[0];
+    }) {
       const registry = createIntegrationProviderRegistry([
         {
           provider: 'github',
@@ -2116,6 +2120,14 @@ describe('integrations template conformance', () => {
         createIntegrationsInterModulePresentation({
           registry,
           sourceControl,
+          ...(params.policies === undefined
+            ? {}
+            : {
+                repositoryAuthorizer: createRepositoryAuthorizer({
+                  enabled: true,
+                  projects: createProjectAccessClient(params.policies),
+                }),
+              }),
           projects: {
             getProjectById: async () => {
               await Promise.resolve();
@@ -2211,6 +2223,52 @@ describe('integrations template conformance', () => {
       });
     });
 
+    it('refuses a selection that names a connection outside the project access', async () => {
+      const resolverWorkspaceId = crypto.randomUUID();
+      const github = await integrationConnectionFactory.create({
+        workspaceId: resolverWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'alpha',
+        slug: 'github_alpha',
+      });
+      await integrationConnectionFactory.create({
+        workspaceId: resolverWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'other',
+        slug: 'github_other',
+      });
+      const client = createResolver({
+        workspaceId: resolverWorkspaceId,
+        sourceConnectionId: github.id,
+        policies: [
+          projectAccessPolicy({
+            projectId,
+            connections: [{connectionId: github.id, resources: 'all'}],
+          }),
+        ],
+      });
+
+      const error = await client
+        .resolveAgentTools({
+          workspaceId: resolverWorkspaceId,
+          projectId,
+          integrations: [
+            {include: ['issue_read'], allowWrite: false},
+            {connection: 'github_other', include: ['issue_read'], allowWrite: false},
+          ],
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: 'selection-invalid',
+        details: {
+          integrationIndex: 1,
+          reason: 'connection-not-allowed',
+          connection: 'github_other',
+        },
+      });
+    });
+
     it('treats a project of another workspace as missing', async () => {
       const client = createResolver({workspaceId: crypto.randomUUID()});
 
@@ -2241,7 +2299,10 @@ describe('integrations template conformance', () => {
     transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
     transport.seal();
 
-    const context = await client.getAgentToolsContext({workspaceId});
+    const context = await client.getAgentToolsContext({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+    });
 
     expect(context.defaultConnection).toBeNull();
     expect(context.catalogs).toMatchObject([{provider: 'github'}]);

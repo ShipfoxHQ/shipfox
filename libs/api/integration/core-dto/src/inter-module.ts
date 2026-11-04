@@ -144,6 +144,7 @@ const toolCallTool = z.object({
 const resolveAgentToolsFailureReason = z.enum([
   'connection-missing',
   'connection-provider-mismatch',
+  'connection-not-allowed',
   'source-connection-missing',
   'tool-unknown',
   'no-tools-selected',

@@ -584,9 +584,23 @@ export function createIntegrationsInterModulePresentation(params: {
           registry: params.registry,
         }),
       ]);
+      const connectionAccess = await resolveSnapshotAccess({
+        authorizer: params.repositoryAuthorizer,
+        builtinConnectionIds: new Set(
+          (params.builtinConnections ?? []).map((builtin) => builtin.id),
+        ),
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        snapshot: workspaceConnections,
+      });
       const context = {
         catalogs,
         workspaceConnections,
+        blockedConnections: new Set(
+          [...connectionAccess].flatMap(([slug, access]) =>
+            access === 'not-allowed' ? [slug] : [],
+          ),
+        ),
         defaultConnection: defaultConnection
           ? {
               id: defaultConnection.id,
