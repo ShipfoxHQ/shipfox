@@ -33,9 +33,9 @@ function setup() {
   const getAccessToken = vi.fn(() => Promise.resolve('linear-token'));
   const createAgentActivity = vi.fn((_input: unknown) => Promise.resolve());
   const hasAgentActivity = vi.fn((_input: unknown) => Promise.resolve(false));
-  const setAgentSessionExternalUrls = vi.fn((_input: unknown) => Promise.resolve());
+  const addAgentSessionExternalUrls = vi.fn((_input: unknown) => Promise.resolve());
   const provider = new LinearInteractionProvider({
-    linear: {getIssueContext, createAgentActivity, hasAgentActivity, setAgentSessionExternalUrls},
+    linear: {getIssueContext, createAgentActivity, hasAgentActivity, addAgentSessionExternalUrls},
     tokenStore: {getAccessToken},
   });
   return {
@@ -44,7 +44,7 @@ function setup() {
     getAccessToken,
     createAgentActivity,
     hasAgentActivity,
-    setAgentSessionExternalUrls,
+    addAgentSessionExternalUrls,
   };
 }
 
@@ -501,7 +501,7 @@ describe('LinearInteractionProvider', () => {
     }
 
     it('posts a tool call as an ephemeral action activity', async () => {
-      const {provider, createAgentActivity, setAgentSessionExternalUrls} = setup();
+      const {provider, createAgentActivity, addAgentSessionExternalUrls} = setup();
 
       await provider.reportProgress(progress({detail: 'get_issue'}));
 
@@ -511,16 +511,16 @@ describe('LinearInteractionProvider', () => {
         content: {type: 'action', action: 'get_issue', parameter: ''},
         ephemeral: true,
       });
-      expect(setAgentSessionExternalUrls).not.toHaveBeenCalled();
+      expect(addAgentSessionExternalUrls).not.toHaveBeenCalled();
     });
 
-    it('puts links on the session as external URLs', async () => {
-      const {provider, createAgentActivity, setAgentSessionExternalUrls} = setup();
+    it('adds links to the session external URLs', async () => {
+      const {provider, createAgentActivity, addAgentSessionExternalUrls} = setup();
       const links = [{label: 'Run', url: 'https://app.shipfox.io/runs/1'}];
 
       await provider.reportProgress(progress({links}));
 
-      expect(setAgentSessionExternalUrls).toHaveBeenCalledWith({
+      expect(addAgentSessionExternalUrls).toHaveBeenCalledWith({
         accessToken: 'linear-token',
         agentSessionId: 'session-1',
         urls: links,
@@ -529,12 +529,12 @@ describe('LinearInteractionProvider', () => {
     });
 
     it('posts nothing when the turn goes idle, because the reply clears the action', async () => {
-      const {provider, createAgentActivity, setAgentSessionExternalUrls, getAccessToken} = setup();
+      const {provider, createAgentActivity, addAgentSessionExternalUrls, getAccessToken} = setup();
 
       await provider.reportProgress(progress({state: 'idle'}));
 
       expect(createAgentActivity).not.toHaveBeenCalled();
-      expect(setAgentSessionExternalUrls).not.toHaveBeenCalled();
+      expect(addAgentSessionExternalUrls).not.toHaveBeenCalled();
       expect(getAccessToken).not.toHaveBeenCalled();
     });
   });

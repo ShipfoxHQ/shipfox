@@ -132,7 +132,8 @@ export interface LinearApiClient {
   }): Promise<void>;
   /** Whether Linear holds an activity with this id. */
   hasAgentActivity(input: {accessToken: string; id: string}): Promise<boolean>;
-  setAgentSessionExternalUrls(input: {
+  /** Adds to the session links. Linear merges them, so concurrent reports can't drop each other. */
+  addAgentSessionExternalUrls(input: {
     accessToken: string;
     agentSessionId: string;
     urls: {label: string; url: string}[];
@@ -341,7 +342,7 @@ export function createLinearApiClient(): LinearApiClient {
       return data.agentActivity?.id === input.id;
     },
 
-    async setAgentSessionExternalUrls(input) {
+    async addAgentSessionExternalUrls(input) {
       const body = await mapLinearError(
         'update-agent-session',
         () =>
@@ -350,7 +351,7 @@ export function createLinearApiClient(): LinearApiClient {
               headers: {authorization: `Bearer ${input.accessToken}`},
               json: {
                 query: AGENT_SESSION_UPDATE_MUTATION,
-                variables: {id: input.agentSessionId, input: {externalUrls: input.urls}},
+                variables: {id: input.agentSessionId, input: {addedExternalUrls: input.urls}},
               },
               timeout: LINEAR_API_TIMEOUT_MS,
             })

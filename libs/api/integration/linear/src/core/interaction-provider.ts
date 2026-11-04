@@ -105,7 +105,7 @@ export const linearRequestContextSchema = {
 export interface LinearInteractionProviderOptions {
   linear: Pick<
     LinearApiClient,
-    'getIssueContext' | 'createAgentActivity' | 'hasAgentActivity' | 'setAgentSessionExternalUrls'
+    'getIssueContext' | 'createAgentActivity' | 'hasAgentActivity' | 'addAgentSessionExternalUrls'
   >;
   tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
 }
@@ -209,7 +209,7 @@ export class LinearInteractionProvider
 
   /**
    * Shows a tool call as an ephemeral `action` activity, which the next activity replaces, and
-   * puts links on the session. `idle` posts nothing: every turn ends with a reply, and a delivered
+   * adds links to the session. `idle` posts nothing: every turn ends with a reply, and a delivered
    * reply clears the action.
    */
   async reportProgress({
@@ -224,7 +224,7 @@ export class LinearInteractionProvider
       connectionId: connection.id,
     });
     if (links && links.length > 0) {
-      await this.options.linear.setAgentSessionExternalUrls({
+      await this.options.linear.addAgentSessionExternalUrls({
         accessToken,
         agentSessionId: conversationKey,
         urls: links,
