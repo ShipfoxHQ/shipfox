@@ -1481,6 +1481,7 @@ describe('Shipfox tools for a conversation', () => {
         workspaceId,
         conversationId: '00000000-0000-4000-8000-000000000020',
         workflowRunId: childRunId,
+        link: {label: 'Deploy', url: `https://app.example.test/runs/${childRunId}`},
       });
     });
 
@@ -1571,7 +1572,7 @@ describe('Shipfox tools for a conversation', () => {
       expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
     });
 
-    it('refuses a conversation with no Shipfox user', async () => {
+    it('refuses a conversation with neither a Shipfox user nor an integration', async () => {
       const {agent, triggers, provider} = createProvider();
       const session = await provider.openSession({
         connection: {} as never,
@@ -1587,6 +1588,59 @@ describe('Shipfox tools for a conversation', () => {
 
       expect(result).toMatchObject({isError: true, structuredContent: {code: 'actor-unavailable'}});
       expect(agent.claimConversationRunStart).not.toHaveBeenCalled();
+      expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+    });
+
+    it('starts a run for an agent actor from an integration conversation', async () => {
+      const {agent, triggers, provider} = createProvider();
+      const session = await provider.openSession({
+        connection: {} as never,
+        tools: provider.conversationCatalog(),
+        scope: {},
+        caller: conversationCaller({actorUserId: undefined, originProvider: 'slack'}),
+      });
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'child.yml'},
+      });
+
+      expect(result).toMatchObject({structuredContent: {run_id: childRunId}});
+      expect(agent.claimConversationRunStart).toHaveBeenCalledOnce();
+      expect(triggers.fireManualTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversation: {
+            id: '00000000-0000-4000-8000-000000000020',
+            agentKey: 'shippy',
+            provider: 'slack',
+          },
+        }),
+      );
+      expect(triggers.fireManualTrigger.mock.calls[0]?.[0]).not.toHaveProperty('userId');
+      expect(agent.registerConversationRun).toHaveBeenCalledWith(
+        expect.objectContaining({link: {label: 'Deploy', url: expect.any(String)}}),
+      );
+    });
+
+    it('applies the run budget to an agent actor', async () => {
+      const {agent, triggers, provider} = createProvider();
+      agent.claimConversationRunStart.mockResolvedValue({claimed: false});
+      const session = await provider.openSession({
+        connection: {} as never,
+        tools: provider.conversationCatalog(),
+        scope: {},
+        caller: conversationCaller({actorUserId: undefined, originProvider: 'linear'}),
+      });
+
+      const result = await session.call({
+        toolId: 'start_workflow_run',
+        arguments: {workflow: 'child.yml'},
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        structuredContent: {code: 'run-budget-exhausted'},
+      });
       expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
     });
   });

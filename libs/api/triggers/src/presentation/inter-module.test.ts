@@ -208,18 +208,25 @@ describe('triggers inter-module presentation', () => {
     });
   });
 
-  it('accepts a conversation only with the userId of its owner', () => {
+  it('accepts a conversation with the userId of its owner or as an agent actor', () => {
     const input = {
       workspaceId: WORKSPACE_ID,
       definitionId: '00000000-0000-4000-8000-000000000008',
-      conversation: {id: '00000000-0000-4000-8000-000000000009', agentKey: 'shippy'},
     };
+    const conversationId = '00000000-0000-4000-8000-000000000009';
     const parse = (extra: Record<string, unknown>) =>
       triggersInterModuleContract.methods.fireManualTrigger.input.safeParse({...input, ...extra});
+    const webConversation = {id: conversationId, agentKey: 'shippy'};
+    const slackConversation = {...webConversation, provider: 'slack'};
+    const userId = '00000000-0000-4000-8000-00000000000a';
+    const parentRun = {runId: '00000000-0000-4000-8000-00000000000b'};
 
-    expect(parse({userId: '00000000-0000-4000-8000-00000000000a'}).success).toBe(true);
+    expect(parse({userId, conversation: webConversation}).success).toBe(true);
+    expect(parse({conversation: slackConversation}).success).toBe(true);
+    expect(parse({conversation: webConversation}).success).toBe(false);
+    expect(parse({parentRun, conversation: slackConversation}).success).toBe(false);
+    expect(parse({userId, parentRun, conversation: webConversation}).success).toBe(false);
     expect(parse({}).success).toBe(false);
-    expect(parse({parentRun: {runId: '00000000-0000-4000-8000-00000000000b'}}).success).toBe(false);
   });
 
   it('rejects inverted list windows and invalid decision subscription pairings', () => {

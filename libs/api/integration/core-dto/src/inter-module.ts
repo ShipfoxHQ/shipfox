@@ -213,6 +213,8 @@ const toolCallCaller = z.discriminatedUnion('kind', [
     turnId: z.string().min(1),
     callItemId: z.string().min(1),
     actorUserId: z.string().min(1).optional(),
+    /** The provider an integration conversation came from, such as `slack`. Absent for the web. */
+    originProvider: z.string().min(1).optional(),
     /**
      * The agent's file granted this tool with `integrations:`, so the provider's full catalog
      * applies. Without it a provider serves a conversation only what it offers conversations.

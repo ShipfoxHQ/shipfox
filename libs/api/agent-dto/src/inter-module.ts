@@ -326,13 +326,15 @@ export const agentInterModuleContract = defineInterModuleContract({
     /**
      * Links a run to the conversation that started it, so the run's result joins that conversation
      * when the run settles or ends. A repeat changes nothing. `registered` is false when the
-     * conversation is gone or belongs to another workspace.
+     * conversation is gone or belongs to another workspace. A `link` is shown on the surface of
+     * an integration conversation, as its run link.
      */
     registerConversationRun: {
       input: z.object({
         workspaceId: z.string().uuid(),
         conversationId: z.string().uuid(),
         workflowRunId: z.string().uuid(),
+        link: z.object({label: z.string().min(1), url: z.string().url()}).optional(),
       }),
       output: z.object({registered: z.boolean()}),
     },

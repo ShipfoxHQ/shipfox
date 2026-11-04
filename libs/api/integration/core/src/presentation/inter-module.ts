@@ -853,6 +853,7 @@ function toToolCallCaller(caller: CallToolCaller, workspaceId: string): Integrat
       turnId: caller.turnId,
       callItemId: caller.callItemId,
       actorUserId: caller.actorUserId,
+      originProvider: caller.originProvider,
       grantedByAgent: caller.grantedByAgent,
     };
   }

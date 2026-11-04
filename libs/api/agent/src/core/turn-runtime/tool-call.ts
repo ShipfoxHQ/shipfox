@@ -230,7 +230,7 @@ async function executeTool(params: {
         agentKey: conversation.agentKey,
         turnId: params.turnId,
         callItemId: `${call.assistantItemId}:${params.callIndex}`,
-        ...(conversation.ownerUserId === null ? {} : {actorUserId: conversation.ownerUserId}),
+        ...callerIdentity(conversation),
         ...(entry.grantedByAgent ? {grantedByAgent: true} : {}),
       },
     });
@@ -259,6 +259,14 @@ async function executeTool(params: {
     }
     throw error;
   }
+}
+
+/** Who the call acts for: the owner of a web conversation, or the provider of an integration one. */
+function callerIdentity(conversation: Conversation) {
+  return {
+    ...(conversation.ownerUserId === null ? {} : {actorUserId: conversation.ownerUserId}),
+    ...(conversation.originProvider === null ? {} : {originProvider: conversation.originProvider}),
+  };
 }
 
 /**

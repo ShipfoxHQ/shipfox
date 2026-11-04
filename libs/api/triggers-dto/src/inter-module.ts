@@ -582,7 +582,7 @@ export const triggersInterModuleContract = defineInterModuleContract({
           definitionId: idSchema,
           userId: idSchema.optional(),
           parentRun: z.object({runId: idSchema}).optional(),
-          /** The conversation starting the run. `userId` still names its owner. */
+          /** The conversation starting the run. `userId` names its owner, and is absent for an agent actor. */
           conversation: z
             .object({
               id: idSchema,
@@ -595,18 +595,24 @@ export const triggersInterModuleContract = defineInterModuleContract({
           idempotencyKey: z.string().min(1).optional(),
         })
         .superRefine((value, ctx) => {
-          if ((value.userId === undefined) === (value.parentRun === undefined)) {
+          const hasAgentActor = value.userId === undefined && value.conversation !== undefined;
+          const callers = [
+            value.userId !== undefined,
+            value.parentRun !== undefined,
+            hasAgentActor,
+          ];
+          if (callers.filter(Boolean).length !== 1) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: 'Exactly one of userId or parentRun must be provided',
+              message: 'Exactly one of userId, parentRun, or an agent conversation is required',
               path: ['userId'],
             });
           }
-          if (value.conversation !== undefined && value.userId === undefined) {
+          if (hasAgentActor && value.conversation?.provider === undefined) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: 'A conversation run needs the userId of its owner',
-              path: ['conversation'],
+              message: 'A conversation run without a user needs the provider of its conversation',
+              path: ['conversation', 'provider'],
             });
           }
         }),

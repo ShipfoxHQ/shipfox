@@ -69,13 +69,13 @@ await session.close?.();
 
 `callerKind` is required. Use `tool_step` for workflow tool execution, `agent` for agent leases, and `conversation` for a server-side agent turn.
 
-A conversation caller has no run. It carries `projectId`, `conversationId`, `agentKey`, `turnId`, `callItemId`, and an optional `actorUserId`, and it can't leave its project:
+A conversation caller has no run. It carries `projectId`, `conversationId`, `agentKey`, `turnId`, `callItemId`, and an optional `actorUserId` and `originProvider`, and it can't leave its project:
 
 - `project_id` is rejected on every tool.
 - A run, job, or step in another project answers `not-found`, exactly like one that doesn't exist. A definition in another project does too.
 - A parent run in another project reads as a null `parent_run`.
 - `list_projects` returns `invalid-request`.
-- `start_workflow_run` starts a root run in the conversation's project, for `actorUserId`, and stores the conversation in the manual trigger payload so the run page can name the agent. The idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. A conversation with no `actorUserId` can't start runs. Each new start spends one of the conversation's run starts, and a message from a person gives them back. When they are used, the tool returns `run-budget-exhausted` and starts nothing. A repeated call doesn't spend the budget again.
+- `start_workflow_run` starts a root run in the conversation's project, for `actorUserId` in a web conversation, or with the agent as the actor in a Slack or Linear conversation, which has no Shipfox user and names `originProvider`. It stores the conversation in the manual trigger payload so the run page can name the agent. The idempotency key is `conversation:<conversationId>:<callItemId>`, so a repeated call returns the same run. A conversation with neither `actorUserId` nor `originProvider` can't start runs. Each new start spends one of the conversation's run starts, and a message from a person gives them back. When they are used, the tool returns `run-budget-exhausted` and starts nothing. A repeated call doesn't spend the budget again.
 
 Lease callers keep their workspace-wide reads.
 

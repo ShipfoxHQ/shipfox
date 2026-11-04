@@ -51,6 +51,7 @@ export type IntegrationToolCallCaller =
       turnId: string;
       callItemId: string;
       actorUserId?: string | undefined;
+      originProvider?: string | undefined;
       /** The agent's file granted the tool, so the provider's full catalog applies. */
       grantedByAgent?: boolean | undefined;
     };
@@ -70,6 +71,7 @@ export function callerLogContext(caller: IntegrationToolCallCaller): Record<stri
       turnId: caller.turnId,
       callItemId: caller.callItemId,
       ...(caller.actorUserId === undefined ? {} : {actorUserId: caller.actorUserId}),
+      ...(caller.originProvider === undefined ? {} : {originProvider: caller.originProvider}),
       ...(caller.grantedByAgent === true ? {grantedByAgent: true} : {}),
     };
   }

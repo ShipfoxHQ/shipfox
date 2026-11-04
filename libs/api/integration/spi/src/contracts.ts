@@ -520,6 +520,8 @@ export interface AgentToolsConversationCallerContext {
   callItemId: string;
   /** Absent when the conversation has no Shipfox user, as on an integration origin. */
   actorUserId?: string | undefined;
+  /** The provider of an integration conversation, such as `slack`. Absent for the web. */
+  originProvider?: string | undefined;
 }
 
 export type AgentToolsCallerContext =

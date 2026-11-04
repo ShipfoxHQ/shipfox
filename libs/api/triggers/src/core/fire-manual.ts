@@ -220,12 +220,21 @@ function optionalSecretInputs(secretInputs: Record<string, SecretInputReference>
   return secretInputs === undefined ? {} : {secretInputs};
 }
 
+/**
+ * A run is started by a parent run, a user, or an agent acting for no user. An agent actor is a
+ * conversation with a provider and no user, as in Slack or Linear. A web conversation names its
+ * owner, so it is a user.
+ */
 function assertExactlyOneManualTriggerCaller(
-  params: Pick<FireManualTriggerParams, 'userId' | 'parentRun'>,
+  params: Pick<FireManualTriggerParams, 'userId' | 'parentRun' | 'conversation'>,
 ): void {
   const hasUserId = params.userId !== undefined;
   const hasParentRun = params.parentRun !== undefined;
-  if (hasUserId === hasParentRun) {
-    throw new TypeError('Exactly one of userId or parentRun must be provided');
+  const hasAgentActor = !hasUserId && params.conversation !== undefined;
+  if (Number(hasUserId) + Number(hasParentRun) + Number(hasAgentActor) !== 1) {
+    throw new TypeError('Exactly one of userId, parentRun, or an agent conversation is required');
+  }
+  if (hasAgentActor && params.conversation?.provider === undefined) {
+    throw new TypeError('A conversation run without a user needs the provider of its conversation');
   }
 }

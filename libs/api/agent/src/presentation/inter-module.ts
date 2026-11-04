@@ -7,6 +7,7 @@ import {
   type WorkspaceProvidersPolicy,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {
@@ -32,6 +33,7 @@ import {routeInteraction} from '#core/interaction-routing.js';
 import {resolveAgentConfig} from '#core/resolve-agent-config.js';
 import {resolveRuntimeCredentials} from '#core/resolve-runtime-credentials.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
+import {reportConversationRunLink} from '#core/turn-runtime/run-link-progress.js';
 import {getAgentValidationCatalog, getAgentValidationCatalogV2} from '#core/validation-catalog.js';
 import {
   createWorkspaceAgentDefaultsResolver,
@@ -46,6 +48,8 @@ export function createAgentInterModulePresentation(params: {
   secrets: AgentSecretsClient;
   managedProvider?: ManagedModelProvider | undefined;
   workspaceProviders?: WorkspaceProvidersPolicy | undefined;
+  /** Shows a started run's link on an integration conversation. Without it, no link is shown. */
+  integrations?: Pick<IntegrationsModuleClient, 'reportInteractionProgress'> | undefined;
   /** Routing starts conversations, so a composition without both drops every interaction. */
   routing?:
     | {
@@ -116,9 +120,17 @@ export function createAgentInterModulePresentation(params: {
     claimConversationRunStart: async (input) => ({
       claimed: await claimConversationRunStart({...input, limit: CONVERSATION_RUN_START_LIMIT}),
     }),
-    registerConversationRun: async (input) => ({
-      registered: await registerConversationRun(input),
-    }),
+    registerConversationRun: async ({link, ...input}) => {
+      const registered = await registerConversationRun(input);
+      if (registered && link !== undefined && params.integrations !== undefined) {
+        await reportConversationRunLink({
+          conversationId: input.conversationId,
+          link,
+          integrations: params.integrations,
+        });
+      }
+      return {registered};
+    },
     releaseSession: async (input) => ({
       released: await releaseSession(input),
     }),
