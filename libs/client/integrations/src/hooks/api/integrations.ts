@@ -1,3 +1,5 @@
+import type {CreateAzureDevOpsConnectionBodyDto} from '@shipfox/api-integration-azure-devops-dto';
+import {createAzureDevOpsConnectionResponseSchema} from '@shipfox/api-integration-azure-devops-dto';
 import type {
   ClaapConnectBodyDto,
   ClaapReplaceApiKeyBodyDto,
@@ -110,6 +112,7 @@ import {
 } from '@tanstack/react-query';
 import {serializeClickUpCallbackQuery} from '#clickup-callback.js';
 import {
+  type AzureDevOpsServiceHookSetup,
   type GithubAuthorizeRedirect,
   type GithubLinkSelection,
   type InstallRedirect,
@@ -267,6 +270,21 @@ export function sourceConnectionsQueryOptions(
     enabled: Boolean(workspaceId),
     queryFn: ({signal}) => listSourceConnections({workspaceId: workspaceId ?? '', signal}),
   });
+}
+
+export async function createAzureDevOpsConnection(
+  body: CreateAzureDevOpsConnectionBodyDto,
+): Promise<{
+  connection: IntegrationConnection;
+  serviceHook: AzureDevOpsServiceHookSetup | undefined;
+}> {
+  const response = await checkedApiRequest(
+    createAzureDevOpsConnectionResponseSchema,
+    '/integrations/azure-devops/connections',
+    {method: 'POST', body},
+  );
+  const {service_hook: serviceHook, ...connection} = response;
+  return {connection: toIntegrationConnection(connection), serviceHook};
 }
 
 export async function createGiteaConnection(
@@ -811,6 +829,19 @@ export function useRepositoriesInfiniteQuery(
   options?: {search?: string},
 ) {
   return useInfiniteQuery(repositoriesInfiniteQueryOptions(connectionId, options));
+}
+
+export function useCreateAzureDevOpsConnectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createAzureDevOpsConnection,
+    onSuccess: async ({connection}) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
+        refetchType: 'all',
+      });
+    },
+  });
 }
 
 export function useCreateGiteaConnectionMutation() {

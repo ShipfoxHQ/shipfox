@@ -7987,6 +7987,9 @@ importers:
 
   libs/client/integrations:
     dependencies:
+      '@shipfox/api-integration-azure-devops-dto':
+        specifier: workspace:*
+        version: link:../../api/integration/azure-devops-dto
       '@shipfox/api-integration-claap-dto':
         specifier: workspace:*
         version: link:../../api/integration/claap-dto
