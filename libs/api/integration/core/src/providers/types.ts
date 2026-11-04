@@ -95,6 +95,7 @@ export interface IntegrationProviderSecrets {
   jam?: IntegrationProviderScopedSecrets | undefined;
   claap?: IntegrationProviderScopedSecrets | undefined;
   sentry?: IntegrationProviderScopedSecrets | undefined;
+  azureDevOps?: IntegrationProviderScopedSecrets | undefined;
   deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }
 

@@ -4480,6 +4480,9 @@ importers:
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../../definitions-dto
+      '@shipfox/api-integration-azure-devops':
+        specifier: workspace:*
+        version: link:../azure-devops
       '@shipfox/api-integration-claap':
         specifier: workspace:*
         version: link:../claap
@@ -11453,6 +11456,9 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.5.0
+      '@shipfox/api-integration-azure-devops':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/azure-devops
       '@shipfox/api-integration-claap':
         specifier: workspace:*
         version: link:../../libs/api/integration/claap

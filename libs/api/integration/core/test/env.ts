@@ -43,6 +43,7 @@ process.env.SLACK_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.SLACK_SIGNING_SECRET = 'test-signing-secret';
 process.env.SLACK_OAUTH_REDIRECT_URL = 'https://shipfox.example.com/integrations/slack/callback';
 process.env.SLACK_API_BASE_URL = 'https://slack.example.com/api';
+process.env.AZURE_DEVOPS_WEBHOOK_BASE_URL = 'https://hooks.shipfox.example.com';
 process.env.GITEA_BASE_URL = 'https://gitea.example.com';
 process.env.GITEA_SERVICE_USERNAME = 'shipfox-bot';
 process.env.GITEA_SERVICE_TOKEN = 'test-service-token';

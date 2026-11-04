@@ -237,6 +237,7 @@ export async function defaultModules(
       deleteSecrets: async (params) => (await secretsClient.deleteSecrets(params)).deleted,
       linear: integrationSecrets(secretsClient, 'linear'),
       jira: integrationSecrets(secretsClient, 'jira'),
+      azureDevOps: integrationSecrets(secretsClient, 'azure-devops'),
       clickup: integrationSecrets(secretsClient, 'clickup'),
       posthog: integrationSecrets(secretsClient, 'posthog'),
       jam: integrationSecrets(secretsClient, 'jam'),
