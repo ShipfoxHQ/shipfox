@@ -1061,6 +1061,7 @@ describe('workflow run queries', () => {
             slug: 'github-main',
             provider: 'github',
             capabilities: ['agent_tools'],
+            allowed: true,
           },
         ],
         defaultConnection: {
@@ -1170,6 +1171,7 @@ describe('workflow run queries', () => {
             slug: 'team-slack',
             provider: 'slack',
             capabilities: ['agent_tools'],
+            allowed: true,
           },
         ],
         defaultConnection: {id: 'connection-slack', slug: 'team-slack', provider: 'slack'},

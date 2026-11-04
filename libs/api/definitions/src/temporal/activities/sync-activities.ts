@@ -257,11 +257,12 @@ function createFetchAndApplyAgentsActivity(
           integrations === undefined
             ? undefined
             : async () =>
-                await loadIntegrationValidationContext(
+                await loadIntegrationValidationContext({
                   integrations,
-                  input.workspaceId,
-                  input.sourceConnectionId,
-                ),
+                  workspaceId: input.workspaceId,
+                  projectId: input.projectId,
+                  defaultConnectionId: input.sourceConnectionId,
+                }),
         onProgress: (path) => Context.current().heartbeat({path}),
       });
 
@@ -319,11 +320,12 @@ function createFetchAndApplyActivity(
           integrations === undefined
             ? undefined
             : async () => {
-                return await loadIntegrationValidationContext(
+                return await loadIntegrationValidationContext({
                   integrations,
-                  input.workspaceId,
-                  input.sourceConnectionId,
-                );
+                  workspaceId: input.workspaceId,
+                  projectId: input.projectId,
+                  defaultConnectionId: input.sourceConnectionId,
+                });
               },
       });
 

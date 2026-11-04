@@ -75,8 +75,6 @@ export interface IntegrationProviderModule {
 export interface IntegrationProviderModuleLoadOptions {
   secrets?: IntegrationProviderSecrets | undefined;
   interModule?: IntegrationProviderInterModuleClients | undefined;
-  /** Invalidates local repository authorization decisions after committed provider-owned changes. */
-  invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
   requireActiveWorkspaceMembership?:
     | ((input: {
         workspaceId: string;

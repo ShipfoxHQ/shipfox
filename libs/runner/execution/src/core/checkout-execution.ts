@@ -530,8 +530,8 @@ function checkoutTokenFailureHelp(reason: StepErrorReasonDto): string {
 
 // Fixes for the causes the server names. Other codes keep the guidance for their reason.
 const CHECKOUT_TOKEN_CODE_HELP: Readonly<Record<string, string>> = {
-  'repository-not-granted':
-    'Link a project to the repository, or let the connection use all repositories.',
+  'repository-not-granted': "Add the repository to the project's access.",
+  'connection-not-allowed': "Add the connection to the project's access.",
   'checkout-repository-not-authorized': 'Use a project of this workspace in `checkout.project`.',
   'installation-inactive': 'Unsuspend or reinstall the Shipfox GitHub App.',
   'repository-not-found':

@@ -351,6 +351,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(createCheckoutCredentials).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
+      projectId: project.id,
       externalRepositoryId: project.sourceExternalRepositoryId,
       permissions: {contents: 'read'},
       rejectedGeneration: 'generation-1',
@@ -499,6 +500,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(createCheckoutCredentials).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
+      projectId: project.id,
       externalRepositoryId: project.sourceExternalRepositoryId,
       permissions: {contents: 'read'},
       rejectedGeneration: 'generation-1',
@@ -534,6 +536,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(createCheckoutCredentials).toHaveBeenLastCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
+      projectId: project.id,
       externalRepositoryId: project.sourceExternalRepositoryId,
       permissions: {contents: 'read'},
     });
@@ -877,7 +880,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: expect.any(String),
-      projectId: targetProjectId,
+      projectId: project.id,
       target: {kind: 'external-id', externalRepositoryId: 'github:412'},
       ref: 'refs/pull/412/head',
       permissions: {contents: 'write'},
@@ -1081,7 +1084,12 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     const loggedMessages = () => logLines.join('\n');
 
     function rejectCheckoutSpec(
-      code: 'repository-required' | 'repository-not-granted' | 'repository-ambiguous',
+      code:
+        | 'repository-required'
+        | 'repository-not-granted'
+        | 'repository-ambiguous'
+        | 'connection-not-allowed'
+        | 'project-not-found',
     ) {
       createCheckoutSpec.mockRejectedValue(
         createInterModuleKnownError(
@@ -1110,7 +1118,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
         details: {repository: `acme/${project.sourceRepositoryName}`, connection: 'acme-gh'},
       });
       expect(loggedMessages()).toContain(
-        `Shipfox isn't allowed to check out \`acme/${project.sourceRepositoryName}\`: no project in this workspace is linked to it, and connection \`acme-gh\` doesn't allow all repositories`,
+        `Shipfox isn't allowed to check out \`acme/${project.sourceRepositoryName}\` through connection \`acme-gh\`: it is not in this project's access`,
       );
     });
 
@@ -1139,7 +1147,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
         repository: 'partner/widgets',
         connection: 'partner-gh',
         message:
-          "Shipfox isn't allowed to check out `partner/widgets`: no project in this workspace is linked to it, and connection `partner-gh` doesn't allow all repositories",
+          "Shipfox isn't allowed to check out `partner/widgets` through connection `partner-gh`: it is not in this project's access",
       });
       expect(loggedMessages()).toContain('`partner/widgets`');
       expect(loggedMessages()).toContain('connection `partner-gh`');
@@ -1166,9 +1174,45 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
         details: {repository: 'partner/widgets', connection: 'partner-gh'},
       });
       expect(loggedMessages()).toContain(
-        "More than one project is linked to `partner/widgets` on connection `partner-gh`, so Shipfox can't tell which one authorizes the checkout",
+        "More than one repository in this project's access matches `partner/widgets` on connection `partner-gh`, so Shipfox can't tell which one to check out",
       );
       expect(project.id).toBeDefined();
+    });
+
+    test('names the connection a project does not list in its access', async () => {
+      const {send} = await requestCheckout({
+        checkout: {connection: 'partner-gh', repository: 'partner/widgets'},
+      });
+      resolveConnection.mockResolvedValue({
+        id: crypto.randomUUID(),
+        provider: 'github',
+        slug: 'partner-gh',
+      });
+      rejectCheckoutSpec('connection-not-allowed');
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({
+        code: 'connection-not-allowed',
+        details: {repository: 'partner/widgets', connection: 'partner-gh'},
+      });
+      expect(loggedMessages()).toContain("connection `partner-gh` is not in this project's access");
+    });
+
+    test('answers 404 when the project of the run no longer exists', async () => {
+      const {project, send} = await requestCheckout();
+      resolveCheckoutTarget.mockResolvedValue({
+        projectId: project.id,
+        connectionId: project.sourceConnectionId,
+        target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+      });
+      rejectCheckoutSpec('project-not-found');
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toMatchObject({code: 'project-not-found'});
     });
 
     test('returns 422 when the checkout needs a repository', async () => {
@@ -1208,7 +1252,9 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
 
       expect(res.statusCode).toBe(404);
       expect(res.json().details.connection).toBeUndefined();
-      expect(loggedMessages()).toContain('and the connection doesn');
+      expect(loggedMessages()).toContain(
+        "through the connection: it is not in this project's access",
+      );
     });
 
     test('names the project that does not belong to the workspace', async () => {

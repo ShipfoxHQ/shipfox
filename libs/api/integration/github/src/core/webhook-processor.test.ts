@@ -42,22 +42,6 @@ function signedInstallationRequest(deliveryId: string, installationId: number, a
   });
 }
 
-function signedRequest(deliveryId: string, event: string, payload: unknown) {
-  const body = Buffer.from(JSON.stringify(payload));
-  return createStoredWebhookRequest({
-    requestId: randomUUID(),
-    routeId: 'github',
-    receivedAt: new Date().toISOString(),
-    rawQueryString: '',
-    headers: {
-      'x-github-delivery': deliveryId,
-      'x-github-event': event,
-      'x-hub-signature-256': `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`,
-    },
-    body,
-  });
-}
-
 describe('GitHub webhook processor', () => {
   beforeEach(async () => {
     await db().delete(githubInstallations);
@@ -243,44 +227,5 @@ describe('GitHub webhook processor', () => {
       workspaceId: connection.workspaceId,
       installationId,
     });
-  });
-
-  it('invalidates repository authorization after project repository metadata commits', async () => {
-    const installationId = 8413;
-    const connectionId = randomUUID();
-    const connection = fakeConnection(connectionId);
-    await githubInstallationFactory.create({
-      connectionId,
-      installationId: String(installationId),
-    });
-    const deliveryId = randomUUID();
-    const invalidateRepositoryAuthorizationCache = vi.fn();
-    const processor = createGithubWebhookProcessor({
-      coreDb: db,
-      publishIntegrationEventReceived: vi.fn(),
-      publishSourceRepositoryUpdated: vi.fn(() => Promise.resolve({published: true})),
-      publishSourcePush: vi.fn(),
-      recordDeliveryOnly: vi.fn(),
-      getIntegrationConnectionById: vi.fn(() => Promise.resolve(connection)),
-      updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
-      github: {getInstallation: vi.fn()},
-      invalidateRepositoryAuthorizationCache,
-    });
-
-    const result = await processor.process(
-      signedRequest(deliveryId, 'repository', {
-        action: 'renamed',
-        installation: {id: installationId},
-        repository: {
-          id: 42,
-          name: 'platform',
-          owner: {login: 'acme'},
-          default_branch: 'main',
-        },
-      }),
-    );
-
-    expect(result).toEqual({outcome: 'processed', deliveryId});
-    expect(invalidateRepositoryAuthorizationCache).toHaveBeenCalledWith(connectionId);
   });
 });

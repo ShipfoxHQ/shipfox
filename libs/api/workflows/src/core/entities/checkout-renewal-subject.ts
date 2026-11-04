@@ -18,6 +18,8 @@ const DEFAULT_PORTS = new Map([
 export interface CheckoutRenewalSubject {
   repositoryUrl: string;
   connectionId: string;
+  /** The run's project, whose current access every renewal checks. */
+  projectId: string;
   externalRepositoryId: string;
   permissions: {contents: 'read' | 'write'};
   stepId: string;

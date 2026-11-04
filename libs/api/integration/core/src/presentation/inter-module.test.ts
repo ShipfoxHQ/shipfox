@@ -12,6 +12,7 @@ import {IntegrationProviderError, RepositoryAuthorizerConfigurationError} from '
 import {createIntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {SourceControlProvider} from '#core/providers/source-control.js';
 import {
+  createRepositoryAuthorizer,
   RepositoryAuthorizationTargetInvalidError,
   type RepositoryAuthorizer,
 } from '#core/repository-authorizer.js';
@@ -31,10 +32,16 @@ import {
   registryWithAgentTools,
 } from '#test/agent-tools-gateway-helpers.js';
 import {integrationConnectionFactory} from '#test/factories/connection.js';
+import {createProjectAccessClient, projectAccessPolicy} from '#test/fixtures/project-access.js';
 import {createIntegrationsInterModulePresentation} from './inter-module.js';
 
 const workspaceId = crypto.randomUUID();
 const connectionId = crypto.randomUUID();
+const projectId = crypto.randomUUID();
+const resolveConnectionAuthorization = vi.fn(async () => ({
+  authorized: true as const,
+  repositoriesNarrowed: true,
+}));
 
 function createClient(
   resolveRef: (input: {ref: string}) => Promise<{ref: string; commit: string}>,
@@ -114,6 +121,7 @@ describe('integrations inter-module presentation', () => {
     connectionId,
     externalRepositoryId: 'gitea:gitea-owner/platform',
   };
+  const checkoutInput = {...input, projectId};
 
   it('exposes bounded connection details through the producer contract', async () => {
     const client = createClient(async (ref) => ({ref: ref.ref, commit: 'a'.repeat(40)}));
@@ -147,6 +155,7 @@ describe('integrations inter-module presentation', () => {
     const result = await client.createCheckoutCredentials({
       workspaceId,
       connectionId,
+      projectId,
       externalRepositoryId: 'gitea:gitea-owner/platform',
       permissions: {contents: 'read'},
       rejectedGeneration: 'generation-1',
@@ -175,7 +184,7 @@ describe('integrations inter-module presentation', () => {
 
     const error = await client
       .createCheckoutCredentials({
-        ...input,
+        ...checkoutInput,
         permissions: {contents: 'read'},
         rejectedGeneration: 'rejected-generation',
       })
@@ -198,17 +207,24 @@ describe('integrations inter-module presentation', () => {
     ['repository_required', 'repository-required'],
     ['repository_not_granted', 'repository-not-granted'],
     ['repository_ambiguous', 'repository-ambiguous'],
+    ['connection_not_allowed', 'connection-not-allowed'],
+    ['project_not_found', 'project-not-found'],
     ['authorization_store_unavailable', 'repository-authorization-unavailable'],
   ] as const)('maps %s for both checkout methods', async (reason, code) => {
     const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
       authorized: false,
       reason,
+      access: 'selected',
     });
     const client = createClient(
       async () => ({ref: 'main', commit: 'a'.repeat(40)}),
       undefined,
       undefined,
-      {enabled: true, resolveRepositoryAuthorization},
+      {
+        enabled: true,
+        resolveRepositoryAuthorization,
+        resolveConnectionAuthorization: vi.fn(),
+      },
     );
     const details = {
       workspaceId,
@@ -216,7 +232,9 @@ describe('integrations inter-module presentation', () => {
       target: {kind: 'external-id' as const, externalRepositoryId: input.externalRepositoryId},
     };
 
-    const specError = await client.createCheckoutSpec(input).catch((caught: unknown) => caught);
+    const specError = await client
+      .createCheckoutSpec(checkoutInput)
+      .catch((caught: unknown) => caught);
     expect(
       isInterModuleKnownError(
         integrationsInterModuleContract.methods.createCheckoutSpec,
@@ -231,7 +249,7 @@ describe('integrations inter-module presentation', () => {
     }
 
     const credentialsError = await client
-      .createCheckoutCredentials({...input, permissions: {contents: 'read'}})
+      .createCheckoutCredentials({...checkoutInput, permissions: {contents: 'read'}})
       .catch((caught: unknown) => caught);
     expect(
       isInterModuleKnownError(
@@ -250,8 +268,8 @@ describe('integrations inter-module presentation', () => {
     }
     expect(resolveRepositoryAuthorization).toHaveBeenNthCalledWith(1, {
       workspaceId,
+      projectId,
       connectionId,
-      mode: 'selected',
       repository: {kind: 'external-id', externalRepositoryId: input.externalRepositoryId},
       capability: 'checkout',
     });
@@ -268,10 +286,11 @@ describe('integrations inter-module presentation', () => {
       {
         enabled: true,
         resolveRepositoryAuthorization: vi.fn().mockRejectedValue(new ErrorType()),
+        resolveConnectionAuthorization: vi.fn(),
       },
     );
 
-    const error = await client.createCheckoutSpec(input).catch((caught: unknown) => caught);
+    const error = await client.createCheckoutSpec(checkoutInput).catch((caught: unknown) => caught);
 
     expect(
       isInterModuleKnownError(integrationsInterModuleContract.methods.createCheckoutSpec, error),
@@ -302,7 +321,7 @@ describe('integrations inter-module presentation', () => {
     );
 
     await expect(
-      client.createCheckoutCredentials({...input, permissions: {contents: 'read'}}),
+      client.createCheckoutCredentials({...checkoutInput, permissions: {contents: 'read'}}),
     ).resolves.toEqual({
       username: 'x-access-token',
       token: 'secret',
@@ -325,7 +344,7 @@ describe('integrations inter-module presentation', () => {
     );
 
     await expect(
-      client.createCheckoutCredentials({...input, permissions: {contents: 'read'}}),
+      client.createCheckoutCredentials({...checkoutInput, permissions: {contents: 'read'}}),
     ).rejects.toBeDefined();
   });
 
@@ -345,7 +364,7 @@ describe('integrations inter-module presentation', () => {
     );
 
     await expect(
-      client.createCheckoutCredentials({...input, permissions: {contents: 'read'}}),
+      client.createCheckoutCredentials({...checkoutInput, permissions: {contents: 'read'}}),
     ).rejects.toBeDefined();
   });
 
@@ -550,6 +569,7 @@ describe('integrations inter-module presentation', () => {
     const context = await client.getAgentToolsContext({
       workspaceId,
       defaultConnectionId: connectionId,
+      projectId,
     });
 
     expect(context.eventCatalogs).toEqual([
@@ -587,6 +607,7 @@ describe('integrations inter-module presentation', () => {
     const context = await client.getAgentToolsContext({
       workspaceId: builtinWorkspaceId,
       defaultConnectionId: connectionId,
+      projectId,
     });
 
     expect(context.workspaceConnections).toContainEqual({
@@ -594,6 +615,143 @@ describe('integrations inter-module presentation', () => {
       id: SHIPFOX_BUILTIN_CONNECTION_ID,
       provider: 'shipfox',
       capabilities: ['agent_tools'],
+      allowed: true,
+    });
+  });
+
+  describe('agent tools context and project access', () => {
+    function createAccessClient(params: {
+      projects: ReturnType<typeof createProjectAccessClient>;
+      builtinConnections?: Parameters<
+        typeof createIntegrationsInterModulePresentation
+      >[0]['builtinConnections'];
+    }) {
+      const registry = createIntegrationProviderRegistry([
+        {
+          provider: 'github',
+          displayName: 'GitHub',
+          adapters: {agent_tools: agentToolsProvider([])},
+        },
+        {
+          provider: 'shipfox',
+          displayName: 'Shipfox',
+          adapters: {agent_tools: agentToolsProvider([])},
+        },
+      ]);
+      const sourceControl = createSourceControlIntegrationService({
+        registry,
+        getIntegrationConnectionById: async () => undefined,
+      });
+      const transport = createInMemoryInterModuleTransport();
+      const client = transport.createClient(integrationsInterModuleContract);
+      transport.register(
+        createIntegrationsInterModulePresentation({
+          registry,
+          sourceControl,
+          repositoryAuthorizer: createRepositoryAuthorizer({
+            enabled: true,
+            projects: params.projects,
+          }),
+          ...(params.builtinConnections === undefined
+            ? {}
+            : {builtinConnections: params.builtinConnections}),
+        }),
+      );
+      transport.seal();
+      return client;
+    }
+
+    it('marks a connection outside the project access as not allowed', async () => {
+      const accessWorkspaceId = crypto.randomUUID();
+      const accessProjectId = crypto.randomUUID();
+      const listed = await integrationConnectionFactory.create({
+        workspaceId: accessWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'listed',
+        slug: 'github-listed',
+      });
+      await integrationConnectionFactory.create({
+        workspaceId: accessWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'other',
+        slug: 'github-other',
+      });
+      const client = createAccessClient({
+        projects: createProjectAccessClient([
+          projectAccessPolicy({
+            projectId: accessProjectId,
+            connections: [{connectionId: listed.id, resources: 'all'}],
+          }),
+        ]),
+      });
+
+      const context = await client.getAgentToolsContext({
+        workspaceId: accessWorkspaceId,
+        defaultConnectionId: listed.id,
+        projectId: accessProjectId,
+      });
+
+      expect(
+        Object.fromEntries(
+          context.workspaceConnections.map((entry) => [entry.slug, entry.allowed]),
+        ),
+      ).toEqual({'github-listed': true, 'github-other': false});
+    });
+
+    it('keeps built-in connections allowed whatever the project lists', async () => {
+      const accessWorkspaceId = crypto.randomUUID();
+      const accessProjectId = crypto.randomUUID();
+      const client = createAccessClient({
+        projects: createProjectAccessClient([
+          projectAccessPolicy({projectId: accessProjectId, connections: []}),
+        ]),
+        builtinConnections: [
+          {provider: 'shipfox', slug: 'shipfox', id: SHIPFOX_BUILTIN_CONNECTION_ID},
+        ],
+      });
+
+      const context = await client.getAgentToolsContext({
+        workspaceId: accessWorkspaceId,
+        defaultConnectionId: connectionId,
+        projectId: accessProjectId,
+      });
+
+      expect(context.workspaceConnections).toContainEqual(
+        expect.objectContaining({slug: 'shipfox', allowed: true}),
+      );
+    });
+
+    it('fails with project-not-found for a project that does not exist', async () => {
+      const accessWorkspaceId = crypto.randomUUID();
+      const listed = await integrationConnectionFactory.create({
+        workspaceId: accessWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'listed',
+        slug: 'github-listed',
+      });
+      const client = createAccessClient({projects: createProjectAccessClient([])});
+      const missingProjectId = crypto.randomUUID();
+
+      const error = await client
+        .getAgentToolsContext({
+          workspaceId: accessWorkspaceId,
+          defaultConnectionId: listed.id,
+          projectId: missingProjectId,
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(
+        isInterModuleKnownError(
+          integrationsInterModuleContract.methods.getAgentToolsContext,
+          error,
+        ),
+      ).toBe(true);
+      if (
+        isInterModuleKnownError(integrationsInterModuleContract.methods.getAgentToolsContext, error)
+      ) {
+        expect(error.code).toBe('project-not-found');
+        expect(error.details).toEqual({projectId: missingProjectId});
+      }
     });
   });
 
@@ -622,6 +780,7 @@ describe('integrations inter-module presentation', () => {
     const context = await client.getAgentToolsContext({
       workspaceId,
       defaultConnectionId: connectionId,
+      projectId,
     });
 
     expect(context.catalogs).toMatchObject([
@@ -698,6 +857,7 @@ describe('integrations inter-module presentation', () => {
       const context = await client.getAgentToolsContext({
         workspaceId: managedWorkspaceId,
         defaultConnectionId: hidden.id,
+        projectId,
       });
       expect(context.defaultConnection).toEqual({
         id: github.id,
@@ -728,6 +888,7 @@ describe('integrations inter-module presentation', () => {
       const context = await client.getAgentToolsContext({
         workspaceId: managedWorkspaceId,
         defaultConnectionId: hidden.id,
+        projectId,
       });
       expect(context.defaultConnection).toBeNull();
     });
@@ -1097,6 +1258,7 @@ describe('integrations inter-module callTool', () => {
     const resolveRepositoryAuthorization = vi.fn(async () => ({
       authorized: false as const,
       reason: 'repository_not_granted' as const,
+      access: 'selected' as const,
     }));
     const recorder = vi.fn();
     const client = createToolCallClient(
@@ -1108,6 +1270,7 @@ describe('integrations inter-module callTool', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization,
         },
       },
     );
@@ -1117,7 +1280,7 @@ describe('integrations inter-module callTool', () => {
     expect(result).toEqual({
       outcome: 'error',
       code: 'repository-not-granted',
-      message: 'Repository is not authorized for this integration connection',
+      message: "Repository is not in this project's access",
     });
     expect(resolveRepositoryAuthorization).toHaveBeenCalledTimes(1);
     expect(onOpenSession).not.toHaveBeenCalled();
@@ -1194,6 +1357,7 @@ describe('integrations inter-module callTool', () => {
     const resolveRepositoryAuthorization = vi.fn(async () => ({
       authorized: false as const,
       reason: 'repository_not_granted' as const,
+      access: 'selected' as const,
     }));
     const client = createToolCallClient(
       {
@@ -1209,7 +1373,13 @@ describe('integrations inter-module callTool', () => {
       undefined,
       undefined,
       [catalogTool()],
-      {repositoryAuthorizer: {enabled: true, resolveRepositoryAuthorization}},
+      {
+        repositoryAuthorizer: {
+          enabled: true,
+          resolveRepositoryAuthorization,
+          resolveConnectionAuthorization,
+        },
+      },
     );
 
     const result = await client.callTool({
@@ -1227,7 +1397,7 @@ describe('integrations inter-module callTool', () => {
     expect(result).toEqual({
       outcome: 'error',
       code: 'repository-not-granted',
-      message: 'Repository is not authorized for this integration connection',
+      message: "Repository is not in this project's access",
     });
     expect(resolveRepositoryAuthorization).toHaveBeenCalledOnce();
     expect(onCall).not.toHaveBeenCalled();
@@ -1923,7 +2093,11 @@ describe('integrations template conformance', () => {
   describe('resolveAgentTools', () => {
     const projectId = crypto.randomUUID();
 
-    function createResolver(params: {workspaceId: string; sourceConnectionId?: string}) {
+    function createResolver(params: {
+      workspaceId: string;
+      sourceConnectionId?: string;
+      policies?: Parameters<typeof createProjectAccessClient>[0];
+    }) {
       const registry = createIntegrationProviderRegistry([
         {
           provider: 'github',
@@ -1946,6 +2120,14 @@ describe('integrations template conformance', () => {
         createIntegrationsInterModulePresentation({
           registry,
           sourceControl,
+          ...(params.policies === undefined
+            ? {}
+            : {
+                repositoryAuthorizer: createRepositoryAuthorizer({
+                  enabled: true,
+                  projects: createProjectAccessClient(params.policies),
+                }),
+              }),
           projects: {
             getProjectById: async () => {
               await Promise.resolve();
@@ -2041,6 +2223,52 @@ describe('integrations template conformance', () => {
       });
     });
 
+    it('refuses a selection that names a connection outside the project access', async () => {
+      const resolverWorkspaceId = crypto.randomUUID();
+      const github = await integrationConnectionFactory.create({
+        workspaceId: resolverWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'alpha',
+        slug: 'github_alpha',
+      });
+      await integrationConnectionFactory.create({
+        workspaceId: resolverWorkspaceId,
+        provider: 'github',
+        externalAccountId: 'other',
+        slug: 'github_other',
+      });
+      const client = createResolver({
+        workspaceId: resolverWorkspaceId,
+        sourceConnectionId: github.id,
+        policies: [
+          projectAccessPolicy({
+            projectId,
+            connections: [{connectionId: github.id, resources: 'all'}],
+          }),
+        ],
+      });
+
+      const error = await client
+        .resolveAgentTools({
+          workspaceId: resolverWorkspaceId,
+          projectId,
+          integrations: [
+            {include: ['issue_read'], allowWrite: false},
+            {connection: 'github_other', include: ['issue_read'], allowWrite: false},
+          ],
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: 'selection-invalid',
+        details: {
+          integrationIndex: 1,
+          reason: 'connection-not-allowed',
+          connection: 'github_other',
+        },
+      });
+    });
+
     it('treats a project of another workspace as missing', async () => {
       const client = createResolver({workspaceId: crypto.randomUUID()});
 
@@ -2071,7 +2299,10 @@ describe('integrations template conformance', () => {
     transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
     transport.seal();
 
-    const context = await client.getAgentToolsContext({workspaceId});
+    const context = await client.getAgentToolsContext({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+    });
 
     expect(context.defaultConnection).toBeNull();
     expect(context.catalogs).toMatchObject([{provider: 'github'}]);

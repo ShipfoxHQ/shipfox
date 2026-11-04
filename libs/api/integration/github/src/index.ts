@@ -155,8 +155,6 @@ export interface CreateGithubIntegrationProviderOptions
   updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
   /** The composed integrations module controls when repository authorization is live. */
   repositoryAuthorization?: AgentToolRepositoryAuthorizationState | undefined;
-  /** Invalidates local repository authorization decisions after a committed webhook mutation. */
-  invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
   getGithubInstallationByConnectionId?: typeof getGithubInstallationByConnectionId | undefined;
   getGithubInstallationByInstallationId?: typeof getGithubInstallationByInstallationId | undefined;
   deleteSecrets?:

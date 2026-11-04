@@ -60,6 +60,7 @@ import type {AgentToolCatalogEntry} from '#core/providers/agent-tools.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {CheckoutSpec, CheckoutTarget} from '#core/providers/source-control.js';
 import {
+  createRepositoryAuthorizationRequestContext,
   RepositoryAuthorizationTargetInvalidError,
   type RepositoryAuthorizer,
   repositoryAuthorizationClientErrorCodes,
@@ -508,6 +509,22 @@ export function createIntegrationsInterModulePresentation(params: {
             registry: params.registry,
           }),
         ]);
+        const connectionAccess = await resolveSnapshotAccess({
+          authorizer: params.repositoryAuthorizer,
+          builtinConnectionIds: new Set(
+            (params.builtinConnections ?? []).map((builtin) => builtin.id),
+          ),
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          snapshot,
+        });
+        if ([...connectionAccess.values()].includes('project-not-found')) {
+          throw createInterModuleKnownError(
+            contract.methods.getAgentToolsContext,
+            'project-not-found',
+            {projectId: input.projectId},
+          );
+        }
         return {
           selectionCatalogs: [...selectionCatalogs].map(([provider, value]) => ({
             provider,
@@ -533,6 +550,7 @@ export function createIntegrationsInterModulePresentation(params: {
             slug,
             ...value,
             capabilities: [...value.capabilities],
+            allowed: connectionAccess.get(slug) === 'allowed',
           })),
           eventCatalogs: buildProviderEventCatalogs(params.registry),
           fixedEventProviders: buildFixedEventProviders(params.registry),
@@ -566,9 +584,23 @@ export function createIntegrationsInterModulePresentation(params: {
           registry: params.registry,
         }),
       ]);
+      const connectionAccess = await resolveSnapshotAccess({
+        authorizer: params.repositoryAuthorizer,
+        builtinConnectionIds: new Set(
+          (params.builtinConnections ?? []).map((builtin) => builtin.id),
+        ),
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        snapshot: workspaceConnections,
+      });
       const context = {
         catalogs,
         workspaceConnections,
+        blockedConnections: new Set(
+          [...connectionAccess].flatMap(([slug, access]) =>
+            access === 'not-allowed' ? [slug] : [],
+          ),
+        ),
         defaultConnection: defaultConnection
           ? {
               id: defaultConnection.id,
@@ -699,6 +731,45 @@ export function createIntegrationsInterModulePresentation(params: {
       }
     },
   });
+}
+
+type ConnectionAccess = 'allowed' | 'not-allowed' | 'project-not-found';
+
+/**
+ * Marks each workspace connection as in or out of the project's access. A built-in connection is
+ * not a workspace connection, so access does not list it. The result is keyed by slug.
+ */
+async function resolveSnapshotAccess(params: {
+  authorizer: RepositoryAuthorizer | undefined;
+  builtinConnectionIds: ReadonlySet<string>;
+  workspaceId: string;
+  projectId: string;
+  snapshot: ReadonlyMap<string, {id: string}>;
+}): Promise<Map<string, ConnectionAccess>> {
+  const {authorizer} = params;
+  const request = createRepositoryAuthorizationRequestContext();
+  const entries = await Promise.all(
+    [...params.snapshot].map(async ([slug, connection]) => {
+      if (authorizer?.enabled !== true || params.builtinConnectionIds.has(connection.id)) {
+        return [slug, 'allowed'] as const;
+      }
+      const result = await authorizer.resolveConnectionAuthorization({
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        connectionId: connection.id,
+        request,
+      });
+      if (result === undefined || result.authorized) return [slug, 'allowed'] as const;
+      if (result.reason === 'authorization_store_unavailable') {
+        throw new Error('Project access is unavailable');
+      }
+      return [
+        slug,
+        result.reason === 'project_not_found' ? 'project-not-found' : 'not-allowed',
+      ] as const;
+    }),
+  );
+  return new Map(entries);
 }
 
 /** The caller shape as parsed from the published contract, so it cannot drift. */

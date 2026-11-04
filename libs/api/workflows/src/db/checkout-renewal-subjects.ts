@@ -85,6 +85,7 @@ export async function loadPendingCheckoutRenewalSubject(params: {
   return {
     repositoryUrl: row.subject.repositoryUrl,
     connectionId: row.subject.connectionId,
+    projectId: row.subject.projectId,
     externalRepositoryId: row.subject.externalRepositoryId,
     permissions: {contents: row.subject.permissionsContents},
     stepId: row.subject.stepId,
@@ -140,6 +141,7 @@ export async function savePendingCheckoutRenewalSubject(
       attempt: params.attempt,
       repositoryUrl,
       connectionId: params.connectionId,
+      projectId: params.projectId,
       externalRepositoryId: params.externalRepositoryId,
       permissionsContents: params.permissions.contents,
     })
@@ -154,6 +156,7 @@ export async function savePendingCheckoutRenewalSubject(
       workflowRunAttemptId: checkoutRenewalSubjects.workflowRunAttemptId,
       repositoryUrl: checkoutRenewalSubjects.repositoryUrl,
       connectionId: checkoutRenewalSubjects.connectionId,
+      projectId: checkoutRenewalSubjects.projectId,
       externalRepositoryId: checkoutRenewalSubjects.externalRepositoryId,
       permissionsContents: checkoutRenewalSubjects.permissionsContents,
       status: checkoutRenewalSubjects.status,
@@ -171,6 +174,7 @@ export async function savePendingCheckoutRenewalSubject(
     existing.workflowRunAttemptId === params.workflowRunAttemptId &&
     existing.repositoryUrl === repositoryUrl &&
     existing.connectionId === params.connectionId &&
+    existing.projectId === params.projectId &&
     existing.externalRepositoryId === params.externalRepositoryId &&
     existing.permissionsContents === params.permissions.contents
   );
@@ -297,6 +301,7 @@ export async function loadCheckoutRenewalSubject(
   return {
     repositoryUrl: row.subject.repositoryUrl,
     connectionId: row.subject.connectionId,
+    projectId: row.subject.projectId,
     externalRepositoryId: row.subject.externalRepositoryId,
     permissions: {contents: row.subject.permissionsContents},
     stepId: row.subject.stepId,

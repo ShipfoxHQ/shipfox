@@ -192,9 +192,14 @@ describe('createIntegrationToolDispatcher', () => {
       kind: 'declared-targets',
       repositories: [{owner: 'shipfox', name: 'platform'}],
     }));
+    const resolveConnectionAuthorization = vi.fn(async () => ({
+      authorized: true as const,
+      repositoriesNarrowed: true,
+    }));
     const resolveRepositoryAuthorization = vi.fn(async () => ({
       authorized: false as const,
       reason: 'repository_not_granted' as const,
+      access: 'selected' as const,
     }));
     const dispatch = createIntegrationToolDispatcher(
       {
@@ -209,6 +214,7 @@ describe('createIntegrationToolDispatcher', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization,
         },
       },
       {logger: loggerFactory, reportError},
@@ -259,9 +265,14 @@ describe('createIntegrationToolDispatcher', () => {
         },
       ],
     };
+    const resolveConnectionAuthorization = vi.fn(async () => ({
+      authorized: true as const,
+      repositoriesNarrowed: true,
+    }));
     const resolveRepositoryAuthorization = vi.fn(async () => ({
       authorized: false as const,
       reason: 'repository_not_granted' as const,
+      access: 'selected' as const,
     }));
     const dispatch = createIntegrationToolDispatcher({
       registry: registryWithAgentTools([entry], {
@@ -269,7 +280,11 @@ describe('createIntegrationToolDispatcher', () => {
         onOpenSession,
       }),
       lease: leaseContext({workspaceId: 'workspace-1', projectId: 'project-run'}),
-      repositoryAuthorizer: {enabled: true, resolveRepositoryAuthorization},
+      repositoryAuthorizer: {
+        enabled: true,
+        resolveRepositoryAuthorization,
+        resolveConnectionAuthorization,
+      },
     });
 
     const result = await dispatch({

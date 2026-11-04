@@ -34,9 +34,11 @@ import type {
 } from './providers/agent-tools.js';
 import type {IntegrationProviderRegistry} from './providers/registry.js';
 import {
+  type ConnectionAuthorizationResult,
   createRepositoryAuthorizationRequestContext,
+  type RepositoryAuthorizationAccess,
   type RepositoryAuthorizationDenial,
-  type RepositoryAuthorizationMode,
+  type RepositoryAuthorizationRequestContext,
   type RepositoryAuthorizationResult,
   RepositoryAuthorizationTargetInvalidError,
   type RepositoryAuthorizer,
@@ -85,8 +87,6 @@ export interface IntegrationToolTargetInput {
   caller: IntegrationToolCallCaller;
   /** Live catalog metadata used by the shared repository-scope boundary. */
   catalogEntry?: AgentToolCatalogEntry | undefined;
-  /** Trusted override for the persisted connection mode, primarily for callers and tests. */
-  repositoryAccessMode?: RepositoryAuthorizationMode | undefined;
   repositoryAuthorizer?: RepositoryAuthorizer | undefined;
   /** Cooperative cancellation for one call; an abort maps to `provider-timeout`. */
   signal?: AbortSignal | undefined;
@@ -365,7 +365,6 @@ async function resolveIntegrationToolAuthorization(
   input: IntegrationToolTargetInput,
   catalogEntry: AgentToolCatalogEntry | undefined,
 ): Promise<IntegrationToolCallAuthorization> {
-  const mode = input.repositoryAccessMode ?? input.connection.repositoryAccessMode;
   const provider = input.registry.get(input.integration.provider);
   const scope = classifyToolCall(
     catalogEntry,
@@ -374,37 +373,84 @@ async function resolveIntegrationToolAuthorization(
     provider.repositoryAuthorization,
     input.repositoryAuthorizer?.enabled === true,
   );
-  const authorization = createBaseAuthorization(
-    input,
-    mode,
-    provider.repositoryAuthorization,
-    scope,
-  );
+  const authorization = createBaseAuthorization(input, provider.repositoryAuthorization, scope);
 
-  if (requiresExplicitRepositoryDenial(input, provider.repositoryAuthorization, mode, scope)) {
-    return {
-      ...authorization,
-      decision: 'denied',
-      denialReason: 'repository_required',
-    };
-  }
-
-  if (!shouldAuthorizeDeclaredTargets(input, provider.repositoryAuthorization, scope)) {
+  const authorizer = input.repositoryAuthorizer;
+  // A built-in connection is not a workspace connection, so project access does not list it.
+  if (authorizer?.enabled !== true || isSyntheticConnection(input.connection)) {
     return authorization;
   }
-  return await authorizeDeclaredTargets(input, mode, scope, authorization);
+
+  const projectId = runProjectId(input.caller);
+  if (projectId === undefined) return denied(authorization, 'project_not_found');
+
+  const request = createRepositoryAuthorizationRequestContext();
+  const connection = await resolveToolConnectionAuthorization(
+    input,
+    authorizer,
+    projectId,
+    request,
+  );
+  if (connection === undefined) return denied(authorization, 'authorization_store_unavailable');
+  if (!connection.authorized) return denied(authorization, connection.reason, 'selected');
+
+  const access: RepositoryAuthorizationAccess = connection.repositoriesNarrowed
+    ? 'selected'
+    : 'all';
+  const withAccess = {...authorization, repositoryAccess: access};
+
+  if (requiresExplicitRepositoryDenial(provider.repositoryAuthorization, access, scope)) {
+    return denied(withAccess, 'repository_required');
+  }
+
+  if (!shouldAuthorizeDeclaredTargets(provider.repositoryAuthorization, scope)) {
+    return withAccess;
+  }
+  return await authorizeDeclaredTargets(input, authorizer, projectId, scope, request, withAccess);
+}
+
+async function resolveToolConnectionAuthorization(
+  input: IntegrationToolTargetInput,
+  authorizer: RepositoryAuthorizer,
+  projectId: string,
+  request: RepositoryAuthorizationRequestContext,
+): Promise<ConnectionAuthorizationResult | undefined> {
+  if (input.signal?.aborted) throw abortReason(input.signal);
+  return await raceWithSignal(
+    Promise.resolve().then(() => {
+      if (input.signal?.aborted) throw abortReason(input.signal);
+      return authorizer.resolveConnectionAuthorization({
+        workspaceId: input.connection.workspaceId,
+        projectId,
+        connectionId: input.connection.id,
+        request,
+      });
+    }),
+    input.signal,
+  );
+}
+
+function denied(
+  authorization: IntegrationToolCallAuthorization,
+  denialReason: RepositoryAuthorizationDenial,
+  access?: RepositoryAuthorizationAccess | undefined,
+): IntegrationToolCallAuthorization {
+  return {
+    ...authorization,
+    ...(access === undefined ? {} : {repositoryAccess: access}),
+    decision: 'denied',
+    denialReason,
+  };
 }
 
 function requiresExplicitRepositoryDenial(
-  input: IntegrationToolTargetInput,
   providerAuthorization: 'enforced' | 'unclassified' | undefined,
-  mode: RepositoryAuthorizationMode,
+  access: RepositoryAuthorizationAccess,
   scope: ClassifiedToolCallScope,
 ): boolean {
   return (
-    input.repositoryAuthorizer?.enabled === true &&
     providerAuthorization === 'enforced' &&
-    mode === 'selected' &&
+    access === 'selected' &&
     scope.kind === 'connection' &&
     scope.requiresExplicitRepository === true
   );
@@ -412,7 +458,6 @@ function requiresExplicitRepositoryDenial(
 
 function createBaseAuthorization(
   input: IntegrationToolTargetInput,
-  mode: RepositoryAuthorizationMode,
   providerAuthorization: 'enforced' | 'unclassified' | undefined,
   scope: ClassifiedToolCallScope,
 ): IntegrationToolCallAuthorization {
@@ -420,10 +465,9 @@ function createBaseAuthorization(
   return {
     repositories: scope.kind === 'declared-targets' ? scope.repositories : [],
     classification: providerAuthorization === 'enforced' ? scope.kind : 'unclassified',
-    repositoryAccess: mode,
+    repositoryAccess: 'all',
     decision: input.repositoryAuthorizer?.enabled ? 'not-applicable' : 'not-enforced',
     denialReason: 'none',
-    targetProjectIds: [],
     ...(runProject === undefined ? {} : {runProjectId: runProject}),
     ...(scope.indirectTargetNote === undefined
       ? {}
@@ -432,42 +476,30 @@ function createBaseAuthorization(
 }
 
 function shouldAuthorizeDeclaredTargets(
-  input: IntegrationToolTargetInput,
   providerAuthorization: 'enforced' | 'unclassified' | undefined,
   scope: ClassifiedToolCallScope,
 ): scope is ClassifiedToolCallScope & {kind: 'declared-targets'} {
-  return (
-    input.repositoryAuthorizer?.enabled === true &&
-    providerAuthorization === 'enforced' &&
-    scope.kind === 'declared-targets'
-  );
+  return providerAuthorization === 'enforced' && scope.kind === 'declared-targets';
 }
 
 async function authorizeDeclaredTargets(
   input: IntegrationToolTargetInput,
-  mode: RepositoryAuthorizationMode,
+  authorizer: RepositoryAuthorizer,
+  projectId: string,
   scope: ClassifiedToolCallScope & {kind: 'declared-targets'},
+  request: RepositoryAuthorizationRequestContext,
   authorization: IntegrationToolCallAuthorization,
 ): Promise<IntegrationToolCallAuthorization> {
-  const authorizer = input.repositoryAuthorizer;
-  if (authorizer === undefined) return authorization;
-
   if (scope.repositories.length === 0) {
-    return {
-      ...authorization,
-      decision: 'denied',
-      denialReason: 'repository_not_granted',
-    };
+    return denied(authorization, 'repository_not_granted');
   }
 
-  const request = createRepositoryAuthorizationRequestContext();
-  const targetProjectIds: string[] = [];
   let denialReason: RepositoryAuthorizationDenial | undefined;
   for (const repository of scope.repositories) {
     const result = await resolveDeclaredTargetAuthorization(
       input,
       authorizer,
-      mode,
+      projectId,
       repository,
       request,
     );
@@ -475,29 +507,20 @@ async function authorizeDeclaredTargets(
       denialReason ??= 'authorization_store_unavailable';
       continue;
     }
-    if (!result.authorized) {
-      denialReason ??= result.reason;
-      continue;
-    }
-    if (
-      result.targetProjectId !== undefined &&
-      !targetProjectIds.includes(result.targetProjectId)
-    ) {
-      targetProjectIds.push(result.targetProjectId);
-    }
+    if (!result.authorized) denialReason ??= result.reason;
   }
 
   return denialReason === undefined
-    ? {...authorization, decision: 'allowed', targetProjectIds}
-    : {...authorization, decision: 'denied', denialReason, targetProjectIds};
+    ? {...authorization, decision: 'allowed'}
+    : denied(authorization, denialReason);
 }
 
 async function resolveDeclaredTargetAuthorization(
   input: IntegrationToolTargetInput,
   authorizer: RepositoryAuthorizer,
-  mode: RepositoryAuthorizationMode,
+  projectId: string,
   repository: {owner: string; name: string},
-  request: ReturnType<typeof createRepositoryAuthorizationRequestContext>,
+  request: RepositoryAuthorizationRequestContext,
 ): Promise<RepositoryAuthorizationResult | undefined> {
   if (input.signal?.aborted) throw abortReason(input.signal);
   try {
@@ -506,8 +529,8 @@ async function resolveDeclaredTargetAuthorization(
         if (input.signal?.aborted) throw abortReason(input.signal);
         return authorizer.resolveRepositoryAuthorization({
           workspaceId: input.connection.workspaceId,
+          projectId,
           connectionId: input.connection.id,
-          mode,
           repository: {kind: 'name', owner: repository.owner, name: repository.name},
           capability: 'tools',
           request,
@@ -517,7 +540,7 @@ async function resolveDeclaredTargetAuthorization(
     );
   } catch (error) {
     if (error instanceof RepositoryAuthorizationTargetInvalidError) {
-      return {authorized: false, reason: 'repository_not_granted'};
+      return {authorized: false, reason: 'repository_not_granted', access: 'selected'};
     }
     throw error;
   }
@@ -631,6 +654,13 @@ function toAgentToolsCaller(
   };
 }
 
+const syntheticConnections = new WeakSet<IntegrationConnection>();
+
+/** Whether the connection came from `loadAuthorizedToolConnection`'s built-in path. */
+function isSyntheticConnection(connection: IntegrationConnection): boolean {
+  return syntheticConnections.has(connection);
+}
+
 function syntheticConnection(params: {
   id: string;
   workspaceId: string;
@@ -638,7 +668,7 @@ function syntheticConnection(params: {
   slug: string;
 }): IntegrationConnection {
   const timestamp = new Date(0);
-  return {
+  const connection: IntegrationConnection = {
     id: params.id,
     workspaceId: params.workspaceId,
     provider: params.provider,
@@ -650,6 +680,8 @@ function syntheticConnection(params: {
     createdAt: timestamp,
     updatedAt: timestamp,
   };
+  syntheticConnections.add(connection);
+  return connection;
 }
 
 function runProjectId(caller: IntegrationToolCallCaller): string | undefined {
@@ -661,11 +693,15 @@ function runProjectId(caller: IntegrationToolCallCaller): string | undefined {
 function repositoryAuthorizationErrorMessage(reason: RepositoryAuthorizationDenial): string {
   switch (reason) {
     case 'repository_required':
-      return 'Selected repository access requires owner and repo parameters';
+      return "This project's access limits the connection to some repositories, so the call must name one with owner and repo parameters";
     case 'repository_not_granted':
-      return 'Repository is not authorized for this integration connection';
+      return "Repository is not in this project's access";
     case 'repository_ambiguous':
       return 'Repository authorization is ambiguous for this integration connection';
+    case 'connection_not_allowed':
+      return "This integration connection is not in this project's access";
+    case 'project_not_found':
+      return 'The project of this call no longer exists';
     case 'authorization_store_unavailable':
       return 'Repository authorization is temporarily unavailable';
   }

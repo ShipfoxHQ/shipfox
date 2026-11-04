@@ -60,6 +60,7 @@ describe('renewStepCheckoutCredentials', () => {
     const workspaceId = crypto.randomUUID();
     const subject = {
       connectionId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
       externalRepositoryId: 'github:repo-1',
       permissions: {contents: 'write' as const},
     };
@@ -82,6 +83,7 @@ describe('renewStepCheckoutCredentials', () => {
     expect(createCheckoutCredentials).toHaveBeenCalledWith({
       workspaceId,
       connectionId: subject.connectionId,
+      projectId: subject.projectId,
       externalRepositoryId: subject.externalRepositoryId,
       permissions: subject.permissions,
       rejectedGeneration: 'generation-1',
@@ -185,7 +187,7 @@ describe('createStepCheckoutSpec', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: expect.any(String),
-      projectId: targetProjectId,
+      projectId: project.id,
       target: {kind: 'external-id', externalRepositoryId: 'github:412'},
       ref: 'refs/pull/412/head',
       permissions: {contents: 'write'},
@@ -360,7 +362,7 @@ describe('createStepCheckoutSpec', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: expect.any(String),
-      projectId: targetProjectId,
+      projectId: project.id,
       target: {kind: 'external-id', externalRepositoryId: 'github:412'},
       permissions: {contents: 'read'},
     });
@@ -499,7 +501,7 @@ describe('createStepCheckoutSpec', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: expect.any(String),
-      projectId: targetProjectId,
+      projectId: project.id,
       target: {kind: 'external-id', externalRepositoryId: 'github:412'},
       permissions: {contents: 'read'},
     });
@@ -527,6 +529,7 @@ describe('createStepCheckoutSpec', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
+      projectId: project.id,
       target: {kind: 'name', owner: 'acme', name: 'repo'},
       permissions: {contents: 'read'},
     });
@@ -560,6 +563,7 @@ describe('createStepCheckoutSpec', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId,
+      projectId: project.id,
       target: {kind: 'name', owner: 'acme', name: 'repo'},
       permissions: {contents: 'read'},
     });
@@ -590,6 +594,7 @@ describe('createStepCheckoutSpec', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
+      projectId: project.id,
       target: {kind: 'name', owner, name: repository.includes('/') ? 'repo' : repository},
       permissions: {contents: 'read'},
     });
@@ -683,6 +688,7 @@ describe('createStepCheckoutSpec', () => {
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
+      projectId: project.id,
       target: {kind: 'name', owner: 'acme', name: 'other'},
       permissions: {contents: 'read'},
     });
@@ -721,6 +727,7 @@ describe('createStepCheckoutSpec', () => {
     expect(result.renewalSubject).toEqual({
       repositoryUrl: 'https://github.com/acme/other',
       connectionId: project.sourceConnectionId,
+      projectId: project.id,
       externalRepositoryId: 'github:412',
       permissions: {contents: 'read'},
     });
@@ -934,6 +941,7 @@ describe('createStepCheckoutSpec', () => {
       expect(createCheckoutSpec).toHaveBeenCalledWith({
         workspaceId: project.workspaceId,
         connectionId,
+        projectId: project.id,
         target: {kind: 'name', owner: 'acme', name: 'app'},
         permissions: {contents: 'read'},
       });

@@ -119,7 +119,6 @@ export interface IntegrationToolCallAuthorization {
   repositoryAccess: IntegrationToolRepositoryAccessMode;
   decision: IntegrationToolRepositoryDecision;
   denialReason: IntegrationToolRepositoryDenialReason;
-  targetProjectIds: readonly string[];
   runProjectId?: string | undefined;
   indirectTargetNote?: string | undefined;
 }
@@ -136,7 +135,6 @@ export interface IntegrationToolCallAuditRecord {
   repositoryAccess?: IntegrationToolRepositoryAccessMode | undefined;
   decision?: IntegrationToolRepositoryDecision | undefined;
   denialReason?: RepositoryAuthorizationDenial | 'none' | undefined;
-  targetProjectIds?: readonly string[] | undefined;
   runProjectId?: string | undefined;
   indirectTargetNote?: string | undefined;
   /** Set for file downloads, with the bytes streamed to the caller. */
@@ -155,7 +153,6 @@ export function integrationToolCallAuthorizationAuditFields(
         repositoryAccess: authorization.repositoryAccess,
         decision: authorization.decision,
         denialReason: authorization.denialReason,
-        targetProjectIds: authorization.targetProjectIds,
         ...(authorization.runProjectId === undefined
           ? {}
           : {runProjectId: authorization.runProjectId}),
@@ -240,7 +237,6 @@ function auditLogContext(
     ...optionalLogField('repositoryAccess', record.repositoryAccess),
     ...optionalLogField('decision', record.decision),
     ...optionalLogField('denialReason', record.denialReason),
-    ...optionalLogField('targetProjectIds', record.targetProjectIds),
     ...optionalLogField('runProjectId', record.runProjectId),
     ...optionalLogField('indirectTargetNote', record.indirectTargetNote),
     ...optionalLogField('providerStatus', record.providerStatus),

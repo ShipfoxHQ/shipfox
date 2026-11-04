@@ -1,5 +1,5 @@
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {recordIntegrationCheckoutRepositoryAuthorization} from '#metrics/index.js';
+import {createProjectAccessClient, projectAccessPolicy} from '#test/fixtures/project-access.js';
 import type {IntegrationConnection} from './entities/connection.js';
 import {
   IntegrationCheckoutUnsupportedError,
@@ -33,6 +33,7 @@ const repository: RepositorySnapshot = {
 
 describe('integration source-control service', () => {
   const workspaceId = crypto.randomUUID();
+  const projectId = crypto.randomUUID();
   const connection = {
     id: crypto.randomUUID(),
     workspaceId,
@@ -54,7 +55,6 @@ describe('integration source-control service', () => {
       providerRepositoryAuthorization?: 'enforced' | 'unclassified';
       checkoutRepositoryAuthorization?: CheckoutRepositoryAuthorizationState;
       recordRepositoryAuthorizationMetric?: typeof recordIntegrationCheckoutRepositoryAuthorization;
-      getRepositoryAuthorizationMode?: () => 'selected' | 'all';
       connection?: IntegrationConnection;
       connectionProviderAccess?: () => Promise<'removed' | 'suspended' | undefined>;
     } = {},
@@ -115,7 +115,6 @@ describe('integration source-control service', () => {
       },
       repositoryAuthorizer: options.repositoryAuthorizer,
       recordRepositoryAuthorizationMetric: options.recordRepositoryAuthorizationMetric,
-      getRepositoryAuthorizationMode: options.getRepositoryAuthorizationMode,
     });
   }
 
@@ -310,6 +309,7 @@ describe('integration source-control service', () => {
     const result = await service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
+      projectId,
       externalRepositoryId: 'gitea:gitea-owner/platform',
       ref: 'feature/x',
       permissions: {contents: 'write'},
@@ -336,7 +336,6 @@ describe('integration source-control service', () => {
       },
     );
     const service = createService({createCheckoutSpec});
-    const projectId = crypto.randomUUID();
 
     await service.createCheckoutSpec({
       workspaceId,
@@ -363,6 +362,7 @@ describe('integration source-control service', () => {
     const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
       authorized: false,
       reason: 'repository_not_granted',
+      access: 'selected',
     } as const);
     const recordRepositoryAuthorizationMetric = vi.fn();
     const service = createService(
@@ -371,6 +371,7 @@ describe('integration source-control service', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization: vi.fn(),
         },
         recordRepositoryAuthorizationMetric,
       },
@@ -380,6 +381,7 @@ describe('integration source-control service', () => {
       service.createCheckoutSpec({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         target: {kind: 'external-id', externalRepositoryId: repository.externalRepositoryId},
       }),
     ).rejects.toBeInstanceOf(IntegrationRepositoryAuthorizationError);
@@ -387,7 +389,7 @@ describe('integration source-control service', () => {
     expect(resolveRepositoryAuthorization).toHaveBeenCalledWith({
       workspaceId,
       connectionId: connection.id,
-      mode: 'selected',
+      projectId,
       repository: {kind: 'external-id', externalRepositoryId: repository.externalRepositoryId},
       capability: 'checkout',
     });
@@ -414,6 +416,7 @@ describe('integration source-control service', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization: vi.fn(),
         },
         recordRepositoryAuthorizationMetric,
       },
@@ -423,6 +426,7 @@ describe('integration source-control service', () => {
       service.createCheckoutSpec({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         externalRepositoryId: repository.externalRepositoryId,
       }),
     ).resolves.toMatchObject({repositoryUrl: repository.cloneUrl});
@@ -431,7 +435,7 @@ describe('integration source-control service', () => {
     expect(createCheckoutSpec).toHaveBeenCalledOnce();
     expect(recordRepositoryAuthorizationMetric).toHaveBeenCalledWith({
       provider: 'gitea',
-      mode: 'selected',
+      mode: 'all',
       decision: 'not-enforced',
       denial_reason: 'none',
     });
@@ -448,12 +452,13 @@ describe('integration source-control service', () => {
     await service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
+      projectId,
       externalRepositoryId: repository.externalRepositoryId,
     });
 
     expect(recordRepositoryAuthorizationMetric).toHaveBeenCalledWith({
       provider: 'gitea',
-      mode: 'selected',
+      mode: 'all',
       decision: 'not-enforced',
       denial_reason: 'none',
     });
@@ -467,6 +472,7 @@ describe('integration source-control service', () => {
     const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
       authorized: false,
       reason: 'repository_not_granted',
+      access: 'selected',
     } as const);
     const service = createService(
       {createCheckoutSpec},
@@ -475,6 +481,7 @@ describe('integration source-control service', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization: vi.fn(),
         },
       },
     );
@@ -483,48 +490,13 @@ describe('integration source-control service', () => {
       service.createCheckoutSpec({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         externalRepositoryId: repository.externalRepositoryId,
       }),
     ).rejects.toBeInstanceOf(IntegrationRepositoryAuthorizationError);
 
     expect(resolveRepositoryAuthorization).toHaveBeenCalledOnce();
     expect(createCheckoutSpec).not.toHaveBeenCalled();
-  });
-
-  it('uses the persisted connection repository mode by default', async () => {
-    const allModeConnection = {...connection, repositoryAccessMode: 'all' as const};
-    const createCheckoutSpec = vi.fn(async () => ({
-      repositoryUrl: repository.cloneUrl,
-      ref: repository.defaultBranch,
-    }));
-    const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
-      authorized: true,
-      repository: {externalRepositoryId: repository.externalRepositoryId},
-    } as const);
-    const service = createService(
-      {createCheckoutSpec},
-      {
-        connection: allModeConnection,
-        repositoryAuthorizer: {
-          enabled: true,
-          resolveRepositoryAuthorization,
-        },
-      },
-    );
-
-    await service.createCheckoutSpec({
-      workspaceId,
-      connectionId: connection.id,
-      target: {kind: 'external-id', externalRepositoryId: repository.externalRepositoryId},
-    });
-
-    expect(resolveRepositoryAuthorization).toHaveBeenCalledWith({
-      workspaceId,
-      connectionId: connection.id,
-      mode: 'all',
-      repository: {kind: 'external-id', externalRepositoryId: repository.externalRepositoryId},
-      capability: 'checkout',
-    });
   });
 
   it('authorizes checkout credentials before calling the provider', async () => {
@@ -536,6 +508,7 @@ describe('integration source-control service', () => {
     const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
       authorized: false,
       reason: 'repository_ambiguous',
+      access: 'selected',
     } as const);
     const service = createService(
       {createCheckoutCredentials},
@@ -543,6 +516,7 @@ describe('integration source-control service', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization: vi.fn(),
         },
       },
     );
@@ -551,6 +525,7 @@ describe('integration source-control service', () => {
       service.createCheckoutCredentials({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         target: {kind: 'name', owner: 'acme', name: 'platform'},
         permissions: {contents: 'read'},
       }),
@@ -559,7 +534,7 @@ describe('integration source-control service', () => {
     expect(resolveRepositoryAuthorization).toHaveBeenCalledWith({
       workspaceId,
       connectionId: connection.id,
-      mode: 'selected',
+      projectId,
       repository: {kind: 'name', owner: 'acme', name: 'platform'},
       capability: 'checkout',
     });
@@ -575,6 +550,7 @@ describe('integration source-control service', () => {
     const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
       authorized: false,
       reason: 'repository_not_granted',
+      access: 'selected',
     } as const);
     const service = createService(
       {createCheckoutCredentials},
@@ -583,6 +559,7 @@ describe('integration source-control service', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization: vi.fn(),
         },
       },
     );
@@ -591,6 +568,7 @@ describe('integration source-control service', () => {
       service.createCheckoutCredentials({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         externalRepositoryId: repository.externalRepositoryId,
         permissions: {contents: 'read'},
       }),
@@ -614,7 +592,7 @@ describe('integration source-control service', () => {
     const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
       authorized: true,
       repository: {externalRepositoryId: repository.externalRepositoryId},
-      targetProjectId: crypto.randomUUID(),
+      access: 'selected',
     } as const);
     const service = createService(
       {createCheckoutSpec},
@@ -622,6 +600,7 @@ describe('integration source-control service', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization: vi.fn(),
         },
       },
     );
@@ -629,11 +608,13 @@ describe('integration source-control service', () => {
     await service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
+      projectId,
       target: {kind: 'name', owner: repository.owner, name: repository.name},
     });
 
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       connection,
+      projectId,
       target: {kind: 'external-id', externalRepositoryId: repository.externalRepositoryId},
       ref: undefined,
       permissions: undefined,
@@ -645,6 +626,7 @@ describe('integration source-control service', () => {
     const resolveRepositoryAuthorization = vi.fn().mockResolvedValue({
       authorized: true,
       repository: {},
+      access: 'all',
     } as const);
     const service = createService(
       {createCheckoutSpec},
@@ -652,6 +634,7 @@ describe('integration source-control service', () => {
         repositoryAuthorizer: {
           enabled: true,
           resolveRepositoryAuthorization,
+          resolveConnectionAuthorization: vi.fn(),
         },
       },
     );
@@ -660,106 +643,226 @@ describe('integration source-control service', () => {
       service.createCheckoutSpec({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         target: {kind: 'name', owner: 'acme', name: 'platform'},
       }),
     ).rejects.toBeInstanceOf(RepositoryAuthorizationTargetInvalidError);
     expect(createCheckoutSpec).not.toHaveBeenCalled();
   });
 
-  it('does not query Projects for an all-mode name target', async () => {
-    const getProjectBySource = vi.fn();
-    const findProjectBySourceRepositoryName = vi.fn();
-    const authorizer = createRepositoryAuthorizer({
-      enabled: true,
-      projects: {
-        getProjectBySource,
-        findProjectBySourceRepositoryName,
-      } as unknown as ProjectsModuleClient,
-    });
-    const createCheckoutSpec = vi.fn(
-      async (input: Parameters<NonNullable<SourceControlProvider['createCheckoutSpec']>>[0]) => ({
-        repositoryUrl: repository.cloneUrl,
-        ref: input.ref ?? repository.defaultBranch,
-        target: {
-          kind: 'external-id' as const,
-          externalRepositoryId: repository.externalRepositoryId,
+  describe('with a project access policy', () => {
+    const narrowedProjectId = crypto.randomUUID();
+    const narrowedPolicy = projectAccessPolicy({
+      projectId: narrowedProjectId,
+      connections: [
+        {
+          connectionId: connection.id,
+          resources: [
+            {
+              kind: 'repository',
+              externalId: repository.externalRepositoryId,
+              lookupName: 'gitea-owner/platform',
+            },
+          ],
         },
-      }),
-    );
-    const service = createService(
-      {createCheckoutSpec},
-      {
-        repositoryAuthorizer: authorizer,
-        getRepositoryAuthorizationMode: () => 'all',
-      },
-    );
+      ],
+    });
+    const projects = createProjectAccessClient([narrowedPolicy]);
+    const authorizer = createRepositoryAuthorizer({enabled: true, projects});
 
-    const result = await service.createCheckoutSpec({
-      workspaceId,
-      connectionId: connection.id,
-      target: {kind: 'name', owner: 'acme', name: 'unassociated'},
+    it('checks out a name target as given for a project with full access', async () => {
+      const fullAccessProjectId = crypto.randomUUID();
+      const createCheckoutSpec = vi.fn(
+        async (input: Parameters<NonNullable<SourceControlProvider['createCheckoutSpec']>>[0]) => ({
+          repositoryUrl: repository.cloneUrl,
+          ref: input.ref ?? repository.defaultBranch,
+          target: {
+            kind: 'external-id' as const,
+            externalRepositoryId: repository.externalRepositoryId,
+          },
+        }),
+      );
+      const service = createService(
+        {createCheckoutSpec},
+        {
+          repositoryAuthorizer: createRepositoryAuthorizer({
+            enabled: true,
+            projects: createProjectAccessClient('all'),
+          }),
+        },
+      );
+
+      const result = await service.createCheckoutSpec({
+        workspaceId,
+        connectionId: connection.id,
+        projectId: fullAccessProjectId,
+        target: {kind: 'name', owner: 'acme', name: 'unassociated'},
+      });
+
+      expect(result.target).toEqual({
+        kind: 'external-id',
+        externalRepositoryId: repository.externalRepositoryId,
+      });
+      expect(createCheckoutSpec).toHaveBeenCalledWith({
+        connection,
+        projectId: fullAccessProjectId,
+        target: {kind: 'name', owner: 'acme', name: 'unassociated'},
+        ref: undefined,
+        permissions: undefined,
+      });
     });
 
-    expect(result.target).toEqual({
-      kind: 'external-id',
-      externalRepositoryId: repository.externalRepositoryId,
+    it('checks out credentials for a name target as given for a project with full access', async () => {
+      const createCheckoutCredentials = vi.fn(async () => ({
+        username: 'x-access-token',
+        token: 'secret',
+        expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+      }));
+      const service = createService(
+        {createCheckoutCredentials},
+        {
+          repositoryAuthorizer: createRepositoryAuthorizer({
+            enabled: true,
+            projects: createProjectAccessClient('all'),
+          }),
+        },
+      );
+
+      await service.createCheckoutCredentials({
+        workspaceId,
+        connectionId: connection.id,
+        projectId,
+        target: {kind: 'name', owner: 'acme', name: 'unassociated'},
+        permissions: {contents: 'read'},
+      });
+
+      expect(createCheckoutCredentials).toHaveBeenCalledWith({
+        connection,
+        projectId,
+        target: {kind: 'name', owner: 'acme', name: 'unassociated'},
+        permissions: {contents: 'read'},
+        rejectedGeneration: undefined,
+      });
     });
 
-    expect(createCheckoutSpec).toHaveBeenCalledWith({
-      connection,
-      target: {kind: 'name', owner: 'acme', name: 'unassociated'},
-      ref: undefined,
-      permissions: undefined,
-    });
-    expect(getProjectBySource).not.toHaveBeenCalled();
-    expect(findProjectBySourceRepositoryName).not.toHaveBeenCalled();
-  });
+    it('denies another repository to a narrowed project', async () => {
+      const createCheckoutSpec = vi.fn();
+      const recordRepositoryAuthorizationMetric = vi.fn();
+      const service = createService(
+        {createCheckoutSpec},
+        {repositoryAuthorizer: authorizer, recordRepositoryAuthorizationMetric},
+      );
 
-  it('does not query Projects for an all-mode name credential target', async () => {
-    const getProjectBySource = vi.fn();
-    const findProjectBySourceRepositoryName = vi.fn();
-    const authorizer = createRepositoryAuthorizer({
-      enabled: true,
-      projects: {
-        getProjectBySource,
-        findProjectBySourceRepositoryName,
-      } as unknown as ProjectsModuleClient,
-    });
-    const createCheckoutCredentials = vi.fn(async () => ({
-      username: 'x-access-token',
-      token: 'secret',
-      expiresAt: new Date('2027-01-01T00:00:00.000Z'),
-    }));
-    const service = createService(
-      {createCheckoutCredentials},
-      {
-        repositoryAuthorizer: authorizer,
-        getRepositoryAuthorizationMode: () => 'all',
-      },
-    );
+      await expect(
+        service.createCheckoutSpec({
+          workspaceId,
+          connectionId: connection.id,
+          projectId: narrowedProjectId,
+          target: {kind: 'name', owner: 'gitea-owner', name: 'other'},
+        }),
+      ).rejects.toMatchObject({reason: 'repository_not_granted'});
 
-    await service.createCheckoutCredentials({
-      workspaceId,
-      connectionId: connection.id,
-      target: {kind: 'name', owner: 'acme', name: 'unassociated'},
-      permissions: {contents: 'read'},
+      expect(createCheckoutSpec).not.toHaveBeenCalled();
+      expect(recordRepositoryAuthorizationMetric).toHaveBeenCalledWith({
+        provider: 'gitea',
+        mode: 'selected',
+        decision: 'denied',
+        denial_reason: 'repository_not_granted',
+      });
     });
 
-    expect(createCheckoutCredentials).toHaveBeenCalledWith({
-      connection,
-      target: {kind: 'name', owner: 'acme', name: 'unassociated'},
-      permissions: {contents: 'read'},
-      rejectedGeneration: undefined,
+    it('pins a by-name checkout of a narrowed project to the matched id', async () => {
+      const createCheckoutSpec = vi.fn(
+        async (input: Parameters<NonNullable<SourceControlProvider['createCheckoutSpec']>>[0]) => ({
+          repositoryUrl: repository.cloneUrl,
+          ref: input.ref ?? repository.defaultBranch,
+        }),
+      );
+      const recordRepositoryAuthorizationMetric = vi.fn();
+      const service = createService(
+        {createCheckoutSpec},
+        {repositoryAuthorizer: authorizer, recordRepositoryAuthorizationMetric},
+      );
+
+      const result = await service.createCheckoutSpec({
+        workspaceId,
+        connectionId: connection.id,
+        projectId: narrowedProjectId,
+        target: {kind: 'name', owner: 'Gitea-Owner', name: 'Platform'},
+      });
+
+      expect(createCheckoutSpec).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: {kind: 'external-id', externalRepositoryId: repository.externalRepositoryId},
+        }),
+      );
+      expect(result.target).toEqual({
+        kind: 'external-id',
+        externalRepositoryId: repository.externalRepositoryId,
+      });
+      expect(recordRepositoryAuthorizationMetric).toHaveBeenCalledWith({
+        provider: 'gitea',
+        mode: 'selected',
+        decision: 'allowed',
+        denial_reason: 'none',
+      });
     });
-    expect(getProjectBySource).not.toHaveBeenCalled();
-    expect(findProjectBySourceRepositoryName).not.toHaveBeenCalled();
+
+    it('denies credential renewal once the repository leaves the access', async () => {
+      const createCheckoutCredentials = vi.fn();
+      const service = createService(
+        {createCheckoutCredentials},
+        {repositoryAuthorizer: authorizer},
+      );
+
+      await expect(
+        service.createCheckoutCredentials({
+          workspaceId,
+          connectionId: connection.id,
+          projectId: narrowedProjectId,
+          externalRepositoryId: 'gitea:gitea-owner/removed',
+          permissions: {contents: 'read'},
+        }),
+      ).rejects.toMatchObject({reason: 'repository_not_granted'});
+      expect(createCheckoutCredentials).not.toHaveBeenCalled();
+    });
+
+    it('denies a deleted project', async () => {
+      const service = createService({}, {repositoryAuthorizer: authorizer});
+
+      await expect(
+        service.createCheckoutSpec({
+          workspaceId,
+          connectionId: connection.id,
+          projectId: crypto.randomUUID(),
+          externalRepositoryId: repository.externalRepositoryId,
+        }),
+      ).rejects.toMatchObject({reason: 'project_not_found'});
+    });
+
+    it('denies a connection outside the project access', async () => {
+      const otherConnection = {...connection, id: crypto.randomUUID()};
+      const service = createService(
+        {},
+        {repositoryAuthorizer: authorizer, connection: otherConnection},
+      );
+
+      await expect(
+        service.createCheckoutSpec({
+          workspaceId,
+          connectionId: otherConnection.id,
+          projectId: narrowedProjectId,
+          externalRepositoryId: repository.externalRepositoryId,
+        }),
+      ).rejects.toMatchObject({reason: 'connection_not_allowed'});
+    });
   });
 
   it('preserves distinct errors for missing and ambiguous checkout targets', async () => {
     const service = createService();
 
     await expect(
-      service.createCheckoutSpec({workspaceId, connectionId: connection.id}),
+      service.createCheckoutSpec({workspaceId, connectionId: connection.id, projectId}),
     ).rejects.toMatchObject({
       reason: 'repository-not-found',
       message: 'Checkout input must include exactly one target or external repository id',
@@ -768,6 +871,7 @@ describe('integration source-control service', () => {
       service.createCheckoutSpec({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         target: {kind: 'name', owner: 'acme', name: 'platform'},
         externalRepositoryId: repository.externalRepositoryId,
       }),
@@ -783,6 +887,7 @@ describe('integration source-control service', () => {
     const result = service.createCheckoutSpec({
       workspaceId: crypto.randomUUID(),
       connectionId: connection.id,
+      projectId,
       externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
@@ -800,6 +905,7 @@ describe('integration source-control service', () => {
     const result = service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
+      projectId,
       externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 
@@ -819,6 +925,7 @@ describe('integration source-control service', () => {
       service.createCheckoutCredentials({
         workspaceId,
         connectionId: connection.id,
+        projectId,
         externalRepositoryId: repository.externalRepositoryId,
         permissions: {contents: 'read'},
         rejectedGeneration: 'generation-1',
@@ -832,6 +939,7 @@ describe('integration source-control service', () => {
     const result = service.createCheckoutSpec({
       workspaceId,
       connectionId: connection.id,
+      projectId,
       externalRepositoryId: 'gitea:gitea-owner/platform',
     });
 

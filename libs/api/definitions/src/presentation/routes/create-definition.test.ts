@@ -197,6 +197,7 @@ jobs:
             slug: 'github-main',
             provider: 'github',
             capabilities: ['agent_tools' as const],
+            allowed: true,
           },
         ],
         eventCatalogs: [],
@@ -235,6 +236,7 @@ jobs:
     expect(getAgentToolsContext).toHaveBeenCalledWith({
       workspaceId,
       defaultConnectionId: sourceConnectionId,
+      projectId,
     });
   });
 

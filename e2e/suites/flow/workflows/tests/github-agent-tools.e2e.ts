@@ -41,9 +41,9 @@ const GITHUB_REPOSITORY_EXTERNAL_ID = `github:${GITHUB_REPOSITORY_ID}`;
 const GITHUB_OUTSIDE_REPOSITORY_ID = 43;
 const GITHUB_OUTSIDE_REPOSITORY_NAME = 'shipfox/outside';
 const BEARER_AUTHORIZATION = /^bearer /iu;
-const REPOSITORY_NOT_AUTHORIZED_MESSAGE =
-  'Repository is not authorized for this integration connection';
-const REPOSITORY_REQUIRED_MESSAGE = 'Selected repository access requires owner and repo parameters';
+const REPOSITORY_NOT_AUTHORIZED_MESSAGE = "Repository is not in this project's access";
+const REPOSITORY_REQUIRED_MESSAGE =
+  "This project's access limits the connection to some repositories, so the call must name one with owner and repo parameters";
 const SEARCH_QUALIFIER_MESSAGE = 'Search query cannot contain repo:, org:, or user: qualifiers';
 const CHECK_RUN_HEAD_SHA = 'a'.repeat(40);
 const CHECK_RUN_ID = 123456;
@@ -680,7 +680,7 @@ test('allows an all-mode GitHub tool target outside Shipfox projects', async ({
   const fixture = await createGithubFixture(suite, uniqueId);
 
   try {
-    await setRepositoryAccessMode(fixture.suite, fixture.connection.id, 'all');
+    await setProjectAccess(fixture, 'all');
     const result = await runGithubWorkflow({
       suite: fixture.suite,
       testInfo,
@@ -803,7 +803,7 @@ test('mints a GitHub checkout token for an all-mode repository name', async ({su
   const fixture = await createGithubFixture(suite, uniqueId);
 
   try {
-    await setRepositoryAccessMode(fixture.suite, fixture.connection.id, 'all');
+    await setProjectAccess(fixture, 'all');
     const result = await runGithubWorkflow({
       suite: fixture.suite,
       testInfo,
@@ -867,9 +867,6 @@ async function createGithubFixture(
     // Connection availability resyncs every project in its workspace. Activate it
     // before adding this fixture's only project to keep each test's work isolated.
     await activateGithubConnection(isolatedSuite, connection.id);
-    // New connections reach every repository. These tests cover the authorization of `selected`,
-    // and the ones that need `all` set it themselves.
-    await setRepositoryAccessMode(isolatedSuite, connection.id, 'selected');
     const project = await createE2eProject({
       workspaceId: isolatedSuite.workspaceId,
       name: `GitHub authorization project ${uniqueId}`,
@@ -886,7 +883,7 @@ async function createGithubFixture(
       suite: isolatedSuite,
     });
     githubApi.calls.length = 0;
-    return {
+    const fixture = {
       connection,
       githubApi,
       installationId,
@@ -894,6 +891,10 @@ async function createGithubFixture(
       project,
       suite: isolatedSuite,
     };
+    // A new project reaches every repository. These tests cover a project narrowed to its own
+    // repository, and the ones that need full access set it themselves.
+    await setProjectAccess(fixture, 'config-repository');
+    return fixture;
   } catch (error) {
     await githubApi.stop();
     throw error;
@@ -952,14 +953,17 @@ async function activateGithubConnection(suite: SuiteContext, connectionId: strin
   });
 }
 
-async function setRepositoryAccessMode(
-  suite: SuiteContext,
-  connectionId: string,
-  mode: 'selected' | 'all',
+async function setProjectAccess(
+  fixture: Pick<GithubFixture, 'connection' | 'project' | 'suite'>,
+  access: 'all' | 'config-repository',
 ): Promise<void> {
-  const client = createApiClient({token: suite.sessionToken});
-  await client.request('put', `/integration-connections/${connectionId}/repository-access`, {
-    json: {mode},
+  const client = createApiClient({token: fixture.suite.sessionToken});
+  // A listed connection with no resources reaches only the config repository of a linked project.
+  await client.request('put', `/projects/${fixture.project.id}/access`, {
+    json: {
+      connections:
+        access === 'all' ? 'all' : [{connection_id: fixture.connection.id, resources: []}],
+    },
   });
 }
 

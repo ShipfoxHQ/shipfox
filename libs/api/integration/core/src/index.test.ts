@@ -1,11 +1,11 @@
 import type {StoredWebhookRequest, WebhookRequestProcessor} from '@shipfox/api-integration-spi';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   createOutboxRegistry,
   type ModuleService,
   registerModuleMetrics,
   startModuleServices,
 } from '@shipfox/node-module';
+import {createProjectAccessClient, projectAccessPolicy} from '#test/fixtures/project-access.js';
 import {
   createIntegrationsContext,
   createRepositoryAuthorizer,
@@ -199,12 +199,8 @@ describe('createIntegrationsContext', () => {
   });
 
   it('enforces repository authorization by default', async () => {
-    const getProjectBySource = vi.fn().mockResolvedValue({project: null});
-    const projects = {
-      getProjectBySource,
-      findProjectBySourceRepositoryName: vi.fn(),
-    } as unknown as ProjectsModuleClient;
     const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
     const connection = {
       id: crypto.randomUUID(),
       workspaceId,
@@ -217,6 +213,18 @@ describe('createIntegrationsContext', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+    const projects = createProjectAccessClient([
+      projectAccessPolicy({
+        projectId,
+        connections: [
+          {
+            connectionId: connection.id,
+            resources: [{kind: 'repository', externalId: 'github:7', lookupName: 'acme/other'}],
+          },
+        ],
+      }),
+    ]);
+    const getProjectAccessPolicy = vi.spyOn(projects, 'getProjectAccessPolicy');
     const getIntegrationConnectionById = vi.fn(async (id: string) =>
       id === connection.id ? connection : undefined,
     );
@@ -255,30 +263,23 @@ describe('createIntegrationsContext', () => {
     await expect(
       context.repositoryAuthorizer.resolveRepositoryAuthorization({
         workspaceId,
+        projectId,
         connectionId: connection.id,
-        mode: 'selected',
         repository: {kind: 'external-id', externalRepositoryId: 'github:42'},
         capability: 'checkout',
       }),
-    ).resolves.toEqual({authorized: false, reason: 'repository_not_granted'});
-    expect(getProjectBySource).toHaveBeenCalledWith({
-      workspaceId,
-      sourceConnectionId: connection.id,
-      sourceExternalRepositoryId: 'github:42',
-    });
+    ).resolves.toEqual({authorized: false, reason: 'repository_not_granted', access: 'selected'});
+    expect(getProjectAccessPolicy).toHaveBeenCalledWith({workspaceId, projectId});
 
     await expect(
       context.sourceControl.createCheckoutSpec({
         workspaceId,
+        projectId,
         connectionId: connection.id,
         target: {kind: 'external-id', externalRepositoryId: 'github:42'},
       }),
     ).rejects.toMatchObject({reason: 'repository_not_granted'});
     expect(createCheckoutSpec).not.toHaveBeenCalled();
-    expect(getProjectBySource).toHaveBeenLastCalledWith({
-      workspaceId,
-      sourceConnectionId: connection.id,
-      sourceExternalRepositoryId: 'github:42',
-    });
+    expect(getProjectAccessPolicy).toHaveBeenCalledTimes(2);
   });
 });

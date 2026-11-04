@@ -26,6 +26,8 @@ export type IntegrationToolRepositoryDenialReason =
   | 'repository_required'
   | 'repository_not_granted'
   | 'repository_ambiguous'
+  | 'connection_not_allowed'
+  | 'project_not_found'
   | 'authorization_store_unavailable';
 
 export type IntegrationAgentToolCallErrorCode =
@@ -38,6 +40,8 @@ export type IntegrationAgentToolCallErrorCode =
   | 'repository-not-granted'
   | 'repository-ambiguous'
   | 'repository-authorization-unavailable'
+  | 'connection-not-allowed'
+  | 'project-not-found'
   | 'definition-not-found'
   | 'manual-trigger-not-found'
   | 'run-depth-exceeded'
@@ -79,6 +83,8 @@ const integrationAgentToolCallErrorCodes = new Set<string>([
   'repository-not-granted',
   'repository-ambiguous',
   'repository-authorization-unavailable',
+  'connection-not-allowed',
+  'project-not-found',
 ]);
 
 const agentToolCallCount = meter.createCounter<{

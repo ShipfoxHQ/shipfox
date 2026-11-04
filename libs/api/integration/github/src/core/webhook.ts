@@ -73,7 +73,6 @@ export type HandleGithubEventOutcome =
 export interface HandleGithubEventResult {
   outcome: HandleGithubEventOutcome;
   installationTokenCleanup?: {workspaceId: string; installationId: number} | undefined;
-  repositoryAuthorizationCacheInvalidationConnectionId?: string | undefined;
 }
 
 function isBranchDeletion(after: string): boolean {
@@ -193,9 +192,6 @@ async function dispatchGithubEvent(
     return withInstallationTokenCleanup(
       {
         outcome: result.published ? 'published' : 'duplicate',
-        ...(result.published
-          ? {repositoryAuthorizationCacheInvalidationConnectionId: connection.id}
-          : {}),
       },
       params.event,
       action,

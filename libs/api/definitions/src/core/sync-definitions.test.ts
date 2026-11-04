@@ -129,8 +129,11 @@ const integrationValidationContext = {
     ],
   ]),
   workspaceConnectionSnapshot: new Map([
-    ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
-    ['deploy-hook', {id: 'connection-2', provider: 'webhook', capabilities: []}],
+    [
+      'github-main',
+      {id: 'connection-1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+    ],
+    ['deploy-hook', {id: 'connection-2', provider: 'webhook', capabilities: [], allowed: true}],
   ]),
   eventCatalogs: new Map([
     ['github', new Set(['push', 'pull_request.opened'])],

@@ -202,8 +202,11 @@ const UNKNOWN_STEP_FAILURE_COPY: FailureCopy = {
 const CHECKOUT_CAUSE_COPY: Readonly<Record<string, FailureCopy>> = {
   'repository-not-granted': {
     title: 'Shipfox is not allowed to check out this repository',
-    description:
-      'Link a project to the repository, or let the connection use all repositories. Then rerun the job.',
+    description: "Add the repository to the project's access. Then rerun the job.",
+  },
+  'connection-not-allowed': {
+    title: 'Shipfox is not allowed to use this connection',
+    description: "Add the connection to the project's access. Then rerun the job.",
   },
   'checkout-repository-not-authorized': {
     title: 'Shipfox is not allowed to check out this repository',

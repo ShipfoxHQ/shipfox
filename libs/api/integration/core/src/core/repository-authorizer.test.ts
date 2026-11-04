@@ -1,4 +1,6 @@
+import type {ProjectAccessPolicy} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {createProjectAccessClient, projectAccessPolicy} from '#test/fixtures/project-access.js';
 import {RepositoryAuthorizerConfigurationError} from './errors.js';
 import {
   createRepositoryAuthorizationRequestContext,
@@ -6,6 +8,7 @@ import {
   RepositoryAuthorizationTargetInvalidError,
   repositoryAuthorizationClientErrorCode,
   repositoryAuthorizationClientErrorCodes,
+  resolveConnectionAuthorization,
   resolveRepositoryAuthorization,
 } from './repository-authorizer.js';
 
@@ -20,33 +23,48 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
 }));
 
 const workspaceId = 'workspace-1';
-const connectionId = 'connection-1';
+const projectId = '11111111-1111-4111-8111-111111111111';
+const connectionId = '22222222-2222-4222-8222-222222222222';
+const otherConnectionId = '33333333-3333-4333-8333-333333333333';
 
-function createProjects(
-  overrides: {
-    getProjectBySource?: ProjectsModuleClient['getProjectBySource'];
-    findProjectBySourceRepositoryName?: ProjectsModuleClient['findProjectBySourceRepositoryName'];
-  } = {},
-): ProjectsModuleClient {
-  return {
-    getProjectBySource: vi.fn().mockResolvedValue({project: null}),
-    findProjectBySourceRepositoryName: vi.fn().mockResolvedValue({projects: []}),
-    ...overrides,
-  } as unknown as ProjectsModuleClient;
+type Target =
+  | {kind: 'external-id'; externalRepositoryId: string}
+  | {kind: 'name'; owner: string; name: string};
+
+function policy(overrides: Partial<ProjectAccessPolicy> = {}): ProjectAccessPolicy {
+  return projectAccessPolicy({projectId, ...overrides});
 }
 
-function selectedInput(
-  repository:
-    | {kind: 'external-id'; externalRepositoryId: string}
-    | {kind: 'name'; owner: string; name: string},
-) {
+/** A project limited to the listed repositories of the connection. */
+function narrowedPolicy(
+  resources: Array<{externalId: string; lookupName: string}>,
+): ProjectAccessPolicy {
+  return policy({
+    connections: [
+      {
+        connectionId,
+        resources: resources.map((resource) => ({kind: 'repository', ...resource})),
+      },
+    ],
+  });
+}
+
+function input(repository: Target) {
   return {
     workspaceId,
+    projectId,
     connectionId,
-    mode: 'selected' as const,
     repository,
     capability: 'checkout' as const,
   };
+}
+
+function clientWith(
+  policies: ProjectAccessPolicy[] | 'all',
+): ProjectsModuleClient & {getProjectAccessPolicy: ReturnType<typeof vi.fn>} {
+  const client = createProjectAccessClient(policies);
+  const getProjectAccessPolicy = vi.fn(client.getProjectAccessPolicy);
+  return {...client, getProjectAccessPolicy} as never;
 }
 
 describe('repository authorization', () => {
@@ -56,508 +74,210 @@ describe('repository authorization', () => {
     mocks.reportError.mockReturnValue('event-id');
   });
 
-  it('authorizes an exact external-id project match and returns stored metadata', async () => {
-    const projects = createProjects({
-      getProjectBySource: vi.fn().mockResolvedValue({
-        project: {
-          id: 'project-1',
-          sourceExternalRepositoryId: 'github:42',
-          sourceRepositoryOwner: 'Shipfox',
-          sourceRepositoryName: 'Platform',
+  describe('a project that reaches every repository', () => {
+    it('passes an external-id target through as given', async () => {
+      const projects = clientWith([policy()]);
+
+      await expect(
+        resolveRepositoryAuthorization({
+          projects,
+          ...input({kind: 'external-id', externalRepositoryId: 'github:42'}),
+        }),
+      ).resolves.toEqual({
+        authorized: true,
+        repository: {externalRepositoryId: 'github:42'},
+        access: 'all',
+      });
+      expect(projects.getProjectAccessPolicy).toHaveBeenCalledWith({workspaceId, projectId});
+    });
+
+    it('passes a name target through as given', async () => {
+      await expect(
+        resolveRepositoryAuthorization({
+          projects: clientWith([policy()]),
+          ...input({kind: 'name', owner: 'Shipfox', name: 'Platform'}),
+        }),
+      ).resolves.toEqual({
+        authorized: true,
+        repository: {owner: 'Shipfox', name: 'Platform'},
+        access: 'all',
+      });
+    });
+
+    it('passes every target when the project lists the connection with all repositories', async () => {
+      await expect(
+        resolveRepositoryAuthorization({
+          projects: clientWith([policy({connections: [{connectionId, resources: 'all'}]})]),
+          ...input({kind: 'name', owner: 'shipfox', name: 'platform'}),
+        }),
+      ).resolves.toEqual({
+        authorized: true,
+        repository: {owner: 'shipfox', name: 'platform'},
+        access: 'all',
+      });
+    });
+  });
+
+  describe('a project narrowed to some repositories', () => {
+    const narrowed = narrowedPolicy([{externalId: 'github:42', lookupName: 'shipfox/platform'}]);
+
+    it('allows a listed external id', async () => {
+      await expect(
+        resolveRepositoryAuthorization({
+          projects: clientWith([narrowed]),
+          ...input({kind: 'external-id', externalRepositoryId: 'github:42'}),
+        }),
+      ).resolves.toEqual({
+        authorized: true,
+        repository: {externalRepositoryId: 'github:42'},
+        access: 'selected',
+      });
+    });
+
+    it('pins a case-insensitive name target to the matched external id', async () => {
+      await expect(
+        resolveRepositoryAuthorization({
+          projects: clientWith([narrowed]),
+          ...input({kind: 'name', owner: 'Shipfox', name: 'Platform'}),
+        }),
+      ).resolves.toEqual({
+        authorized: true,
+        repository: {externalRepositoryId: 'github:42'},
+        access: 'selected',
+      });
+    });
+
+    it('denies a repository the project does not list', async () => {
+      const projects = clientWith([narrowed]);
+
+      await expect(
+        resolveRepositoryAuthorization({
+          projects,
+          ...input({kind: 'name', owner: 'shipfox', name: 'other'}),
+        }),
+      ).resolves.toEqual({
+        authorized: false,
+        reason: 'repository_not_granted',
+        access: 'selected',
+      });
+      await expect(
+        resolveRepositoryAuthorization({
+          projects,
+          ...input({kind: 'external-id', externalRepositoryId: 'github:99'}),
+        }),
+      ).resolves.toEqual({
+        authorized: false,
+        reason: 'repository_not_granted',
+        access: 'selected',
+      });
+    });
+
+    it('allows the config repository of a linked project on its own connection', async () => {
+      const linked = policy({
+        configSource: {
+          managed: false,
+          connectionId,
+          externalRepositoryId: 'github:7',
+          lookupName: 'shipfox/config',
         },
-      }),
-    });
-
-    await expect(
-      resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'}),
-      }),
-    ).resolves.toEqual({
-      authorized: true,
-      repository: {
-        externalRepositoryId: 'github:42',
-        owner: 'Shipfox',
-        name: 'Platform',
-      },
-      targetProjectId: 'project-1',
-    });
-    expect(projects.getProjectBySource).toHaveBeenCalledWith({
-      workspaceId,
-      sourceConnectionId: connectionId,
-      sourceExternalRepositoryId: 'github:42',
-    });
-    expect(projects.findProjectBySourceRepositoryName).not.toHaveBeenCalled();
-  });
-
-  it('authorizes an external-id project when display metadata is absent', async () => {
-    const projects = createProjects({
-      getProjectBySource: vi.fn().mockResolvedValue({
-        project: {
-          id: 'project-1',
-          sourceExternalRepositoryId: 'github:42',
-          sourceRepositoryOwner: null,
-          sourceRepositoryName: undefined,
-        },
-      }),
-    });
-
-    await expect(
-      resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'}),
-      }),
-    ).resolves.toEqual({
-      authorized: true,
-      repository: {externalRepositoryId: 'github:42'},
-      targetProjectId: 'project-1',
-    });
-  });
-
-  it('denies an external-id with no matching project', async () => {
-    const projects = createProjects();
-
-    await expect(
-      resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'github:missing'}),
-      }),
-    ).resolves.toEqual({authorized: false, reason: 'repository_not_granted'});
-  });
-
-  it('passes selected external IDs through as exact project lookup keys', async () => {
-    const getProjectBySource = vi.fn().mockResolvedValue({
-      project: {
-        id: 'project-1',
-        sourceExternalRepositoryId: 'shipfox/project',
-      },
-    });
-    const projects = createProjects({getProjectBySource});
-
-    await expect(
-      resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'shipfox/project'}),
-      }),
-    ).resolves.toEqual({
-      authorized: true,
-      repository: {externalRepositoryId: 'shipfox/project'},
-      targetProjectId: 'project-1',
-    });
-    expect(getProjectBySource).toHaveBeenCalledWith(
-      expect.objectContaining({sourceExternalRepositoryId: 'shipfox/project'}),
-    );
-  });
-
-  it('uses the Projects name lookup for case-insensitive selected targets', async () => {
-    const findProjectBySourceRepositoryName = vi.fn().mockResolvedValue({
-      projects: [
-        {
-          id: 'project-1',
-          sourceExternalRepositoryId: 'github:42',
-          sourceRepositoryOwner: 'Shipfox',
-          sourceRepositoryName: 'Platform',
-        },
-      ],
-    });
-    const projects = createProjects({findProjectBySourceRepositoryName});
-
-    await expect(
-      resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'name', owner: 'shipFOX', name: 'PLATFORM'}),
-      }),
-    ).resolves.toMatchObject({
-      authorized: true,
-      repository: {externalRepositoryId: 'github:42'},
-      targetProjectId: 'project-1',
-    });
-    expect(findProjectBySourceRepositoryName).toHaveBeenCalledWith({
-      workspaceId,
-      sourceConnectionId: connectionId,
-      sourceRepositoryOwner: 'shipFOX',
-      sourceRepositoryName: 'PLATFORM',
-    });
-  });
-
-  it('denies a name with no matching project', async () => {
-    const projects = createProjects();
-
-    await expect(
-      resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'name', owner: 'shipfox', name: 'missing'}),
-      }),
-    ).resolves.toEqual({authorized: false, reason: 'repository_not_granted'});
-  });
-
-  it('denies an ambiguous name after deduplicating rows by external repository id', async () => {
-    const projects = createProjects({
-      findProjectBySourceRepositoryName: vi.fn().mockResolvedValue({
-        projects: [
+        connections: [
           {
-            id: 'project-1',
-            sourceExternalRepositoryId: 'github:42',
-            sourceRepositoryOwner: 'shipfox',
-            sourceRepositoryName: 'platform',
-          },
-          {
-            id: 'project-2',
-            sourceExternalRepositoryId: 'github:42',
-            sourceRepositoryOwner: 'shipfox',
-            sourceRepositoryName: 'platform',
-          },
-          {
-            id: 'project-3',
-            sourceExternalRepositoryId: 'github:43',
-            sourceRepositoryOwner: 'shipfox',
-            sourceRepositoryName: 'platform',
+            connectionId,
+            resources: [
+              {kind: 'repository', externalId: 'github:42', lookupName: 'shipfox/platform'},
+            ],
           },
         ],
-      }),
+      });
+
+      await expect(
+        resolveRepositoryAuthorization({
+          projects: clientWith([linked]),
+          ...input({kind: 'name', owner: 'shipfox', name: 'config'}),
+        }),
+      ).resolves.toEqual({
+        authorized: true,
+        repository: {externalRepositoryId: 'github:7'},
+        access: 'selected',
+      });
     });
+
+    it('denies a name that two stored repositories answer to', async () => {
+      const ambiguous = narrowedPolicy([
+        {externalId: 'github:1', lookupName: 'shipfox/platform'},
+        {externalId: 'github:2', lookupName: 'shipfox/platform'},
+      ]);
+
+      await expect(
+        resolveRepositoryAuthorization({
+          projects: clientWith([ambiguous]),
+          ...input({kind: 'name', owner: 'shipfox', name: 'platform'}),
+        }),
+      ).resolves.toEqual({
+        authorized: false,
+        reason: 'repository_ambiguous',
+        access: 'selected',
+      });
+    });
+  });
+
+  it('denies a connection the project does not list', async () => {
+    const listsOther = policy({connections: [{connectionId: otherConnectionId, resources: 'all'}]});
 
     await expect(
       resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'name', owner: 'shipfox', name: 'platform'}),
-      }),
-    ).resolves.toEqual({authorized: false, reason: 'repository_ambiguous'});
-  });
-
-  it.each([
-    'getProjectBySource',
-    'findProjectBySourceRepositoryName',
-  ] as const)('distinguishes a %s failure from a repository denial', async (method) => {
-    const projects = createProjects({
-      [method]: vi.fn().mockRejectedValue(new Error('database unavailable')),
-    });
-    const repository =
-      method === 'getProjectBySource'
-        ? {kind: 'external-id' as const, externalRepositoryId: 'github:42'}
-        : {kind: 'name' as const, owner: 'shipfox', name: 'platform'};
-
-    await expect(
-      resolveRepositoryAuthorization({projects, ...selectedInput(repository)}),
-    ).resolves.toEqual({authorized: false, reason: 'authorization_store_unavailable'});
-  });
-
-  it('accepts valid all-mode declarations without consulting Projects', async () => {
-    const projects = createProjects({
-      getProjectBySource: vi.fn().mockRejectedValue(new Error('must not be called')),
-      findProjectBySourceRepositoryName: vi.fn().mockRejectedValue(new Error('must not be called')),
-    });
-    await expect(
-      resolveRepositoryAuthorization({
-        projects,
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'}),
-        mode: 'all',
+        projects: clientWith([listsOther]),
+        ...input({kind: 'name', owner: 'shipfox', name: 'platform'}),
       }),
     ).resolves.toEqual({
-      authorized: true,
-      repository: {externalRepositoryId: 'github:42'},
+      authorized: false,
+      reason: 'connection_not_allowed',
+      access: 'selected',
     });
+  });
+
+  it('denies a deleted project as final without logging or reporting', async () => {
+    const projects = clientWith([]);
+
     await expect(
       resolveRepositoryAuthorization({
         projects,
-        ...selectedInput({kind: 'name', owner: 'shipfox', name: 'platform'}),
-        mode: 'all',
+        ...input({kind: 'name', owner: 'shipfox', name: 'platform'}),
       }),
+    ).resolves.toEqual({authorized: false, reason: 'project_not_found', access: 'selected'});
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+    expect(mocks.reportError).not.toHaveBeenCalled();
+  });
+
+  it('reports a store failure as unavailable, with a log and a report', async () => {
+    // Reports are throttled process-wide, so use a fresh module that has reported nothing.
+    vi.resetModules();
+    const {resolveRepositoryAuthorization: resolve} = await import('./repository-authorizer.js');
+    const projects = {
+      getProjectAccessPolicy: vi.fn().mockRejectedValue(new Error('database unavailable')),
+    } as unknown as ProjectsModuleClient;
+
+    await expect(
+      resolve({projects, ...input({kind: 'name', owner: 'shipfox', name: 'platform'})}),
     ).resolves.toEqual({
-      authorized: true,
-      repository: {owner: 'shipfox', name: 'platform'},
-    });
-    expect(projects.getProjectBySource).not.toHaveBeenCalled();
-    expect(projects.findProjectBySourceRepositoryName).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    {kind: 'external-id' as const, externalRepositoryId: '42'},
-    {kind: 'external-id' as const, externalRepositoryId: ':42'},
-    {kind: 'name' as const, owner: 'shipfox/team', name: 'platform'},
-    {kind: 'name' as const, owner: 'shipfox', name: 'platform name'},
-  ])('rejects an invalid declaration target: %j', async (repository) => {
-    await expect(
-      resolveRepositoryAuthorization({
-        projects: createProjects(),
-        ...selectedInput(repository),
-        mode: 'all',
-      }),
-    ).rejects.toBeInstanceOf(RepositoryAuthorizationTargetInvalidError);
-  });
-
-  it('rejects an unsafe selected external-id target', async () => {
-    await expect(
-      resolveRepositoryAuthorization({
-        projects: createProjects(),
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'github:4 2'}),
-      }),
-    ).rejects.toBeInstanceOf(RepositoryAuthorizationTargetInvalidError);
-  });
-
-  it('memoizes selected lookups within one request context only', async () => {
-    const getProjectBySource = vi.fn().mockResolvedValue({
-      project: {
-        id: 'project-1',
-        sourceExternalRepositoryId: 'github:42',
-        sourceRepositoryOwner: 'shipfox',
-        sourceRepositoryName: 'platform',
-      },
-    });
-    const projects = createProjects({getProjectBySource});
-    const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'});
-    const request = createRepositoryAuthorizationRequestContext();
-
-    await resolveRepositoryAuthorization({projects, ...input, request});
-    await resolveRepositoryAuthorization({projects, ...input, request});
-    await resolveRepositoryAuthorization({
-      projects,
-      ...input,
-      request: createRepositoryAuthorizationRequestContext(),
-    });
-
-    expect(getProjectBySource).toHaveBeenCalledTimes(2);
-  });
-
-  it('deduplicates concurrent lookups and does not memoize store failures', async () => {
-    const getProjectBySource = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('database unavailable'))
-      .mockResolvedValueOnce({
-        project: {
-          id: 'project-1',
-          sourceExternalRepositoryId: 'github:42',
-        },
-      });
-    const projects = createProjects({getProjectBySource});
-    const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'});
-    const request = createRepositoryAuthorizationRequestContext();
-
-    const [first, second] = await Promise.all([
-      resolveRepositoryAuthorization({projects, ...input, request}),
-      resolveRepositoryAuthorization({projects, ...input, request}),
-    ]);
-
-    expect(first).toEqual({authorized: false, reason: 'authorization_store_unavailable'});
-    expect(second).toEqual({authorized: false, reason: 'authorization_store_unavailable'});
-    expect(getProjectBySource).toHaveBeenCalledOnce();
-    expect(request.memo.size).toBe(0);
-
-    await expect(resolveRepositoryAuthorization({projects, ...input, request})).resolves.toEqual({
-      authorized: true,
-      repository: {externalRepositoryId: 'github:42'},
-      targetProjectId: 'project-1',
-    });
-    expect(getProjectBySource).toHaveBeenCalledTimes(2);
-  });
-
-  it('shares positive selected decisions for 30 seconds and then refreshes them', async () => {
-    let now = 0;
-    const getProjectBySource = vi.fn().mockResolvedValue({
-      project: {
-        id: 'project-1',
-        sourceExternalRepositoryId: 'github:42',
-      },
-    });
-    const authorizer = createRepositoryAuthorizer({
-      projects: createProjects({getProjectBySource}),
-      enabled: true,
-      now: () => now,
-    });
-    const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'});
-
-    await authorizer.resolveRepositoryAuthorization({
-      ...input,
-      request: createRepositoryAuthorizationRequestContext(),
-    });
-    await authorizer.resolveRepositoryAuthorization({
-      ...input,
-      request: createRepositoryAuthorizationRequestContext(),
-    });
-    expect(getProjectBySource).toHaveBeenCalledOnce();
-
-    now = 30_000;
-    await authorizer.resolveRepositoryAuthorization({
-      ...input,
-      request: createRepositoryAuthorizationRequestContext(),
-    });
-    expect(getProjectBySource).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not repopulate a connection cache after invalidation during an in-flight lookup', async () => {
-    let releaseProject:
-      | ((result: {project: {id: string; sourceExternalRepositoryId: string}}) => void)
-      | undefined;
-    const pendingProject = new Promise<{project: {id: string; sourceExternalRepositoryId: string}}>(
-      (resolve) => {
-        releaseProject = resolve;
-      },
-    );
-    const getProjectBySource = vi
-      .fn()
-      .mockReturnValueOnce(pendingProject)
-      .mockResolvedValueOnce({project: null});
-    const authorizer = createRepositoryAuthorizer({
-      projects: createProjects({getProjectBySource}),
-      enabled: true,
-    });
-    const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'});
-
-    const inFlight = authorizer.resolveRepositoryAuthorization(input);
-    await vi.waitFor(() => expect(getProjectBySource).toHaveBeenCalledOnce());
-    authorizer.invalidateRepositoryAuthorizationCache?.(connectionId);
-    releaseProject?.({
-      project: {id: 'project-1', sourceExternalRepositoryId: 'github:42'},
-    });
-
-    await expect(inFlight).resolves.toMatchObject({authorized: true});
-    await expect(authorizer.resolveRepositoryAuthorization(input)).resolves.toEqual({
       authorized: false,
-      reason: 'repository_not_granted',
+      reason: 'authorization_store_unavailable',
+      access: 'selected',
     });
-    expect(getProjectBySource).toHaveBeenCalledTimes(2);
-  });
-
-  it('evicts the oldest positive decision when the cache reaches its configured capacity', async () => {
-    const getProjectBySource = vi.fn(
-      async (input: Parameters<ProjectsModuleClient['getProjectBySource']>[0]) => ({
-        project: {
-          id: input.sourceExternalRepositoryId,
-          workspaceId: input.workspaceId,
-          sourceConnectionId: input.sourceConnectionId,
-          sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-          name: input.sourceExternalRepositoryId,
-          isDefault: false,
-        },
-      }),
-    );
-    const authorizer = createRepositoryAuthorizer({
-      projects: createProjects({getProjectBySource}),
-      enabled: true,
-      maxCacheEntries: 1,
-    });
-
-    await authorizer.resolveRepositoryAuthorization(
-      selectedInput({kind: 'external-id', externalRepositoryId: 'github:1'}),
-    );
-    await authorizer.resolveRepositoryAuthorization(
-      selectedInput({kind: 'external-id', externalRepositoryId: 'github:2'}),
-    );
-    await authorizer.resolveRepositoryAuthorization(
-      selectedInput({kind: 'external-id', externalRepositoryId: 'github:1'}),
-    );
-
-    expect(getProjectBySource).toHaveBeenCalledTimes(3);
-  });
-
-  it.each([
-    0,
-    Number.NaN,
-  ])('falls back to a bounded cache for invalid capacity %s', async (maxCacheEntries) => {
-    const getProjectBySource = vi.fn().mockResolvedValue({
-      project: {id: 'project-1', sourceExternalRepositoryId: 'github:1'},
-    });
-    const authorizer = createRepositoryAuthorizer({
-      projects: createProjects({getProjectBySource}),
-      enabled: true,
-      maxCacheEntries,
-    });
-    const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:1'});
-
-    await authorizer.resolveRepositoryAuthorization(input);
-    await authorizer.resolveRepositoryAuthorization(input);
-
-    expect(getProjectBySource).toHaveBeenCalledOnce();
-  });
-
-  it('does not share denials between request contexts', async () => {
-    const getProjectBySource = vi
-      .fn()
-      .mockResolvedValueOnce({project: null})
-      .mockResolvedValueOnce({
-        project: {
-          id: 'project-1',
-          sourceExternalRepositoryId: 'github:42',
-        },
-      });
-    const authorizer = createRepositoryAuthorizer({
-      projects: createProjects({getProjectBySource}),
-      enabled: true,
-    });
-    const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'});
-
-    await expect(
-      authorizer.resolveRepositoryAuthorization({
-        ...input,
-        request: createRepositoryAuthorizationRequestContext(),
-      }),
-    ).resolves.toEqual({authorized: false, reason: 'repository_not_granted'});
-    await expect(
-      authorizer.resolveRepositoryAuthorization({
-        ...input,
-        request: createRepositoryAuthorizationRequestContext(),
-      }),
-    ).resolves.toMatchObject({authorized: true});
-    expect(getProjectBySource).toHaveBeenCalledTimes(2);
-  });
-
-  it('invalidates positive decisions for a connection immediately', async () => {
-    const getProjectBySource = vi.fn().mockResolvedValue({
-      project: {
-        id: 'project-1',
-        sourceExternalRepositoryId: 'github:42',
-      },
-    });
-    const authorizer = createRepositoryAuthorizer({
-      projects: createProjects({getProjectBySource}),
-      enabled: true,
-    });
-    const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'});
-
-    await expect(authorizer.resolveRepositoryAuthorization(input)).resolves.toMatchObject({
-      authorized: true,
-    });
-    getProjectBySource.mockResolvedValue({project: null});
-    authorizer.invalidateRepositoryAuthorizationCache?.(connectionId);
-
-    await expect(authorizer.resolveRepositoryAuthorization(input)).resolves.toEqual({
-      authorized: false,
-      reason: 'repository_not_granted',
-    });
-    expect(getProjectBySource).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not allow a disabled gate to invoke the Projects client', async () => {
-    const projects = createProjects({
-      getProjectBySource: vi.fn().mockRejectedValue(new Error('must not be called')),
-    });
-    const authorizer = createRepositoryAuthorizer({projects, enabled: false});
-
-    expect(authorizer.enabled).toBe(false);
-    await expect(
-      authorizer.resolveRepositoryAuthorization({
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'not-even-a-target'}),
-      }),
-    ).resolves.toBeUndefined();
-    expect(projects.getProjectBySource).not.toHaveBeenCalled();
-  });
-
-  it('rejects an enabled gate without a Projects client', () => {
-    expect(() => createRepositoryAuthorizer({enabled: true})).toThrow(
-      RepositoryAuthorizerConfigurationError,
-    );
+    expect(mocks.loggerError).toHaveBeenCalledOnce();
+    expect(mocks.reportError).toHaveBeenCalledOnce();
   });
 
   it('rethrows cancellation errors without converting them to a denial', async () => {
     const cancellation = Object.assign(new Error('request aborted'), {name: 'AbortError'});
-    const projects = createProjects({
-      getProjectBySource: vi.fn().mockRejectedValue(cancellation),
-    });
+    const projects = {
+      getProjectAccessPolicy: vi.fn().mockRejectedValue(cancellation),
+    } as unknown as ProjectsModuleClient;
 
     await expect(
       resolveRepositoryAuthorization({
         projects,
-        ...selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'}),
+        ...input({kind: 'name', owner: 'shipfox', name: 'platform'}),
       }),
     ).rejects.toBe(cancellation);
   });
@@ -568,39 +288,251 @@ describe('repository authorization', () => {
     try {
       const {resolveRepositoryAuthorization: resolve} = await import('./repository-authorizer.js');
       vi.advanceTimersByTime(60_001);
-      const getProjectBySource = vi
-        .fn()
-        .mockRejectedValueOnce(new Error('database unavailable'))
-        .mockRejectedValueOnce(new Error('database unavailable'))
-        .mockRejectedValueOnce(new Error('database unavailable'));
-      const projects = createProjects({getProjectBySource});
-      const input = selectedInput({kind: 'external-id', externalRepositoryId: 'github:42'});
+      const projects = {
+        getProjectAccessPolicy: vi.fn().mockRejectedValue(new Error('database unavailable')),
+      } as unknown as ProjectsModuleClient;
+      const attempt = input({kind: 'name', owner: 'shipfox', name: 'platform'});
 
-      await resolve({projects, ...input});
-      await resolve({projects, ...input});
+      await resolve({projects, ...attempt});
+      await resolve({projects, ...attempt});
       expect(mocks.reportError).toHaveBeenCalledOnce();
 
       vi.advanceTimersByTime(60_000);
-      await resolve({projects, ...input});
+      await resolve({projects, ...attempt});
       expect(mocks.reportError).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('runs the provider-free authorizer when the integration gate is enabled', async () => {
-    const projects = createProjects();
-    const authorizer = createRepositoryAuthorizer({projects, enabled: true});
+  describe('request memo', () => {
+    it('loads the policy once for every target one request names', async () => {
+      const projects = clientWith([narrowedPolicy([{externalId: 'github:42', lookupName: 'a/b'}])]);
+      const request = createRepositoryAuthorizationRequestContext();
 
-    expect(authorizer.enabled).toBe(true);
-    await expect(
-      authorizer.resolveRepositoryAuthorization({
-        ...selectedInput({kind: 'name', owner: 'shipfox', name: 'platform'}),
-        mode: 'all',
-      }),
-    ).resolves.toEqual({
-      authorized: true,
-      repository: {owner: 'shipfox', name: 'platform'},
+      await resolveRepositoryAuthorization({
+        projects,
+        request,
+        ...input({kind: 'name', owner: 'a', name: 'b'}),
+      });
+      await resolveRepositoryAuthorization({
+        projects,
+        request,
+        ...input({kind: 'name', owner: 'a', name: 'c'}),
+      });
+      await resolveConnectionAuthorization({
+        projects,
+        request,
+        workspaceId,
+        projectId,
+        connectionId,
+      });
+
+      expect(projects.getProjectAccessPolicy).toHaveBeenCalledOnce();
+    });
+
+    it('deduplicates concurrent loads within one request', async () => {
+      const projects = clientWith([policy()]);
+      const request = createRepositoryAuthorizationRequestContext();
+
+      await Promise.all([
+        resolveRepositoryAuthorization({
+          projects,
+          request,
+          ...input({kind: 'name', owner: 'a', name: 'b'}),
+        }),
+        resolveRepositoryAuthorization({
+          projects,
+          request,
+          ...input({kind: 'name', owner: 'a', name: 'c'}),
+        }),
+      ]);
+
+      expect(projects.getProjectAccessPolicy).toHaveBeenCalledOnce();
+    });
+
+    it('does not memoize a store failure', async () => {
+      const getProjectAccessPolicy = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('database unavailable'))
+        .mockResolvedValue({policy: policy()});
+      const projects = {getProjectAccessPolicy} as unknown as ProjectsModuleClient;
+      const request = createRepositoryAuthorizationRequestContext();
+      const attempt = {request, ...input({kind: 'name', owner: 'a', name: 'b'} as const)};
+
+      await expect(resolveRepositoryAuthorization({projects, ...attempt})).resolves.toMatchObject({
+        authorized: false,
+        reason: 'authorization_store_unavailable',
+      });
+      await expect(resolveRepositoryAuthorization({projects, ...attempt})).resolves.toMatchObject({
+        authorized: true,
+      });
+      expect(getProjectAccessPolicy).toHaveBeenCalledTimes(2);
+    });
+
+    it('memoizes a deleted project within the request', async () => {
+      const projects = clientWith([]);
+      const request = createRepositoryAuthorizationRequestContext();
+      const attempt = {request, ...input({kind: 'name', owner: 'a', name: 'b'} as const)};
+
+      await resolveRepositoryAuthorization({projects, ...attempt});
+      await resolveRepositoryAuthorization({projects, ...attempt});
+
+      expect(projects.getProjectAccessPolicy).toHaveBeenCalledOnce();
+    });
+
+    it('does not share policies between request contexts', async () => {
+      const projects = clientWith([policy()]);
+      const attempt = input({kind: 'name', owner: 'a', name: 'b'});
+
+      await resolveRepositoryAuthorization({
+        projects,
+        request: createRepositoryAuthorizationRequestContext(),
+        ...attempt,
+      });
+      await resolveRepositoryAuthorization({
+        projects,
+        request: createRepositoryAuthorizationRequestContext(),
+        ...attempt,
+      });
+
+      expect(projects.getProjectAccessPolicy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('invalid targets', () => {
+    it.each([
+      {kind: 'external-id', externalRepositoryId: 'no-namespace'},
+      {kind: 'external-id', externalRepositoryId: 'github:'},
+      {kind: 'external-id', externalRepositoryId: 'github:with\nnewline'},
+      {kind: 'external-id', externalRepositoryId: 42},
+      {kind: 'name', owner: '../escape', name: 'platform'},
+      {kind: 'name', owner: 'shipfox', name: 'a/b'},
+      {kind: 'other'},
+      null,
+    ])('rejects %j without consulting Projects', async (repository) => {
+      const projects = clientWith([policy()]);
+
+      await expect(
+        resolveRepositoryAuthorization({projects, ...input(repository as never)}),
+      ).rejects.toBeInstanceOf(RepositoryAuthorizationTargetInvalidError);
+      expect(projects.getProjectAccessPolicy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveConnectionAuthorization', () => {
+    const connectionInput = {workspaceId, projectId, connectionId};
+
+    it('allows a project with full access and reports no narrowing', async () => {
+      await expect(
+        resolveConnectionAuthorization({projects: clientWith([policy()]), ...connectionInput}),
+      ).resolves.toEqual({authorized: true, repositoriesNarrowed: false});
+    });
+
+    it('reports a connection limited to some repositories as narrowed', async () => {
+      await expect(
+        resolveConnectionAuthorization({
+          projects: clientWith([narrowedPolicy([{externalId: 'github:1', lookupName: 'a/b'}])]),
+          ...connectionInput,
+        }),
+      ).resolves.toEqual({authorized: true, repositoriesNarrowed: true});
+    });
+
+    it('does not report a connection listed with all repositories as narrowed', async () => {
+      await expect(
+        resolveConnectionAuthorization({
+          projects: clientWith([policy({connections: [{connectionId, resources: 'all'}]})]),
+          ...connectionInput,
+        }),
+      ).resolves.toEqual({authorized: true, repositoriesNarrowed: false});
+    });
+
+    it('denies a connection the project does not list', async () => {
+      await expect(
+        resolveConnectionAuthorization({
+          projects: clientWith([
+            policy({connections: [{connectionId: otherConnectionId, resources: 'all'}]}),
+          ]),
+          ...connectionInput,
+        }),
+      ).resolves.toEqual({authorized: false, reason: 'connection_not_allowed'});
+    });
+
+    it('denies a deleted project', async () => {
+      await expect(
+        resolveConnectionAuthorization({projects: clientWith([]), ...connectionInput}),
+      ).resolves.toEqual({authorized: false, reason: 'project_not_found'});
+    });
+
+    it('reports a store failure as unavailable', async () => {
+      const projects = {
+        getProjectAccessPolicy: vi.fn().mockRejectedValue(new Error('database unavailable')),
+      } as unknown as ProjectsModuleClient;
+
+      await expect(resolveConnectionAuthorization({projects, ...connectionInput})).resolves.toEqual(
+        {authorized: false, reason: 'authorization_store_unavailable'},
+      );
+    });
+  });
+
+  describe('createRepositoryAuthorizer', () => {
+    it('does not allow a disabled gate to invoke the Projects client', async () => {
+      const projects = clientWith([policy()]);
+      const authorizer = createRepositoryAuthorizer({projects, enabled: false});
+
+      expect(authorizer.enabled).toBe(false);
+      await expect(
+        authorizer.resolveRepositoryAuthorization(
+          input({kind: 'name', owner: 'shipfox', name: 'platform'}),
+        ),
+      ).resolves.toBeUndefined();
+      await expect(
+        authorizer.resolveConnectionAuthorization({workspaceId, projectId, connectionId}),
+      ).resolves.toBeUndefined();
+      expect(projects.getProjectAccessPolicy).not.toHaveBeenCalled();
+    });
+
+    it('rejects an enabled gate without a Projects client', () => {
+      expect(() => createRepositoryAuthorizer({enabled: true})).toThrow(
+        RepositoryAuthorizerConfigurationError,
+      );
+    });
+
+    it('decides against the project when enabled', async () => {
+      const authorizer = createRepositoryAuthorizer({
+        projects: clientWith([policy()]),
+        enabled: true,
+      });
+
+      expect(authorizer.enabled).toBe(true);
+      await expect(
+        authorizer.resolveRepositoryAuthorization(
+          input({kind: 'name', owner: 'shipfox', name: 'platform'}),
+        ),
+      ).resolves.toEqual({
+        authorized: true,
+        repository: {owner: 'shipfox', name: 'platform'},
+        access: 'all',
+      });
+    });
+
+    it('applies an access change on the very next call', async () => {
+      let current = narrowedPolicy([{externalId: 'github:42', lookupName: 'shipfox/platform'}]);
+      const projects = {
+        getProjectAccessPolicy: vi.fn(() => Promise.resolve({policy: current})),
+      } as unknown as ProjectsModuleClient;
+      const authorizer = createRepositoryAuthorizer({projects, enabled: true});
+      const target = input({kind: 'external-id', externalRepositoryId: 'github:42'});
+
+      await expect(authorizer.resolveRepositoryAuthorization(target)).resolves.toMatchObject({
+        authorized: true,
+      });
+      current = narrowedPolicy([{externalId: 'github:7', lookupName: 'shipfox/other'}]);
+      await expect(authorizer.resolveRepositoryAuthorization(target)).resolves.toMatchObject({
+        authorized: false,
+        reason: 'repository_not_granted',
+      });
+      expect(projects.getProjectAccessPolicy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -609,6 +541,8 @@ describe('repository authorization', () => {
       repository_required: 'repository-required',
       repository_not_granted: 'repository-not-granted',
       repository_ambiguous: 'repository-ambiguous',
+      connection_not_allowed: 'connection-not-allowed',
+      project_not_found: 'project-not-found',
       authorization_store_unavailable: 'repository-authorization-unavailable',
     });
     expect(repositoryAuthorizationClientErrorCode('repository_ambiguous')).toBe(

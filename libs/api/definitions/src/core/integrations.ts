@@ -31,13 +31,21 @@ export function isBinaryFileError(error: unknown): boolean {
   );
 }
 
-export async function loadIntegrationValidationContext(
-  integrations: IntegrationsModuleClient,
-  workspaceId: string,
-  defaultConnectionId: string,
-  signal?: AbortSignal,
-) {
-  const input = {workspaceId, defaultConnectionId};
+export async function loadIntegrationValidationContext({
+  integrations,
+  workspaceId,
+  projectId,
+  defaultConnectionId,
+  signal,
+}: {
+  integrations: IntegrationsModuleClient;
+  workspaceId: string;
+  /** The project whose access marks each connection. */
+  projectId: string;
+  defaultConnectionId: string;
+  signal?: AbortSignal | undefined;
+}) {
+  const input = {workspaceId, defaultConnectionId, projectId};
   const context =
     signal === undefined
       ? await integrations.getAgentToolsContext(input)

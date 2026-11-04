@@ -30,11 +30,6 @@ export interface CreateIntegrationRoutesOptions {
   projects?: ProjectsModuleClient | undefined;
   projectConfig?: ProjectConfigService | undefined;
   configLink?: ConfigLinkService | undefined;
-  repositoryAuthorization?:
-    | {
-        invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
-      }
-    | undefined;
   agentTools?:
     | {
         workflows: WorkflowsModuleClient;
@@ -81,11 +76,7 @@ export function createIntegrationRoutes(
       registry,
       projects: options.projects,
     }),
-    ...createRepositoryAccessMutationRoutes({
-      registry,
-      invalidateRepositoryAuthorizationCache:
-        options.repositoryAuthorization?.invalidateRepositoryAuthorizationCache,
-    }),
+    ...createRepositoryAccessMutationRoutes({registry}),
     createListRepositoriesRoute(sourceControl),
     createListScopeResourcesRoute({registry, sourceControl}),
     ...projectConfigRoutes,

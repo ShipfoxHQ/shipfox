@@ -34,6 +34,7 @@ export const checkoutRenewalSubjects = pgTable(
     status: checkoutRenewalSubjectStatusEnum('status').notNull().default('pending'),
     repositoryUrl: text('repository_url').notNull(),
     connectionId: uuid('connection_id').notNull(),
+    projectId: uuid('project_id').notNull(),
     externalRepositoryId: text('external_repository_id').notNull(),
     permissionsContents: jobCheckoutContentsEnum('permissions_contents').notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),

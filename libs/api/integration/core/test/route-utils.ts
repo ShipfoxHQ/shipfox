@@ -17,6 +17,8 @@ import {
   type RepositoryAuthorizer,
 } from '#index.js';
 
+import {createProjectAccessClient} from './fixtures/project-access.js';
+
 let authenticatedMemberships: UserContextMembership[] = [];
 
 function createFakeUserAuth(memberships: ReadonlyArray<UserContextMembership>): AuthMethod {
@@ -131,40 +133,7 @@ export async function createTestApp(
 }
 
 function createDefaultTestProjects(): ProjectsModuleClient {
-  const getProjectBySource: ProjectsModuleClient['getProjectBySource'] = async ({
-    workspaceId,
-    sourceConnectionId,
-    sourceExternalRepositoryId,
-  }) => ({
-    project: {
-      id: crypto.randomUUID(),
-      workspaceId,
-      sourceConnectionId,
-      sourceExternalRepositoryId,
-      name: 'Test project',
-      isDefault: false,
-    },
-  });
-  const findProjectBySourceRepositoryName: ProjectsModuleClient['findProjectBySourceRepositoryName'] =
-    async ({workspaceId, sourceConnectionId, sourceRepositoryOwner, sourceRepositoryName}) => ({
-      projects: [
-        {
-          id: crypto.randomUUID(),
-          workspaceId,
-          sourceConnectionId,
-          sourceExternalRepositoryId: `test:${sourceRepositoryOwner}/${sourceRepositoryName}`,
-          sourceRepositoryOwner,
-          sourceRepositoryName,
-          name: 'Test project',
-          isDefault: false,
-        },
-      ],
-    });
-
-  return {
-    getProjectBySource,
-    findProjectBySourceRepositoryName,
-  } as unknown as ProjectsModuleClient;
+  return createProjectAccessClient('all');
 }
 
 export function useIntegrationRouteTest() {

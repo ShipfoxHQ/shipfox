@@ -161,6 +161,10 @@ export function resolveAgentToolConnection(params: {
     return undefined;
   }
 
+  if (!connection.allowed) {
+    params.issues.push(connectionNotAllowedIssue({connectionSlug, path: params.path}));
+  }
+
   if (params.expectedProvider !== undefined && connection.provider !== params.expectedProvider) {
     params.issues.push(
       issue({
@@ -197,6 +201,24 @@ export function resolveAgentToolConnection(params: {
   }
 
   return new Map(catalog.selectors.map((selector) => [selector.token, selector]));
+}
+
+/**
+/**
+ * A connection outside the project's access is a warning: an access change doesn't resync
+ * definitions, and the runtime checks are the boundary.
+ */
+export function connectionNotAllowedIssue(params: {
+  connectionSlug: string;
+  path: readonly (string | number)[];
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'integration-connection-not-allowed',
+    message: `Integration connection "${params.connectionSlug}" is not in this project's access; runs fail when they reach it.`,
+    path: params.path,
+    details: {connection: params.connectionSlug},
+    severity: 'warning',
+  });
 }
 
 /**

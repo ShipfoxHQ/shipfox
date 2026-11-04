@@ -166,17 +166,20 @@ export type {
 } from '#core/providers/source-control.js';
 export type {
   AuthorizedRepository,
+  ConnectionAuthorizationDenial,
+  ConnectionAuthorizationResult,
   CreateRepositoryAuthorizerOptions,
+  RepositoryAuthorizationAccess,
   RepositoryAuthorizationCapability,
   RepositoryAuthorizationClientErrorCode,
   RepositoryAuthorizationDenial,
   RepositoryAuthorizationExternalIdTarget,
-  RepositoryAuthorizationMode,
   RepositoryAuthorizationNameTarget,
   RepositoryAuthorizationRequestContext,
   RepositoryAuthorizationResult,
   RepositoryAuthorizationTarget,
   RepositoryAuthorizer,
+  ResolveConnectionAuthorizationInput,
   ResolveRepositoryAuthorizationInput,
   ResolveRepositoryAuthorizationParams,
 } from '#core/repository-authorizer.js';
@@ -186,6 +189,7 @@ export {
   RepositoryAuthorizationTargetInvalidError,
   repositoryAuthorizationClientErrorCode,
   repositoryAuthorizationClientErrorCodes,
+  resolveConnectionAuthorization,
   resolveRepositoryAuthorization,
 } from '#core/repository-authorizer.js';
 export type {
@@ -355,8 +359,6 @@ export async function createIntegrationsContext(
                   }),
               }
             : {}),
-          invalidateRepositoryAuthorizationCache:
-            repositoryAuthorizer.invalidateRepositoryAuthorizationCache,
         }));
 
   const registry = createIntegrationProviderRegistry(parts.map((part) => part.provider));
@@ -441,7 +443,6 @@ export async function createIntegrationsContext(
       projects: options.projects,
       projectConfig,
       configLink,
-      repositoryAuthorization: repositoryAuthorizer,
       agentTools: options.agentTools
         ? {
             workflows: options.agentTools.workflows,

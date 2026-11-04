@@ -542,7 +542,7 @@ function failedStepEntry(gateResult: StepGateResultDto = null): StepListEntryMod
 
 const CHECKOUT_FAILURE_MESSAGES: Record<CheckoutFailureCode, string> = {
   'repository-not-granted':
-    "Shipfox isn't allowed to check out `acme/api`: no project in this workspace is linked to it, and connection `github` doesn't allow all repositories",
+    "Shipfox isn't allowed to check out `acme/api`: it is not in this project's access",
   'checkout-repository-not-authorized':
     "Shipfox isn't allowed to check out the repository of project `billing`: the project doesn't belong to this workspace",
   'installation-inactive':

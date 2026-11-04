@@ -317,10 +317,16 @@ const integrationValidationContext = {
     ],
   ]),
   workspaceConnectionSnapshot: new Map([
-    ['linear-main', {id: 'conn_3', provider: 'linear', capabilities: ['agent_tools']}],
-    ['sentry-main', {id: 'conn_2', provider: 'sentry', capabilities: []}],
-    ['github-main', {id: 'conn_1', provider: 'github', capabilities: ['agent_tools']}],
-    ['webhook-main', {id: 'conn_5', provider: 'webhook', capabilities: []}],
+    [
+      'linear-main',
+      {id: 'conn_3', provider: 'linear', capabilities: ['agent_tools'], allowed: true},
+    ],
+    ['sentry-main', {id: 'conn_2', provider: 'sentry', capabilities: [], allowed: true}],
+    [
+      'github-main',
+      {id: 'conn_1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+    ],
+    ['webhook-main', {id: 'conn_5', provider: 'webhook', capabilities: [], allowed: true}],
   ]),
   eventCatalogs: new Map(),
   fixedEventProviders: new Set(),

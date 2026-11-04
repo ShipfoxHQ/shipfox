@@ -41,7 +41,10 @@ const agentToolContext: AgentToolMaterializationContext = {
     ],
   ]),
   workspaceConnectionSnapshot: new Map([
-    ['team-slack', {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']}],
+    [
+      'team-slack',
+      {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools'], allowed: true},
+    ],
   ]),
   defaultConnection: {id: 'connection-slack', slug: 'team-slack', provider: 'slack'},
 };

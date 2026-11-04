@@ -1,6 +1,5 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
 import {CONNECTION_REPOSITORY_ACCESS_CHANGED} from '@shipfox/api-integration-core-dto';
-import {vi} from '@shipfox/vitest/vi';
 import {sql} from 'drizzle-orm';
 import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
 import {db} from '#db/db.js';
@@ -48,15 +47,8 @@ describe('repository access mutation routes', () => {
     });
   });
 
-  it('restores selected access with audited changes and cache invalidation', async () => {
-    const invalidateRepositoryAuthorizationCache = vi.fn();
-    const app = await createTestApp([sourceProvider({repositoryAuthorization: 'enforced'})], {
-      repositoryAuthorizer: {
-        enabled: false,
-        resolveRepositoryAuthorization: () => Promise.resolve(undefined),
-        invalidateRepositoryAuthorizationCache,
-      },
-    });
+  it('restores selected access with audited changes', async () => {
+    const app = await createTestApp([sourceProvider({repositoryAuthorization: 'enforced'})]);
     const connection = await createConnection();
 
     const allResponse = await app.inject({
@@ -101,9 +93,6 @@ describe('repository access mutation routes', () => {
         },
       },
     ]);
-    expect(invalidateRepositoryAuthorizationCache).toHaveBeenCalledTimes(2);
-    expect(invalidateRepositoryAuthorizationCache).toHaveBeenNthCalledWith(1, connection.id);
-    expect(invalidateRepositoryAuthorizationCache).toHaveBeenNthCalledWith(2, connection.id);
   });
 
   it('requires a workspace admin', async () => {

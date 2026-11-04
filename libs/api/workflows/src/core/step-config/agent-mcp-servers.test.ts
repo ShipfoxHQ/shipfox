@@ -285,7 +285,10 @@ describe('agent step MCP servers', () => {
           ],
         ]),
         workspaceConnectionSnapshot: new Map([
-          ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+          [
+            'github-main',
+            {id: 'connection-1', provider: 'github', capabilities: ['agent_tools'], allowed: true},
+          ],
         ]),
         defaultConnection: {id: 'connection-1', slug: 'github-main', provider: 'github'},
       },
