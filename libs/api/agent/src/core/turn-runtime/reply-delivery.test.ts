@@ -23,7 +23,11 @@ import {
 import {routeInteraction} from '../interaction-routing.js';
 import {runModelCall} from './model-call.js';
 import type {CreateModelRuntime, ModelCallRuntime} from './model-runtime.js';
-import {deliverConversationReply, REPLY_UNDELIVERABLE_NOTICE_CODE} from './reply-delivery.js';
+import {
+  deliverConversationReply,
+  NO_TEXT_REPLY_TEXT,
+  REPLY_UNDELIVERABLE_NOTICE_CODE,
+} from './reply-delivery.js';
 import {runToolCall} from './tool-call.js';
 import {beginConversationTurn, finishConversationTurn} from './turn-lifecycle.js';
 
@@ -267,7 +271,7 @@ describe('reply delivery', () => {
     expect(integrations.progress.filter(({state}) => state === 'idle')).toHaveLength(2);
   });
 
-  it('sends nothing for a turn with no text, and still clears the progress', async () => {
+  it('ends a turn with no text with a short reply, and clears the progress', async () => {
     const {begin, conversationId, deliver, integrations} = await setup();
     const turn = await begin();
     if (!turn) throw new Error('No turn began');
@@ -280,8 +284,10 @@ describe('reply delivery', () => {
     await finishConversationTurn({conversationId, turnId: turn.turnId, status: 'succeeded'});
 
     await deliver(turn.turnId);
+    await deliver(turn.turnId);
 
-    expect(integrations.sendInteractionReply).not.toHaveBeenCalled();
+    expect(integrations.replies).toHaveLength(1);
+    expect(integrations.replies[0]).toMatchObject({kind: 'response', text: NO_TEXT_REPLY_TEXT});
     expect(integrations.progress.at(-1)).toMatchObject({state: 'idle'});
   });
 
