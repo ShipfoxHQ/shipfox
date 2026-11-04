@@ -99,7 +99,7 @@ interface ToolOutput {
   text: string;
   isError: boolean;
   sensitivity: 'read' | 'write' | 'local' | 'unknown';
-  /** Set when an earlier attempt began a write, so this one cannot tell if it took effect. */
+  /** Set on a write that may have taken effect: a retry found it begun, it timed out, or it failed on the last attempt. */
   outcome?: 'unknown';
 }
 
