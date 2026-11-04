@@ -120,7 +120,8 @@ A team can add instructions, a model, and integration tools to Shippy in
 `.shipfox/agents/shippy.yaml`. It can also write its own project agents there,
 each with its own instructions. Shippy's own prompt ships with Shipfox, so each
 release improves it for new conversations. A running conversation keeps the
-prompt and tools it started with.
+prompt and the tool list it started with. A tool you remove from the file stops
+working in it right away.
 
 <Cards>
   <Card title="Agent file reference" href="/reference/workflow-schema#agent-file-fields">

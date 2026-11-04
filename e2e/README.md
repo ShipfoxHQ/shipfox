@@ -400,7 +400,10 @@ A case with agent steps puts their model replies in `scripted.yaml`, next to
 managed provider for the case's project, and refuses a case with agent steps
 but no script. Each entry has a `match` with
 `prompt_contains` and a list of `replies`, each a `text` or a `tool` call with
-`args`. A step attempt's first request picks the first entry whose text it
+`args`. A `text` reply can set `hold_ms`, up to 120000, to hold its stream open
+after the text, so a test can stop it mid-reply. An `error` reply with a
+`status` from 400 to 599 and a `message` fails that one request, so a test can
+retry the turn and get the next reply. A step attempt's first request picks the first entry whose text it
 contains. So an entry that continues a shared session goes before the entry
 that started it. Each later request of that attempt reads the entry's next
 reply. A pi step with declared outputs ends once it sets every output, and one
