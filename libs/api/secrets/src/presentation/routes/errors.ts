@@ -1,3 +1,4 @@
+import {ScopeDeletedError} from '@shipfox/node-drizzle';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   NamespaceValidationError,
@@ -53,6 +54,9 @@ export function translateManagementError(error: unknown): never {
   }
   if (error instanceof UnknownSecretStoreError) {
     throw new ClientError('Unknown secret store', 'unknown-secret-store', {status: 400});
+  }
+  if (error instanceof ScopeDeletedError) {
+    throw new ClientError('Project not found', 'project-not-found', {status: 404});
   }
   throw error;
 }

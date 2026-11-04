@@ -8,11 +8,12 @@ import {
   type WebhookRequestProcessor,
   type WebhookRouteId,
 } from '@shipfox/api-integration-spi';
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
-import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
+import {type ModuleService, type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {createConfigLinkService} from '#core/config-link-service.js';
 import type {IntegrationProvider} from '#core/entities/provider.js';
@@ -40,6 +41,7 @@ import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
 import {createIntegrationsInterModulePresentation} from '#presentation/inter-module.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
+import {onProjectDeleted} from '#presentation/subscribers/on-project-deleted.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
 import type {
   IntegrationModuleParts,
@@ -420,6 +422,7 @@ export async function createIntegrationsContext(
     services.push(options.webhookDeliverySource.createService(webhookProcessor));
   }
 
+  const projectsSubscriber = subscriberFactory<ProjectsEventMap>();
   const module: ShipfoxModule = {
     name: 'integrations',
     interModulePresentations: [
@@ -455,6 +458,7 @@ export async function createIntegrationsContext(
     publishers: [
       {name: 'integrations', table: integrationsOutbox, db, eventSchemas: integrationsEventSchemas},
     ],
+    subscribers: [projectsSubscriber(PROJECT_DELETED, onProjectDeleted)],
     workers: [
       {
         taskQueue: INTEGRATIONS_MAINTENANCE_TASK_QUEUE,

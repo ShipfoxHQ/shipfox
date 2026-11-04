@@ -3,6 +3,7 @@ import {and, eq, inArray, notInArray} from 'drizzle-orm';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {deleteCronScheduleForSubscription, syncCronSchedule} from './cron-schedules.js';
 import {db, type Executor, type Tx} from './db.js';
+import {assertTriggersScopeWritable} from './deleted-scopes.js';
 import {toTriggerSubscription, triggerSubscriptions} from './schema/subscriptions.js';
 import {normalizeSubscriptionEvent, subscriptionEventCondition} from './subscription-event.js';
 
@@ -22,6 +23,10 @@ export async function projectDefinitionTriggers(
   params: ProjectDefinitionTriggersParams,
 ): Promise<void> {
   const work = async (tx: Tx): Promise<void> => {
+    await assertTriggersScopeWritable(tx, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     const entries = Object.entries(params.triggers);
     const keepNames = entries.map(([name]) => name);
 

@@ -5,6 +5,7 @@ export default defineConfig({
     './src/db/schema/agent-subscriptions.ts',
     './src/db/schema/cron-schedules.ts',
     './src/db/schema/decisions.ts',
+    './src/db/schema/deleted-scopes.ts',
     './src/db/schema/job-listener-subscriptions.ts',
     './src/db/schema/outbox.ts',
     './src/db/schema/received-events.ts',

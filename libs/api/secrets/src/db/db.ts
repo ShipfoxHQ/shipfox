@@ -1,12 +1,14 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {secretDataKeys} from './schema/data-keys.js';
+import {secretsDeletedScopes} from './schema/deleted-scopes.js';
 import {secretsOutbox} from './schema/outbox.js';
 import {secretValues} from './schema/values.js';
 import {secretVariables} from './schema/variables.js';
 
 export const schema = {
   secretDataKeys,
+  secretsDeletedScopes,
   secretsOutbox,
   secretValues,
   secretVariables,

@@ -3,6 +3,7 @@ import {pgClient} from '@shipfox/node-postgres';
 import {agentSubscriptions} from './schema/agent-subscriptions.js';
 import {triggersCronSchedules} from './schema/cron-schedules.js';
 import {triggersDecisions} from './schema/decisions.js';
+import {triggersDeletedScopes} from './schema/deleted-scopes.js';
 import {jobListenerSubscriptions} from './schema/job-listener-subscriptions.js';
 import {triggersOutbox} from './schema/outbox.js';
 import {triggersReceivedEvents} from './schema/received-events.js';
@@ -16,6 +17,7 @@ export const schema = {
   triggersOutbox,
   triggersReceivedEvents,
   triggersDecisions,
+  triggersDeletedScopes,
 };
 
 let _db: NodePgDatabase<typeof schema> | undefined;

@@ -1,6 +1,7 @@
 import {and, asc, eq, inArray} from 'drizzle-orm';
 import type {AgentSubscription} from '#core/entities/agent-subscription.js';
 import {db} from './db.js';
+import {assertTriggersScopeWritable} from './deleted-scopes.js';
 import {agentSubscriptions, toAgentSubscription} from './schema/agent-subscriptions.js';
 
 export interface AgentRuleInput {
@@ -35,6 +36,10 @@ export async function projectAgentSubscriptions(
   }
 
   await db().transaction(async (tx) => {
+    await assertTriggersScopeWritable(tx, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     const existing = await tx
       .select()
       .from(agentSubscriptions)

@@ -483,6 +483,7 @@ describe('agent decision upserts', () => {
 
     await upsertAgentDecision({
       receivedEventId,
+      workspaceId: crypto.randomUUID(),
       decision: 'default',
       agentKey: 'shippy',
       projectId,
@@ -506,6 +507,7 @@ describe('agent decision upserts', () => {
 
     await upsertAgentDecision({
       receivedEventId,
+      workspaceId: crypto.randomUUID(),
       decision: 'dropped',
       agentKey: null,
       projectId: null,
@@ -513,6 +515,7 @@ describe('agent decision upserts', () => {
     });
     await upsertAgentDecision({
       receivedEventId,
+      workspaceId: crypto.randomUUID(),
       decision: 'owner',
       agentKey: 'shippy',
       projectId: crypto.randomUUID(),
@@ -535,6 +538,7 @@ describe('agent decision upserts', () => {
 
     await upsertAgentDecision({
       receivedEventId,
+      workspaceId: crypto.randomUUID(),
       decision: 'owner',
       agentKey: 'shippy',
       projectId: crypto.randomUUID(),

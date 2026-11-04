@@ -30,7 +30,9 @@ export async function setup() {
   createPostgresClient();
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_cache');
-  await db().execute(sql`TRUNCATE cache_entries, cache_deletions, cache_workspace_settings`);
+  await db().execute(
+    sql`TRUNCATE cache_entries, cache_deletions, cache_workspace_settings, cache_deleted_scopes`,
+  );
 
   closeDb();
   await closePostgresClient();

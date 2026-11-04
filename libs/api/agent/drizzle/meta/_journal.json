@@ -85,6 +85,13 @@
       "when": 1793760555197,
       "tag": "0011_conversation_run_links",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793778377171,
+      "tag": "0012_deleted_scopes",
+      "breakpoints": true
     }
   ]
 }

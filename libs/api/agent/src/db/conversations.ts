@@ -1,5 +1,6 @@
 import type {Buffer} from 'node:buffer';
 import {
+  assertScopeWritable,
   paginateTimestampIdRows,
   type TimestampIdCursor,
   timestampIdCursorColumn,
@@ -27,6 +28,7 @@ import type {
 import {db, type Transaction} from './db.js';
 import {conversationItems, toConversationItem} from './schema/conversation-items.js';
 import {conversations, toConversation} from './schema/conversations.js';
+import {agentDeletedScopes} from './schema/deleted-scopes.js';
 import {turnStreamChunks} from './schema/turn-stream-chunks.js';
 import {toAgentTurn, turns} from './schema/turns.js';
 
@@ -186,6 +188,10 @@ export async function insertWebConversation(
 ): Promise<{conversation: Conversation; item: ConversationItem}> {
   return await db().transaction(async (tx) => {
     const {firstInput} = params;
+    await assertScopeWritable(tx, agentDeletedScopes, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     const inserted = await tx
       .insert(conversations)
       .values({
@@ -260,6 +266,10 @@ export async function insertIntegrationConversation(
 ): Promise<{conversation: Conversation; created: boolean}> {
   return await db().transaction(async (tx) => {
     const {firstInput, origin} = params;
+    await assertScopeWritable(tx, agentDeletedScopes, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     const inserted = await tx
       .insert(conversations)
       .values({

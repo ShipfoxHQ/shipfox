@@ -113,11 +113,14 @@ This module owns tables with the `secrets_` prefix.
 | `secrets_data_keys` | Stores one wrapped data-encryption key per workspace. The row includes the KEK version used to wrap it. |
 | `secrets_values` | Stores encrypted secret values, a keyed HMAC fingerprint, scope columns, and edit metadata. |
 | `secrets_variables` | Stores plaintext variable values, scope columns, and edit metadata. |
+| `secrets_deleted_scopes` | Marks each deleted project. A write to a marked project is refused. |
 
 `secrets_values` and `secrets_variables` use partial unique indexes for scope:
 
 - Workspace scope is unique by `(workspace_id, namespace, key)` where `project_id IS NULL`.
 - Project scope is unique by `(workspace_id, project_id, namespace, key)` where `project_id IS NOT NULL`.
+
+When a project is deleted, the module records a marker, deletes the project's secrets and variables in batches, and sets `purged_at` once none remain. Workspace-level rows stay. A later write to the project fails with `ScopeDeletedError`, which the management routes answer as `project-not-found`.
 
 The database checks key and namespace patterns. The core layer also validates them before writing.
 

@@ -1,13 +1,17 @@
 import type {ProjectDeletedEvent} from '@shipfox/api-projects-dto';
-import {stopWork} from '#core/stop-work.js';
+import {purgeProject} from '#core/purge-project.js';
 
 /**
- * Stops the project's active turns. They stop on their own as each reaches its next check, so
- * `remaining` isn't a reason to retry, and the project's admission refuses the turns after them.
+ * Stops the project's active turns, then deletes its conversations and sessions. A turn stops on
+ * its own at its next check, and its conversation is deleted on a later delivery, so the event is
+ * redelivered until none remains.
  */
 export async function onProjectDeleted(event: ProjectDeletedEvent): Promise<void> {
-  await stopWork({
-    scope: {workspaceId: event.workspaceId, projectId: event.projectId},
-    reason: 'project_deleted',
+  const {purged} = await purgeProject({
+    workspaceId: event.workspaceId,
+    projectId: event.projectId,
   });
+  if (!purged) {
+    throw new Error(`Conversations of a deleted project are still stopping: ${event.projectId}`);
+  }
 }

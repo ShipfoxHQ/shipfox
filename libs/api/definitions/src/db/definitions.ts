@@ -3,6 +3,7 @@ import {
   DEFINITION_RESOLVED,
   type DefinitionsEventMap,
 } from '@shipfox/api-definitions-dto';
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {
@@ -33,6 +34,7 @@ import {
 import {db} from './db.js';
 import {definitionTriggersFor} from './definition-triggers.js';
 import {type DefinitionDb, toDefinition, workflowDefinitions} from './schema/definitions.js';
+import {definitionsDeletedScopes} from './schema/deleted-scopes.js';
 import {definitionsOutbox} from './schema/outbox.js';
 import {workflowWorkflows} from './schema/workflows.js';
 
@@ -298,6 +300,10 @@ export async function upsertDefinition(
   params: UpsertDefinitionParams,
 ): Promise<WorkflowDefinition> {
   return await db().transaction(async (tx) => {
+    await assertScopeWritable(tx, definitionsDeletedScopes, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     const workflowId = await findOrCreateWorkflow(tx, {
       projectId: params.projectId,
       configPath: params.configPath ?? null,
@@ -328,10 +334,15 @@ export async function upsertDefinition(
  * persisting a definition row or publishing a resolution event.
  */
 export async function findOrCreateWorkflowLineage(params: {
+  workspaceId: string;
   projectId: string;
   configPath: string;
 }): Promise<string> {
   return await db().transaction(async (tx) => {
+    await assertScopeWritable(tx, definitionsDeletedScopes, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     return await findOrCreateWorkflow(tx, params);
   });
 }
@@ -726,6 +737,10 @@ export async function applyVcsDefinitionsBatch(
   params: ApplyVcsDefinitionsBatchParams,
 ): Promise<ApplyVcsDefinitionsBatchResult> {
   return await db().transaction(async (tx) => {
+    await assertScopeWritable(tx, definitionsDeletedScopes, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     let appliedCount = 0;
     const prepared: PreparedVcsDefinition[] = [];
     for (const item of params.upserts) {

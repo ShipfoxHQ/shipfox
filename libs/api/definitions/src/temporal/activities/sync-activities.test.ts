@@ -9,6 +9,7 @@ import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import type {DefinitionsSourceControl} from '#core/integrations.js';
+import {recordProjectDeleted} from '#db/deleted-scopes.js';
 import {
   db,
   definitionSyncStates,
@@ -1107,6 +1108,77 @@ describe('definition sync activities', () => {
           severity: 'warning',
         },
       ]);
+    });
+  });
+
+  describe('for a deleted project', () => {
+    const reviewerPath = '.shipfox/agents/reviewer.yaml';
+    let workspaceId: string;
+    let activities: ReturnType<typeof createDefinitionSyncActivities>;
+
+    beforeEach(async () => {
+      workspaceId = crypto.randomUUID();
+      activities = createDefinitionSyncActivities(
+        sourceControl({
+          fetchFile: vi.fn(({path, ref}: {path: string; ref: string}) =>
+            Promise.resolve({
+              path,
+              ref,
+              content:
+                path === reviewerPath
+                  ? 'description: Reviews.\ninstructions: Review the change.\n'
+                  : validYaml,
+            }),
+          ),
+        }),
+        agent,
+        projects,
+      );
+      await recordProjectDeleted({
+        scope: {workspaceId, projectId},
+        reason: 'project_deleted',
+      });
+    });
+
+    function input() {
+      return {
+        projectId,
+        workspaceId,
+        sourceConnectionId,
+        sourceExternalRepositoryId: SOURCE_REPOSITORY_ID,
+        sourceRef: 'main',
+      };
+    }
+
+    it('ends the sync quietly without recording a sync state', async () => {
+      const result = await activities.prepareDefinitionSync(input());
+      await activities.markDefinitionSyncSucceeded(input());
+
+      expect(result).toEqual({sourceRef: 'main', sourceCommitSha: undefined});
+      const rows = await db()
+        .select()
+        .from(definitionSyncStates)
+        .where(sql`${definitionSyncStates.projectId} = ${projectId}`);
+      expect(rows).toEqual([]);
+    });
+
+    it('stores no workflow definition', async () => {
+      await activities.fetchAndApplyDefinitionWorkflows({
+        ...input(),
+        paths: ['.shipfox/workflows/ci.yml'],
+      });
+
+      const rows = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
+      expect(rows).toEqual([]);
+    });
+
+    it('stores no agent', async () => {
+      await activities.fetchAndApplyDefinitionAgents({...input(), paths: [reviewerPath]});
+
+      expect(await listProjectAgents(projectId)).toEqual([]);
     });
   });
 });

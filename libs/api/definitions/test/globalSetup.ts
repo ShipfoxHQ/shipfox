@@ -12,6 +12,7 @@ export async function setup() {
   await db().execute(sql`DROP TABLE IF EXISTS definitions_workflow_definitions CASCADE`);
   await db().execute(sql`DROP TABLE IF EXISTS definitions_workflows CASCADE`);
   await db().execute(sql`DROP TABLE IF EXISTS definitions_sync_states CASCADE`);
+  await db().execute(sql`DROP TABLE IF EXISTS definitions_deleted_scopes CASCADE`);
   await db().execute(sql`DROP TABLE IF EXISTS definitions_outbox CASCADE`);
   await db().execute(sql`DROP TYPE IF EXISTS definitions_sync_status CASCADE`);
   await db().execute(sql`DROP TYPE IF EXISTS definitions_sync_error_code CASCADE`);

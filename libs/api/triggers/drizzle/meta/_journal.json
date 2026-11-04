@@ -64,6 +64,13 @@
       "when": 1793772051909,
       "tag": "0008_agent_rule_decisions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793803529767,
+      "tag": "0009_deleted_scopes",
+      "breakpoints": true
     }
   ]
 }

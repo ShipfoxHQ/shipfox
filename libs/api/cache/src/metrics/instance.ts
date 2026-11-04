@@ -25,12 +25,18 @@ export const cacheSaveCount = meter.createCounter<{result: CacheSaveResult}>('ca
   description: 'Cache save steps by result: reserve outcomes, commits, aborts, and failed commits',
 });
 
-/** A stale upload was never a visible entry, so it has a reason of its own. */
-export type CacheDeletionMetricReason = CacheDeletionReason | 'stale_upload';
+/**
+ * A stale upload was never a visible entry, and a project purge leaves no deletion record, so each
+ * has a reason of its own.
+ */
+export type CacheDeletionMetricReason = CacheDeletionReason | 'stale_upload' | 'project_deleted';
 
 export const cacheDeletionCount = meter.createCounter<{reason: CacheDeletionMetricReason}>(
   'cache_deletions',
-  {description: 'Cache entries deleted by reason. A stale upload is one the reaper removed.'},
+  {
+    description:
+      'Cache entries deleted by reason. A stale upload is one the reaper removed. A project_deleted entry went with its project.',
+  },
 );
 
 export const cacheSweepDuration = meter.createHistogram<{outcome: 'completed' | 'timed_out'}>(

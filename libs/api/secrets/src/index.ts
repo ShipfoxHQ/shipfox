@@ -1,11 +1,13 @@
+import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {secretsEventSchemas} from '@shipfox/api-secrets-dto';
-import type {ShipfoxModule} from '@shipfox/node-module';
+import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, secretsOutbox} from '#db/index.js';
 import {registerSecretsServiceMetrics} from '#metrics/index.js';
 import {secretsE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createSecretsInterModulePresentation} from '#presentation/inter-module.js';
 import {createSecretsRoutes} from '#presentation/routes/index.js';
+import {onProjectDeleted} from '#presentation/subscribers/index.js';
 
 export {
   BUILTIN_LOCAL_STORE,
@@ -45,6 +47,7 @@ export {
 } from '#core/index.js';
 
 export function createSecretsModule(projects: ProjectsModuleClient): ShipfoxModule {
+  const projectsSubscriber = subscriberFactory<ProjectsEventMap>();
   return {
     name: 'secrets',
     database: {db, migrationsPath, databaseNamespace: 'secrets'},
@@ -53,6 +56,7 @@ export function createSecretsModule(projects: ProjectsModuleClient): ShipfoxModu
     metrics: registerSecretsServiceMetrics,
     publishers: [{name: 'secrets', table: secretsOutbox, db, eventSchemas: secretsEventSchemas}],
     interModulePresentations: [createSecretsInterModulePresentation()],
+    subscribers: [projectsSubscriber(PROJECT_DELETED, onProjectDeleted)],
   };
 }
 

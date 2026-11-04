@@ -1,9 +1,11 @@
 import {Buffer} from 'node:buffer';
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import type {EncodedActionBundle} from '@shipfox/workflow-document';
 import {and, eq} from 'drizzle-orm';
 import type {ActionSnapshot, ActionSnapshotSource} from '#core/entities/action-snapshot.js';
 import {db} from './db.js';
 import {definitionActionSnapshots, toActionSnapshot} from './schema/action-snapshots.js';
+import {definitionsDeletedScopes} from './schema/deleted-scopes.js';
 
 export interface UpsertActionSnapshotParams {
   workspaceId: string;
@@ -18,21 +20,27 @@ export interface UpsertActionSnapshotParams {
  * repeated store keeps the first row, including where it was first seen.
  */
 export async function upsertActionSnapshot(params: UpsertActionSnapshotParams): Promise<void> {
-  await db()
-    .insert(definitionActionSnapshots)
-    .values({
+  await db().transaction(async (tx) => {
+    await assertScopeWritable(tx, definitionsDeletedScopes, {
       workspaceId: params.workspaceId,
-      digest: params.bundle.digest,
       projectId: params.projectId,
-      manifest: params.manifest,
-      bundle: Buffer.from(params.bundle.gzip),
-      fileCount: params.bundle.fileCount,
-      bytes: params.bundle.bytes,
-      source: params.source,
-    })
-    .onConflictDoNothing({
-      target: [definitionActionSnapshots.workspaceId, definitionActionSnapshots.digest],
     });
+    await tx
+      .insert(definitionActionSnapshots)
+      .values({
+        workspaceId: params.workspaceId,
+        digest: params.bundle.digest,
+        projectId: params.projectId,
+        manifest: params.manifest,
+        bundle: Buffer.from(params.bundle.gzip),
+        fileCount: params.bundle.fileCount,
+        bytes: params.bundle.bytes,
+        source: params.source,
+      })
+      .onConflictDoNothing({
+        target: [definitionActionSnapshots.workspaceId, definitionActionSnapshots.digest],
+      });
+  });
 }
 
 export async function getActionSnapshot(params: {

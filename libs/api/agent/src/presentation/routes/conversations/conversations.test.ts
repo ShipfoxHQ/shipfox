@@ -11,6 +11,7 @@ import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {and, eq} from 'drizzle-orm';
 import {claimQueuedConversationItems, getRunningTurn} from '#db/conversations.js';
 import {db} from '#db/db.js';
+import {recordProjectAgentDeleted} from '#db/project-purge.js';
 import {conversationItems} from '#db/schema/conversation-items.js';
 import {conversations} from '#db/schema/conversations.js';
 import {sessionDataKeys} from '#db/schema/data-keys.js';
@@ -225,6 +226,23 @@ describe('conversation routes', () => {
 
       expect(res.statusCode).toBe(404);
       expect(res.json().code).toBe('project-not-found');
+    });
+
+    it('returns 404 for a project deleted after the caller loaded it', async () => {
+      const {workspaceId, projectId} = arrangeProject();
+      const owner = member({workspaceId});
+      await recordProjectAgentDeleted({workspaceId, projectId});
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/projects/${projectId}/conversations`,
+        headers: {authorization: owner.authorization},
+        payload: message(),
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().code).toBe('project-not-found');
+      expect(wake).not.toHaveBeenCalled();
     });
 
     it('returns 401 without a user', async () => {

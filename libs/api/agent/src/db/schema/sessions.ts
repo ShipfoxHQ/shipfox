@@ -48,6 +48,8 @@ export const sessions = pgTable(
   },
   (table) => [
     uniqueIndex('agent_sessions_run_key_unique').on(table.workflowRunAttemptId, table.key),
+    // Deleting a project purges its sessions by project.
+    index('agent_sessions_project_idx').on(table.projectId),
     // The claim release (releaseSessionClaimsHeldByStepAttempts) filters on
     // claimed_by_step_attempt on every step-attempt-terminated event; the
     // registry has no deletion path, so without this index the update scans a

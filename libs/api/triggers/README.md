@@ -66,7 +66,12 @@ This adds:
 - the `POST /dev-runs` route, which creates a run from a workflow file at a git ref without creating a trigger subscription
 - the `GET /trigger-events`, `GET /trigger-events/facets`, and `GET /trigger-events/:id` inspection routes
 - subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`,
-  `DEFINITION_AGENT_RULES_RESOLVED`, and `INTEGRATION_EVENT_RECEIVED`
+  `DEFINITION_AGENT_RULES_RESOLVED`, `INTEGRATION_EVENT_RECEIVED`, and `PROJECT_DELETED`
+- a `PROJECT_DELETED` purge: the subscriber records a deletion marker in `triggers_deleted_scopes`,
+  then deletes the project's subscriptions (with their cron schedules), agent rules, listener
+  subscriptions, and decisions. After the marker, a late `DEFINITION_RESOLVED`,
+  `DEFINITION_AGENT_RULES_RESOLVED`, or `WORKFLOWS_JOB_ACTIVATED` event for the project creates
+  nothing. Listener rows written before they carried a project go when their job ends.
 - the `triggers` outbox publisher
 - the hourly `triggers-prune-trigger-events` Temporal cron, which deletes old
   rows from `triggers_received_events`
@@ -350,6 +355,7 @@ overlap. Dispatch reads them for each new request, as described in Agent routing
 | `DEFINITION_RESOLVED` | definitions | triggers | A workflow definition was created or updated. The payload includes the parsed `triggers` map. |
 | `DEFINITION_DELETED` | definitions | triggers | A workflow definition was soft-deleted. Subscription rows are removed. |
 | `DEFINITION_AGENT_RULES_RESOLVED` | definitions | triggers | A project's agent files were synced. The payload lists the `on:` rules of each agent. Agent subscriptions are replaced. |
+| `PROJECT_DELETED` | projects | triggers | A project was deleted. Its subscriptions, agent subscriptions, listener subscriptions, and decisions are purged, and later writes for the project are refused. |
 
 ## API
 

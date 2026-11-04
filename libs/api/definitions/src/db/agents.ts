@@ -2,12 +2,14 @@ import {
   DEFINITION_AGENT_RULES_RESOLVED,
   type DefinitionsEventMap,
 } from '@shipfox/api-definitions-dto';
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import type {AgentDocument} from '@shipfox/workflow-document';
 import {and, asc, eq, notInArray, sql} from 'drizzle-orm';
 import type {ProjectAgent, ProjectAgentError} from '#core/entities/project-agent.js';
 import {db} from './db.js';
 import {definitionAgents, toProjectAgent} from './schema/agents.js';
+import {definitionsDeletedScopes} from './schema/deleted-scopes.js';
 import {definitionsOutbox} from './schema/outbox.js';
 
 export interface ValidAgentUpsert {
@@ -51,6 +53,10 @@ export async function applyVcsAgentsBatch(
   params: ApplyVcsAgentsBatchParams,
 ): Promise<ApplyVcsAgentsBatchResult> {
   return await db().transaction(async (tx) => {
+    await assertScopeWritable(tx, definitionsDeletedScopes, {
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+    });
     for (const agent of params.valid) {
       await tx
         .insert(definitionAgents)

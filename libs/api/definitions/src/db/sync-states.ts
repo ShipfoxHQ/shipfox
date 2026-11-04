@@ -1,4 +1,5 @@
 import {DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH} from '@shipfox/api-definitions-dto';
+import {assertScopeWritable} from '@shipfox/node-drizzle';
 import {and, desc, eq} from 'drizzle-orm';
 import type {
   DefinitionSyncDiagnostic,
@@ -8,6 +9,7 @@ import type {
 } from '#core/entities/sync-state.js';
 import {limitDefinitionSyncDiagnostics} from '#core/entities/sync-state.js';
 import {db} from './db.js';
+import {definitionsDeletedScopes} from './schema/deleted-scopes.js';
 import {definitionSyncStates, toDefinitionSyncState} from './schema/sync-states.js';
 
 export interface DefinitionSyncStateKey {
@@ -18,6 +20,7 @@ export interface DefinitionSyncStateKey {
 }
 
 export interface MarkDefinitionSyncParams extends DefinitionSyncStateKey {
+  workspaceId: string;
   status: DefinitionSyncStatus;
   lastErrorCode?: DefinitionSyncErrorCode | null | undefined;
   lastErrorMessage?: string | null | undefined;
@@ -35,39 +38,45 @@ export async function markDefinitionSyncState(
     params.lastErrorMessage == null
       ? null
       : params.lastErrorMessage.slice(0, DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH);
-  const [row] = await db()
-    .insert(definitionSyncStates)
-    .values({
+  const [row] = await db().transaction(async (tx) => {
+    await assertScopeWritable(tx, definitionsDeletedScopes, {
+      workspaceId: params.workspaceId,
       projectId: params.projectId,
-      sourceConnectionId: params.sourceConnectionId,
-      sourceExternalRepositoryId: params.sourceExternalRepositoryId,
-      ref: params.ref,
-      status: params.status,
-      lastErrorCode: params.lastErrorCode ?? null,
-      lastErrorMessage,
-      warnings: diagnostics,
-      startedAt: params.startedAt ?? null,
-      finishedAt: params.finishedAt ?? null,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        definitionSyncStates.projectId,
-        definitionSyncStates.sourceConnectionId,
-        definitionSyncStates.sourceExternalRepositoryId,
-        definitionSyncStates.ref,
-      ],
-      set: {
+    });
+    return await tx
+      .insert(definitionSyncStates)
+      .values({
+        projectId: params.projectId,
+        sourceConnectionId: params.sourceConnectionId,
+        sourceExternalRepositoryId: params.sourceExternalRepositoryId,
+        ref: params.ref,
         status: params.status,
         lastErrorCode: params.lastErrorCode ?? null,
         lastErrorMessage,
         warnings: diagnostics,
-        ...(params.startedAt !== undefined ? {startedAt: params.startedAt} : {}),
-        ...(params.finishedAt !== undefined ? {finishedAt: params.finishedAt} : {}),
+        startedAt: params.startedAt ?? null,
+        finishedAt: params.finishedAt ?? null,
         updatedAt: now,
-      },
-    })
-    .returning();
+      })
+      .onConflictDoUpdate({
+        target: [
+          definitionSyncStates.projectId,
+          definitionSyncStates.sourceConnectionId,
+          definitionSyncStates.sourceExternalRepositoryId,
+          definitionSyncStates.ref,
+        ],
+        set: {
+          status: params.status,
+          lastErrorCode: params.lastErrorCode ?? null,
+          lastErrorMessage,
+          warnings: diagnostics,
+          ...(params.startedAt !== undefined ? {startedAt: params.startedAt} : {}),
+          ...(params.finishedAt !== undefined ? {finishedAt: params.finishedAt} : {}),
+          updatedAt: now,
+        },
+      })
+      .returning();
+  });
 
   if (!row) throw new Error('Definition sync state upsert returned no rows');
   return toDefinitionSyncState(row);
