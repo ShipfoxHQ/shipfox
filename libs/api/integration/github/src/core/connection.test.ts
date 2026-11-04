@@ -23,7 +23,6 @@ function githubConnection(
     lifecycleStatus: 'active',
     createdAt: new Date(),
     updatedAt: new Date(),
-    repositoryAccessMode: 'selected',
     ...overrides,
   };
 }

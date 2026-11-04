@@ -81,7 +81,6 @@ function connection(input: Partial<IntegrationConnection<'linear'>> = {}) {
     createdAt: new Date(),
     updatedAt: new Date(),
     ...input,
-    repositoryAccessMode: input.repositoryAccessMode ?? 'selected',
   } satisfies IntegrationConnection<'linear'>;
 }
 

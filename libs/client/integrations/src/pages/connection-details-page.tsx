@@ -1,26 +1,18 @@
-import {ApiError} from '@shipfox/client-api';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
-import {Panel, PanelBody, PanelHeader, PanelRow, PanelTitle} from '@shipfox/react-ui/panel';
-import {RadioGroup, RadioGroupItem} from '@shipfox/react-ui/radio-group';
-import {Skeleton} from '@shipfox/react-ui/skeleton';
-import {toast} from '@shipfox/react-ui/toast';
+import {Panel, PanelBody, PanelHeader, PanelTitle} from '@shipfox/react-ui/panel';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
-import {type ReactNode, useEffect, useState} from 'react';
+import {type ReactNode, useState} from 'react';
 import {ClaapConnectionSettings} from '#components/claap/claap-connection-settings.js';
 import {JamConnectionSettings} from '#components/jam/jam-connection-settings.js';
 import {PosthogReplaceApiKeyModal} from '#components/posthog/posthog-replace-api-key-modal.js';
-import type {IntegrationConnection, RepositoryAccess, RepositoryAccessMode} from '#core/models.js';
-import {
-  useIntegrationConnectionRepositoryAccessQuery,
-  useIntegrationConnectionsQuery,
-  useUpdateIntegrationConnectionRepositoryAccessMutation,
-} from '#hooks/api/integrations.js';
+import type {IntegrationConnection} from '#core/models.js';
+import {useIntegrationConnectionsQuery} from '#hooks/api/integrations.js';
 import {hasCredentialSettings, PROVIDER_CATALOG} from '#provider-catalog.js';
 
 export function ConnectionDetailsPage({
@@ -66,18 +58,12 @@ export function ConnectionDetailsPage({
       {connection.reconnectRequired ? (
         <ReconnectNotice connection={connection} workspaceSlug={workspaceSlug} />
       ) : null}
-      <ConnectionSettings connection={connection} workspaceSlug={workspaceSlug} />
+      <ConnectionSettings connection={connection} />
     </ConnectionDetailsShell>
   );
 }
 
-function ConnectionSettings({
-  connection,
-  workspaceSlug,
-}: {
-  connection: IntegrationConnection;
-  workspaceSlug: string;
-}) {
+function ConnectionSettings({connection}: {connection: IntegrationConnection}) {
   if (connection.provider === 'posthog')
     return (
       <PosthogConnectionSettings connection={connection} workspaceId={connection.workspaceId} />
@@ -86,14 +72,10 @@ function ConnectionSettings({
     return <JamConnectionSettings connection={connection} workspaceId={connection.workspaceId} />;
   if (connection.provider === 'claap')
     return <ClaapConnectionSettings connection={connection} workspaceId={connection.workspaceId} />;
-  if (connection.capabilities.includes('source_control'))
-    return (
-      <RepositoryAccessSettings
-        key={connection.id}
-        connection={connection}
-        workspaceSlug={workspaceSlug}
-      />
-    );
+  const accessNotice = connection.capabilities.includes('source_control')
+    ? PROVIDER_ACCESS_NOTICES[connection.provider]
+    : undefined;
+  if (accessNotice) return <ProviderAccessNotice connection={connection} copy={accessNotice} />;
   // The reconnect notice is this connection's only action.
   if (connection.reconnectRequired) return null;
   return (
@@ -137,14 +119,13 @@ function ReconnectNotice({
 function connectionDetailsTitle(connection: IntegrationConnection): string {
   if (hasCredentialSettings(connection.provider))
     return `${PROVIDER_CATALOG[connection.provider]?.displayName} connection`;
-  if (connection.capabilities.includes('source_control')) return 'Repository access';
   return 'Integration connection';
 }
 
 function ConnectionDetailsShell({
   workspaceSlug,
   connectionName,
-  title = 'Repository access',
+  title = 'Integration connection',
   children,
 }: {
   workspaceSlug: string;
@@ -223,330 +204,9 @@ export function PosthogConnectionSettings({
   );
 }
 
-function RepositoryAccessSettings({
-  connection,
-  workspaceSlug,
-}: {
-  connection: IntegrationConnection;
-  workspaceSlug: string;
-}) {
-  const accessQuery = useIntegrationConnectionRepositoryAccessQuery(connection.id);
-
-  if (accessQuery.isPending) {
-    return (
-      <Panel>
-        <PanelBody className="gap-group p-panel">
-          <div role="status" className="sr-only">
-            Loading repository access settings.
-          </div>
-          <Skeleton className="h-20 w-240" />
-          <Skeleton className="h-48 w-full" />
-        </PanelBody>
-      </Panel>
-    );
-  }
-
-  if (accessQuery.isError && accessQuery.data === undefined) {
-    if (isForbiddenError(accessQuery.error)) return <AccessDeniedState />;
-    if (isUnsupportedError(accessQuery.error)) return <UnsupportedState />;
-    return (
-      <Panel>
-        <QueryLoadError query={accessQuery} subject="repository access settings" variant="panel" />
-      </Panel>
-    );
-  }
-
-  const access = accessQuery.data
-    ? combineRepositoryAccessPages(accessQuery.data.pages)
-    : undefined;
-  if (!access) return <UnsupportedState />;
-
-  return (
-    <RepositoryAccessForm
-      connection={connection}
-      workspaceSlug={workspaceSlug}
-      access={access}
-      hasNextPage={accessQuery.hasNextPage}
-      isFetchingNextPage={accessQuery.isFetchingNextPage}
-      loadMoreError={accessQuery.isFetchNextPageError}
-      onLoadMore={() => void accessQuery.fetchNextPage()}
-      isRefreshError={accessQuery.isRefetchError}
-      isRefreshing={accessQuery.isRefetching}
-      onRefresh={() => void accessQuery.refetch()}
-    />
-  );
-}
-
-function RepositoryAccessForm({
-  connection,
-  workspaceSlug,
-  access,
-  hasNextPage,
-  isFetchingNextPage,
-  loadMoreError,
-  onLoadMore,
-  isRefreshError,
-  isRefreshing,
-  onRefresh,
-}: {
-  connection: IntegrationConnection;
-  workspaceSlug: string;
-  access: RepositoryAccess;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  loadMoreError: boolean;
-  onLoadMore: () => void;
-  isRefreshError: boolean;
-  isRefreshing: boolean;
-  onRefresh: () => void;
-}) {
-  const updateAccess = useUpdateIntegrationConnectionRepositoryAccessMutation();
-  const [selectedMode, setSelectedMode] = useState<RepositoryAccessMode>(access.mode);
-  const [persistedMode, setPersistedMode] = useState<RepositoryAccessMode>(access.mode);
-
-  useEffect(() => {
-    setSelectedMode(access.mode);
-    setPersistedMode(access.mode);
-  }, [access.mode]);
-
-  const mutationError = updateAccess.error;
-  if (isForbiddenError(mutationError)) return <AccessDeniedState />;
-  if (isUnsupportedError(mutationError)) return <UnsupportedState />;
-
-  const isDirty = selectedMode !== persistedMode;
-  const providerName = PROVIDER_CATALOG[connection.provider]?.displayName;
-
-  async function saveMode() {
-    if (!isDirty) return;
-    try {
-      const savedMode = await updateAccess.mutateAsync({
-        connectionId: connection.id,
-        mode: selectedMode,
-      });
-      setPersistedMode(savedMode);
-      toast.success('Access mode saved.');
-    } catch {
-      // The recoverable error is rendered from the mutation state below.
-    }
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col gap-group">
-      <Panel>
-        <PanelHeader>
-          <PanelTitle>Which repositories workflows can use</PanelTitle>
-        </PanelHeader>
-        <PanelBody className="gap-group p-panel">
-          <Text size="sm" className="text-foreground-neutral-muted">
-            {providerName
-              ? `This integration can only access the repositories it was given on ${providerName}.`
-              : 'This integration can only access the repositories it was given.'}{' '}
-            This setting decides which of those workflows may use.
-          </Text>
-          <RadioGroup
-            aria-label="Which repositories workflows can use"
-            value={selectedMode}
-            variant="cell"
-            onValueChange={(value) => {
-              if (isRepositoryAccessMode(value)) setSelectedMode(value);
-            }}
-            disabled={updateAccess.isPending}
-          >
-            <RadioGroupItem value="selected">
-              <Text as="span" size="sm" bold>
-                Only your projects&apos; repositories
-              </Text>
-              <Text as="span" size="xs" className="text-foreground-neutral-muted">
-                Workflows can check out and act on the repositories your projects use, and nothing
-                else.
-              </Text>
-            </RadioGroupItem>
-            <RadioGroupItem value="all">
-              <Text as="span" size="sm" bold>
-                Every repository this integration can access
-              </Text>
-              <Text as="span" size="xs" className="text-foreground-neutral-muted">
-                {providerName
-                  ? `Workflows can use any repository this integration was given access to on ${providerName}.`
-                  : 'Workflows can use any repository this integration was given access to.'}
-              </Text>
-            </RadioGroupItem>
-          </RadioGroup>
-
-          {mutationError ? (
-            <Callout role="alert" type="error">
-              <CalloutContent>
-                <CalloutTitle>Couldn&apos;t save the access mode</CalloutTitle>
-                <CalloutDescription>The previous mode still applies. Try again.</CalloutDescription>
-              </CalloutContent>
-            </Callout>
-          ) : null}
-
-          <div className="flex items-center gap-group">
-            <Button
-              type="button"
-              isLoading={updateAccess.isPending}
-              disabled={!isDirty}
-              onClick={() => void saveMode()}
-            >
-              Save changes
-            </Button>
-            {updateAccess.isPending ? (
-              <Text size="xs" role="status" className="text-foreground-neutral-muted">
-                Saving access mode…
-              </Text>
-            ) : null}
-          </div>
-        </PanelBody>
-      </Panel>
-
-      {access.mode === 'selected' ? (
-        <SelectedRepositories
-          workspaceSlug={workspaceSlug}
-          access={access}
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          loadMoreError={loadMoreError}
-          onLoadMore={onLoadMore}
-          isRefreshError={isRefreshError}
-          isRefreshing={isRefreshing}
-          onRefresh={onRefresh}
-        />
-      ) : null}
-      <ProviderAccessNotice connection={connection} mode={access.mode} />
-    </div>
-  );
-}
-
-function SelectedRepositories({
-  access,
-  workspaceSlug,
-  hasNextPage,
-  isFetchingNextPage,
-  loadMoreError,
-  onLoadMore,
-  isRefreshError,
-  isRefreshing,
-  onRefresh,
-}: {
-  access: RepositoryAccess;
-  workspaceSlug: string;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  loadMoreError: boolean;
-  onLoadMore: () => void;
-  isRefreshError: boolean;
-  isRefreshing: boolean;
-  onRefresh: () => void;
-}) {
-  return (
-    <Panel>
-      <PanelHeader>
-        <PanelTitle>Your projects&apos; repositories</PanelTitle>
-      </PanelHeader>
-      <PanelBody>
-        {isRefreshError ? (
-          <Callout role="alert" type="error" className="m-panel-compact">
-            <CalloutContent>
-              <CalloutTitle>Repository access may be out of date</CalloutTitle>
-              <CalloutDescription>
-                The last refresh failed. The repositories already listed may have changed.
-              </CalloutDescription>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                isLoading={isRefreshing}
-                onClick={onRefresh}
-              >
-                Retry refresh
-              </Button>
-            </CalloutContent>
-          </Callout>
-        ) : null}
-        {access.repositories.length === 0 ? (
-          <EmptyState
-            icon="folderOpenLine"
-            title="No project repositories yet"
-            description="Create a Shipfox project to connect a repository."
-            variant="panel"
-            action={
-              <Button asChild variant="secondary" size="sm">
-                <Link to="/w/$workspaceSlug/projects/new" params={{workspaceSlug}}>
-                  Create project
-                </Link>
-              </Button>
-            }
-          />
-        ) : (
-          access.repositories.map((repository) => {
-            const repositoryName = `${repository.owner}/${repository.name}`;
-            return (
-              <PanelRow
-                asChild
-                key={repository.externalRepositoryId}
-                className="focus-visible:shadow-focus-inset focus-visible:outline-none"
-              >
-                <Link
-                  to="/w/$workspaceSlug/p/$projectSlug"
-                  params={{workspaceSlug, projectSlug: repository.projectSlug}}
-                  aria-label={`Open ${repository.projectName} project for ${repositoryName}`}
-                >
-                  <div className="flex min-w-0 flex-col gap-tight">
-                    <Text size="sm" bold>
-                      {repositoryName}
-                    </Text>
-                    <Text size="xs" className="truncate text-foreground-neutral-muted">
-                      {repository.externalRepositoryId}
-                    </Text>
-                  </div>
-                </Link>
-              </PanelRow>
-            );
-          })
-        )}
-        {loadMoreError ? (
-          <Callout role="alert" type="error" className="m-panel-compact">
-            <CalloutContent>
-              <CalloutDescription>
-                Couldn&apos;t load more repositories. Those already listed are unaffected.
-              </CalloutDescription>
-            </CalloutContent>
-          </Callout>
-        ) : null}
-        {hasNextPage ? (
-          <div className="flex justify-center border-t border-border-neutral-base p-panel-compact">
-            <Button
-              type="button"
-              variant="secondary"
-              isLoading={isFetchingNextPage}
-              onClick={onLoadMore}
-            >
-              Load more
-            </Button>
-          </div>
-        ) : null}
-      </PanelBody>
-    </Panel>
-  );
-}
-
-function combineRepositoryAccessPages(pages: RepositoryAccess[]): RepositoryAccess | undefined {
-  const firstPage = pages[0];
-  if (!firstPage) return undefined;
-  const nextCursor = pages.at(-1)?.nextCursor;
-  return {
-    mode: firstPage.mode,
-    repositories: pages.flatMap((page) => page.repositories),
-    ...(nextCursor === undefined ? {} : {nextCursor}),
-  };
-}
-
 interface ProviderAccessNoticeCopy {
   title: string;
   description: string;
-  /** Shown only in projects mode: tools the provider exposes that Shipfox cannot scope by repository. */
-  projectsModeCaveat?: string;
   linkLabel: string;
   fallbackUrl: string;
 }
@@ -557,8 +217,6 @@ const PROVIDER_ACCESS_NOTICES: Record<string, ProviderAccessNoticeCopy> = {
   github: {
     title: 'Repository access is set on GitHub',
     description: 'To add or remove repositories the GitHub App can access, change it on GitHub.',
-    projectsModeCaveat:
-      "A few tools, such as replying to a review thread, don't name a repository, so Shipfox can't limit them to your projects.",
     linkLabel: 'Change repositories on GitHub',
     fallbackUrl: 'https://github.com/settings/installations',
   },
@@ -566,21 +224,17 @@ const PROVIDER_ACCESS_NOTICES: Record<string, ProviderAccessNoticeCopy> = {
 
 function ProviderAccessNotice({
   connection,
-  mode,
+  copy,
 }: {
   connection: IntegrationConnection;
-  mode: RepositoryAccessMode;
+  copy: ProviderAccessNoticeCopy;
 }) {
-  const copy = PROVIDER_ACCESS_NOTICES[connection.provider];
-  if (!copy) return null;
-  const caveat = mode === 'selected' ? copy.projectsModeCaveat : undefined;
   return (
     <Callout type="info">
       <CalloutContent>
         <CalloutTitle>{copy.title}</CalloutTitle>
         <CalloutDescription>
-          {copy.description}
-          {caveat ? ` ${caveat}` : null}{' '}
+          {copy.description}{' '}
           <a
             href={connection.externalUrl ?? copy.fallbackUrl}
             target="_blank"
@@ -592,38 +246,4 @@ function ProviderAccessNotice({
       </CalloutContent>
     </Callout>
   );
-}
-
-function AccessDeniedState() {
-  return (
-    <EmptyState
-      icon="errorWarningLine"
-      tone="error"
-      title="Access denied"
-      description="Only workspace administrators can view or change repository access settings."
-    />
-  );
-}
-
-function UnsupportedState() {
-  return (
-    <EmptyState
-      icon="errorWarningLine"
-      tone="neutral"
-      title="Repository access controls unavailable"
-      description="This integration provider does not support repository access controls."
-    />
-  );
-}
-
-function isForbiddenError(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 403 || error.code === 'forbidden');
-}
-
-function isUnsupportedError(error: unknown): boolean {
-  return error instanceof ApiError && error.code === 'integration-repository-access-unsupported';
-}
-
-function isRepositoryAccessMode(value: string): value is RepositoryAccessMode {
-  return value === 'selected' || value === 'all';
 }

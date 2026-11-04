@@ -24,7 +24,6 @@ function notionConnection(
     lifecycleStatus: 'active',
     createdAt: now,
     updatedAt: now,
-    repositoryAccessMode: 'selected',
     ...overrides,
   };
 }

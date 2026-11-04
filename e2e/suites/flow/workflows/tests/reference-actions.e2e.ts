@@ -276,12 +276,6 @@ test('the verified commit action publishes a pull request change whole or not at
       displayName: `GitHub reference actions ${uniqueId}`,
       installerUserId: crypto.randomUUID(),
     });
-    // The pull request repository is not a Shipfox project, so the connection allows all.
-    await createApiClient({token: session.token}).request(
-      'put',
-      `/integration-connections/${connection.id}/repository-access`,
-      {json: {mode: 'all'}},
-    );
 
     const commitStep = (pullRequest: number) => `
       - key: commit

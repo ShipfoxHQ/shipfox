@@ -20,7 +20,6 @@ function connection(workspaceId: string): IntegrationConnection<'notion'> {
     lifecycleStatus: 'active',
     createdAt: new Date(),
     updatedAt: new Date(),
-    repositoryAccessMode: 'selected',
   };
 }
 

@@ -1,7 +1,4 @@
-import type {
-  IntegrationConnectionDto,
-  IntegrationConnectionRepositoryAccessResponseDto,
-} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {type AuthState, authStateAtom} from '@shipfox/client-auth';
 import {Toaster} from '@shipfox/react-ui/toast';
@@ -22,15 +19,10 @@ import {ConnectionDetailsPage} from './connection-details-page.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
-const PROJECT_ID = '55555555-5555-4555-8555-555555555555';
 const WORKSPACE_PATH = '/w/acme/settings/integrations/github_acme_corp';
-const REPOSITORY_ACCESS_PATH = `/integration-connections/${CONNECTION_ID}/repository-access`;
-const SELECTED_MODE_RE = /Only your projects' repositories/u;
-const ALL_MODE_RE = /Every repository this integration can access/u;
-const GITEA_INTRO_RE = /it was given on Gitea/u;
 const GITHUB_LINK_RE = /on GitHub/u;
 
-type Scenario = 'selected' | 'all' | 'empty-selected' | 'gitea';
+type Scenario = 'github' | 'gitea';
 
 interface ConnectionDetailsPageStoryProps {
   scenario: Scenario;
@@ -70,33 +62,6 @@ const giteaConnection = {
   external_url: undefined,
 } satisfies IntegrationConnectionDto;
 
-const selectedRepositories: IntegrationConnectionRepositoryAccessResponseDto['repositories'] = [
-  {
-    external_repository_id: 'platform',
-    owner: 'acme-corp',
-    name: 'platform',
-    project_id: PROJECT_ID,
-    project_name: 'Platform',
-    project_slug: 'platform',
-  },
-  {
-    external_repository_id: 'agent-tools',
-    owner: 'acme-corp',
-    name: 'agent-tools',
-    project_id: PROJECT_ID,
-    project_name: 'Agent tools',
-    project_slug: 'agent-tools',
-  },
-  {
-    external_repository_id: 'workflow-runners',
-    owner: 'acme-corp',
-    name: 'workflow-runners',
-    project_id: PROJECT_ID,
-    project_name: 'Workflow runners',
-    project_slug: 'workflow-runners',
-  },
-];
-
 function ConnectionDetailsPageStory({scenario}: ConnectionDetailsPageStoryProps) {
   configureApiClient({
     baseUrl: 'https://api.example.test',
@@ -132,7 +97,7 @@ const meta = {
   title: 'Integrations/ConnectionDetailsPage',
   component: ConnectionDetailsPageStory,
   parameters: {layout: 'fullscreen'},
-  args: {scenario: 'selected'},
+  args: {scenario: 'github'},
 } satisfies Meta<typeof ConnectionDetailsPageStory>;
 
 export default meta;
@@ -141,15 +106,8 @@ type Story = StoryObj<typeof meta>;
 export const Playground: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
-    expect(await canvas.findByRole('radio', {name: SELECTED_MODE_RE})).toBeChecked();
-  },
-};
-
-export const AllInstallationRepositories: Story = {
-  args: {scenario: 'all'},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement);
-    expect(await canvas.findByRole('radio', {name: ALL_MODE_RE})).toBeChecked();
+    expect(await canvas.findByRole('link', {name: GITHUB_LINK_RE})).toBeVisible();
+    expect(canvas.queryByRole('radio')).not.toBeInTheDocument();
   },
 };
 
@@ -157,17 +115,8 @@ export const GiteaConnection: Story = {
   args: {scenario: 'gitea'},
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
-    expect(await canvas.findByRole('radio', {name: ALL_MODE_RE})).toBeInTheDocument();
-    expect(canvas.getByText(GITEA_INTRO_RE)).toBeVisible();
+    expect(await canvas.findByText('No settings to change')).toBeVisible();
     expect(canvas.queryByRole('link', {name: GITHUB_LINK_RE})).not.toBeInTheDocument();
-  },
-};
-
-export const EmptySelectedRepositories: Story = {
-  args: {scenario: 'empty-selected'},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement);
-    await canvas.findByText('No project repositories yet');
   },
 };
 
@@ -200,32 +149,16 @@ function createStoryRouter() {
 }
 
 function fetchForScenario(scenario: Scenario): typeof fetch {
-  return async (input, init) => {
-    const request = new Request(input, init);
-    const url = new URL(request.url);
+  return (input, init) => {
+    const url = new URL(new Request(input, init).url);
 
     if (url.pathname === '/integration-connections') {
-      return jsonResponse({connections: [scenario === 'gitea' ? giteaConnection : connection]});
-    }
-    if (url.pathname === REPOSITORY_ACCESS_PATH) {
-      if (request.method === 'PUT') {
-        const body = (await request.json()) as {mode: 'selected' | 'all'};
-        return jsonResponse({mode: body.mode});
-      }
-      return jsonResponse(repositoryAccessForScenario(scenario));
+      return Promise.resolve(
+        jsonResponse({connections: [scenario === 'gitea' ? giteaConnection : connection]}),
+      );
     }
 
-    return jsonResponse({}, {status: 404});
-  };
-}
-
-function repositoryAccessForScenario(
-  scenario: Scenario,
-): IntegrationConnectionRepositoryAccessResponseDto {
-  return {
-    mode: scenario === 'all' ? 'all' : 'selected',
-    repositories: scenario === 'empty-selected' ? [] : selectedRepositories,
-    next_cursor: null,
+    return Promise.resolve(jsonResponse({}, {status: 404}));
   };
 }
 

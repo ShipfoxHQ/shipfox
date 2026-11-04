@@ -3,7 +3,6 @@ import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
-  IntegrationConnectionRepositoryAccessMode,
 } from '#core/entities/connection.js';
 import type {IntegrationProviderKind} from '#core/entities/provider.js';
 import {pgTable} from './common.js';
@@ -18,10 +17,6 @@ export const integrationConnections = pgTable(
     slug: text('slug').notNull(),
     displayName: text('display_name').notNull(),
     lifecycleStatus: text('lifecycle_status').notNull().default('active'),
-    repositoryAccessMode: text('repository_access')
-      .$type<IntegrationConnectionRepositoryAccessMode>()
-      .notNull()
-      .default('selected'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -48,7 +43,6 @@ export function toIntegrationConnection(row: IntegrationConnectionDb): Integrati
     slug: row.slug,
     displayName: row.displayName,
     lifecycleStatus: row.lifecycleStatus as IntegrationConnectionLifecycleStatus,
-    repositoryAccessMode: row.repositoryAccessMode as IntegrationConnectionRepositoryAccessMode,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

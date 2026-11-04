@@ -1,14 +1,9 @@
 import {z} from 'zod';
-import {
-  integrationCapabilitySchema,
-  integrationConnectionRepositoryAccessModeSchema,
-} from './schemas/integrations.js';
+import {integrationCapabilitySchema} from './schemas/integrations.js';
 
 export const INTEGRATION_EVENT_RECEIVED = 'integrations.event.received' as const;
 export const INTEGRATION_CONNECTION_AVAILABLE = 'integrations.connection.available' as const;
 export const INTEGRATION_CONNECTION_DELETED = 'integrations.connection.deleted' as const;
-export const CONNECTION_REPOSITORY_ACCESS_CHANGED =
-  'integrations.connection.repository_access_changed' as const;
 
 const nonEmptyStringSchema = z.string().nonempty();
 const isoDateTimeSchema = z.string().datetime();
@@ -66,22 +61,6 @@ export const integrationConnectionDeletedSchema = z.object({
   slug: nonEmptyStringSchema,
 });
 export type IntegrationConnectionDeletedEvent = z.infer<typeof integrationConnectionDeletedSchema>;
-
-const repositoryAccessAuditBaseSchema = z.object({
-  actorId: nonEmptyStringSchema.max(255),
-  workspaceId: nonEmptyStringSchema.max(255),
-  connectionId: nonEmptyStringSchema.max(255),
-  provider: nonEmptyStringSchema.max(128),
-  correlationId: nonEmptyStringSchema.max(255),
-  occurredAt: isoDateTimeSchema,
-});
-
-export const connectionRepositoryAccessChangedSchema = repositoryAccessAuditBaseSchema.extend({
-  mode: integrationConnectionRepositoryAccessModeSchema,
-});
-export type ConnectionRepositoryAccessChangedEvent = z.infer<
-  typeof connectionRepositoryAccessChangedSchema
->;
 
 // A source-control push, normalized by the producing provider and carried by
 // `INTEGRATION_SOURCE_COMMIT_PUSHED` for domain consumers.
@@ -168,7 +147,6 @@ export const SENTRY_ISSUE_ACTIONS = [
 export type SentryIssueAction = (typeof SENTRY_ISSUE_ACTIONS)[number];
 
 export interface IntegrationsEventMap {
-  [CONNECTION_REPOSITORY_ACCESS_CHANGED]: ConnectionRepositoryAccessChangedEvent;
   [INTEGRATION_CONNECTION_AVAILABLE]: IntegrationConnectionAvailableEvent;
   [INTEGRATION_CONNECTION_DELETED]: IntegrationConnectionDeletedEvent;
   [INTEGRATION_EVENT_RECEIVED]: IntegrationEventReceivedEvent;
@@ -177,7 +155,6 @@ export interface IntegrationsEventMap {
 }
 
 export const integrationsEventSchemas = {
-  [CONNECTION_REPOSITORY_ACCESS_CHANGED]: connectionRepositoryAccessChangedSchema,
   [INTEGRATION_CONNECTION_AVAILABLE]: integrationConnectionAvailableSchema,
   [INTEGRATION_CONNECTION_DELETED]: integrationConnectionDeletedSchema,
   [INTEGRATION_EVENT_RECEIVED]: integrationEventReceivedSchema,

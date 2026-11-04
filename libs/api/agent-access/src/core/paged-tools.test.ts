@@ -576,7 +576,6 @@ function clients() {
       getProjectById: vi.fn(),
       getProjectBySource: vi.fn(),
       findProjectBySourceRepositoryName: vi.fn(),
-      listProjectsBySourceConnection: vi.fn(),
       listProjectsByWorkspace: vi.fn(),
       listProjectCatalogByWorkspace: (input) =>
         projectHandlers.listProjectCatalogByWorkspace(input),

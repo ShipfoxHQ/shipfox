@@ -25,10 +25,6 @@ export const integrationConnectionLifecycleStatusSchema = z.enum(['active', 'dis
 export type IntegrationConnectionLifecycleStatusDto = z.infer<
   typeof integrationConnectionLifecycleStatusSchema
 >;
-export const integrationConnectionRepositoryAccessModeSchema = z.enum(['selected', 'all']);
-export type IntegrationConnectionRepositoryAccessModeDto = z.infer<
-  typeof integrationConnectionRepositoryAccessModeSchema
->;
 export const updateIntegrationConnectionLifecycleStatusSchema = z.enum(['active', 'disabled']);
 export type UpdateIntegrationConnectionLifecycleStatusDto = z.infer<
   typeof updateIntegrationConnectionLifecycleStatusSchema
@@ -99,49 +95,6 @@ export const updateIntegrationConnectionBodySchema = z.object({
 });
 export type UpdateIntegrationConnectionBodyDto = z.infer<
   typeof updateIntegrationConnectionBodySchema
->;
-
-export const updateIntegrationConnectionRepositoryAccessBodySchema = z.object({
-  mode: integrationConnectionRepositoryAccessModeSchema,
-});
-export type UpdateIntegrationConnectionRepositoryAccessBodyDto = z.infer<
-  typeof updateIntegrationConnectionRepositoryAccessBodySchema
->;
-
-export const integrationConnectionRepositoryAccessRepositorySchema = z.object({
-  external_repository_id: z.string().min(1).max(255),
-  owner: z.string().min(1).max(255),
-  name: z.string().min(1).max(255),
-  project_id: z.string().uuid(),
-  project_name: z.string(),
-  project_slug: z.string().min(1).max(255),
-});
-export type IntegrationConnectionRepositoryAccessRepositoryDto = z.infer<
-  typeof integrationConnectionRepositoryAccessRepositorySchema
->;
-
-export const listIntegrationConnectionRepositoryAccessQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-  cursor: z.string().optional(),
-});
-export type ListIntegrationConnectionRepositoryAccessQueryDto = z.infer<
-  typeof listIntegrationConnectionRepositoryAccessQuerySchema
->;
-
-export const integrationConnectionRepositoryAccessResponseSchema = z.object({
-  mode: integrationConnectionRepositoryAccessModeSchema,
-  repositories: z.array(integrationConnectionRepositoryAccessRepositorySchema),
-  next_cursor: z.string().nullable(),
-});
-export type IntegrationConnectionRepositoryAccessResponseDto = z.infer<
-  typeof integrationConnectionRepositoryAccessResponseSchema
->;
-
-export const updateIntegrationConnectionRepositoryAccessResponseSchema = z.object({
-  mode: integrationConnectionRepositoryAccessModeSchema,
-});
-export type UpdateIntegrationConnectionRepositoryAccessResponseDto = z.infer<
-  typeof updateIntegrationConnectionRepositoryAccessResponseSchema
 >;
 
 export const listRepositoriesParamsSchema = z.object({

@@ -3,8 +3,6 @@ import type {Page} from '@shipfox/playwright';
 
 type Locator = ReturnType<Page['locator']>;
 type FixtureUse<T> = (fixture: T) => Promise<void>;
-const SELECTED_REPOSITORY_MODE_RE = /Only your projects' repositories/u;
-const ALL_REPOSITORY_MODE_RE = /Every repository this integration can access/u;
 
 export class IntegrationsCatalogueScreen {
   private readonly shell: SettingsShell;
@@ -185,11 +183,7 @@ export class ProviderInstallScreen {
 }
 
 export class ConnectionDetailsScreen {
-  private readonly toast: Toast;
-
-  constructor(private readonly page: Page) {
-    this.toast = new Toast(page);
-  }
+  constructor(private readonly page: Page) {}
 
   async goto(workspaceSlug: string, connectionSlug: string): Promise<void> {
     await this.page.goto(
@@ -198,40 +192,7 @@ export class ConnectionDetailsScreen {
   }
 
   heading(): Locator {
-    return this.page.getByRole('heading', {name: 'Repository access'});
-  }
-
-  selectedMode(): Locator {
-    return this.page.getByRole('radio', {name: SELECTED_REPOSITORY_MODE_RE});
-  }
-
-  allMode(): Locator {
-    return this.page.getByRole('radio', {name: ALL_REPOSITORY_MODE_RE});
-  }
-
-  projectsRepositoriesHeading(): Locator {
-    return this.page.getByRole('heading', {name: "Your projects' repositories"});
-  }
-
-  repository(name: string): Locator {
-    return this.page.getByText(name, {exact: true});
-  }
-
-  saveButton(): Locator {
-    return this.page.getByRole('button', {name: 'Save changes'});
-  }
-
-  async saveMode(): Promise<void> {
-    const saveResponse = this.page.waitForResponse(
-      (response) =>
-        response.request().method() === 'PUT' &&
-        new URL(response.url()).pathname.endsWith('/repository-access'),
-    );
-    const [response] = await Promise.all([saveResponse, this.saveButton().click()]);
-    if (!response.ok()) {
-      throw new Error(`Saving repository access mode failed with status ${response.status()}`);
-    }
-    await this.toast.expectVisible('Access mode saved.');
+    return this.page.getByRole('heading', {name: 'Integration connection'});
   }
 
   providerNotice(): Locator {

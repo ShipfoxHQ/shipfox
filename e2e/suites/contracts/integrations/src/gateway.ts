@@ -144,7 +144,6 @@ function contractConnection({
     slug: `${provider}_fake`,
     displayName: `Contracts ${provider}`,
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'all',
     createdAt: now,
     updatedAt: now,
   };

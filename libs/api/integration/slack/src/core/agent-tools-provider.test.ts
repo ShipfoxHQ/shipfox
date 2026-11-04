@@ -23,7 +23,6 @@ function slackConnection(
     createdAt: now,
     updatedAt: now,
     ...overrides,
-    repositoryAccessMode: overrides.repositoryAccessMode ?? 'selected',
   };
 }
 

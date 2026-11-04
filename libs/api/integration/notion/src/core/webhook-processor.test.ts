@@ -29,7 +29,6 @@ function createConnection(
     slug: 'notion_acme',
     displayName: 'Notion Acme',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: now,
     updatedAt: now,
     ...overrides,

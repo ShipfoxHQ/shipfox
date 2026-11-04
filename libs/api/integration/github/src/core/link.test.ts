@@ -38,7 +38,6 @@ function githubConnection(
     slug: 'github_account',
     displayName: 'GitHub account',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

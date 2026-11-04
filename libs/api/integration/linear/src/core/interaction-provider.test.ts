@@ -15,7 +15,6 @@ function connection(): IntegrationConnection<'linear'> {
     lifecycleStatus: 'active',
     createdAt: new Date(),
     updatedAt: new Date(),
-    repositoryAccessMode: 'selected',
   };
 }
 

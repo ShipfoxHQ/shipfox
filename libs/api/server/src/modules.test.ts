@@ -286,7 +286,6 @@ describe('defaultModules', () => {
           getProjectById: () => ({project: null}),
           getProjectBySource: () => ({project: null}),
           findProjectBySourceRepositoryName: () => ({projects: []}),
-          listProjectsBySourceConnection: () => ({projects: [], nextCursor: null}),
           listProjectsByWorkspace: () => ({projects: [], nextCursor: null}),
           listProjectCatalogByWorkspace: () => ({projects: [], nextCursor: null}),
           listAdminProjects: () => ({projects: [], nextCursor: null}),

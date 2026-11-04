@@ -24,7 +24,6 @@ function jiraConnection(
     createdAt: now,
     updatedAt: now,
     ...overrides,
-    repositoryAccessMode: overrides.repositoryAccessMode ?? 'selected',
   };
 }
 

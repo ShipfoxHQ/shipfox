@@ -31,7 +31,6 @@ function createParams() {
     slug: 'clickup_acme',
     displayName: 'ClickUp Acme',
     lifecycleStatus: 'error',
-    repositoryAccessMode: 'selected',
     createdAt: new Date(),
     updatedAt: new Date(),
   } satisfies IntegrationConnection<'clickup'>;

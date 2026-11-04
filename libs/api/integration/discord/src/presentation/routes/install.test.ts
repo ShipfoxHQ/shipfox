@@ -111,7 +111,6 @@ function connection(input: Partial<IntegrationConnection<'discord'>> = {}) {
     createdAt: new Date(),
     updatedAt: new Date(),
     ...input,
-    repositoryAccessMode: input.repositoryAccessMode ?? 'selected',
   } satisfies IntegrationConnection<'discord'>;
 }
 

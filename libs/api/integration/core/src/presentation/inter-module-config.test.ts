@@ -24,7 +24,6 @@ const connection: IntegrationConnection = {
   slug: 'gitea_owner',
   displayName: 'Gitea',
   lifecycleStatus: 'active',
-  repositoryAccessMode: 'all',
   createdAt: new Date(),
   updatedAt: new Date(),
 };

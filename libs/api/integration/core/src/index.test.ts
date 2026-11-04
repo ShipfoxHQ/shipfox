@@ -209,7 +209,6 @@ describe('createIntegrationsContext', () => {
       slug: 'github_test',
       displayName: 'GitHub Test',
       lifecycleStatus: 'active' as const,
-      repositoryAccessMode: 'selected' as const,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

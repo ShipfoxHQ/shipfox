@@ -20,7 +20,6 @@ function fakeConnection(): IntegrationConnection {
     lifecycleStatus: 'active',
     createdAt: new Date(),
     updatedAt: new Date(),
-    repositoryAccessMode: 'selected',
   };
 }
 

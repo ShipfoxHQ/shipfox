@@ -20,7 +20,6 @@ function connection(externalAccountId: string): TestVcsConnection {
     slug: 'test_vcs_contract',
     displayName: 'Test VCS',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'all',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

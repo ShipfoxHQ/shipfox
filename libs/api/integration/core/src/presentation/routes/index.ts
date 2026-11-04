@@ -20,10 +20,6 @@ import {
   createUpdateIntegrationConnectionRoute,
 } from './manage-connections.js';
 import {createProjectConfigRoutes} from './project-config.js';
-import {
-  createRepositoryAccessMutationRoutes,
-  createRepositoryAccessReadRoute,
-} from './repository-access.js';
 import {createListScopeResourcesRoute} from './scope-resources.js';
 
 export interface CreateIntegrationRoutesOptions {
@@ -72,11 +68,6 @@ export function createIntegrationRoutes(
     createListIntegrationConnectionsRoute(registry),
     createUpdateIntegrationConnectionRoute(registry),
     createDeleteIntegrationConnectionRoute(registry),
-    createRepositoryAccessReadRoute({
-      registry,
-      projects: options.projects,
-    }),
-    ...createRepositoryAccessMutationRoutes({registry}),
     createListRepositoriesRoute(sourceControl),
     createListScopeResourcesRoute({registry, sourceControl}),
     ...projectConfigRoutes,

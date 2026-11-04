@@ -36,7 +36,6 @@ export function managedConnection(workspaceId: string): ManagedConnection {
     slug: 'shipfox-managed',
     displayName: 'Shipfox',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'all',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

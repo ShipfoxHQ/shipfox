@@ -25,7 +25,6 @@ function connection(id: string = randomUUID()): IntegrationConnection<'claap'> {
     slug: 'claap_mercateam',
     displayName: 'Claap Mercateam',
     lifecycleStatus: 'active',
-    repositoryAccessMode: 'selected',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

@@ -14,7 +14,6 @@ const connection: IntegrationConnection<'sentry'> = {
   slug: 'sentry',
   displayName: 'Sentry',
   lifecycleStatus: 'active',
-  repositoryAccessMode: 'all',
   createdAt: new Date(),
   updatedAt: new Date(),
 };
