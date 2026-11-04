@@ -35,12 +35,16 @@ export async function purgeDeletedProject(params: {
 /**
  * Runs the purge again for every deleted project that never finished it, such as one whose event
  * was dead-lettered while a run was still stopping. A failure in one project does not stop the
- * others. Returns how many projects it finished.
+ * others, and an aborted signal stops the pass before the next project. Returns how many projects
+ * it finished.
  */
-export async function purgeUnfinishedDeletedProjects(): Promise<{purged: number}> {
+export async function purgeUnfinishedDeletedProjects(
+  signal?: AbortSignal,
+): Promise<{purged: number}> {
   const scopes = await listUnpurgedProjectScopes(UNPURGED_PROJECTS_PER_SWEEP);
   let purged = 0;
   for (const scope of scopes) {
+    if (signal?.aborted) break;
     try {
       const {remaining} = await purgeDeletedProject(scope);
       if (remaining === 0) purged += 1;
@@ -60,10 +64,10 @@ export function createDeletedProjectPurgeSweeper(
     name: 'deleted-project-purge-sweeper',
     shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
     start: () => {
-      let stopped = false;
+      const controller = new AbortController();
       let wake: (() => void) | undefined;
       const finished = (async () => {
-        while (!stopped) {
+        while (!controller.signal.aborted) {
           await new Promise<void>((resolve) => {
             const timer = setTimeout(resolve, intervalMs);
             wake = () => {
@@ -71,9 +75,9 @@ export function createDeletedProjectPurgeSweeper(
               resolve();
             };
           });
-          if (stopped) return;
+          if (controller.signal.aborted) return;
           try {
-            const {purged} = await purgeUnfinishedDeletedProjects();
+            const {purged} = await purgeUnfinishedDeletedProjects(controller.signal);
             if (purged > 0) logger().info({purged}, 'Finished purges of deleted projects');
           } catch (error) {
             logger().error({err: error}, 'Deleted project purge sweep failed');
@@ -82,7 +86,7 @@ export function createDeletedProjectPurgeSweeper(
       })();
       return Promise.resolve({
         stop: async () => {
-          stopped = true;
+          controller.abort();
           wake?.();
           await finished;
         },

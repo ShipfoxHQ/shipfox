@@ -10,8 +10,8 @@ reservations, and termination authorization.
 - **Project deletion**: The `PROJECT_DELETED` subscriber records a deletion marker, which refuses
   later job queueing for the project, and deletes its pending jobs. A running job ends through the
   cancellation of its run, so the event fails and the outbox retries it, up to its attempt limit (about 36 minutes). If a job
-  outlives the retries, the maintenance sweep runs the purge again every minute for each marker with
-  no `purged_at`, until no job remains.
+  outlives the retries, the maintenance sweep runs the purge again every minute for up to 100 of the oldest
+  markers with no `purged_at`, until no job remains.
 - **`getWorkspaceJobCounts`** returns workspace job counts for API consumers.
 - **`isJobLeaseActive`** checks whether a job lease is active.
 - **`getEffectiveRunnerToolCapabilities`** and **`unadvertisedRunnerTools`**

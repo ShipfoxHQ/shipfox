@@ -19,7 +19,7 @@ const {
 const {runMaintenanceSweepActivity} = proxyActivities<
   ReturnType<typeof createRunnersMaintenanceActivities>
 >({
-  // Sized for all eight steps in sequence. No retry: the next minute's run is the retry,
+  // Sized for all nine steps in sequence. No retry: the next minute's run is the retry,
   // so a slow sweep cannot hold the cron open.
   startToCloseTimeout: '5 minutes',
   retry: {maximumAttempts: 1},
