@@ -64,6 +64,30 @@ function makeEvent(
   };
 }
 
+function agentDecision(
+  overrides: Partial<TriggerEventDetailResponseDto['decisions'][number]> = {},
+): TriggerEventDetailResponseDto['decisions'][number] {
+  return {
+    id: '99999999-9999-4999-8999-999999999999',
+    received_event_id: EVENT_ID,
+    subscription_kind: 'agent',
+    subscription_id: null,
+    subscription_name: 'shippy',
+    workflow_definition_id: null,
+    project_id: PROJECT_ID,
+    workflow_run_id: null,
+    job_id: null,
+    matcher_kind: null,
+    matcher_ordinal: null,
+    decision: 'default',
+    run_id: null,
+    run_name: null,
+    reason: null,
+    created_at: '2026-06-25T19:30:02.000Z',
+    ...overrides,
+  };
+}
+
 function renderWithProviders(
   ui: ReactElement,
   {includeListProject = true, includeDetailProject = false} = {},
@@ -71,7 +95,7 @@ function renderWithProviders(
   const queryClient = new QueryClient({
     defaultOptions: {queries: {retry: false, staleTime: Infinity}},
   });
-  const project = {id: PROJECT_ID, slug: 'checkout-api'};
+  const project = {id: PROJECT_ID, slug: 'checkout-api', name: 'Checkout API'};
   queryClient.setQueryData(projectsQueryKeys.list(WORKSPACE_ID), {
     pages: [{projects: includeListProject ? [project] : [], nextCursor: null}],
     pageParams: [undefined],
@@ -122,6 +146,67 @@ describe('TriggerEventDetailView', () => {
     expect(await screen.findByText('No workflows triggered')).toBeInTheDocument();
     expect(screen.getByText('No workflow matched this event.')).toBeInTheDocument();
     expect(screen.queryByText('Workflow activity')).not.toBeInTheDocument();
+  });
+
+  test('names the agent that answered an ambiguous request next to the other match', async () => {
+    renderDetailView(
+      makeEvent({
+        provider: 'slack',
+        source: 'slack',
+        event: 'app_mention',
+        matched_count: 0,
+        decisions: [
+          agentDecision({
+            id: '99999999-9999-4999-8999-999999999991',
+            subscription_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+            subscription_name: 'shippy',
+            decision: 'ambiguous',
+          }),
+          agentDecision({
+            id: '99999999-9999-4999-8999-999999999992',
+            subscription_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+            subscription_name: 'payments',
+            decision: 'owner',
+          }),
+        ],
+      }),
+    );
+
+    expect(await screen.findByText('Sent to an agent')).toBeInTheDocument();
+    expect(screen.getByRole('heading', {name: 'Agent routing'})).toBeInTheDocument();
+    const rows = screen.getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('payments · Checkout API');
+    expect(rows[0]).toHaveTextContent('Answered because its rule matched');
+    expect(rows[1]).toHaveTextContent('Shippy · Checkout API');
+    expect(rows[1]).toHaveTextContent('Its rule also matched, but payments answered.');
+    expect(screen.queryByText('Workflow activity')).not.toBeInTheDocument();
+  });
+
+  test('shows a follow-up with no owner as dropped', async () => {
+    renderDetailView(
+      makeEvent({
+        provider: 'slack',
+        source: 'slack',
+        event: 'message',
+        outcome: 'discarded',
+        matched_count: 0,
+        decisions: [
+          agentDecision({
+            subscription_name: 'none',
+            project_id: null,
+            decision: 'dropped',
+            reason: 'no-owner',
+          }),
+        ],
+      }),
+    );
+
+    expect(await screen.findByText('No agent')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Dropped, because no agent owns this conversation. Only a new request starts one.',
+      ),
+    ).toBeInTheDocument();
   });
 
   test('does not expose an unclassified legacy reason', async () => {

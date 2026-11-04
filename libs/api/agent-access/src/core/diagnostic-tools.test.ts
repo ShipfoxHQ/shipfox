@@ -164,6 +164,62 @@ describe('trigger diagnostic tools', () => {
     expect(result.replays.map((item) => item.id)).toEqual([uuid(22), uuid(21)]);
   });
 
+  test('names the agent of agent decisions and leaves a dropped decision unnamed', async () => {
+    const mocks = clients();
+    const agentDecision = {
+      ...decision(1),
+      subscriptionKind: 'agent' as const,
+      workflowDefinitionId: null,
+      workflowRunId: null,
+      jobId: null,
+      matcherKind: null,
+      matcherOrdinal: null,
+      runId: null,
+      runName: null,
+      reason: null,
+    };
+    mocks.getTriggerEvent.mockResolvedValue({
+      ...event(),
+      decisions: [
+        {...agentDecision, subscriptionName: 'payments', decision: 'owner' as const},
+        {
+          ...agentDecision,
+          id: uuid(102),
+          subscriptionName: 'shippy',
+          decision: 'ambiguous' as const,
+        },
+        {
+          ...agentDecision,
+          id: uuid(103),
+          subscriptionId: null,
+          subscriptionName: 'none',
+          projectId: null,
+          decision: 'dropped' as const,
+          reason: 'no-owner',
+        },
+        decision(4),
+      ],
+      replays: [],
+    });
+
+    const response = await tool(mocks, 'get_trigger_event').execute({
+      context,
+      arguments: {event_id: eventId},
+    });
+    const result = success<TriggerResult>(response);
+
+    const byId = new Map(result.decisions.map((item) => [item.id, item]));
+    expect(byId.get(uuid(101))).toMatchObject({outcome: 'owner', agent_key: 'payments'});
+    expect(byId.get(uuid(102))).toMatchObject({outcome: 'ambiguous', agent_key: 'shippy'});
+    expect(byId.get(uuid(103))).toMatchObject({
+      outcome: 'dropped',
+      agent_key: null,
+      reason: 'no-owner',
+    });
+    expect(byId.get(uuid(104))).toMatchObject({subscription_kind: 'trigger', agent_key: null});
+    expect(getTriggerEventResultSchema.safeParse(result).success).toBe(true);
+  });
+
   test('accepts rejected listener decisions in the trigger event tool result', async () => {
     const mocks = clients();
     mocks.getTriggerEvent.mockResolvedValue({

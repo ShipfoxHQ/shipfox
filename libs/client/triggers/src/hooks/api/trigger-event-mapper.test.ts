@@ -142,4 +142,65 @@ describe('trigger event mapper', () => {
       },
     ]);
   });
+
+  test('maps agent routing decisions apart from matched workflows', () => {
+    const agentDecision = {
+      received_event_id: EVENT_ID,
+      subscription_kind: 'agent' as const,
+      workflow_definition_id: null,
+      project_id: '77777777-7777-4777-8777-777777777777',
+      workflow_run_id: null,
+      job_id: null,
+      matcher_kind: null,
+      matcher_ordinal: null,
+      run_id: null,
+      run_name: null,
+      reason: null,
+      created_at: '2026-06-01T00:00:01.000Z',
+    };
+    const detail = toTriggerEventDetail({
+      ...triggerEventDto({matched_count: 0}),
+      connection_name: 'Slack',
+      payload: {},
+      decisions: [
+        {
+          ...agentDecision,
+          id: '44444444-4444-4444-8444-444444444444',
+          subscription_id: '55555555-5555-4555-8555-555555555555',
+          subscription_name: 'payments',
+          decision: 'owner',
+        },
+        {
+          ...agentDecision,
+          id: '99999999-9999-4999-8999-999999999999',
+          subscription_id: null,
+          subscription_name: 'none',
+          project_id: null,
+          decision: 'dropped',
+          reason: 'no-owner',
+        },
+      ],
+      replays: [],
+    } satisfies TriggerEventDetailResponseDto);
+
+    expect(detail.decisions).toEqual([]);
+    expect(detail.agentDecisions).toEqual([
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        agentKey: 'payments',
+        projectId: '77777777-7777-4777-8777-777777777777',
+        fromRule: true,
+        decision: 'owner',
+        reason: null,
+      },
+      {
+        id: '99999999-9999-4999-8999-999999999999',
+        agentKey: null,
+        projectId: null,
+        fromRule: false,
+        decision: 'dropped',
+        reason: 'no-owner',
+      },
+    ]);
+  });
 });

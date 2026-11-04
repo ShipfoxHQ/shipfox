@@ -19,6 +19,10 @@ export function triggerEventResult(
   const result = getTriggerEventResult(event);
   switch (result.kind) {
     case 'triggered': {
+      // An agent took the request and no workflow matched.
+      if (result.matchedWorkflowCount === 0) {
+        return {label: 'Sent to an agent', badge: 'info', isFailure: false};
+      }
       const plural = result.matchedWorkflowCount === 1 ? '' : 's';
       return {
         label: `Triggered ${result.matchedWorkflowCount} workflow${plural}`,
