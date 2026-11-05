@@ -4,9 +4,9 @@ import {
   bindCapacityHoldToRunnerTx,
   getWorkspaceCapacityUsage,
   insertLaunchCapacityHoldsTx,
+  reconcileCapacityHolds,
   releaseCapacityHoldsForRunnerInstancesTx,
   releaseUnboundCapacityHoldsForReservationsTx,
-  sweepOrphanedLaunchCapacityHolds,
   sweepTerminalCapacityHolds,
 } from '#db/capacity-holds.js';
 import {db} from '#db/db.js';
@@ -161,6 +161,28 @@ describe('capacity holds', () => {
     expect(holds.map((hold) => hold.runnerInstanceId).sort()).toEqual([first.id, second.id].sort());
   });
 
+  it('refuses to overwrite a hold another bind claimed after the same selection', async () => {
+    const workspaceId = crypto.randomUUID();
+    const reservationId = crypto.randomUUID();
+    const first = await providerRunnerFactory.create({workspaceId});
+    const second = await providerRunnerFactory.create({workspaceId});
+
+    const bound = await db().transaction(async (tx) => {
+      await insertLaunchCapacityHoldsTx(tx, {workspaceId, reservationId, units: [1, 1]});
+      return await Promise.all([
+        bindCapacityHoldToRunnerTx(tx, {reservationId, runnerInstanceId: first.id}),
+        bindCapacityHoldToRunnerTx(tx, {reservationId, runnerInstanceId: second.id}),
+      ]);
+    });
+
+    expect(bound).toEqual([true, false]);
+    const holds = await db()
+      .select()
+      .from(capacityHolds)
+      .where(eq(capacityHolds.reservationId, reservationId));
+    expect(holds.map((hold) => hold.runnerInstanceId).sort()).toEqual([first.id, null].sort());
+  });
+
   it('sweeps unbound launch holds whose reservation is gone', async () => {
     const workspaceId = crypto.randomUUID();
     const [liveReservation] = await db()
@@ -193,7 +215,7 @@ describe('capacity holds', () => {
       });
     });
 
-    expect(await sweepOrphanedLaunchCapacityHolds()).toBeGreaterThanOrEqual(1);
+    expect((await reconcileCapacityHolds({})).swept).toBeGreaterThanOrEqual(1);
 
     const holds = await db()
       .select()

@@ -2116,9 +2116,14 @@ describe('pollDemandAndReserve', () => {
       .select()
       .from(capacityHolds)
       .where(eq(capacityHolds.reservationId, reservation.id));
-    expect(afterDelete.map((hold) => hold.releaseReason)).toEqual([
-      'reservation-consumed',
-      'reservation-consumed',
+    expect(
+      afterDelete.map((hold) => ({
+        released: hold.releasedAt !== null,
+        releaseReason: hold.releaseReason,
+      })),
+    ).toEqual([
+      {released: true, releaseReason: 'reservation-consumed'},
+      {released: true, releaseReason: 'reservation-consumed'},
     ]);
   });
 
