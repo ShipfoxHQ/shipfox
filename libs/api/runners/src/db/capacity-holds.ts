@@ -6,6 +6,7 @@ import {activeStates, terminalStates} from './runner-states.js';
 import {capacityHolds} from './schema/capacity-holds.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
+import {reservations} from './schema/reservations.js';
 import {providerRunners} from './schema/runner-instances.js';
 
 export async function insertLaunchCapacityHoldsTx(
@@ -74,7 +75,13 @@ export async function bindCapacityHoldToRunnerTx(
   const updated = await tx
     .update(capacityHolds)
     .set({runnerInstanceId: params.runnerInstanceId})
-    .where(and(eq(capacityHolds.id, hold.id), isNull(capacityHolds.releasedAt)))
+    .where(
+      and(
+        eq(capacityHolds.id, hold.id),
+        isNull(capacityHolds.runnerInstanceId),
+        isNull(capacityHolds.releasedAt),
+      ),
+    )
     .returning({id: capacityHolds.id});
   return updated.length > 0;
 }
@@ -99,15 +106,18 @@ export async function setCapacityHoldJobExecutionTx(
 
 export async function releaseUnboundCapacityHoldsForReservationsTx(
   tx: Tx,
-  reservationIds: readonly string[],
+  params: {
+    reservationIds: readonly string[];
+    reason: 'reservation-expired' | 'reservation-consumed';
+  },
 ): Promise<number> {
-  if (reservationIds.length === 0) return 0;
+  if (params.reservationIds.length === 0) return 0;
   const released = await tx
     .update(capacityHolds)
-    .set({releasedAt: sql`now()`, releaseReason: 'reservation-expired'})
+    .set({releasedAt: sql`now()`, releaseReason: params.reason})
     .where(
       and(
-        inArray(capacityHolds.reservationId, reservationIds as string[]),
+        inArray(capacityHolds.reservationId, params.reservationIds as string[]),
         isNull(capacityHolds.runnerInstanceId),
         isNull(capacityHolds.releasedAt),
       ),
@@ -167,12 +177,43 @@ export async function sweepTerminalCapacityHolds(
   });
 }
 
+/** Releases unbound launch holds whose reservation row no longer exists. */
+export async function sweepOrphanedLaunchCapacityHolds(limit = 1000): Promise<number> {
+  const orphanIds = db()
+    .select({id: capacityHolds.id})
+    .from(capacityHolds)
+    .where(
+      and(
+        isNotNull(capacityHolds.reservationId),
+        isNull(capacityHolds.runnerInstanceId),
+        isNull(capacityHolds.releasedAt),
+        notExists(
+          db()
+            .select({id: reservations.id})
+            .from(reservations)
+            .where(eq(reservations.id, capacityHolds.reservationId)),
+        ),
+      ),
+    )
+    .orderBy(asc(capacityHolds.id))
+    .limit(limit)
+    .for('update', {skipLocked: true});
+  const released = await db()
+    .update(capacityHolds)
+    .set({releasedAt: sql`now()`, releaseReason: 'reservation-missing'})
+    .where(and(inArray(capacityHolds.id, orphanIds), isNull(capacityHolds.releasedAt)))
+    .returning({id: capacityHolds.id});
+  return released.length;
+}
+
 export async function reconcileCapacityHolds(params: {
   placement?: InstallationPlacementPolicy;
   limit?: number;
   onReleased?: (createdAt: Date) => void;
 }): Promise<{reconciled: number; swept: number}> {
-  const swept = await sweepTerminalCapacityHolds(params.limit ?? 1000, params.onReleased);
+  const swept =
+    (await sweepTerminalCapacityHolds(params.limit ?? 1000, params.onReleased)) +
+    (await sweepOrphanedLaunchCapacityHolds(params.limit ?? 1000));
   if (!params.placement) return {reconciled: 0, swept};
 
   const placement = params.placement;
