@@ -59,6 +59,11 @@ export const integrationsFeature = defineClientFeature({
       impl: '@shipfox/client-integrations/routes/integrations',
     },
     {
+      path: '/w/$workspaceSlug/integrations/azure-devops',
+      parent: 'workspaceLayout',
+      impl: '@shipfox/client-integrations/routes/azure-devops',
+    },
+    {
       path: '/w/$workspaceSlug/integrations/gitea',
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/gitea',

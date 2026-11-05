@@ -1,4 +1,5 @@
 import './env.js';
+import {closeDb as closeAzureDevOpsDb} from '@shipfox/api-integration-azure-devops';
 import {closeDb as closeClaapDb} from '@shipfox/api-integration-claap';
 import {closeDb as closeClickUpDb} from '@shipfox/api-integration-clickup';
 import {closeDb as closeDiscordDb} from '@shipfox/api-integration-discord';
@@ -38,6 +39,7 @@ afterAll(async () => {
   closeJiraDb();
   closeSentryDb();
   closeGiteaDb();
+  closeAzureDevOpsDb();
   closeManagedDb();
   await closePostgresClient();
 });

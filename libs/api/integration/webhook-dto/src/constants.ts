@@ -13,6 +13,7 @@ export const WEBHOOK_FORWARDED_HEADERS = [
 export const WEBHOOK_RESERVED_SLUGS = [
   'github',
   'gitea',
+  'azure-devops',
   'sentry',
   ...RESERVED_CONNECTION_SLUGS,
 ] as const;

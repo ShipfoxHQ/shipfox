@@ -1,3 +1,4 @@
+export * from './azure-devops-logo.js';
 export * from './badge.js';
 export * from './check-circle-solid.js';
 export * from './circle-dotted-line.js';
