@@ -1,7 +1,9 @@
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {afterEach, vi} from '@shipfox/vitest/vi';
 import {eq, inArray} from 'drizzle-orm';
+import {insertLaunchCapacityHoldsTx} from '#db/capacity-holds.js';
 import {db} from '#db/db.js';
+import {capacityHolds} from '#db/schema/capacity-holds.js';
 import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {reservations} from '#db/schema/reservations.js';
 import {runnerActivationTokens} from '#db/schema/runner-activation-tokens.js';
@@ -15,6 +17,7 @@ import {
 } from '#metrics/instance.js';
 import {
   attachRunnerControlProviderId,
+  createRunnerInstancesWithBootstrapTokens,
   enrollRunnerControlSession,
   exchangeRunnerBootstrapToken,
   RunnerBootstrapTokenInvalidError,
@@ -45,8 +48,10 @@ afterEach(async () => {
       .where(inArray(runnerSessions.runnerInstanceId, runnerInstanceIds));
     await db().delete(providerRunners).where(inArray(providerRunners.id, runnerInstanceIds));
   }
-  if (reservationIds.length > 0)
+  if (reservationIds.length > 0) {
+    await db().delete(capacityHolds).where(inArray(capacityHolds.reservationId, reservationIds));
     await db().delete(reservations).where(inArray(reservations.id, reservationIds));
+  }
   if (createdProvisionerTokenIds.size > 0)
     await db()
       .delete(provisionerTokens)
@@ -55,6 +60,40 @@ afterEach(async () => {
   createdRunnerInstanceIds.clear();
   createdReservationIds.clear();
   createdProvisionerTokenIds.clear();
+});
+
+describe('createRunnerInstancesWithBootstrapTokens', () => {
+  it('binds a distinct launch hold to every runner of a multi-runner reservation', async () => {
+    const provisionerId = await createProvisionerToken();
+    const reservation = await createReservation({provisionerId, count: 3});
+    await db().transaction((tx) =>
+      insertLaunchCapacityHoldsTx(tx, {
+        workspaceId: reservation.workspaceId,
+        reservationId: reservation.id,
+        units: [1, 1, 1],
+      }),
+    );
+
+    const result = await createRunnerInstancesWithBootstrapTokens({
+      provisionerId,
+      runnerInstances: [
+        {reservationId: reservation.id},
+        {reservationId: reservation.id},
+        {reservationId: reservation.id},
+      ],
+      ttlSeconds: 60,
+    });
+    for (const runner of result.runnerInstances)
+      createdRunnerInstanceIds.add(runner.runnerInstanceId);
+
+    const holds = await db()
+      .select()
+      .from(capacityHolds)
+      .where(eq(capacityHolds.reservationId, reservation.id));
+    expect(holds.map((hold) => hold.runnerInstanceId).sort()).toEqual(
+      result.runnerInstances.map((runner) => runner.runnerInstanceId).sort(),
+    );
+  });
 });
 
 describe('exchangeRunnerBootstrapToken', () => {
@@ -694,6 +733,7 @@ async function expectPromotionFailure(params: {
 async function createReservation(params: {
   provisionerId: string;
   requiredLabels?: string[];
+  count?: number;
   expiresAt?: Date;
 }) {
   const [reservation] = await db()
@@ -702,13 +742,28 @@ async function createReservation(params: {
       workspaceId: crypto.randomUUID(),
       provisionerId: params.provisionerId,
       requiredLabels: params.requiredLabels ?? ['linux'],
-      count: 1,
+      count: params.count ?? 1,
       expiresAt: params.expiresAt ?? new Date(Date.now() + 60_000),
     })
     .returning();
   if (!reservation) throw new Error('Expected reservation');
   createdReservationIds.add(reservation.id);
   return reservation;
+}
+
+async function createProvisionerToken(provisionerId: string = crypto.randomUUID()) {
+  if (!createdProvisionerTokenIds.has(provisionerId)) {
+    await db().insert(provisionerTokens).values({
+      id: provisionerId,
+      scope: 'installation',
+      workspaceId: null,
+      hashedToken: crypto.randomUUID(),
+      prefix: 'test',
+      createdByUserId: crypto.randomUUID(),
+    });
+    createdProvisionerTokenIds.add(provisionerId);
+  }
+  return provisionerId;
 }
 
 async function createRunner(params: {
@@ -725,17 +780,7 @@ async function createRunner(params: {
 }): Promise<string> {
   const defaultAssignedAt = params.reservationId ? new Date() : null;
 
-  if (!createdProvisionerTokenIds.has(params.provisionerId)) {
-    await db().insert(provisionerTokens).values({
-      id: params.provisionerId,
-      scope: 'installation',
-      workspaceId: null,
-      hashedToken: crypto.randomUUID(),
-      prefix: 'test',
-      createdByUserId: crypto.randomUUID(),
-    });
-    createdProvisionerTokenIds.add(params.provisionerId);
-  }
+  await createProvisionerToken(params.provisionerId);
 
   const [runner] = await db()
     .insert(providerRunners)

@@ -112,19 +112,12 @@ export async function createRunnerInstancesWithBootstrapTokens(params: {
         })),
       )
       .returning({id: providerRunners.id});
-    await Promise.all(
-      instances.flatMap((instance, index) => {
-        const runner = runnerInstances[index];
-        return runner?.reservationId
-          ? [
-              bindCapacityHoldToRunnerTx(tx, {
-                reservationId: runner.reservationId,
-                runnerInstanceId: instance.id,
-              }),
-            ]
-          : [];
-      }),
-    );
+    // Sequential: concurrent binds on one transaction all select the same oldest hold.
+    for (const [index, instance] of instances.entries()) {
+      const reservationId = runnerInstances[index]?.reservationId;
+      if (reservationId)
+        await bindCapacityHoldToRunnerTx(tx, {reservationId, runnerInstanceId: instance.id});
+    }
     const results = instances.map((instance, index) => {
       const runner = runnerInstances[index];
       if (!runner) throw new Error('Runner instance insert returned an unexpected row count');

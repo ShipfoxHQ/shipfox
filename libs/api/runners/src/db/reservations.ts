@@ -1350,7 +1350,10 @@ async function deleteReservationsWithCleanupTx(
   const reservationIds = reservationRows.map((reservation) => reservation.id);
 
   if (reservationIds.length === 0) return 0;
-  await releaseUnboundCapacityHoldsForReservationsTx(tx, reservationIds);
+  await releaseUnboundCapacityHoldsForReservationsTx(tx, {
+    reservationIds,
+    reason: 'reservation-expired',
+  });
 
   const assignedRunnerIds = affectedRunners
     .filter(
@@ -1469,7 +1472,11 @@ export async function releaseReservationUnits(
         decrementedIds.length > 0 ? notInArray(reservations.id, decrementedIds) : undefined,
       ),
     )
-    .returning({count: reservations.count});
+    .returning({id: reservations.id, count: reservations.count});
+  await releaseUnboundCapacityHoldsForReservationsTx(tx, {
+    reservationIds: deleted.map((row) => row.id),
+    reason: 'reservation-consumed',
+  });
   const releasedFromDeleted = deleted.reduce((total, row) => total + row.count, 0);
 
   return releasedFromDeleted + releasedFromDecremented;

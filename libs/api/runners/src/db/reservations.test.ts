@@ -2073,6 +2073,60 @@ describe('pollDemandAndReserve', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('releases unbound launch holds when the last units are released', async () => {
+    const [reservation] = await db()
+      .insert(reservations)
+      .values({
+        workspaceId,
+        provisionerId,
+        requiredLabels: ['linux'],
+        count: 2,
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      .returning({id: reservations.id});
+    if (!reservation) throw new Error('Expected reservation');
+    await db()
+      .insert(capacityHolds)
+      .values([
+        {workspaceId, reservationId: reservation.id, units: 1},
+        {workspaceId, reservationId: reservation.id, units: 1},
+      ]);
+
+    await db().transaction((tx) =>
+      releaseReservationUnits(tx, {
+        workspaceId,
+        provisionerId,
+        releases: [{reservationId: reservation.id, count: 1}],
+      }),
+    );
+    const afterDecrement = await db()
+      .select()
+      .from(capacityHolds)
+      .where(eq(capacityHolds.reservationId, reservation.id));
+    expect(afterDecrement.every((hold) => hold.releasedAt === null)).toBe(true);
+
+    await db().transaction((tx) =>
+      releaseReservationUnits(tx, {
+        workspaceId,
+        provisionerId,
+        releases: [{reservationId: reservation.id, count: 1}],
+      }),
+    );
+    const afterDelete = await db()
+      .select()
+      .from(capacityHolds)
+      .where(eq(capacityHolds.reservationId, reservation.id));
+    expect(
+      afterDelete.map((hold) => ({
+        released: hold.releasedAt !== null,
+        releaseReason: hold.releaseReason,
+      })),
+    ).toEqual([
+      {released: true, releaseReason: 'reservation-consumed'},
+      {released: true, releaseReason: 'reservation-consumed'},
+    ]);
+  });
+
   it('does not release another workspace or provisioner reservation', async () => {
     const otherWorkspace = await reservationFactory.create({
       workspaceId: crypto.randomUUID(),
