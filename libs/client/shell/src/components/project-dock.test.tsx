@@ -44,10 +44,16 @@ function dockFeature(
 
 const dockFlags = defineFlags({
   'acme-dock': {kind: 'boolean', default: false, client: true, desc: 'Shows the Acme dock.'},
+  'acme-dock-default-on': {
+    kind: 'boolean',
+    default: true,
+    client: true,
+    desc: 'Shows the Acme dock unless turned off.',
+  },
 });
 
-function flaggedDockFeature() {
-  return dockFeature(undefined, ({useFlag}) => useFlag(dockFlags['acme-dock']));
+function flaggedDockFeature(key: keyof typeof dockFlags = 'acme-dock') {
+  return dockFeature(undefined, ({useFlag}) => useFlag(dockFlags[key]));
 }
 
 function pagesFeature() {
@@ -429,10 +435,12 @@ describe('project dock', () => {
     });
 
     test('reads the flag default when the server sends no value', async () => {
-      await renderDock({features: [pagesFeature(), flaggedDockFeature()], flags: {}});
+      await renderDock({
+        features: [pagesFeature(), flaggedDockFeature('acme-dock-default-on')],
+        flags: {},
+      });
 
-      await screen.findByRole('main');
-      expect(screen.queryByRole('button', {name: LAUNCHER_NAME})).not.toBeInTheDocument();
+      expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
     });
   });
 

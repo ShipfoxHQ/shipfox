@@ -22,6 +22,8 @@ import {ShellProviderStack} from '#runtime/provider-stack.js';
 import {navigationEntries, settingsEntries} from '#runtime/registries.js';
 import type {WorkspaceSetupGate} from '#runtime/workspace-setup.js';
 
+const WORKSPACE_PATH_PATTERN = /^\/w\/([^/]+)/;
+
 export async function renderComposedShell({
   auth: authOverride,
   features,
@@ -43,7 +45,7 @@ export async function renderComposedShell({
   workspaceSetup?: WorkspaceSetupGate;
   clientAnalytics?: ClientAnalytics;
   usagePricing?: ClientUsagePricing;
-  /** Seeds the flags `useFlag` reads for the signed-in user and the `workspace` workspace. */
+  /** Seeds the flags `useFlag` reads for the signed-in user and the workspace in `initialPath`. */
   flags?: Readonly<Record<string, unknown>>;
 }): Promise<{
   router: unknown;
@@ -77,7 +79,8 @@ export async function renderComposedShell({
   };
   store.set(authStateAtom, auth);
   if (flags) {
-    const workspaceId = auth.workspaces.find((workspace) => workspace.slug === 'workspace')?.id;
+    const workspaceSlug = WORKSPACE_PATH_PATTERN.exec(initialPath)?.[1];
+    const workspaceId = auth.workspaces.find((workspace) => workspace.slug === workspaceSlug)?.id;
     seedFeatureFlags(queryClient, {userId: auth.user?.id, workspaceId, flags});
   }
   const router = createRouter({

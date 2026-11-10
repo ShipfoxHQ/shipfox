@@ -79,7 +79,7 @@ export interface ProjectDockContribution {
 
 export interface ProjectDockRuntime {
   /** Reads a boolean flag declared with `client: true`. It reads the default until flags load. */
-  useFlag: (definition: BooleanFlagDefinition) => boolean;
+  useFlag: (definition: BooleanFlagDefinition & {readonly client: true}) => boolean;
 }
 
 export interface ClientFeature<S extends z.ZodRawShape = z.ZodRawShape> {

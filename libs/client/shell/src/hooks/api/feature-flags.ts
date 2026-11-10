@@ -6,7 +6,12 @@ import {
   checkFlagValue,
   type FlagDefinition,
 } from '@shipfox/feature-flags';
-import {type QueryClient, queryOptions, useQuery} from '@tanstack/react-query';
+import {
+  type QueryClient,
+  queryOptions,
+  type UseQueryOptions,
+  useQuery,
+} from '@tanstack/react-query';
 import {useMaybeActiveWorkspace} from '#runtime/active-workspace.js';
 import {useAuthState} from '#runtime/auth.js';
 
@@ -20,8 +25,23 @@ export interface FeatureFlagsSubject {
   workspaceId?: string | undefined;
 }
 
-function featureFlagsQueryKey({userId, workspaceId}: FeatureFlagsSubject) {
-  return ['feature-flags', userId ?? null, workspaceId ?? null] as const;
+type FeatureFlagsQueryKey = readonly ['feature-flags', string | null, string | null];
+
+type FeatureFlagsQueryOptions = UseQueryOptions<
+  FeatureFlagValues,
+  Error,
+  FeatureFlagValues,
+  FeatureFlagsQueryKey
+>;
+
+/** A flag the server sends to the browser. Server-only flags never reach `useFlag`. */
+export type ClientBooleanFlagDefinition = BooleanFlagDefinition & {readonly client: true};
+export type ClientConfigFlagDefinition<Value> = ConfigFlagDefinition<Value> & {
+  readonly client: true;
+};
+
+function featureFlagsQueryKey({userId, workspaceId}: FeatureFlagsSubject): FeatureFlagsQueryKey {
+  return ['feature-flags', userId ?? null, workspaceId ?? null];
 }
 
 async function fetchFeatureFlags(
@@ -37,7 +57,7 @@ async function fetchFeatureFlags(
 }
 
 /** The client-visible flags for a user, and for a workspace when one is given. */
-export function featureFlagsQueryOptions(subject: FeatureFlagsSubject) {
+export function featureFlagsQueryOptions(subject: FeatureFlagsSubject): FeatureFlagsQueryOptions {
   return queryOptions({
     queryKey: featureFlagsQueryKey(subject),
     queryFn: ({signal}) => fetchFeatureFlags(subject.workspaceId, signal),
@@ -52,8 +72,8 @@ export function featureFlagsQueryOptions(subject: FeatureFlagsSubject) {
  * Returns the definition's default while the flags load, when they never loaded, and when the
  * server sends a value of the wrong type. A failed refetch keeps the last value.
  */
-export function useFlag(definition: BooleanFlagDefinition): boolean;
-export function useFlag<Value>(definition: ConfigFlagDefinition<Value>): Value;
+export function useFlag(definition: ClientBooleanFlagDefinition): boolean;
+export function useFlag<Value>(definition: ClientConfigFlagDefinition<Value>): Value;
 export function useFlag(definition: FlagDefinition): unknown {
   const auth = useAuthState();
   const workspace = useMaybeActiveWorkspace();
