@@ -128,6 +128,7 @@ node --import @shipfox/api-server/instrumentation ./dist/index.js
 
 - **Custom composition**: Pass a module list to make a custom server. A module must declare a unique `loginMethods` entry. `createServer` throws before startup side effects when no login method is available.
 - **Login-method catalog**: Every server composition exposes a public, unauthenticated `GET /auth/login-methods`, listing the bounded IDs of every module-contributed login method.
+- **Client flags**: `defaultModules` adds `GET /feature-flags?workspace_id=`, which evaluates every module flag declared with `client: true` for the signed-in user and, when given, a workspace the user belongs to. Server-only flags never appear. The response is `no-store`.
 - **Signal handling**: `createServer` does not install signal handlers.
 - **Lifecycle**: `start` starts workers and module services before the HTTP listener. `stop` is safe to call again. It stops services before workers and shared clients.
 - **Process scope**: Run one server at a time.

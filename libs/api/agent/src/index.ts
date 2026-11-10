@@ -1,6 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import type {ManagedModelProvider} from '@shipfox/api-agent-dto';
+import {agentFlags, type ManagedModelProvider} from '@shipfox/api-agent-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {PROJECT_DELETED, type ProjectsEventMap} from '@shipfox/api-projects-dto';
@@ -139,6 +139,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
   return {
     name: 'agent',
     database: {db, migrationsPath, databaseNamespace: 'agent'},
+    flags: agentFlags,
     routes: createAgentRoutes(params.secrets, {
       managedProvider: params.managedProvider,
       workspaceProviders: workspaceProvidersPolicy,

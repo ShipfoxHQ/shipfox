@@ -19,6 +19,12 @@ export {
 export {displayNameSchema} from './schemas/display-name.js';
 export {emailSchema} from './schemas/email.js';
 export {
+  type FeatureFlagsQueryDto,
+  type FeatureFlagsResponseDto,
+  featureFlagsQuerySchema,
+  featureFlagsResponseSchema,
+} from './schemas/feature-flags.js';
+export {
   RESOURCE_SLUG_PATTERN,
   slugifyName,
   slugSchema,

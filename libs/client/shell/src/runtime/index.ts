@@ -18,6 +18,12 @@ export type {
   WorkspaceSummary,
 } from '#core/session.js';
 export {
+  type ClientBooleanFlagDefinition,
+  type ClientConfigFlagDefinition,
+  featureFlagsQueryOptions,
+  useFlag,
+} from '#hooks/api/feature-flags.js';
+export {
   loginMethodsQueryOptions,
   type PasswordLoginAvailability,
   prefetchLoginMethods,

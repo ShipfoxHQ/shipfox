@@ -22,6 +22,8 @@ Routes can't express this, because a route replaces the page. A chrome slot woul
 
 The shell mounts the component on project pages, beside `main`, inside a reporting error boundary. It doesn't mount it on workspace pages, focused frames, or the pre-project gate.
 
+- **Availability.** An optional `useAvailable` hook gates the whole contribution, for example on a client flag. While it returns `false`, the shell mounts no component and shows no launcher, page strip, or placement control. The lifetime below holds only while it returns `true`.
+
 - **Lifetime.** The component stays mounted across project pages, and while the panel is closed. It remounts when the workspace or the project changes, because a project slug is unique only within its workspace. A closed dock can therefore keep polling, hold a stream, and listen for its shortcut.
 - **Failure.** A failed dock loses its launcher and page strip, and the stored open flag clears, so the user is never left with a launcher that opens nothing. The shell retries on navigation, with a new `React.lazy` each time, up to three attempts per project. Return visits don't refill those attempts until the page reloads. Each attempt reports its error.
 - **Panel.** The component draws its surface through `ProjectDockPanel` from `@shipfox/client-shell/runtime`. At 976px and wider the panel is a 400px `aside` that pushes the page, with no focus trap. Below that it is a modal, full-screen `Sheet`, and a stored open flag isn't restored on page load. State that must outlive a closed panel or a crossed breakpoint stays above `ProjectDockPanel`. The contribution must render its own close control, because the shell draws none and a touch screen has no other way out of the sheet.

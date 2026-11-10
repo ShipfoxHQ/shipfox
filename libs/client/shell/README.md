@@ -10,7 +10,8 @@ Browser shell and compile-time composition contracts for Shipfox client applicat
 - **`@shipfox/client-shell/runtime`** provides the browser provider stack,
   router helpers, authentication state, the server's login methods
   (`usePasswordLoginAvailability()`, `prefetchLoginMethods()`, and
-  `loginMethodsQueryOptions()`), chrome slots, route frames, and layout
+  `loginMethodsQueryOptions()`), client feature flags (`useFlag()` and
+  `featureFlagsQueryOptions()`), chrome slots, route frames, and layout
   navigation registry.
 - **`ApplicationLayout`** renders the standard authenticated application
   header, navigation strip, route frame, account menu, and session banner for a
@@ -18,7 +19,8 @@ Browser shell and compile-time composition contracts for Shipfox client applicat
 - **`@shipfox/client-shell/vite`** validates the feature graph and generates the
   application's typed TanStack Router tree.
 - **`@shipfox/client-shell/testing`** provides the shell provider stack for
-  package tests and Storybook stories.
+  package tests and Storybook stories, and `seedFeatureFlags()` to set the
+  flags `useFlag()` reads.
 
 ## Installation and setup
 
@@ -130,8 +132,12 @@ composition and collision rules.
   and `useShippyPlacement()` reads and sets Shippy's placement. The shell owns Shippy's launcher, the
   page strip in `floating` mode, and the `Shippy` control in the account menu. None of them render
   without a contribution. A failed dock loses its launcher and strip, and the shell retries it on
-  navigation up to three times per project. See
-  [ADR 0026](../../../docs/adr/0026-project-dock-contribution.md).
+  navigation up to three times per project. An optional `useAvailable` hook hides all of it while
+  it returns `false`. The shell passes it `{useFlag}`, because the manifest can't import the
+  runtime. See [ADR 0026](../../../docs/adr/0026-project-dock-contribution.md).
+- `useFlag(definition)` reads a flag declared with `client: true` from `GET /feature-flags`, for the
+  signed-in user and the active workspace. It returns the default until the flags load, and refetches
+  every 60 seconds, so a flip reaches a focused tab within two minutes.
 - `useShippyStatus()` lets the dock publish what the agent is doing and how many conversations have
   an unread reply, until it unmounts. `useCurrentShippyStatus()` reads it, or `idle` with nothing
   unread when no dock publishes. Shippy shows the unread count as a badge beside the hoodie, or on

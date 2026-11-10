@@ -1,3 +1,4 @@
+import {defineFlags} from '@shipfox/feature-flags';
 import type {AnyRouter} from '@tanstack/react-router';
 import {cleanup, fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {useEffect, useRef} from 'react';
@@ -31,8 +32,28 @@ function Dock() {
   );
 }
 
-function dockFeature(load: ProjectDockContribution['load'] = async () => ({default: Dock})) {
-  return defineClientFeature({id: 'acme.dock', projectDock: {load}});
+function dockFeature(
+  load: ProjectDockContribution['load'] = async () => ({default: Dock}),
+  useAvailable?: ProjectDockContribution['useAvailable'],
+) {
+  return defineClientFeature({
+    id: 'acme.dock',
+    projectDock: useAvailable ? {load, useAvailable} : {load},
+  });
+}
+
+const dockFlags = defineFlags({
+  'acme-dock': {kind: 'boolean', default: false, client: true, desc: 'Shows the Acme dock.'},
+  'acme-dock-default-on': {
+    kind: 'boolean',
+    default: true,
+    client: true,
+    desc: 'Shows the Acme dock unless turned off.',
+  },
+});
+
+function flaggedDockFeature(key: keyof typeof dockFlags = 'acme-dock') {
+  return dockFeature(undefined, ({useFlag}) => useFlag(dockFlags[key]));
 }
 
 function pagesFeature() {
@@ -56,14 +77,17 @@ function renderDock({
   features = [pagesFeature(), dockFeature()],
   hideProjectNavigation = false,
   auth,
+  flags,
 }: {
   initialPath?: string;
   features?: readonly ClientFeature[];
   hideProjectNavigation?: boolean;
   auth?: AuthStateValue;
+  flags?: Readonly<Record<string, unknown>>;
 } = {}) {
   return renderComposedShell({
     ...(auth ? {auth} : {}),
+    ...(flags ? {flags} : {}),
     features,
     initialPath,
     resolveImpl: (specifier) =>
@@ -371,6 +395,61 @@ describe('project dock', () => {
     expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
     await waitFor(() => expect(dockMounted).toHaveBeenCalled());
     expect(screen.queryByRole('dialog', {name: 'Shippy'})).not.toBeInTheDocument();
+  });
+
+  describe('when the dock declares its availability', () => {
+    test('shows no launcher, mounts no dock, and hides the placement control while unavailable', async () => {
+      await renderDock({features: [pagesFeature(), dockFeature(undefined, () => false)]});
+
+      await screen.findByRole('main');
+      fireEvent.pointerDown(await screen.findByRole('button', {name: 'User menu'}));
+      await screen.findByRole('menu');
+      expect(screen.queryByRole('menuitemradio', {name: 'Floating'})).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', {name: LAUNCHER_NAME})).not.toBeInTheDocument();
+      expect(dockMounted).not.toHaveBeenCalled();
+    });
+
+    test('shows no launcher in the tab bar while unavailable', async () => {
+      window.localStorage.setItem('shipfox.shippy.placement', 'tab_bar');
+      await renderDock({features: [pagesFeature(), dockFeature(undefined, () => false)]});
+
+      await screen.findByRole('heading', {name: 'runs'});
+      expect(
+        screen.queryByRole('button', {name: LAUNCHER_NAME, hidden: true}),
+      ).not.toBeInTheDocument();
+    });
+
+    test('shows the launcher while available', async () => {
+      await renderDock({features: [pagesFeature(), dockFeature(undefined, () => true)]});
+
+      expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    });
+
+    test('follows a client flag', async () => {
+      await renderDock({
+        features: [pagesFeature(), flaggedDockFeature()],
+        flags: {'acme-dock': true},
+      });
+
+      expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    });
+
+    test('stays hidden when the server sends no value for a default-off flag', async () => {
+      await renderDock({features: [pagesFeature(), flaggedDockFeature()], flags: {}});
+
+      await screen.findByRole('heading', {name: 'runs'});
+      expect(screen.queryByRole('button', {name: LAUNCHER_NAME})).not.toBeInTheDocument();
+      expect(dockMounted).not.toHaveBeenCalled();
+    });
+
+    test('reads the flag default when the server sends no value', async () => {
+      await renderDock({
+        features: [pagesFeature(), flaggedDockFeature('acme-dock-default-on')],
+        flags: {},
+      });
+
+      expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
+    });
   });
 
   describe('when the dock fails', () => {

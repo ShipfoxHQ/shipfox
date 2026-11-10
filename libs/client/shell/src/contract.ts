@@ -1,3 +1,4 @@
+import type {BooleanFlagDefinition} from '@shipfox/feature-flags';
 import type {IconName} from '@shipfox/react-ui/icon';
 import type {ComponentType, PropsWithChildren} from 'react';
 import type {z} from 'zod';
@@ -65,6 +66,20 @@ export interface ProjectDockContribution {
    * render its own close control.
    */
   load: () => Promise<{default: ComponentType}>;
+  /**
+   * Called on every render of the frame. While it returns false, the shell shows no launcher,
+   * mounts no dock, and hides the placement control. Keep the same function for the composition's
+   * lifetime, because it is called as a hook.
+   *
+   * The shell passes its hooks in, because the manifest is evaluated in Node and can't import the
+   * browser runtime.
+   */
+  useAvailable?: (runtime: ProjectDockRuntime) => boolean;
+}
+
+export interface ProjectDockRuntime {
+  /** Reads a boolean flag declared with `client: true`. It reads the default until flags load. */
+  useFlag: (definition: BooleanFlagDefinition & {readonly client: true}) => boolean;
 }
 
 export interface ClientFeature<S extends z.ZodRawShape = z.ZodRawShape> {

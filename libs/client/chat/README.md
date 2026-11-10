@@ -7,7 +7,9 @@ Chat with Shippy, the project agent, in a panel beside project pages.
 - **`chatFeature`**: a client feature with one `projectDock` contribution. The
   shell mounts the dock on project pages, except focused frames and the
   pre-project gate, and keeps it mounted across them, so a reply keeps streaming
-  while the user moves around the project.
+  while the user moves around the project. The dock shows only while the
+  `agent-chat` flag is on. It defaults to off; set `FLAG_AGENT_CHAT=true` on the
+  API, or target users through the flag provider.
 - **The panel**: a header with History, New conversation, and Close, a
   transcript, and a composer with a context chip that shows which page the
   agent sees.

@@ -505,6 +505,7 @@ describe('defaultModules', () => {
       'usage',
       'triggers',
       'dispatcher',
+      'feature-flags',
     ]);
   });
 
@@ -782,6 +783,7 @@ describe('defaultModules', () => {
       'usage',
       'triggers',
       'dispatcher',
+      'feature-flags',
     ]);
   });
 
@@ -1049,6 +1051,7 @@ describe('defaultModules', () => {
       'usage',
       'triggers',
       'dispatcher',
+      'feature-flags',
     ]);
   });
 
@@ -1216,7 +1219,7 @@ describe('defaultModules', () => {
       {userId},
       expect.objectContaining({signal: expect.any(AbortSignal)}),
     );
-    expect(modules.at(-1)).toBe(extensionModule);
+    expect(modules.at(-2)).toBe(extensionModule);
   });
 
   it('passes the shared Usage client to extensions and keeps one Usage module', async () => {
@@ -1244,7 +1247,7 @@ describe('defaultModules', () => {
     expect(modules.filter((module) => module.name === 'usage')).toHaveLength(1);
     expect(mocks.createUsageModule).toHaveBeenCalledTimes(1);
     expect(mocks.createUsageModule).toHaveBeenCalledWith({projects: expect.any(Object)});
-    expect(modules.at(-1)).toBe(extensionModule);
+    expect(modules.at(-2)).toBe(extensionModule);
 
     if (!usage) throw new Error('The extension did not receive the Usage client.');
     await expect(usage.recordInferenceSegments({segments: []})).resolves.toEqual({

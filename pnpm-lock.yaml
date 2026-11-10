@@ -3399,6 +3399,9 @@ importers:
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../logs-dto
+      '@shipfox/feature-flags':
+        specifier: workspace:*
+        version: link:../../shared/common/feature-flags
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
@@ -6578,6 +6581,9 @@ importers:
       '@shipfox/api-auth':
         specifier: workspace:*
         version: link:../auth
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../auth-context
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
@@ -6587,6 +6593,9 @@ importers:
       '@shipfox/api-cache-dto':
         specifier: workspace:*
         version: link:../cache-dto
+      '@shipfox/api-common-dto':
+        specifier: workspace:*
+        version: link:../common-dto
       '@shipfox/api-definitions':
         specifier: workspace:*
         version: link:../definitions
@@ -6693,9 +6702,6 @@ importers:
         specifier: workspace:*
         version: link:../../shared/workflow/templates
     devDependencies:
-      '@shipfox/api-auth-context':
-        specifier: workspace:*
-        version: link:../auth-context
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
@@ -8742,6 +8748,9 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../../api/auth-dto
+      '@shipfox/api-common-dto':
+        specifier: workspace:*
+        version: link:../../api/common-dto
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../../api/workspaces-dto
@@ -8754,6 +8763,9 @@ importers:
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
+      '@shipfox/feature-flags':
+        specifier: workspace:*
+        version: link:../../shared/common/feature-flags
       '@shipfox/policy-notice':
         specifier: workspace:*
         version: link:../../shared/common/policy-notice
@@ -16156,7 +16168,9 @@ packages:
   '@smithy/core@3.36.0':
     resolution: {integrity: sha512-3hJiwG1F5t1SoXqp/yOCmYXziyx7ZVqF63S5W6YU201e/qwVaHPex+E/3vvyY9a3ORq/b+BydeNZpP2saQ9X2g==}
     engines: {node: '>=18.0.0'}
-    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
+    deprecated: |-
+      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with this
+        version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/core@3.38.1':
     resolution: {integrity: sha512-U/mB2XiwTLaf+NSgLSWwJfptsMT/H8aBi0aTAA/E5e2/TagFeGCqAyhKGG0w0A9IWTkm4qYEmLoD/HB6aYfnRA==}
