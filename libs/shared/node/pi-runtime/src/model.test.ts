@@ -1,6 +1,7 @@
 import {mkdtemp, readdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {getModelProviderEntry} from '@shipfox/api-agent-dto';
 import {createInMemoryCredentialStore, toPiRuntimeCredential} from '#credentials.js';
 import {AgentConfigError} from '#errors.js';
 import {createPiModel} from '#model.js';
@@ -50,6 +51,32 @@ describe('createPiModel', () => {
     expect(model.provider).toBe('anthropic');
     expect(modelRuntime.hasConfiguredAuth('anthropic')).toBe(true);
     expect(await readdir(home)).toEqual([]);
+  });
+
+  it('resolves the Mistral default with reasoning support from the pinned Pi registry', async () => {
+    const credentials = {api_key: 'mistral-test'};
+    const credentialStore = createInMemoryCredentialStore({
+      mistral: toPiRuntimeCredential('mistral', credentials),
+    });
+
+    const {modelRuntime, model} = await createPiModel({
+      provider: 'mistral',
+      model: getModelProviderEntry('mistral')?.default_model ?? '',
+      thinking: 'high',
+      credentials,
+      credentialStore,
+      customProvider: undefined,
+      assertEgressAllowed,
+      modelsPath: null,
+    });
+
+    expect(model).toMatchObject({
+      id: 'mistral-large-4',
+      provider: 'mistral',
+      reasoning: true,
+      thinkingLevelMap: {off: 'none', high: 'high'},
+    });
+    expect(modelRuntime.hasConfiguredAuth('mistral')).toBe(true);
   });
 
   it('rejects a provider without credentials', async () => {

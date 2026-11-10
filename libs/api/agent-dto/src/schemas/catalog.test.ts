@@ -134,7 +134,7 @@ describe('model provider catalog', () => {
       deepseek: 'deepseek-v4-pro',
       nvidia: 'nvidia/nemotron-3-ultra-550b-a55b',
       google: 'gemini-3.1-pro-preview',
-      mistral: 'mistral-large-latest',
+      mistral: 'mistral-large-4',
       groq: 'openai/gpt-oss-120b',
       cerebras: 'gpt-oss-120b',
       'cloudflare-ai-gateway': 'claude-opus-5',
