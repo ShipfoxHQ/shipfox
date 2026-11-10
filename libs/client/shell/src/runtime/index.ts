@@ -17,6 +17,7 @@ export type {
   WorkspaceMembership,
   WorkspaceSummary,
 } from '#core/session.js';
+export {featureFlagsQueryOptions, useFlag} from '#hooks/api/feature-flags.js';
 export {
   loginMethodsQueryOptions,
   type PasswordLoginAvailability,

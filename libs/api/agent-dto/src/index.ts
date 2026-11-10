@@ -250,3 +250,4 @@ export {
   type WorkspaceProvidersPolicy,
   workspaceProvidersPolicySchema,
 } from '#schemas/index.js';
+export {agentFlags} from './flags.js';

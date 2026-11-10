@@ -18,7 +18,7 @@ import {useAuthState} from '#runtime/auth.js';
 import {useChrome} from '#runtime/chrome-context.js';
 import {
   type ShippyPlacement,
-  useProjectDockContribution,
+  useAvailableProjectDock,
   useShippyPlacement,
 } from '#runtime/project-dock.js';
 import {ReportErrorBoundary} from '#runtime/report-error-boundary.js';
@@ -60,7 +60,7 @@ export function UserMenu() {
   const {user} = useAuthState();
   const {AccountMenuEntry} = useChrome();
   const {theme, setTheme} = useTheme();
-  const dock = useProjectDockContribution();
+  const dock = useAvailableProjectDock();
   const location = useLocation();
   const email = user?.email ?? '';
   // Retry the account-menu slot only when the route or the slot identity

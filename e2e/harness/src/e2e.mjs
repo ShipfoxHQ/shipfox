@@ -240,6 +240,8 @@ export function e2eEnv(sourceEnv) {
     FLAG_DEFINITIONS_ACTIONS: valueOr(sourceEnv.FLAG_DEFINITIONS_ACTIONS, 'true'),
     // Projects with a managed repository stay dark in production until Config proposals ships.
     FLAG_MANAGED_CONFIG_REPOS: valueOr(sourceEnv.FLAG_MANAGED_CONFIG_REPOS, 'true'),
+    // Shippy stays dark in production until a provider rule turns it on.
+    FLAG_AGENT_CHAT: valueOr(sourceEnv.FLAG_AGENT_CHAT, 'true'),
     // The harness builds the API before it starts it, so the workflow bundles
     // already exist. Compiling them again at worker startup takes most of the boot.
     TEMPORAL_PREBUILT_WORKFLOW_BUNDLES: valueOr(

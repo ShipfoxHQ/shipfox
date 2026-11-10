@@ -18,8 +18,8 @@ import {useMaybeActiveWorkspace} from '#runtime/active-workspace.js';
 import {useAuthState} from '#runtime/auth.js';
 import {useChrome} from '#runtime/chrome-context.js';
 import {
+  useAvailableProjectDock,
   useProjectDock,
-  useProjectDockContribution,
   useShippyPlacement,
 } from '#runtime/project-dock.js';
 import {useProjectDockAvailable} from '#runtime/project-dock-failures.js';
@@ -95,7 +95,7 @@ export function ApplicationFrame({
 }
 
 function useHostedDock(dockScope: string | undefined, frame: RouteFrame) {
-  const dock = useProjectDockContribution();
+  const dock = useAvailableProjectDock();
   const {open} = useProjectDock();
   const {placement} = useShippyPlacement();
   const available = useProjectDockAvailable(dockScope);

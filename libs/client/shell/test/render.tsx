@@ -9,6 +9,7 @@ import {render} from '@testing-library/react';
 import {createStore} from 'jotai';
 import {composeClientFeatures} from '#compose/compose-client-features.js';
 import type {ClientFeature} from '#contract.js';
+import {seedFeatureFlags} from '#hooks/api/feature-flags.js';
 import {assembleRouteTree, type ResolveRouteImpl} from '#runtime/assemble-route-tree.js';
 import {type AuthStateValue, authStateAtom} from '#runtime/auth.js';
 import {ChromeProvider, type ChromeSlots} from '#runtime/chrome-context.js';
@@ -31,6 +32,7 @@ export async function renderComposedShell({
   workspaceSetup,
   clientAnalytics,
   usagePricing,
+  flags,
 }: {
   auth?: AuthStateValue;
   features: readonly ClientFeature[];
@@ -41,6 +43,8 @@ export async function renderComposedShell({
   workspaceSetup?: WorkspaceSetupGate;
   clientAnalytics?: ClientAnalytics;
   usagePricing?: ClientUsagePricing;
+  /** Seeds the flags `useFlag` reads for the signed-in user and the `workspace` workspace. */
+  flags?: Readonly<Record<string, unknown>>;
 }): Promise<{
   router: unknown;
   queryClient: QueryClient;
@@ -72,6 +76,10 @@ export async function renderComposedShell({
     ...chromeOverrides,
   };
   store.set(authStateAtom, auth);
+  if (flags) {
+    const workspaceId = auth.workspaces.find((workspace) => workspace.slug === 'workspace')?.id;
+    seedFeatureFlags(queryClient, {userId: auth.user?.id, workspaceId, flags});
+  }
   const router = createRouter({
     history: createMemoryHistory({initialEntries: [initialPath]}),
     ...(rewrite ? {rewrite} : {}),

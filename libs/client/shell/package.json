@@ -78,10 +78,12 @@
   },
   "dependencies": {
     "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/api-common-dto": "workspace:*",
     "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-config": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
+    "@shipfox/feature-flags": "workspace:*",
     "@shipfox/policy-notice": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",

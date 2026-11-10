@@ -68,6 +68,7 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import {shippedTemplateLoader} from '@shipfox/workflow-templates';
 import {config} from './config.js';
+import {createFeatureFlagsModule} from './routes/feature-flags.js';
 
 export interface DefaultModulesOptions {
   /**
@@ -440,6 +441,7 @@ export async function defaultModules(
     ...extensionModules,
   ];
   featureFlags.validate(modules.flatMap((module) => Object.values(module.flags ?? {})));
+  modules.push(createFeatureFlagsModule({featureFlags, modules}));
   registerInterModulePresentations({transport: interModuleTransport, modules});
   interModuleTransport.seal();
   return modules;

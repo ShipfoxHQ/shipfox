@@ -7,7 +7,8 @@ import {useMediaQuery} from '@shipfox/react-ui/hooks/useMediaQuery';
 import {useAtom} from 'jotai';
 import type {PropsWithChildren} from 'react';
 import {createContext, useContext, useMemo} from 'react';
-import type {ClientFeature, ProjectDockContribution} from '#contract.js';
+import type {ClientFeature, ProjectDockContribution, ProjectDockRuntime} from '#contract.js';
+import {useFlag} from '#hooks/api/feature-flags.js';
 import {persistedAtom} from '#runtime/persisted-atom.js';
 
 /** Below this width the dock is a full-screen sheet and Shippy stays in the tab bar. */
@@ -77,4 +78,15 @@ export function ProjectDockProvider({
 
 export function useProjectDockContribution(): ProjectDockContribution | undefined {
   return useContext(ProjectDockContext);
+}
+
+const alwaysAvailable = () => true;
+const dockRuntime: ProjectDockRuntime = {useFlag};
+
+/** The contribution while its `useAvailable` says so. Otherwise the shell acts as if none exists. */
+export function useAvailableProjectDock(): ProjectDockContribution | undefined {
+  const dock = useProjectDockContribution();
+  // The contribution is fixed for the composition's lifetime, so this is always the same hook.
+  const useAvailable = dock?.useAvailable ?? alwaysAvailable;
+  return useAvailable(dockRuntime) ? dock : undefined;
 }

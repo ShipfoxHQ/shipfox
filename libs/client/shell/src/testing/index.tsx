@@ -50,3 +50,5 @@ export function createShellDecorator(options: ShellProvidersOptions = {}): Decor
 }
 
 export const shellDecorator = createShellDecorator();
+
+export {seedFeatureFlags} from '#hooks/api/feature-flags.js';
