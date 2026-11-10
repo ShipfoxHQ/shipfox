@@ -434,6 +434,14 @@ describe('project dock', () => {
       expect(await screen.findByRole('button', {name: LAUNCHER_NAME})).toBeVisible();
     });
 
+    test('stays hidden when the server sends no value for a default-off flag', async () => {
+      await renderDock({features: [pagesFeature(), flaggedDockFeature()], flags: {}});
+
+      await screen.findByRole('heading', {name: 'runs'});
+      expect(screen.queryByRole('button', {name: LAUNCHER_NAME})).not.toBeInTheDocument();
+      expect(dockMounted).not.toHaveBeenCalled();
+    });
+
     test('reads the flag default when the server sends no value', async () => {
       await renderDock({
         features: [pagesFeature(), flaggedDockFeature('acme-dock-default-on')],
