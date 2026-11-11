@@ -10,18 +10,27 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 
 FROM base AS build
+# Manifests + lockfile first (out/full carries the source but not the lockfile).
+# The frozen install keeps the image on the graph pnpm-lock.yaml records, with one
+# installed copy of each workspace package. `pnpm deploy` would resolve workspace
+# packages and their peers again, which can give a package a second copy with its
+# own classes and module state. --filter-prod limits the install to @shipfox/provisioner-ec2's
+# production closure, so the dev-only tools/* workspace packages get no
+# node_modules.
 COPY out/json/ ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod --filter-prod=@shipfox/provisioner-ec2... \
+      --store-dir=/pnpm/store
+# The built workspace packages, with manifests whose imports point at dist/.
 COPY out/full/ ./
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --store-dir=/pnpm/store
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm --filter=@shipfox/provisioner-ec2 deploy --prod --legacy \
-      --store-dir=/pnpm/store --config.strict-peer-dependencies=false /prod
 
 FROM base AS runtime
 ENV NODE_ENV=production
 
-COPY --from=build /prod ./
+COPY --from=build /app ./
+# Node resolves the app's dependencies, and any --import specifier, from the
+# app package, so run from there rather than the workspace root.
+WORKDIR /app/apps/provisioner-ec2
 
 ARG IMAGE_SOURCE="https://github.com/ShipfoxHQ/shipfox"
 ARG IMAGE_REVISION

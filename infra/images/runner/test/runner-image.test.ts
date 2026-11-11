@@ -1698,6 +1698,7 @@ describe('runner container entrypoint', () => {
     expect(verifyInstallation).toContain("'@shipfox/runner-workspace/credential-socket-transport'");
     expect(verifyInstallation).toContain("'@shipfox/runner-execution/git-credential-helper'");
     expect(verifyInstallation).toContain("'./git-credential-helper.js'");
+    expect(verifyInstallation).toContain('These packages are installed more than once');
     expect(dockerfile).toContain(
       'ENTRYPOINT ["tini", "--", "/usr/local/bin/shipfox-runner-entrypoint"]',
     );

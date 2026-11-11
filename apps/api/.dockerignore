@@ -9,7 +9,7 @@
 !out/**
 
 # The workspace is built before Docker runs. Keep source and test assets out of
-# the context so pnpm deploy cannot copy them into the production dependency tree.
+# the context so they never reach the image.
 out/full/**/src
 out/full/**/test
 out/full/**/tests

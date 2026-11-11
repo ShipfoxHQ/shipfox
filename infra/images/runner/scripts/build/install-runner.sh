@@ -18,8 +18,9 @@ pnpm install --frozen-lockfile --store-dir "$store_dir"
 pnpm --filter=@shipfox/runner deploy --prod --legacy --config.strict-peer-dependencies=false \
   --store-dir "$store_dir" "$runner_dir"
 # Verify the deployed production closure contains every Pi extension entry, the renewable
-# credential helpers, and the bundled Claude Code binary before the image is published. This runs
-# against the deployed flat layout, not the pnpm development tree.
+# credential helpers, and the bundled Claude Code binary before the image is published, and that the
+# deploy installed one copy of each @shipfox package. This runs against the deployed flat layout,
+# not the pnpm development tree.
 node "$runner_dir/dist/verify-installation.js"
 # The runner package is the deployed root rather than an installed dependency, so its package bin
 # is not linked onto PATH by pnpm. Keep Git's name-based helper resolution usable in production.
