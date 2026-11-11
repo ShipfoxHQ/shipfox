@@ -244,16 +244,10 @@ export function validateOAuthDynamicClientRegistration(
 
   const value = parsed.data;
   validateByteBoundedString(value.client_name, OAUTH_CLIENT_NAME_MAX_BYTES);
-  const grantTypes = validateGrantTypes(value.grant_types);
-  // Registered rows do not persist grant types yet. Keep the registration
-  // response and later resolution consistent until refresh-token support lands.
-  if (grantTypes.length !== 1 || grantTypes[0] !== 'authorization_code') {
-    rejectInvalidMetadata();
-  }
   return {
     clientName: value.client_name,
     redirectUris: validateRedirectUris(value.redirect_uris),
-    grantTypes,
+    grantTypes: validateGrantTypes(value.grant_types),
     responseTypes: validateResponseTypes(value.response_types),
     tokenEndpointAuthMethod: validateTokenEndpointAuthMethod(value.token_endpoint_auth_method),
   };

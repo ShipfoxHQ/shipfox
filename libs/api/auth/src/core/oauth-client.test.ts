@@ -93,11 +93,19 @@ describe('OAuth client validation', () => {
       tokenEndpointAuthMethod: 'none',
     });
 
-    expect(() =>
+    expect(
       validateOAuthDynamicClientRegistration({
         client_name: 'Desktop agent',
         redirect_uris: ['https://client.example/callback'],
         grant_types: ['authorization_code', 'refresh_token'],
+      }).grantTypes,
+    ).toEqual(['authorization_code', 'refresh_token']);
+
+    expect(() =>
+      validateOAuthDynamicClientRegistration({
+        client_name: 'Desktop agent',
+        redirect_uris: ['https://client.example/callback'],
+        grant_types: ['refresh_token'],
       }),
     ).toThrow(InvalidOAuthClientMetadataError);
 

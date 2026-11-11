@@ -52,10 +52,12 @@ const oauthRegistrationProfileFields = {
   scope: oauthScopeSchema.optional(),
 };
 
-/** RFC 7591 request shape accepted by the MCP public-client profile. */
-export const oauthDynamicClientRegistrationRequestSchema = z
-  .object(oauthRegistrationProfileFields)
-  .strict();
+/**
+ * RFC 7591 request shape accepted by the MCP public-client profile. Unknown
+ * metadata such as `application_type` is stripped, because RFC 7591 section 2
+ * requires the server to ignore metadata it does not understand.
+ */
+export const oauthDynamicClientRegistrationRequestSchema = z.object(oauthRegistrationProfileFields);
 
 export type OAuthDynamicClientRegistrationRequestDto = z.infer<
   typeof oauthDynamicClientRegistrationRequestSchema
