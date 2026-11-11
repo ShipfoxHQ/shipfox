@@ -85,6 +85,28 @@ describe('OAuth route factories', () => {
     });
   });
 
+  it('registers the grant set and metadata that MCP SDK clients send', async () => {
+    const result = await app.inject({
+      method: 'POST',
+      url: '/oauth/register',
+      headers: {'x-forwarded-for': uniqueIp()},
+      payload: {
+        client_name: 'Desktop agent',
+        redirect_uris: ['http://127.0.0.1:43123/callback'],
+        application_type: 'native',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+
+    expect(result.statusCode).toBe(201);
+    expect(result.json()).toMatchObject({
+      grant_types: ['authorization_code', 'refresh_token'],
+      token_endpoint_auth_method: 'none',
+    });
+  });
+
   it('rejects non-loopback HTTP redirects', async () => {
     const result = await app.inject({
       method: 'POST',

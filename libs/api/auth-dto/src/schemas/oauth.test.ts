@@ -86,6 +86,21 @@ describe('OAuth metadata schemas', () => {
     ).toBe(false);
   });
 
+  it('ignores registration metadata outside the public-client profile', () => {
+    const result = oauthDynamicClientRegistrationRequestSchema.safeParse({
+      client_name: 'Desktop agent',
+      redirect_uris: ['http://127.0.0.1:43123/callback'],
+      application_type: 'native',
+      client_uri: 'https://client.example',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({
+      client_name: 'Desktop agent',
+      redirect_uris: ['http://127.0.0.1:43123/callback'],
+    });
+  });
+
   it('requires the bounded public-client registration fields', () => {
     expect(
       oauthDynamicClientRegistrationRequestSchema.safeParse({
