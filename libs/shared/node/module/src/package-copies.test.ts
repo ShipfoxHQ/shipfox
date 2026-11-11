@@ -35,11 +35,11 @@ describe('reportDuplicatePackageCopies', () => {
     expect(mocks.logger.warn).not.toHaveBeenCalled();
   });
 
-  it('warns once per duplicated package and does not throw in strict mode when copies share state', () => {
+  it('warns once per duplicated package when strict mode is off and copies share state', () => {
     registerCopy({variant: 'x', key: 'test/pkg/v1'});
     registerCopy({variant: 'y', key: 'test/pkg/v1'});
 
-    reportDuplicatePackageCopies({strict: true});
+    reportDuplicatePackageCopies({strict: false});
 
     expect(mocks.logger.warn).toHaveBeenCalledOnce();
     expect(mocks.logger.warn.mock.calls[0]?.[0]).toMatchObject({
@@ -62,12 +62,17 @@ describe('reportDuplicatePackageCopies', () => {
     expect(mocks.logger.warn.mock.calls[0]?.[0]).toMatchObject({sharesState: false});
   });
 
-  it('throws naming the package and every install folder when copies do not share state in strict mode', () => {
+  it.each([
+    {sharesState: true, secondKey: 'test/pkg/v1'},
+    {sharesState: false, secondKey: 'test/pkg/v2'},
+  ])('throws naming the package and every install folder in strict mode when sharesState is $sharesState', ({
+    secondKey,
+  }) => {
     registerCopy({variant: 'x', key: 'test/pkg/v1'});
-    registerCopy({variant: 'y', key: 'test/pkg/v2'});
+    registerCopy({variant: 'y', key: secondKey});
 
     expect(() => reportDuplicatePackageCopies({strict: true})).toThrow(
-      'Installed copies of these packages do not share their state: @shipfox/pkg (/app/node_modules/.pnpm/@shipfox+pkg@1.0.0_x/node_modules/@shipfox/pkg, /app/node_modules/.pnpm/@shipfox+pkg@1.0.0_y/node_modules/@shipfox/pkg)',
+      'These packages are installed more than once: @shipfox/pkg (/app/node_modules/.pnpm/@shipfox+pkg@1.0.0_x/node_modules/@shipfox/pkg, /app/node_modules/.pnpm/@shipfox+pkg@1.0.0_y/node_modules/@shipfox/pkg)',
     );
   });
 });
