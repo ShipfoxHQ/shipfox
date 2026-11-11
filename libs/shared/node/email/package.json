@@ -12,8 +12,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist",
-    "emails"
+    "dist"
   ],
   "imports": {
     "#test/*": "./test/*",
@@ -35,7 +34,7 @@
     }
   },
   "scripts": {
-    "build": "shipfox-swc",
+    "build": "shipfox-swc && shipfox-email-compile emails dist/emails",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
@@ -45,15 +44,14 @@
   },
   "dependencies": {
     "@shipfox/config": "workspace:*",
-    "handlebars": "catalog:",
-    "mjml": "catalog:"
+    "handlebars": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/email-compiler": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*",
-    "@types/mjml": "catalog:"
+    "@shipfox/vitest": "workspace:*"
   }
 }

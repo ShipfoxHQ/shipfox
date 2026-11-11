@@ -2,7 +2,7 @@
   <mj-body>
     <mj-section>
       <mj-column>
-        <mj-include path="@shipfox/node-email/partials/nope.mjml" />
+        <mj-include path="@shipfox/email-compiler/partials/nope.mjml" />
       </mj-column>
     </mj-section>
   </mj-body>

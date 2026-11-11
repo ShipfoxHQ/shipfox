@@ -1,33 +1,15 @@
-import {readFileSync} from 'node:fs';
 import {readFile} from 'node:fs/promises';
-import {dirname, join} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {join} from 'node:path';
 import handlebars, {type TemplateDelegate} from 'handlebars';
-import mjml2html from 'mjml';
 import {config} from './config.js';
 import {EmailTemplateError} from './errors.js';
-
-// `emails/` lives at the package root, sibling to both `src/` and `dist/`, so
-// this resolves to the same directory whether the code runs from source
-// (dev/test) or from the compiled bundle (prod).
-const partialsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'emails', 'partials');
 
 // The logo asset is served at /email-logo.png by every client composed with
 // @shipfox/client-shell (libs/client/shell/assets/email-logo.png), so its URL is
 // built from the deployment's CLIENT_BASE_URL and resolved once at module load.
 const logoUrl = new URL('/email-logo.png', config.CLIENT_BASE_URL).toString();
 
-const sharedPartialInclude =
-  /<mj-include\s+path="@shipfox\/node-email\/partials\/([^"]*)"\s*(?:\/>|>\s*<\/mj-include>)/g;
-
-// Components whose body is HTML content, not MJML children. Handlebars runs on the
-// rendered HTML, so a block helper inside them works as written.
-const contentComponents =
-  'mj-raw|mj-text|mj-table|mj-button|mj-title|mj-preview|mj-style|mj-accordion-title|mj-accordion-text|mj-navbar-link|mj-social-element';
-const contentComponent = new RegExp(`<(${contentComponents})\\b[^>]*>[\\s\\S]*?</\\1>`, 'g');
-const partialFileName = /^[\w-]+\.mjml$/;
 const controlCharacters = /\p{Cc}+/gu;
-const blockHelper = /\{\{~?\s*(?:[#^/]|else\b)[^}]*\}\}/;
 
 export interface RenderedEmail {
   subject: string;
@@ -43,7 +25,7 @@ export interface EmailTemplateDefinition<Data> {
 }
 
 export interface EmailRendererOptions<Templates extends object> {
-  /** Directory holding one `<name>.mjml` file per template. */
+  /** Directory holding one `<name>.hbs` file per template, compiled by `shipfox-email-compile`. */
   templatesDir: string;
   templates: {[Name in keyof Templates]: EmailTemplateDefinition<Templates[Name]>};
 }
@@ -52,38 +34,6 @@ export type EmailRenderer<Templates extends object> = <Name extends keyof Templa
   name: Name,
   data: Templates[Name],
 ) => Promise<RenderedEmail>;
-
-function inlineSharedPartials(templateName: string, source: string): string {
-  return source.replace(sharedPartialInclude, (_include, file: string) => {
-    if (!partialFileName.test(file)) {
-      throw new EmailTemplateError(
-        templateName,
-        `Invalid shared partial "${file}" in template "${templateName}"`,
-      );
-    }
-    try {
-      return readFileSync(join(partialsDir, file), 'utf8');
-    } catch (cause) {
-      throw new EmailTemplateError(
-        templateName,
-        `Unknown shared partial "@shipfox/node-email/partials/${file}" in template "${templateName}"`,
-        {cause},
-      );
-    }
-  });
-}
-
-// Handlebars runs after MJML, so a block helper between MJML components is dropped
-// by the MJML parser and both branches render. Wrapping it in `<mj-raw>` keeps it.
-function assertNoBareBlockHelper(templateName: string, source: string): void {
-  const bare = source.replace(contentComponent, '').match(blockHelper);
-  if (bare) {
-    throw new EmailTemplateError(
-      templateName,
-      `Handlebars block helper "${bare[0]}" sits between MJML components in template "${templateName}" and would be silently dropped. Wrap it in <mj-raw>.`,
-    );
-  }
-}
 
 function sanitizeDisplayValue(value: string): string {
   // Collapse any run of control characters (newlines, tabs, etc.) to a single
@@ -120,22 +70,15 @@ export function createEmailRenderer<Templates extends object>(
     const cached = htmlTemplates.get(name);
     if (cached) return cached;
 
-    const path = join(templatesDir, `${name}.mjml`);
-    let source: string;
+    const path = join(templatesDir, `${name}.hbs`);
+    let html: string;
     try {
-      source = await readFile(path, 'utf8');
+      html = await readFile(path, 'utf8');
     } catch (cause) {
-      throw new EmailTemplateError(name, `Email template file not found: ${path}`, {cause});
-    }
-
-    const inlined = inlineSharedPartials(name, source);
-    assertNoBareBlockHelper(name, inlined);
-
-    const {html, errors} = await mjml2html(inlined, {filePath: path, ignoreIncludes: false});
-    if (errors.length > 0) {
       throw new EmailTemplateError(
         name,
-        `Invalid MJML in template "${name}": ${JSON.stringify(errors)}`,
+        `Compiled email template not found: ${path}. Compile the .mjml sources with shipfox-email-compile.`,
+        {cause},
       );
     }
 

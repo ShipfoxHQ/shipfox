@@ -32,6 +32,7 @@ describe('renderEmail', () => {
     expect(email.html).toContain('lang="en"');
     expect(email.html).toContain('alt="Shipfox"');
     expect(email.html).toContain('/email-logo.png');
+    expect(email.html).toContain('IBM Plex Sans');
     // The URL's `=` is HTML-entity-escaped inside the href (valid, decodes in clients),
     // so assert the path in HTML and the full raw link in the plain-text body.
     expect(email.html).toContain('app.shipfox.io/auth/verify-email');
