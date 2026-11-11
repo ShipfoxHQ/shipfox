@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs';
-import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises';
+import {mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {basename, dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import mjml2html from 'mjml';
@@ -18,6 +18,7 @@ const contentComponent = new RegExp(`<(${contentComponents})\\b[^>]*>[\\s\\S]*?<
 const partialFileName = /^[\w-]+\.mjml$/;
 const blockHelper = /\{\{~?\s*(?:[#^/]|else\b)[^}]*\}\}/;
 const templateExtension = '.mjml';
+const outputExtension = '.hbs';
 
 export class EmailCompileError extends Error {
   readonly templateName: string;
@@ -83,7 +84,8 @@ export async function compileEmailTemplate(params: {filePath: string}): Promise<
 
 /**
  * Compiles every `<name>.mjml` file directly in `sourceDir` into `<name>.hbs` in `outDir`.
- * Subdirectories are skipped, so a template can keep its own partials next to it.
+ * Subdirectories are skipped, so a package can keep its own partials in one. Outputs whose
+ * source template no longer exists are removed, so a deleted template does not keep shipping.
  */
 export async function compileEmailTemplates(params: {
   sourceDir: string;
@@ -100,8 +102,14 @@ export async function compileEmailTemplates(params: {
   for (const file of files) {
     const html = await compileEmailTemplate({filePath: join(params.sourceDir, file)});
     const name = basename(file, templateExtension);
-    await writeFile(join(params.outDir, `${name}.hbs`), html);
+    await writeFile(join(params.outDir, `${name}${outputExtension}`), html);
     names.push(name);
   }
+
+  const current = new Set(names.map((name) => `${name}${outputExtension}`));
+  const stale = (await readdir(params.outDir)).filter(
+    (file) => file.endsWith(outputExtension) && !current.has(file),
+  );
+  await Promise.all(stale.map((file) => rm(join(params.outDir, file))));
   return names;
 }

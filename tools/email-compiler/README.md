@@ -6,9 +6,9 @@ Build-time compiler that turns MJML email templates into the Handlebars HTML tem
 ## What it does
 
 - **`shipfox-email-compile <source-dir> <out-dir>`**: Compiles every `<name>.mjml` file
-  directly in `<source-dir>` into `<out-dir>/<name>.hbs`. Subdirectories are skipped, so a
-  package can keep its own partials next to its templates. Exits nonzero on the first
-  invalid template.
+  directly in `<source-dir>` into `<out-dir>/<name>.hbs`. Every top-level `.mjml` file is a
+  template, so keep a package's own partials in a subdirectory, which is skipped. Outputs
+  whose template no longer exists are removed. Exits nonzero on the first invalid template.
 - **`compileEmailTemplates({sourceDir, outDir})`**: The same compilation as a function. It
   returns the compiled template names.
 - **`compileEmailTemplate({filePath})`**: Compiles one template and returns the HTML.
@@ -18,12 +18,8 @@ Build-time compiler that turns MJML email templates into the Handlebars HTML tem
 
 ## Installation and setup
 
-```json
-{
-  "devDependencies": {
-    "@shipfox/email-compiler": "workspace:*"
-  }
-}
+```sh
+pnpm add -D @shipfox/email-compiler
 ```
 
 MJML brings CSS tooling (cssnano, postcss, svgo) that pnpm uses to fill the optional

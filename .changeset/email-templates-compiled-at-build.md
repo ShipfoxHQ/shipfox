@@ -3,7 +3,7 @@
 "@shipfox/email-compiler": minor
 ---
 
-Email templates are compiled from MJML at build time, so `@shipfox/node-email` no longer depends on `mjml` at runtime. MJML's CSS tooling (cssnano, postcss, svgo) filled optional peers of the Temporal webpack bundler in every importer that installed `@shipfox/node-email`, which gave shared packages such as `@shipfox/node-temporal` a second installed copy.
+Email templates are compiled from MJML at build time, so `@shipfox/node-email` no longer installs `mjml` and its CSS tooling. That tooling gave packages installed alongside it, such as `@shipfox/node-temporal`, a second installed copy.
 
 The new `@shipfox/email-compiler` package provides the `shipfox-email-compile <source-dir> <out-dir>` command, which compiles each `<name>.mjml` file into `<name>.hbs`. It owns the shared partials and the template checks. To migrate a package that calls `createEmailRenderer`:
 

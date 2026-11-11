@@ -1,4 +1,4 @@
-import {cp, mkdir, mkdtemp, readdir, readFile, rm} from 'node:fs/promises';
+import {cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -71,5 +71,19 @@ describe('compileEmailTemplates', () => {
     expect(await readFile(join(outDir, 'order-shipped.hbs'), 'utf8')).toContain(
       'Hello {{customerName}}',
     );
+  });
+
+  test('removes outputs whose source template no longer exists', async () => {
+    const sourceDir = join(workDir, 'emails');
+    const outDir = join(workDir, 'dist', 'emails');
+    await mkdir(sourceDir, {recursive: true});
+    await mkdir(outDir, {recursive: true});
+    await cp(fixture('order-shipped'), join(sourceDir, 'order-shipped.mjml'));
+    await writeFile(join(outDir, 'deleted-template.hbs'), 'stale');
+    await writeFile(join(outDir, 'notes.txt'), 'kept');
+
+    await compileEmailTemplates({sourceDir, outDir});
+
+    expect((await readdir(outDir)).sort()).toEqual(['notes.txt', 'order-shipped.hbs']);
   });
 });
