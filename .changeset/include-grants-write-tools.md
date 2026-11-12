@@ -1,5 +1,5 @@
 ---
-"@shipfox/workflow-document": minor
+"@shipfox/workflow-document": major
 "@shipfox/actions": minor
 "@shipfox/registry-format": minor
 "@shipfox/api-integration-core-dto": major
