@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   deleteExpiredEphemeralRegistrationTokens,
@@ -109,8 +110,13 @@ async function deleteExpiredRows(): Promise<void> {
     if (deleted > 0) logger().info({deleted}, 'Deleted expired ephemeral registration tokens');
   });
   await runBestEffort('finish purges of deleted projects', async () => {
-    const {purged} = await purgeUnfinishedDeletedProjects();
-    if (purged > 0) logger().info({purged}, 'Finished purges of deleted projects');
+    try {
+      const {purged} = await purgeUnfinishedDeletedProjects();
+      if (purged > 0) logger().info({purged}, 'Finished purges of deleted projects');
+    } catch (error) {
+      reportError(error, {boundary: 'runners.maintenance', operation: 'purge-deleted-projects'});
+      throw error;
+    }
   });
 }
 
