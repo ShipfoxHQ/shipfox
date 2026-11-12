@@ -890,7 +890,6 @@ describe('materializeJobExecutionSteps', () => {
               integrations: [
                 {
                   include: ['issue_read.get', 'issue_write.create', 'merge_pull_request'],
-                  allowWrite: true,
                 },
               ],
             },
@@ -1251,7 +1250,6 @@ describe('materializeJobExecutionSteps', () => {
                   connection: 'github-main',
                   include: ['issue_read'],
                   exclude: ['issue_read.get_comments'],
-                  allowWrite: false,
                 },
               ],
             },

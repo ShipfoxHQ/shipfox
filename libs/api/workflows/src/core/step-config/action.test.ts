@@ -96,7 +96,6 @@ function slackThreadStep(withValue: Record<string, string | number>): ActionStep
           provider: 'slack',
           connection: 'team-slack',
           include: ['read_thread'],
-          allowWrite: false,
         },
       },
     },

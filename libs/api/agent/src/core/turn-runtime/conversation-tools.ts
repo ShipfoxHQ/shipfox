@@ -107,7 +107,6 @@ async function listConfiguredIntegrationTools(params: {
         ...(selection.connection === undefined ? {} : {connection: selection.connection}),
         include: selection.include,
         ...(selection.exclude === undefined ? {} : {exclude: selection.exclude}),
-        allowWrite: selection.allow_write ?? false,
       })),
     });
     return grants

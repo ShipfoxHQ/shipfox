@@ -114,8 +114,6 @@ const capabilityChangeSchema = z.discriminatedUnion('type', [
     from: z.string(),
     to: z.string(),
   }),
-  z.strictObject({type: z.literal('write_enabled'), alias: z.string()}),
-  z.strictObject({type: z.literal('write_disabled'), alias: z.string()}),
   z.strictObject({
     type: z.literal('selectors_added'),
     alias: z.string(),

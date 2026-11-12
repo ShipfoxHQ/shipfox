@@ -109,8 +109,8 @@ async function setup(options: {refuseGrant?: boolean; connectionSlug?: string} =
             'selection-invalid',
             {
               integrationIndex: 0,
-              reason: 'write-not-allowed',
-              message: 'Integration selection includes write-capable tools',
+              reason: 'tool-unknown',
+              message: 'Unknown integration tool: issue_comment',
               connection: 'github-main',
               tool: 'issue_comment',
             },
@@ -133,7 +133,7 @@ async function setup(options: {refuseGrant?: boolean; connectionSlug?: string} =
     projectAgentSnapshot({
       key: 'shippy',
       document: {
-        integrations: [{connection: 'github-main', include: ['issue_*'], allow_write: true}],
+        integrations: [{connection: 'github-main', include: ['issue_*']}],
       },
     }),
   ]);
@@ -214,7 +214,7 @@ describe('tools granted by an agent file', () => {
     expect(resolveAgentTools).toHaveBeenCalledWith({
       workspaceId,
       projectId,
-      integrations: [{connection: 'github-main', include: ['issue_*'], allowWrite: true}],
+      integrations: [{connection: 'github-main', include: ['issue_*']}],
     });
     const label = entry.message.toolsAdded.find(
       (tool: {name: string}) => tool.name === 'github_main__issue_label',

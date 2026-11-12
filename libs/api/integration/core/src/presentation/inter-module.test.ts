@@ -2250,7 +2250,7 @@ describe('integrations template conformance', () => {
       const {integrations} = await client.resolveAgentTools({
         workspaceId: resolverWorkspaceId,
         projectId,
-        integrations: [{include: ['issue_read.get'], allowWrite: false}],
+        integrations: [{include: ['issue_read.get']}],
       });
 
       expect(integrations).toMatchObject([
@@ -2263,7 +2263,7 @@ describe('integrations template conformance', () => {
       ]);
     });
 
-    it('refuses a write tool without allowWrite as a known error that names the entry', async () => {
+    it('refuses an unknown tool as a known error that names the entry', async () => {
       const resolverWorkspaceId = crypto.randomUUID();
       const github = await integrationConnectionFactory.create({
         workspaceId: resolverWorkspaceId,
@@ -2279,10 +2279,7 @@ describe('integrations template conformance', () => {
         .resolveAgentTools({
           workspaceId: resolverWorkspaceId,
           projectId,
-          integrations: [
-            {include: ['issue_read'], allowWrite: false},
-            {include: ['issue_write'], allowWrite: false},
-          ],
+          integrations: [{include: ['issue_read']}, {include: ['missing_tool']}],
         })
         .catch((caught: unknown) => caught);
 
@@ -2293,9 +2290,9 @@ describe('integrations template conformance', () => {
         code: 'selection-invalid',
         details: {
           integrationIndex: 1,
-          reason: 'write-not-allowed',
+          reason: 'tool-unknown',
           connection: 'github_alpha',
-          tool: 'issue_write',
+          tool: 'missing_tool',
         },
       });
     });
@@ -2330,8 +2327,8 @@ describe('integrations template conformance', () => {
           workspaceId: resolverWorkspaceId,
           projectId,
           integrations: [
-            {include: ['issue_read'], allowWrite: false},
-            {connection: 'github_other', include: ['issue_read'], allowWrite: false},
+            {include: ['issue_read']},
+            {connection: 'github_other', include: ['issue_read']},
           ],
         })
         .catch((caught: unknown) => caught);
@@ -2362,14 +2359,9 @@ describe('integrations template conformance', () => {
         workspaceId: resolverWorkspaceId,
         projectId,
         requests: [
-          {integrations: [{include: ['issue_read'], allowWrite: false}]},
-          {
-            integrations: [
-              {include: ['issue_read'], allowWrite: false},
-              {include: ['issue_write'], allowWrite: false},
-            ],
-          },
-          {integrations: [{include: ['issue_write'], allowWrite: true}]},
+          {integrations: [{include: ['issue_read']}]},
+          {integrations: [{include: ['issue_read']}, {include: ['missing_tool']}]},
+          {integrations: [{include: ['issue_write']}]},
         ],
       });
 
@@ -2379,9 +2371,9 @@ describe('integrations template conformance', () => {
           kind: 'refused',
           refusal: {
             integrationIndex: 1,
-            reason: 'write-not-allowed',
+            reason: 'tool-unknown',
             connection: 'github_alpha',
-            tool: 'issue_write',
+            tool: 'missing_tool',
           },
         },
         {kind: 'granted', integrations: [{tools: [{id: 'issue_write'}]}]},
@@ -2395,7 +2387,7 @@ describe('integrations template conformance', () => {
         client.resolveAgentToolsBatch({
           workspaceId: crypto.randomUUID(),
           projectId,
-          requests: [{integrations: [{include: ['issue_read'], allowWrite: false}]}],
+          requests: [{integrations: [{include: ['issue_read']}]}],
         }),
       ).rejects.toMatchObject({code: 'project-not-found', details: {projectId}});
     });
@@ -2407,7 +2399,7 @@ describe('integrations template conformance', () => {
         client.resolveAgentTools({
           workspaceId: crypto.randomUUID(),
           projectId,
-          integrations: [{include: ['issue_read'], allowWrite: false}],
+          integrations: [{include: ['issue_read']}],
         }),
       ).rejects.toMatchObject({code: 'project-not-found', details: {projectId}});
     });

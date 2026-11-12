@@ -51,7 +51,6 @@ async function agentStep(params: {
               : {
                   integrations: params.integrations.map((integration) => ({
                     ...integration,
-                    allowWrite: false,
                   })),
                 }),
           },

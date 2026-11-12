@@ -142,7 +142,6 @@ function integrationTool(
       connection: input.connection,
       replaceConnection: input.replaceConnection ?? true,
       agentOnly: entry.result === 'image',
-      access: entry.sensitivity,
       input: fields,
       ...(firstMethod
         ? {

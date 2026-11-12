@@ -1099,7 +1099,6 @@ describe('workflow run queries', () => {
                     {
                       connection: 'github-main',
                       include: ['issue_read.get'],
-                      allowWrite: false,
                     },
                   ],
                 },
@@ -1214,7 +1213,6 @@ describe('workflow run queries', () => {
                         provider: 'slack',
                         connection: 'team-slack',
                         include: ['read_thread'],
-                        allowWrite: false,
                       },
                     },
                   },

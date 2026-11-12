@@ -27,7 +27,7 @@ export const registryActionMetadataSchema = z.object({
   integrations: z.array(z.string()),
   capabilities: z.record(
     z.string(),
-    z.object({provider: z.string(), selectors: z.array(z.string()), allow_write: z.boolean()}),
+    z.object({provider: z.string(), selectors: z.array(z.string())}),
   ),
   interface: z.object({
     inputs: z.record(
@@ -63,8 +63,6 @@ export type ActionCapabilityChange =
   | {type: 'alias_added'; alias: string; provider: string}
   | {type: 'alias_removed'; alias: string; provider: string}
   | {type: 'provider_changed'; alias: string; from: string; to: string}
-  | {type: 'write_enabled'; alias: string}
-  | {type: 'write_disabled'; alias: string}
   | {type: 'selectors_added'; alias: string; selectors: string[]}
   | {type: 'selectors_removed'; alias: string; selectors: string[]};
 
@@ -79,8 +77,6 @@ const CAPABILITY_CHANGE_BUMP: Record<ActionCapabilityChange['type'], RegistryBum
   alias_added: 'major',
   alias_removed: 'major',
   provider_changed: 'major',
-  write_enabled: 'major',
-  write_disabled: 'patch',
   selectors_added: 'minor',
   selectors_removed: 'patch',
 };
@@ -143,10 +139,7 @@ export function deriveActionMetadata({
     kind: actionKind(manifest),
     integrations: [...new Set(integrations.map(([, {provider}]) => provider))].sort(),
     capabilities: Object.fromEntries(
-      integrations.map(([alias, {provider, include, allow_write}]) => [
-        alias,
-        {provider, selectors: include, allow_write},
-      ]),
+      integrations.map(([alias, {provider, include}]) => [alias, {provider, selectors: include}]),
     ),
     interface: {
       inputs: Object.fromEntries(
@@ -229,8 +222,6 @@ function integrationChanges(
     return [{type: 'provider_changed', alias, from: before.provider, to: after.provider}];
   }
   const changes: ActionCapabilityChange[] = [];
-  if (!before.allow_write && after.allow_write) changes.push({type: 'write_enabled', alias});
-  if (before.allow_write && !after.allow_write) changes.push({type: 'write_disabled', alias});
   const added = after.include.filter((selector) => !before.include.includes(selector));
   if (added.length > 0) changes.push({type: 'selectors_added', alias, selectors: added});
   const removed = before.include.filter((selector) => !after.include.includes(selector));

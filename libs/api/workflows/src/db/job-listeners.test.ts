@@ -952,7 +952,7 @@ describe('drainListenerEventsIntoExecution', () => {
           steps: [
             {
               prompt: 'Review the pull request.',
-              integrations: [{include: ['issue_read.get'], allowWrite: false}],
+              integrations: [{include: ['issue_read.get']}],
             },
           ],
         },
@@ -967,7 +967,7 @@ describe('drainListenerEventsIntoExecution', () => {
           steps: [
             {
               prompt: 'Review the pull request.',
-              integrations: [{include: ['issue_read.get'], allowWrite: false}],
+              integrations: [{include: ['issue_read.get']}],
             },
           ],
         },

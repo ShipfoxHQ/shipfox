@@ -110,9 +110,9 @@ parseWorkflowDocument({
 ```
 
 Integration tools are selected with an `integrations` block on an agent step.
-This package validates the shape only: non-empty selections, optional connection
-and boolean write opt-in. Catalog checks, wildcard expansion, connection lookup,
-and write-safety rules belong to later layers.
+This package validates the shape only: non-empty selections and an optional
+connection. Catalog checks, wildcard expansion, and connection lookup belong to
+later layers.
 
 ```ts
 parseWorkflowDocument({
@@ -129,7 +129,6 @@ parseWorkflowDocument({
               connection: 'github-main',
               include: ['issue_read.get', 'pull_request_read.get_files'],
               exclude: ['actions_run_trigger.run_workflow'],
-              allow_write: false,
             },
           ],
         },
@@ -244,7 +243,7 @@ const manifest = actionManifestSchema.parse({
 });
 
 manifest.inputs?.channel_id?.type; // "string"
-manifest.integrations?.slack?.allow_write; // false
+manifest.integrations?.slack?.include; // ["read_thread"]
 ```
 
 A composite action sets `steps` instead of `main`. Its steps run in the job

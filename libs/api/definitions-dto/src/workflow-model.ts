@@ -387,7 +387,6 @@ export interface WorkflowModelActionIntegration {
   readonly provider: string;
   readonly connection: string;
   readonly include: readonly string[];
-  readonly allowWrite: boolean;
 }
 /**
  * A composite action step. Its inner steps are normalized for this use: their
@@ -434,7 +433,6 @@ export interface WorkflowModelStepIntegration {
   readonly connection?: string;
   readonly include: readonly string[];
   readonly exclude?: readonly string[];
-  readonly allowWrite: boolean;
 }
 /** A session key template plus the step's mode for that session. */
 export interface WorkflowModelAgentStepSession {

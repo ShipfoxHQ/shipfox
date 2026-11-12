@@ -128,7 +128,7 @@ const ACTION_MANIFEST = actionManifestSchema.parse({
     include_reactions: {type: 'boolean', default: false},
   },
   outputs: {markdown: {type: 'string', required: true, description: 'The digest.'}},
-  integrations: {slack: {provider: 'slack', include: ['conversations'], allow_write: false}},
+  integrations: {slack: {provider: 'slack', include: ['conversations']}},
 });
 
 const COMPOSITE_MANIFEST = actionManifestSchema.parse({

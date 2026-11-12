@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {buildIntegrationToolReference, buildMcpToolReference} from './build';
 
-const ALLOW_WRITE_PATTERN = /allow_write: true$/u;
-
 const issueSchema = {
   type: 'object',
   properties: {
@@ -219,16 +217,6 @@ test('derives step examples from the schema', () => {
   );
   assert.equal(family.examples[2]?.title, 'Output');
   assert.equal(family.examples[2]?.code, '{\n  "id": 1\n}');
-});
-
-test('adds allow_write to agent step examples for write tools', () => {
-  const document = buildIntegrationToolReference({
-    id: 'integrations/test/tools',
-    catalog: [{...catalog[0], id: 'update_issue', sensitivity: 'write', requiredScope: 'write'}],
-    selectors: [{token: 'update_issue'}],
-    connection: 'test_acme',
-  });
-  assert.match(document.groups[0]?.tools[0]?.examples[1]?.code ?? '', ALLOW_WRITE_PATTERN);
 });
 
 test('omits the tool step example for a tool that returns images', () => {

@@ -14,8 +14,7 @@ export type AgentToolsFailureReason =
   | 'connection-not-allowed'
   | 'source-connection-missing'
   | 'tool-unknown'
-  | 'no-tools-selected'
-  | 'write-not-allowed';
+  | 'no-tools-selected';
 
 /** A selection that cannot be granted. `integrationIndex` names the entry that failed. */
 export class AgentToolsSelectionError extends Error {
@@ -38,7 +37,6 @@ export interface AgentToolsSelection {
   readonly provider?: string | undefined;
   readonly include: readonly string[];
   readonly exclude?: readonly string[] | undefined;
-  readonly allowWrite: boolean;
 }
 
 export interface ResolvedAgentToolMethod {
@@ -90,9 +88,8 @@ interface SelectedToolState {
 }
 
 /**
- * Expands one selection into the tools its connection grants. A selection that grants nothing,
- * names an unknown tool, or grants a write tool without `allowWrite` throws
- * `AgentToolsSelectionError`.
+ * Expands one selection into the tools its connection grants. A selection that grants nothing or
+ * names an unknown tool throws `AgentToolsSelectionError`.
  */
 export function resolveAgentToolsGrant(params: {
   readonly selection: AgentToolsSelection;
@@ -119,15 +116,6 @@ export function resolveAgentToolsGrant(params: {
     include: selection.include,
     exclude: selection.exclude ?? [],
   }).map(resolvedTool);
-  if (!selection.allowWrite) {
-    const write = tools.find((tool) => tool.sensitivity === 'write');
-    if (write !== undefined) {
-      throw new AgentToolsSelectionError(
-        `Integration selection includes write-capable tools but allow_write is not true: ${write.id}`,
-        {reason: 'write-not-allowed', connection: connection.slug, tool: write.id},
-      );
-    }
-  }
 
   return {
     connectionId: connection.id,
@@ -213,11 +201,6 @@ function applySelection(params: {
   readonly token: string;
   readonly mode: 'include' | 'exclude';
 }): void {
-  if (params.token === '*') {
-    for (const entry of params.catalog) applyEntrySelection(params, entry);
-    return;
-  }
-
   const match = findCatalogSelection(params.catalog, params.token);
   if (match === undefined) {
     throw new AgentToolsSelectionError(`Unknown integration tool: ${params.token}`, {

@@ -463,7 +463,6 @@ function normalizeCompositeOutputs(params: {
 interface CompositeAlias {
   readonly provider: string;
   readonly include: readonly string[];
-  readonly allowWrite: boolean;
   /** The connection the caller bound the alias to. Unset when the binding is missing. */
   readonly connection: string | undefined;
 }
@@ -524,7 +523,6 @@ function compositeAliases(
       {
         provider: integration.provider,
         include: integration.include,
-        allowWrite: integration.allow_write,
         connection: Object.hasOwn(bound, alias) ? bound[alias]?.connection : undefined,
       },
     ]),
@@ -682,15 +680,6 @@ function bindToolStep(
         details: {alias: aliasName, tool},
       }),
     );
-  } else if (!alias.allowWrite && isWriteTool(tool, alias, context)) {
-    context.issues.push(
-      issue({
-        code: 'integration-write-not-allowed',
-        message: `Tool "${tool}" changes external data, but integration alias "${aliasName}" does not set \`allow_write: true\`.`,
-        path: [...path, 'tool'],
-        details: {alias: aliasName, tool, uses: context.fields.uses},
-      }),
-    );
   }
   return alias.connection === undefined ? step : {...step, connection: alias.connection};
 }
@@ -728,26 +717,15 @@ function bindAgentIntegration(
       }),
     );
   }
-  if (integration.allow_write === true && !alias.allowWrite) {
-    context.issues.push(
-      exceedsAliasIssue({
-        message: `Integration alias "${aliasName}" does not set \`allow_write: true\`, so the agent cannot get write tools.`,
-        path: [...path, 'allow_write'],
-        context,
-        details: {alias: aliasName},
-      }),
-    );
-  }
   return alias.connection === undefined
     ? integration
     : {...integration, connection: alias.connection};
 }
 
 // `connections` of a nested action names an alias of this composite, not a
-// connection. The nested alias must fit inside it: same provider, every
-// selector covered as written, and writes only if this alias allows them.
-// Each level is checked against the one above it, so every grant fits inside
-// the alias the caller bound at the top.
+// connection. The nested alias must fit inside it: same provider and every
+// selector covered as written. Each level is checked against the one above
+// it, so every grant fits inside the alias the caller bound at the top.
 function bindNestedActionAliases(
   step: WorkflowDocumentStep,
   connections: Readonly<Record<string, string>>,
@@ -782,7 +760,7 @@ function bindNestedActionAliases(
 }
 
 function aliasFitIssues(params: {
-  declared: {provider: string; include: readonly string[]; allow_write: boolean};
+  declared: {provider: string; include: readonly string[]};
   outer: CompositeAlias;
   outerAliasName: string;
 }): string[] {
@@ -798,9 +776,6 @@ function aliasFitIssues(params: {
   );
   if (uncovered.length > 0) {
     reasons.push(`it includes ${uncovered.map((selector) => `"${selector}"`).join(', ')}.`);
-  }
-  if (declared.allow_write && !outer.allowWrite) {
-    reasons.push('it allows writes, and the outer alias does not.');
   }
   return reasons;
 }
@@ -828,22 +803,6 @@ function lookupAlias(
     }),
   );
   return undefined;
-}
-
-// The tool catalog says which tools write. Without the catalog, the write
-// check waits for a validation that has it.
-function isWriteTool(tool: string, alias: CompositeAlias, context: PrepareContext): boolean {
-  const catalog = context.context.integrationValidationContext?.agentToolCatalogs.get(
-    alias.provider,
-  );
-  const dot = tool.indexOf('.');
-  const entry = catalog?.tools.find((candidate) =>
-    dot === -1 ? candidate.id === tool : candidate.id === tool.slice(0, dot),
-  );
-  if (entry === undefined) return false;
-  if (dot === -1) return entry.sensitivity === 'write';
-  const method = entry.methods?.find((candidate) => candidate.id === tool.slice(dot + 1));
-  return method?.sensitivity === 'write';
 }
 
 function exceedsAliasIssue(params: {

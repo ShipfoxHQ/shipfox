@@ -34,16 +34,15 @@ release tool, Shipfox instances, and the docs build.
   | Input removed, type changed, `secret` changed, or newly required without a default | major |
   | Output removed or type changed | major |
   | Integration alias added or removed, or its provider changed | major |
-  | `allow_write` turned on | major |
   | `post_failure` changed from `warn` to `fail` | major |
   | Optional input, output, or selectors added | minor |
   | `post` added or removed | minor |
-  | Anything else, including selectors removed, `allow_write` turned off, `post_failure` changed from `fail` to `warn`, and the steps of a composite action | patch |
+  | Anything else, including selectors removed, `post_failure` changed from `fail` to `warn`, and the steps of a composite action | patch |
 
 - **`diffActionCapabilities({previous, next})`** lists what changed in the
   integration aliases: `alias_added`, `alias_removed`, `provider_changed`,
-  `write_enabled`, `write_disabled`, `selectors_added`, and
-  `selectors_removed`. A provider change reports only `provider_changed`.
+  `selectors_added`, and `selectors_removed`. A provider change reports only
+  `provider_changed`.
 - **`deriveActionMetadata({reference, manifest, contentBytes})`** returns the
   `derived` field of an action version document: the `kind` (`javascript` or
   `composite`), integration providers, capabilities per alias, the input and

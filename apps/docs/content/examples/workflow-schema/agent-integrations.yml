@@ -7,4 +7,3 @@ jobs:
           - connection: github_acme
             include: [issue_read, issue_write]
             exclude: [issue_write.update]
-            allow_write: true

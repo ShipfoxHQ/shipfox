@@ -69,8 +69,7 @@ interface ToolRequest {
 
 /**
  * Serves the `v1` tool routes the way the runner does, but answers from the test's fakes. The
- * grant rules match the runner and gateway: the alias must be declared, the tool granted, and a
- * write tool needs `allow_write`.
+ * grant rules match the runner and gateway: the alias must be declared and the tool granted.
  */
 export async function startFakeEndpoint(params: {
   grants: ReadonlyMap<string, GrantedIntegration>;
@@ -264,11 +263,6 @@ function refuse(
   const grant = findGrant(integration, request.tool);
   if (grant === undefined) {
     return notGranted(`The action is not granted ${request.alias}.${request.tool}.`);
-  }
-  if (grant.sensitivity === 'write' && !integration.allowWrite) {
-    return notGranted(
-      `${request.alias}.${request.tool} changes external data. Set allow_write: true on integration "${request.alias}" in action.yml.`,
-    );
   }
   if (grant.result !== kind) {
     return {

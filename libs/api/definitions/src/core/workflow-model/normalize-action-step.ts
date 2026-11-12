@@ -399,7 +399,6 @@ export function normalizeActionIntegrations(
       provider: integration.provider,
       connection,
       include: [...new Set(integration.include)],
-      allowWrite: integration.allow_write,
     };
   }
 
@@ -429,7 +428,6 @@ function validateActionIntegration(
   // Selectors come from the manifest, so their issues point at `uses`.
   validateAgentToolSelection({
     include: integration.include,
-    allowWrite: integration.allow_write,
     selectorsByToken,
     selectorPath: () => stepPath(params, 'uses'),
     details,

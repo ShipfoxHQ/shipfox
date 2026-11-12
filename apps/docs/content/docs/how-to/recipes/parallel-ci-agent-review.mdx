@@ -89,7 +89,6 @@ jobs:
           tests (${{ steps.tests.status }}): ${{ steps.tests.outputs.findings }}
         integrations:
           - include: [pull_request_read, pull_request_review_write]
-            allow_write: true
 ```
 
 Commit and push the file to the project's default branch. Wait for **Parallel

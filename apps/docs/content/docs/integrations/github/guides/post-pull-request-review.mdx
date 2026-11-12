@@ -42,13 +42,11 @@ jobs:
           Do not approve, request changes, merge, or edit the repository.
         integrations:
           - include: [pull_request_read, pull_request_review_write]
-            allow_write: true
 ```
 
-`allow_write` is an explicit choice for this step. The selection does not
-grant repository-content writes or unrelated GitHub operations. Exact tool and
-repository selection fields live in [Agent integration
-fields](/reference/workflow-schema#agent-integration-fields).
+The selection does not grant repository-content writes or unrelated GitHub
+operations. Exact tool and repository selection fields live in [Agent
+integration fields](/reference/workflow-schema#agent-integration-fields).
 
 The integration entry omits `connection`, so it uses the project's GitHub
 source integration connection and repository.
@@ -67,5 +65,5 @@ Open the test pull request and inspect the new Shipfox run.
 4. Confirm that the pull request state, branch, and repository contents did not
    change.
 
-If sync rejects the write selection, check the permission on your GitHub integration connection and
-the `allow_write` choice before sending another event.
+If the review call is denied, check the permission on your GitHub integration
+connection before sending another event.

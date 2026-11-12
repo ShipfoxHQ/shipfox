@@ -1824,7 +1824,6 @@ describe('normalizeWorkflowDocument', () => {
         {
           include: ['issue_read', 'issue_read.*', 'issue_read.get', 'list_issues'],
           exclude: ['issue_read.get'],
-          allowWrite: false,
         },
       ],
     });
@@ -1853,7 +1852,6 @@ describe('normalizeWorkflowDocument', () => {
         {
           connection: 'linear-main',
           include: ['get_issue'],
-          allowWrite: false,
         },
       ],
     });
@@ -1873,7 +1871,7 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(model.jobs[0]?.steps[0]).toMatchObject({
       kind: 'agent',
-      integrations: [{include: ['unknown.write'], allowWrite: false}],
+      integrations: [{include: ['unknown.write']}],
     });
   });
 
@@ -1934,7 +1932,28 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
-  it('requires allow_write for write-capable authored include tokens', () => {
+  it.each([
+    {
+      provider: 'GitHub',
+      integration: {
+        include: ['issue_write', 'merge_pull_request', 'create_branch', 'check_run_write.create'],
+      },
+    },
+    {provider: 'Linear', integration: {connection: 'linear-main', include: ['save_comment']}},
+    {provider: 'Jira', integration: {connection: 'jira-main', include: ['add_comment']}},
+    {provider: 'ClickUp', integration: {connection: 'clickup-main', include: ['add_comment']}},
+  ])('accepts the $provider write tools that include names', ({integration}) => {
+    const document: WorkflowDocument = {
+      name: 'write integrations',
+      jobs: {fix: {steps: [{prompt: 'Fix.', integrations: [integration]}]}},
+    };
+
+    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({kind: 'agent', integrations: [integration]});
+  });
+
+  it('ignores allow_write on a workflow that still sets it', () => {
     const document: WorkflowDocument = {
       name: 'write integrations',
       jobs: {
@@ -1942,82 +1961,7 @@ describe('normalizeWorkflowDocument', () => {
           steps: [
             {
               prompt: 'Fix.',
-              integrations: [{include: ['issue_write', 'merge_pull_request']}],
-            },
-          ],
-        },
-      },
-    };
-
-    const error = expectInvalid(document, {integrationValidationContext});
-
-    expect(error.issues).toMatchObject([
-      {
-        code: 'integration-write-not-allowed',
-        details: {tokens: ['issue_write', 'merge_pull_request']},
-      },
-    ]);
-  });
-
-  it('requires allow_write for the create_branch GitHub tool', () => {
-    const document: WorkflowDocument = {
-      name: 'create branch integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Create a branch.',
-              integrations: [{include: ['create_branch']}],
-            },
-          ],
-        },
-      },
-    };
-
-    const error = expectInvalid(document, {integrationValidationContext});
-
-    expect(error.issues).toMatchObject([
-      {
-        code: 'integration-write-not-allowed',
-        details: {tokens: ['create_branch']},
-      },
-    ]);
-  });
-
-  it('requires allow_write for both check-run write methods', () => {
-    const document: WorkflowDocument = {
-      name: 'check-run integrations',
-      jobs: {
-        review: {
-          steps: [
-            {
-              prompt: 'Publish the review check.',
-              integrations: [{include: ['check_run_write.create', 'check_run_write.update']}],
-            },
-          ],
-        },
-      },
-    };
-
-    const error = expectInvalid(document, {integrationValidationContext});
-
-    expect(error.issues).toMatchObject([
-      {
-        code: 'integration-write-not-allowed',
-        details: {tokens: ['check_run_write.create', 'check_run_write.update']},
-      },
-    ]);
-  });
-
-  it('accepts the create_branch GitHub tool when allow_write is true', () => {
-    const document: WorkflowDocument = {
-      name: 'create branch integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Create a branch.',
-              integrations: [{include: ['create_branch'], allow_write: true}],
+              integrations: [{include: ['issue_write.create'], allow_write: false}],
             },
           ],
         },
@@ -2026,43 +1970,30 @@ describe('normalizeWorkflowDocument', () => {
 
     const model = normalizeWorkflowDocument(document, {integrationValidationContext});
 
-    expect(model.jobs[0]?.steps[0]).toMatchObject({
-      kind: 'agent',
-      integrations: [{include: ['create_branch'], allowWrite: true}],
-    });
-  });
-
-  it('accepts a write family when exclude removes every write method', () => {
-    const document = (exclude: string[]): WorkflowDocument => ({
-      name: 'write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Fix.',
-              integrations: [{include: ['check_run_write', 'issue_read'], exclude}],
-            },
-          ],
-        },
-      },
-    });
-
-    const refused = expectInvalid(document(['check_run_write.create']), {
-      integrationValidationContext,
-    });
-    const accepted = normalizeWorkflowDocument(
-      document(['check_run_write.create', 'check_run_write.update']),
-      {integrationValidationContext},
-    );
-
-    expect(refused.issues).toMatchObject([
-      {code: 'integration-write-not-allowed', details: {tokens: ['check_run_write']}},
+    expect(model.jobs[0]?.steps[0]).toMatchObject({kind: 'agent'});
+    expect((model.jobs[0]?.steps[0] as {integrations?: unknown}).integrations).toEqual([
+      {include: ['issue_write.create']},
     ]);
-    expect(accepted).toBeDefined();
   });
 
-  it('rejects an integration that exclude empties, with or without allow_write', () => {
-    const document = (allowWrite: boolean): WorkflowDocument => ({
+  it('rejects a selector that names no tool, so every granted tool is named', () => {
+    const document: WorkflowDocument = {
+      name: 'wildcard integrations',
+      jobs: {fix: {steps: [{prompt: 'Fix.', integrations: [{include: ['*']}]}]}},
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues).toMatchObject([
+      {
+        code: 'unknown-integration-tool',
+        path: ['jobs', 'fix', 'steps', 0, 'integrations', 0, 'include', 0],
+      },
+    ]);
+  });
+
+  it('rejects an integration that exclude empties', () => {
+    const document: WorkflowDocument = {
       name: 'empty integrations',
       jobs: {
         fix: {
@@ -2073,22 +2004,17 @@ describe('normalizeWorkflowDocument', () => {
                 {
                   include: ['check_run_write'],
                   exclude: ['check_run_write.create', 'check_run_write.update'],
-                  allow_write: allowWrite,
                 },
               ],
             },
           ],
         },
       },
-    });
+    };
 
-    const withoutWrite = expectInvalid(document(false), {integrationValidationContext});
-    const withWrite = expectInvalid(document(true), {integrationValidationContext});
+    const error = expectInvalid(document, {integrationValidationContext});
 
-    expect(withoutWrite.issues.map((issue) => issue.code)).toEqual([
-      'integration-no-tools-selected',
-    ]);
-    expect(withWrite.issues.map((issue) => issue.code)).toEqual(['integration-no-tools-selected']);
+    expect(error.issues.map((issue) => issue.code)).toEqual(['integration-no-tools-selected']);
   });
 
   it('accepts an integration whose other include tokens survive exclude', () => {
@@ -2112,203 +2038,6 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     expect(normalizeWorkflowDocument(document, {integrationValidationContext})).toBeDefined();
-  });
-
-  it('keeps a write tool that exclude does not name', () => {
-    const document: WorkflowDocument = {
-      name: 'write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Fix.',
-              integrations: [
-                {include: ['merge_pull_request', 'create_branch'], exclude: ['create_branch']},
-              ],
-            },
-          ],
-        },
-      },
-    };
-
-    const error = expectInvalid(document, {integrationValidationContext});
-
-    expect(error.issues).toMatchObject([
-      {code: 'integration-write-not-allowed', details: {tokens: ['merge_pull_request']}},
-    ]);
-  });
-
-  it('accepts write-capable include tokens when allow_write is true', () => {
-    const document: WorkflowDocument = {
-      name: 'write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Fix.',
-              integrations: [{include: ['issue_write.create'], allow_write: true}],
-            },
-          ],
-        },
-      },
-    };
-
-    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
-
-    expect(model.jobs[0]?.steps[0]).toMatchObject({
-      kind: 'agent',
-      integrations: [{include: ['issue_write.create'], allowWrite: true}],
-    });
-  });
-
-  it('requires allow_write for Linear write tools', () => {
-    const document: WorkflowDocument = {
-      name: 'linear write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Comment on the issue.',
-              integrations: [{connection: 'linear-main', include: ['save_comment']}],
-            },
-          ],
-        },
-      },
-    };
-
-    const error = expectInvalid(document, {integrationValidationContext});
-
-    expect(error.issues).toMatchObject([
-      {
-        code: 'integration-write-not-allowed',
-        details: {tokens: ['save_comment']},
-      },
-    ]);
-  });
-
-  it('accepts Linear write tools when allow_write is true', () => {
-    const document: WorkflowDocument = {
-      name: 'linear write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Comment on the issue.',
-              integrations: [
-                {connection: 'linear-main', include: ['save_comment'], allow_write: true},
-              ],
-            },
-          ],
-        },
-      },
-    };
-
-    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
-
-    expect(model.jobs[0]?.steps[0]).toMatchObject({
-      kind: 'agent',
-      integrations: [{connection: 'linear-main', include: ['save_comment'], allowWrite: true}],
-    });
-  });
-
-  it('requires allow_write for Jira write tools', () => {
-    const document: WorkflowDocument = {
-      name: 'jira write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Comment on the issue.',
-              integrations: [{connection: 'jira-main', include: ['add_comment']}],
-            },
-          ],
-        },
-      },
-    };
-
-    const error = expectInvalid(document, {integrationValidationContext});
-
-    expect(error.issues).toMatchObject([
-      {
-        code: 'integration-write-not-allowed',
-        details: {tokens: ['add_comment']},
-      },
-    ]);
-  });
-
-  it('accepts Jira write tools when allow_write is true', () => {
-    const document: WorkflowDocument = {
-      name: 'jira write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Comment on the issue.',
-              integrations: [
-                {connection: 'jira-main', include: ['add_comment'], allow_write: true},
-              ],
-            },
-          ],
-        },
-      },
-    };
-
-    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
-
-    expect(model.jobs[0]?.steps[0]).toMatchObject({
-      kind: 'agent',
-      integrations: [{connection: 'jira-main', include: ['add_comment'], allowWrite: true}],
-    });
-  });
-
-  it('requires allow_write for ClickUp write tools', () => {
-    const document: WorkflowDocument = {
-      name: 'clickup write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Comment on the task.',
-              integrations: [{connection: 'clickup-main', include: ['add_comment']}],
-            },
-          ],
-        },
-      },
-    };
-
-    const error = expectInvalid(document, {integrationValidationContext});
-
-    expect(error.issues).toMatchObject([
-      {
-        code: 'integration-write-not-allowed',
-        details: {tokens: ['add_comment']},
-      },
-    ]);
-  });
-
-  it('accepts ClickUp write tools when allow_write is true', () => {
-    const document: WorkflowDocument = {
-      name: 'clickup write integrations',
-      jobs: {
-        fix: {
-          steps: [
-            {
-              prompt: 'Comment on the task.',
-              integrations: [
-                {connection: 'clickup-main', include: ['add_comment'], allow_write: true},
-              ],
-            },
-          ],
-        },
-      },
-    };
-
-    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
-
-    expect(model.jobs[0]?.steps[0]).toMatchObject({
-      kind: 'agent',
-      integrations: [{connection: 'clickup-main', include: ['add_comment'], allowWrite: true}],
-    });
   });
 
   it('reports connection failures before token checks', () => {

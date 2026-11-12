@@ -251,7 +251,6 @@ function stepIntegrationRequests(params: {
           ...(integration.connection === undefined ? {} : {connection: integration.connection}),
           include: [...integration.include],
           ...(integration.exclude === undefined ? {} : {exclude: [...integration.exclude]}),
-          allowWrite: integration.allowWrite,
         })),
         failure: (_index, error) =>
           selectionFailure(error, (connection) => ({
@@ -271,7 +270,6 @@ function stepIntegrationRequests(params: {
         connection: integration.connection,
         provider: integration.provider,
         include: [...integration.include],
-        allowWrite: integration.allowWrite,
       })),
       failure: (index, error) => {
         const [alias, integration] = aliases[index] ?? ['', undefined];
@@ -285,7 +283,7 @@ function stepIntegrationRequests(params: {
 }
 
 interface SelectionInvalid {
-  readonly reason?: AgentIntegrationMaterializationReason | 'write-not-allowed' | undefined;
+  readonly reason?: AgentIntegrationMaterializationReason | undefined;
   readonly message: string;
   readonly connection?: string | undefined;
   readonly tool?: string | undefined;
@@ -308,7 +306,7 @@ function selectionFailure(
     }
   }
   return new AgentIntegrationMaterializationError(message, {
-    reason: error.reason === 'write-not-allowed' ? undefined : error.reason,
+    reason: error.reason,
     connection: error.connection,
     tool: error.tool,
   });
