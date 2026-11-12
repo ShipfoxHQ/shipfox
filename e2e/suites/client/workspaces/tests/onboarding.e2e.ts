@@ -87,6 +87,9 @@ test.describe('workspace onboarding', () => {
     await expect(workspaceHome.createProjectNameField()).toBeVisible({
       timeout: SETUP_NAVIGATION_TIMEOUT_MS,
     });
+    // The form prefills the name from the first repository once the list loads.
+    // Filling before that lets the prefill land mid-fill and merge both values.
+    await expect(workspaceHome.createProjectNameField()).toHaveValue('Platform');
     await workspaceHome.createProject('E2E First Project');
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}/?$`, 'u'));
     await expect(workspaceSetupChecklist.toolsPanel()).toBeVisible();

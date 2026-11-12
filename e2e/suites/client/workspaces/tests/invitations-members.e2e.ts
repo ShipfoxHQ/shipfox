@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {stableScreenshot} from '@shipfox/e2e-kit/ui';
+import {INITIAL_CHECKLIST_COUNT_RE} from './setup-checklist-fixtures.js';
 import {expect, test} from './test.js';
 import {workspaceUrlRe} from './workspace-urls.js';
 
@@ -21,6 +22,7 @@ test('accepts an invitation for an existing user outside the signup allowlist vi
   membersSettings,
   projects,
   workspaces,
+  workspaceSetupChecklist,
 }) => {
   test.setTimeout(60_000);
 
@@ -81,6 +83,12 @@ test('accepts an invitation for an existing user outside the signup allowlist vi
   await expect(membersSettings.memberText(owner.email)).toBeVisible();
   await expect(membersSettings.memberText(invitee.email)).toBeVisible();
   await expect(membersSettings.emptyPendingInvitations()).toBeVisible();
+  // The header checklist renders only after its own reads settle, independently
+  // of the members table, and the screenshot includes it.
+  await expect(workspaceSetupChecklist.indicator()).toHaveAttribute(
+    'aria-label',
+    INITIAL_CHECKLIST_COUNT_RE,
+  );
   const memberJoinedText = await membersSettings.memberCellText(textRe(invitee.email), 2);
   await stableScreenshot(page, 'members/populated-with-empty-invitations', {
     textReplacements: [
