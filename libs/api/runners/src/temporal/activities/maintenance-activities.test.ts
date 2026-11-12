@@ -7,6 +7,7 @@ vi.mock('#core/maintenance.js', () => ({
   reapStaleRunnerInstances: vi.fn(),
   recoverStaleIdleRunnerSessions: vi.fn(),
 }));
+vi.mock('@shipfox/node-error-monitoring', () => ({reportError: vi.fn()}));
 vi.mock('#core/purge-project.js', () => ({purgeUnfinishedDeletedProjects: vi.fn()}));
 vi.mock('#db/capacity-holds.js', () => ({reconcileCapacityHolds: vi.fn()}));
 vi.mock('#metrics/instance.js', () => ({
@@ -15,6 +16,7 @@ vi.mock('#metrics/instance.js', () => ({
   recordCapacityHoldSweep: vi.fn(),
 }));
 
+let errorMonitoring: typeof import('@shipfox/node-error-monitoring');
 let maintenance: typeof import('#core/maintenance.js');
 let purgeProject: typeof import('#core/purge-project.js');
 let capacityHolds: typeof import('#db/capacity-holds.js');
@@ -22,6 +24,7 @@ let activities: typeof import('./maintenance-activities.js');
 
 beforeEach(async () => {
   vi.resetModules();
+  errorMonitoring = await import('@shipfox/node-error-monitoring');
   maintenance = await import('#core/maintenance.js');
   purgeProject = await import('#core/purge-project.js');
   capacityHolds = await import('#db/capacity-holds.js');
@@ -166,6 +169,19 @@ describe('runMaintenanceSweepActivity', () => {
     expect(order).toEqual([...order].sort((a = 0, b = 0) => a - b));
     expect(order.every((call) => call !== undefined)).toBe(true);
     expect(maintenance.detectAndExpireStuckJobs).toHaveBeenCalledWith({thresholdSeconds: 180});
+  });
+
+  it('reports a failed purge sweep and continues', async () => {
+    const error = new Error('database down');
+    vi.mocked(purgeProject.purgeUnfinishedDeletedProjects).mockRejectedValueOnce(error);
+
+    await activities.runMaintenanceSweepActivity({});
+
+    expect(errorMonitoring.reportError).toHaveBeenCalledWith(error, {
+      boundary: 'runners.maintenance',
+      operation: 'purge-deleted-projects',
+    });
+    expect(maintenance.detectAndExpireStuckJobs).toHaveBeenCalled();
   });
 
   it('continues past a failed GC step', async () => {

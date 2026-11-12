@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   countProjectJobExecutions,
@@ -39,7 +40,12 @@ export async function purgeUnfinishedDeletedProjects(): Promise<{purged: number}
       const {remaining} = await purgeDeletedProject(scope);
       if (remaining === 0) purged += 1;
     } catch (error) {
-      logger().warn({err: error, ...scope}, 'Failed to purge a deleted project');
+      logger().error({err: error, ...scope}, 'Failed to purge a deleted project');
+      reportError(error, {
+        boundary: 'runners.maintenance',
+        operation: 'purge-deleted-project',
+        extra: {workspaceId: scope.workspaceId, projectId: scope.projectId},
+      });
     }
   }
   return {purged};
