@@ -35,6 +35,15 @@ describe('discoverPackages', () => {
     ]);
   });
 
+  it('finds no packages below a parent directory that does not exist', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'discover-'));
+    mkdirSync(join(root, 'catalog/templates/a-one'), {recursive: true});
+
+    const packages = await discoverPackages({root, config});
+
+    expect(packages.map(({package: name}) => name)).toEqual(['shipfox/a-one']);
+  });
+
   it('rejects a directory that is not a valid package name', async () => {
     const root = mkdtempSync(join(tmpdir(), 'discover-'));
     mkdirSync(join(root, 'catalog/actions'), {recursive: true});
