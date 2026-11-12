@@ -3,7 +3,8 @@ import {type DuplicateCopy, duplicatePackageCopies} from '@shipfox/node-process-
 
 /**
  * Logs one warning per package that is installed more than once in this process. In strict mode,
- * throws when the copies of any package do not share their state.
+ * throws when any package has more than one copy. Copies that share their state slots still have
+ * their own classes, so `instanceof` fails across them.
  */
 export function reportDuplicatePackageCopies(options: {strict: boolean}): void {
   const duplicates = duplicatePackageCopies();
@@ -20,11 +21,9 @@ export function reportDuplicatePackageCopies(options: {strict: boolean}): void {
     );
   }
 
-  if (!options.strict) return;
-  const divergent = duplicates.filter((duplicate) => !duplicate.sharesState);
-  if (divergent.length === 0) return;
+  if (!options.strict || duplicates.length === 0) return;
   throw new Error(
-    `Installed copies of these packages do not share their state: ${divergent
+    `These packages are installed more than once: ${duplicates
       .map((duplicate) => `${duplicate.packageName} (${installFolders(duplicate).join(', ')})`)
       .join('; ')}`,
   );

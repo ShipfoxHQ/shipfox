@@ -146,13 +146,13 @@ const clients = createFakeInterModuleClients({
 
 ## Duplicate package copies
 
-`initializeModules` ends by reporting packages that are installed more than once in the process and keep their state with `@shipfox/node-process-state`. It logs one warning per package with the install folders and whether the copies share state. A package that keeps state in module variables is not reported.
+`initializeModules` ends by reporting packages that are installed more than once in the process and keep their state with `@shipfox/node-process-state`. It logs one warning per package with the install folders and whether the copies share state. A package that keeps state in module variables is not reported. With `SHIPFOX_STRICT_PACKAGE_COPIES=true`, any reported package fails startup.
 
 ## Environment
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `SHIPFOX_STRICT_PACKAGE_COPIES` | `false` | Fails startup when copies of a package do not share their state. Copies that share state still only warn. |
+| `SHIPFOX_STRICT_PACKAGE_COPIES` | `false` | Fails startup when a reported package is installed more than once, whether or not the copies share state. Each copy has its own classes, so `instanceof` fails across copies. |
 
 ## Development
 
