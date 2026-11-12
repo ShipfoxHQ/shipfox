@@ -110,9 +110,9 @@ parseWorkflowDocument({
 ```
 
 Integration tools are selected with an `integrations` block on an agent step.
-This package validates the shape only: non-empty selections, optional connection
-and boolean write opt-in. Catalog checks, wildcard expansion, connection lookup,
-and write-safety rules belong to later layers.
+This package validates the shape only: non-empty selections and an optional
+connection. Catalog checks, wildcard expansion, and connection lookup belong to
+later layers.
 
 ```ts
 parseWorkflowDocument({
