@@ -232,7 +232,7 @@ export const MODEL_PROVIDER_CATALOG_SEED: ModelProviderCatalogSeedDto[] = [
   supportedProvider('deepseek', 'DeepSeek', 'deepseek-v4-pro'),
   supportedProvider('nvidia', 'NVIDIA', 'nvidia/nemotron-3-ultra-550b-a55b'),
   supportedProvider('google', 'Google AI Studio', 'gemini-3.1-pro-preview'),
-  supportedProvider('mistral', 'Mistral', 'mistral-large-latest'),
+  supportedProvider('mistral', 'Mistral', 'mistral-large-4'),
   supportedProvider('groq', 'Groq', 'openai/gpt-oss-120b'),
   supportedProvider('cerebras', 'Cerebras', 'gpt-oss-120b'),
   supportedProvider(
