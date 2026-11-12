@@ -9,7 +9,7 @@ const unknownReferencePattern = /No seeded run named lint/u;
 const validCase = {
   seed: {runs: [{key: 'deploy', workflow: 'deploy.yml', status: 'failed'}]},
   turns: [{message: 'Why did this fail?', page: {page: 'run', run: 'deploy'}}],
-  expect: {tools: [{name: 'get_step_logs', args: {run_id: '$runs.deploy.id'}}]},
+  expect: {tools: ['get_step_logs'], tool_input_contains: ['$runs.deploy.id']},
 };
 
 describe('parseShippyCase', () => {
@@ -19,7 +19,10 @@ describe('parseShippyCase', () => {
     expect(parsed.modes).toEqual(['scripted']);
     expect(parsed.timeout_seconds).toBe(600);
     expect(parsed.live.model).toBe(DEFAULT_SHIPPY_LIVE_MODEL);
+    expect(parsed.k).toBe(3);
+    expect(parsed.seed.workflows).toEqual([]);
     expect(parsed.expect.tools_absent).toEqual([]);
+    expect(parsed.expect.no_new_runs).toBe(false);
     expect(parsed.expect.reply).toEqual({includes: [], excludes: []});
     expect(parsed.seed.runs[0]?.inputs).toEqual({});
   });

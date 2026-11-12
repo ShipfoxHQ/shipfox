@@ -88,6 +88,7 @@
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-triggers-dto": "workspace:*",
     "@shipfox/api-usage-dto": "workspace:*",
+    "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-driver-claap": "workspace:*",
     "@shipfox/e2e-driver-clickup": "workspace:*",

@@ -1,0 +1,7 @@
+- match: {prompt_contains: "What does the Weekly report workflow do?"}
+  replies:
+    - tool: list_workflow_definitions
+      args: {}
+    - tool: get_workflow_definition_source
+      args: {definition_id: "00000000-0000-7000-8000-000000000000"}
+    - text: "**Weekly report** has one manual trigger and one job, `report`, with a single step that collects deploy frequency and lead time for the last 7 days and uploads `report.html` to `s3://acme-weekly-reports/latest/`."

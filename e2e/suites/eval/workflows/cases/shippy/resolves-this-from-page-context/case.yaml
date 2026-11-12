@@ -1,21 +1,16 @@
 modes: [scripted, live]
 seed:
   runs:
-    - key: deploy
-      workflow: deploy.yml
-      status: failed
-    - key: lint
-      workflow: lint.yml
-      status: failed
+    - {key: preview, workflow: deploy-preview.yml, status: failed}
+    - {key: cache, workflow: cache-warmup.yml, status: failed}
 turns:
   - message: Why did this fail?
-    page: {page: run, run: lint}
+    page: {page: run, run: preview}
 expect:
-  tools:
-    - name: get_workflow_run
-      args: {run_id: $runs.lint.id}
+  tools_absent: [start_workflow_run]
+  tool_input_contains: [$runs.preview.id]
   reply:
-    includes: ["/never used|unused/i"]
-    excludes: ["/no space left on device|ENOSPC/i"]
+    includes: [certificate]
+    excludes: ["/space left|disk/i"]
 covers:
   - resolves "this" from page context

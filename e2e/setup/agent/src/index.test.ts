@@ -217,7 +217,7 @@ describe('agent e2e helper', () => {
     });
   });
 
-  it('validates error and delayed scripted replies', async () => {
+  it('validates error and held scripted replies', async () => {
     const {scriptedManagedProviderEntriesSchema} = await import('./index.js');
 
     expect(
@@ -226,8 +226,8 @@ describe('agent e2e helper', () => {
           match: {prompt_contains: 'hello'},
           replies: [
             {error: {status: 400, message: 'scripted failure'}},
-            {text: 'late', delay_ms: 1500},
-            {tool: 'list_workflow_runs', delay_ms: 0},
+            {text: 'late', hold_ms: 1500},
+            {tool: 'list_workflow_runs', hold_ms: 0},
           ],
         },
       ]).success,
@@ -239,7 +239,7 @@ describe('agent e2e helper', () => {
     ).toBe(false);
     expect(
       scriptedManagedProviderEntriesSchema.safeParse([
-        {match: {prompt_contains: 'hello'}, replies: [{text: 'late', delay_ms: -1}]},
+        {match: {prompt_contains: 'hello'}, replies: [{text: 'late', hold_ms: -1}]},
       ]).success,
     ).toBe(false);
   });

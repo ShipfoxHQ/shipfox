@@ -18,7 +18,7 @@ import {
   writeResults,
 } from './results.js';
 import type {EventSenders} from './senders.js';
-import {discoverShippyCases, executeShippyCase} from './shippy-run.js';
+import {type DiscoveredShippyCase, discoverShippyCases, executeShippyCase} from './shippy-run.js';
 
 const usage = `Usage: shipfox-eval-workflows [options]
 
@@ -35,12 +35,14 @@ Options:
                             workflow file name for the contracts suite
   --catalog <directory>     Compile the templates of a catalog directory instead of the
                             shipped ones (templates compile mode only)
-  --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
+  --repeat <count>          Number of repeats (default: 1; the case's k for onboarding
+                            and live shippy runs)
   --workers <count>         Case repeats to run at once (default: 4; scripted and live
                             template and shippy runs only)
   --max-cost-usd <amount>   Stop starting cases once the runs so far have cost this much
                             (live and onboarding runs)
-  --agent-model <model>     Model of the onboarding agent (onboarding suite only)
+  --agent-model <model>     Model of the onboarding agent, or the catalog model that
+                            answers Shippy in live mode (onboarding and shippy only)
   --simulator-model <model> Model of the simulated user (onboarding suite only)
   --help                    Show this help
 `;
@@ -104,7 +106,7 @@ function parseWorkers({
   return positiveInteger(workers, '--workers');
 }
 
-// Template cases run each template's own anchor models, so only onboarding takes a model.
+// Template cases run each template's own anchor models, so only onboarding and Shippy take one.
 function applyModelOptions({
   options,
   agentModel,
@@ -115,8 +117,11 @@ function applyModelOptions({
   simulatorModel: string | undefined;
 }): void {
   if (agentModel === undefined && simulatorModel === undefined) return;
-  if (options.suite !== 'onboarding') {
-    throw new Error('--agent-model and --simulator-model apply to --suite onboarding only');
+  if (simulatorModel !== undefined && options.suite !== 'onboarding') {
+    throw new Error('--simulator-model applies to --suite onboarding only');
+  }
+  if (options.suite !== 'onboarding' && options.suite !== 'shippy') {
+    throw new Error('--agent-model applies to --suite onboarding and shippy only');
   }
   if (agentModel !== undefined) options.agentModel = agentModel;
   if (simulatorModel !== undefined) options.simulatorModel = simulatorModel;
@@ -249,12 +254,22 @@ export async function runShippyEval(
     await preflightCheck({requireClient: false});
     const workDirectory = join(cwd, '.eval-run', runId);
     execute = ({discovered: entry, repeat}) =>
-      executeShippyCase({discovered: entry, mode, repeat, workDirectory});
+      executeShippyCase({
+        discovered: entry,
+        mode,
+        repeat,
+        workDirectory,
+        model: options.agentModel,
+      });
   }
-  return writeResults({
+  // A scripted conversation is deterministic, so it runs once unless asked otherwise.
+  return writeResults<DiscoveredShippyCase>({
     cases: discovered,
     mode,
     repeat: options.repeat ?? 1,
+    ...(options.repeat === undefined && mode === 'live'
+      ? {repeatsOf: (entry) => entry.definition.k}
+      : {}),
     execute,
     runId,
     maxCostUsd: options.maxCostUsd,

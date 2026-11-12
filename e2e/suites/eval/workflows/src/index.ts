@@ -89,7 +89,6 @@ export {
 } from './schema.js';
 export type {EventSender, EventSenderContext, EventSenders} from './senders.js';
 export {
-  argsMatch,
   type ConversationToolCall,
   type ConversationTurnRecord,
   gradeShippyConversation,
@@ -120,6 +119,7 @@ export {
 } from './shippy-schema.js';
 export {
   arrangeShippyWorkspace,
+  listRunIds,
   pageContextFor,
   type SeededRun,
   type ShippyWorkspace,

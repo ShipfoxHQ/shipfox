@@ -134,8 +134,8 @@ interface ScriptedReply {
   args?: Record<string, unknown>;
   /** A provider failure served instead of a message, so a turn fails on purpose. */
   error?: {status: number; message: string};
-  /** How long the reply takes to arrive, so a test can act while a turn is still running. */
-  delay_ms?: number;
+  /** Holds a streamed reply open after its text, so a test can stop the turn mid-reply. */
+  hold_ms?: number;
 }
 
 interface ScriptedEntry {
@@ -431,13 +431,13 @@ function parseScriptReply(value: unknown): ScriptedReply {
   if (!isRecord(value)) {
     throw new ClientError('Invalid scripted provider reply', 'invalid-script', {status: 400});
   }
-  const delay = parseScriptDelay(value.delay_ms);
-  if (typeof value.text === 'string') return {text: value.text, ...delay};
+  const hold = parseScriptHold(value.hold_ms);
+  if (typeof value.text === 'string') return {text: value.text, ...hold};
   if (typeof value.tool === 'string') {
     return {
       tool: value.tool,
       args: isRecord(value.args) ? value.args : {},
-      ...delay,
+      ...hold,
     };
   }
   if (isRecord(value.error)) {
@@ -455,25 +455,25 @@ function parseScriptReply(value: unknown): ScriptedReply {
         {status: 400},
       );
     }
-    return {error: {status, message}, ...delay};
+    return {error: {status, message}};
   }
   throw new ClientError('A scripted provider reply needs text, tool, or error', 'invalid-script', {
     status: 400,
   });
 }
 
-function parseScriptDelay(value: unknown): Pick<ScriptedReply, 'delay_ms'> {
+function parseScriptHold(value: unknown): Pick<ScriptedReply, 'hold_ms'> {
   if (value === undefined) return {};
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
     throw new ClientError(
-      'A scripted provider delay must be a non-negative integer',
+      'A scripted provider hold must be a non-negative integer',
       'invalid-script',
       {
         status: 400,
       },
     );
   }
-  return {delay_ms: value};
+  return {hold_ms: value};
 }
 
 /**
@@ -873,7 +873,6 @@ async function respondWithScriptedOpenAiCompletion(
   });
 
   if (replyDefinition.error !== undefined) {
-    if (replyDefinition.delay_ms) await sleep(replyDefinition.delay_ms);
     return reply.code(replyDefinition.error.status).send({
       error: {message: replyDefinition.error.message, type: 'scripted_error'},
     });
@@ -886,10 +885,10 @@ async function respondWithScriptedOpenAiCompletion(
     subjectId: subjectKey(credentialState.subject),
   });
   if (!bodyBoolean(body, 'stream')) {
-    if (replyDefinition.delay_ms) await sleep(replyDefinition.delay_ms);
+    if (replyDefinition.hold_ms) await sleep(replyDefinition.hold_ms);
     return reply.send(completion);
   }
-  return streamScriptedCompletion({reply, model, completion, delayMs: replyDefinition.delay_ms});
+  return streamScriptedCompletion({reply, model, completion, holdMs: replyDefinition.hold_ms});
 }
 
 function respondWithScriptSurprise(params: {
@@ -924,24 +923,14 @@ async function streamScriptedCompletion(params: {
   reply: ScriptedReplyTarget;
   model: string;
   completion: ReturnType<typeof scriptedCompletion>;
-  delayMs: number | undefined;
+  holdMs: number | undefined;
 }): Promise<unknown> {
-  const {reply, model, completion, delayMs} = params;
+  const {reply, model, completion, holdMs} = params;
   reply.hijack();
   reply.raw.writeHead(200, {
     'cache-control': 'no-cache',
     'content-type': 'text/event-stream; charset=utf-8',
   });
-  // The headers go out at once, so the caller sees a reply in progress. A caller that stops the
-  // turn closes the socket during the delay, and nothing more is written to it.
-  if (delayMs) {
-    let closed = false;
-    reply.raw.on('close', () => {
-      closed = true;
-    });
-    await sleep(delayMs);
-    if (closed) return undefined;
-  }
   const base = {
     id: completion.id,
     object: 'chat.completion.chunk' as const,
@@ -949,46 +938,29 @@ async function streamScriptedCompletion(params: {
     model,
   };
   const message = completion.choices[0]?.message;
-  if (message !== undefined && 'tool_calls' in message) {
-    reply.raw.write(
-      `data: ${JSON.stringify({
-        ...base,
-        choices: [
-          {
-            index: 0,
-            delta: {
-              ...message,
-              tool_calls: message.tool_calls.map((toolCall, index) => ({...toolCall, index})),
-            },
-            finish_reason: null,
-          },
-        ],
-      })}\n\n`,
-    );
-    reply.raw.write(
-      `data: ${JSON.stringify({
-        ...base,
-        choices: [{index: 0, delta: {}, finish_reason: 'tool_calls'}],
-      })}\n\n`,
-    );
-    return reply.raw.end('data: [DONE]\n\n');
+  const toolCalls =
+    message !== undefined && 'tool_calls' in message ? message.tool_calls : undefined;
+  const toolCall = toolCalls !== undefined;
+  const delta = toolCall
+    ? {...message, tool_calls: toolCalls.map((call, index) => ({...call, index}))}
+    : {role: 'assistant', content: message?.content ?? ''};
+  reply.raw.write(
+    `data: ${JSON.stringify({...base, choices: [{index: 0, delta, finish_reason: null}]})}\n\n`,
+  );
+  // The text is out, and the stream stays open for the hold. A caller that stops the turn
+  // closes the socket during it, and nothing more is written.
+  if (holdMs) {
+    let closed = false;
+    reply.raw.on('close', () => {
+      closed = true;
+    });
+    await sleep(holdMs);
+    if (closed) return undefined;
   }
   reply.raw.write(
     `data: ${JSON.stringify({
       ...base,
-      choices: [
-        {
-          index: 0,
-          delta: {role: 'assistant', content: message?.content ?? ''},
-          finish_reason: null,
-        },
-      ],
-    })}\n\n`,
-  );
-  reply.raw.write(
-    `data: ${JSON.stringify({
-      ...base,
-      choices: [{index: 0, delta: {}, finish_reason: 'stop'}],
+      choices: [{index: 0, delta: {}, finish_reason: toolCall ? 'tool_calls' : 'stop'}],
     })}\n\n`,
   );
   return reply.raw.end('data: [DONE]\n\n');

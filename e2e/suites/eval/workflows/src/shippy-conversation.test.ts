@@ -107,8 +107,8 @@ describe('summarizeTurn', () => {
       failure_code: null,
       reply: 'Out of disk.',
       tool_calls: [
-        {name: 'get_step_logs', args: {run_id: 'run-1'}},
-        {name: 'search_docs', args: {}},
+        {name: 'get_step_logs', input: '{"run_id":"run-1"}'},
+        {name: 'search_docs', input: 'not json'},
       ],
     });
   });

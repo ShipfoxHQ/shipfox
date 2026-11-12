@@ -400,8 +400,11 @@ A case with agent steps puts their model replies in `scripted.yaml`, next to
 managed provider for the case's project, and refuses a case with agent steps
 but no script. Each entry has a `match` with
 `prompt_contains` and a list of `replies`, each a `text` or a `tool` call with
-`args`. A step attempt's first request picks the first entry whose text it
-contains. So an entry that continues a shared session goes before the entry
+`args`. A `text` or `tool` reply can carry a `hold_ms`, which keeps the
+streamed reply open after its text, so a test can stop the turn mid-reply. An
+`error` reply with a `status` from 400 to 599 and a `message` fails that one
+request, so a test can retry the turn and get the next reply. A step attempt's
+first request picks the first entry whose text it contains. So an entry that continues a shared session goes before the entry
 that started it. Each later request of that attempt reads the entry's next
 reply. A pi step with declared outputs ends once it sets every output, and one
 without outputs ends at a `text` reply. An integration tool's name is
@@ -499,24 +502,33 @@ its [cases README](suites/contracts/integrations/cases/README.md) explains how.
 
 The Shippy suite drives the project agent through web conversations, the way
 the chat panel does. Each case in `cases/shippy/` arranges a workspace and a
-project of its own, fires the runs it seeds through a local runner, then sends
-its `turns` one at a time through the conversation API and waits for each
-reply. A turn's `page` names the page the user is on, such as a seeded run, and
-the harness sends the page context the client would. The case's `expect` is
-checked without a judge: the `tools` the conversation must have called, with an
-optional subset of their arguments, the `tools_absent` it must not have called,
-and `includes` and `excludes` patterns on the last reply, as substrings or
-`/regular expressions/i`. `$runs.<key>.id` resolves to a seeded run anywhere in
-`expect` and in `scripted.yaml`. Scripted mode registers the case's
-`scripted.yaml` as the project's model replies, which proves the harness and the
-graders, and `test:e2e` runs it. Live mode sends the same turns to OpenRouter;
-`live.model` picks the catalog model, and a conversation runs on the workspace
+project of its own, creates the workflows it seeds through a local runner and
+fires the runs among them to the status each one names, then sends its `turns`
+one at a time through the conversation API and waits for each reply. A turn's
+`page` names the page the user is on, such as a seeded run, and the harness
+sends the page context the client would. The case's `expect` is checked
+without a judge:
+
+| Field | Check |
+| --- | --- |
+| `tools` | The conversation called each tool at least once. |
+| `tools_absent` | The conversation never called the tool. |
+| `tool_input_contains` | Some tool call's arguments contain the text. |
+| `reply.includes`, `reply.excludes` | The last reply matches, or doesn't match, each pattern: a substring, or a `/regular expression/i`. |
+| `no_new_runs` | No run started in the project during the conversation. |
+
+`$runs.<key>.id` resolves to a seeded run anywhere in `expect` and in
+`scripted.yaml`. Scripted mode registers the case's `scripted.yaml` as the
+project's model replies, which proves the harness and the graders, and
+`test:e2e` runs it once per case. Live mode sends the same turns to OpenRouter
+`k` times, 3 by default, unless `--repeat` is set. The case's `live.model`, or
+`--agent-model`, picks the catalog model. A conversation runs on the workspace
 default, so the harness registers that model to serve it. The result carries
 the conversation, turn by turn, and each check.
 
 ```sh
 mise run evals -- --suite shippy --mode scripted
-E2E_OPENROUTER_API_KEY=<key> mise run evals -- --suite shippy --mode live --repeat 3
+E2E_OPENROUTER_API_KEY=<key> mise run evals -- --suite shippy --mode live --agent-model gpt-6-luna
 ```
 
 The onboarding suite drives a real Claude Agent SDK session against the stack.
@@ -619,8 +631,8 @@ suite, and the onboarding suite every night, and on dispatch. A dispatch takes
 the suite (`templates`, `shippy`, `onboarding`, or `all`), a case filter, a
 repeat count, the onboarding models, and `max_cost_usd`, which defaults to 10
 and goes to `--max-cost-usd` on every suite, so a run of all suites can spend
-three times that. Without a repeat count, templates and Shippy cases run 3
-times and each onboarding case runs its own `k`. A pull request from this repository that gets the
+three times that. Without a repeat count, templates run 3 times and each
+onboarding and Shippy case runs its own `k`. A pull request from this repository that gets the
 `onboarding-evals` label runs the onboarding suite, and a new label event
 replaces the previous run for that pull request. Each run posts every
 `summary.md` to the job summary and uploads `results/` as the

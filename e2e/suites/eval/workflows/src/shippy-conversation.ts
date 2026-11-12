@@ -110,17 +110,6 @@ export async function listConversationItems({
   }
 }
 
-function parseArgs(input: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(input);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
-}
-
 /** The reply and the tool calls of one turn, read from its items. */
 export function summarizeTurn({
   items,
@@ -142,7 +131,7 @@ export function summarizeTurn({
     row.kind === 'message' && row.role === 'assistant' && row.text.trim() ? [row.text] : [],
   );
   const toolCalls = rows.flatMap((row) =>
-    row.kind === 'tool-call' ? [{name: row.name, args: parseArgs(row.input)}] : [],
+    row.kind === 'tool-call' ? [{name: row.name, input: row.input}] : [],
   );
   return {
     message,

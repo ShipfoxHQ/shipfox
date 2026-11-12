@@ -70,6 +70,8 @@ export interface WriteResultsOptions<Case extends {id: string}> {
   maxCostUsd?: number | undefined;
   /** How many case repeats run at once (default 1). */
   workers?: number | undefined;
+  /** Repeats of one case, in place of `repeat`, for cases that carry their own count. */
+  repeatsOf?: ((discoveredCase: Case) => number) | undefined;
   resultsDirectory?: string;
   runId?: string;
 }
@@ -173,7 +175,10 @@ export async function writeResults<Case extends {id: string}>(
   const runId = options.runId ?? createRunId();
   const directory = join(options.resultsDirectory ?? 'results', runId);
   const jobs = options.cases.flatMap((discoveredCase) =>
-    Array.from({length: options.repeat}, (_, index) => ({discoveredCase, repeat: index + 1})),
+    Array.from({length: options.repeatsOf?.(discoveredCase) ?? options.repeat}, (_, index) => ({
+      discoveredCase,
+      repeat: index + 1,
+    })),
   );
   // Results land in the order the case repeats finish. The slots keep the summary in case order.
   const slots: Array<CaseResult | undefined> = jobs.map(() => undefined);

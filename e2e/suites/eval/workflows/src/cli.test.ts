@@ -2,6 +2,7 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseEvalArgs} from './cli.js';
 
 const onboardingOnlyPattern = /onboarding only/u;
+const agentModelPattern = /onboarding and shippy only/u;
 const workersPattern = /--workers applies to scripted and live template and shippy runs only/u;
 const positivePattern = /--workers must be a positive integer/u;
 const compilePattern = /compile applies to --suite templates and contracts only/u;
@@ -24,7 +25,16 @@ describe('model options', () => {
   it('rejects a model for the templates suite, which uses each template anchor model', () => {
     expect(() =>
       parseEvalArgs(['--suite', 'templates', '--agent-model', 'claude-opus-5-5']),
-    ).toThrow(onboardingOnlyPattern);
+    ).toThrow(agentModelPattern);
+  });
+
+  it('takes an agent model for the shippy suite, but no simulator model', () => {
+    expect(parseEvalArgs(['--suite', 'shippy', '--agent-model', 'gpt-6-luna']).agentModel).toBe(
+      'gpt-6-luna',
+    );
+    expect(() => parseEvalArgs(['--suite', 'shippy', '--simulator-model', 'x'])).toThrow(
+      onboardingOnlyPattern,
+    );
   });
 });
 

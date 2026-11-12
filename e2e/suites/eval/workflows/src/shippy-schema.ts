@@ -36,23 +36,17 @@ const turnSchema = z
   })
   .strict();
 
-const toolExpectationSchema = z
-  .object({
-    name: z.string().min(1),
-    /** A subset of the call's arguments. `$runs.<key>.id` resolves to a seeded run. */
-    args: z.record(z.string(), z.unknown()).optional(),
-  })
-  .strict();
-
 // A pattern is a substring, or a regular expression between slashes with flags, as `/enospc/i`.
 const patternSchema = z.string().min(1);
 
 const expectSchema = z
   .object({
-    /** Calls the conversation must have made, in any order. */
-    tools: z.array(toolExpectationSchema).default([]),
+    /** Tools the conversation must have called, in any order. */
+    tools: z.array(z.string().min(1)).default([]),
     /** Tools the conversation must not have called. */
     tools_absent: z.array(z.string().min(1)).default([]),
+    /** Text some tool call's arguments must contain. `$runs.<key>.id` resolves to a seeded run. */
+    tool_input_contains: z.array(z.string().min(1)).default([]),
     /** Checks on the last reply of the last turn. */
     reply: z
       .object({
@@ -61,6 +55,8 @@ const expectSchema = z
       })
       .strict()
       .default({includes: [], excludes: []}),
+    /** No run starts in the project during the conversation. */
+    no_new_runs: z.boolean().default(false),
   })
   .strict();
 
@@ -72,9 +68,15 @@ export const shippyCaseSchema = z
       .default(['scripted']),
     timeout_seconds: z.number().int().positive().default(600),
     seed: z
-      .object({runs: z.array(seedRunSchema).default([])})
+      .object({
+        /** Workflow files next to `case.yaml` that exist without a run, for the agent to find. */
+        workflows: z.array(z.string().min(1)).default([]),
+        runs: z.array(seedRunSchema).default([]),
+      })
       .strict()
-      .default({runs: []}),
+      .default({workflows: [], runs: []}),
+    /** Repeats of the case in live mode, unless `--repeat` is set. Scripted mode runs once. */
+    k: z.number().int().positive().default(3),
     turns: z.array(turnSchema).min(1),
     expect: expectSchema,
     live: z

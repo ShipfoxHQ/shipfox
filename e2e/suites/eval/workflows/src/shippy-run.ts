@@ -20,7 +20,12 @@ import {
   waitForTurnEnd,
 } from './shippy-conversation.js';
 import {loadShippyCase, resolveRunReferences, type ShippyCase} from './shippy-schema.js';
-import {arrangeShippyWorkspace, pageContextFor, type ShippyWorkspace} from './shippy-workspace.js';
+import {
+  arrangeShippyWorkspace,
+  listRunIds,
+  pageContextFor,
+  type ShippyWorkspace,
+} from './shippy-workspace.js';
 
 const defaultCasesRoot = fileURLToPath(new URL('../cases/shippy/', import.meta.url));
 const RUNNER_LOG_TAIL_LINES = 200;
@@ -58,6 +63,8 @@ export interface ExecuteShippyCaseOptions {
   repeat: number;
   /** Runner logs and workspaces go below this directory. */
   workDirectory: string;
+  /** Live mode: replaces the case's `live.model`. */
+  model?: string | undefined;
 }
 
 /** Points the project's model calls at the script, or at OpenRouter for a live run. */
@@ -72,7 +79,7 @@ async function registerModelBackend({
   if (mode === 'live') {
     await registerOpenRouterManagedProvider({
       projectId: workspace.projectId,
-      defaultModel: discovered.definition.live.model,
+      defaultModel: options.model ?? discovered.definition.live.model,
     });
     return;
   }
@@ -199,16 +206,19 @@ export async function executeShippyCase(options: ExecuteShippyCaseOptions): Prom
     if (workspace.runner !== undefined) result.runner_log = workspace.runner.logFile;
     await registerModelBackend({options, workspace});
 
+    const runsBefore = new Set(await listRunIds(workspace));
     const conversation = await driveConversation({
       shippyCase,
       workspace,
       deadline: startedAt + shippyCase.timeout_seconds * 1_000,
     });
     result.conversation = {id: conversation.conversationId, turns: conversation.turns};
+    const newRunIds = (await listRunIds(workspace)).filter((runId) => !runsBefore.has(runId));
 
     const grade = gradeShippyConversation({
       expect: resolveRunReferences(shippyCase.expect, workspace.runs),
       turns: conversation.turns,
+      newRunIds,
     });
     result.checks = grade.checks;
     const failures = grade.checks

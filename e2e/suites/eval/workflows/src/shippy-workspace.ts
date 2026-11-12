@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {PageContextDto} from '@shipfox/api-agent-dto';
+import type {WorkflowRunListResponseDto} from '@shipfox/api-workflows-dto';
 import {createApiClient} from '@shipfox/e2e-core';
 import {type WorkflowRunObservation, waitForRunTerminal} from '@shipfox/e2e-observe-workflows';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
@@ -66,7 +67,7 @@ export async function arrangeShippyWorkspace({
     runner: undefined,
     runs: new Map(),
   };
-  if (shippyCase.seed.runs.length === 0) return arranged;
+  if (shippyCase.seed.runs.length === 0 && shippyCase.seed.workflows.length === 0) return arranged;
 
   arranged.runner = await startCaseRunner({
     workspaceId: workspace.id,
@@ -75,10 +76,31 @@ export async function arrangeShippyWorkspace({
     workDirectory,
     cleanups,
   });
+  for (const file of shippyCase.seed.workflows) {
+    await createDefinition({
+      client,
+      projectId: project.id,
+      yaml: setRunnerLabel({
+        yaml: await readFile(join(caseDirectory, file), 'utf8'),
+        label: arranged.runner.label,
+      }),
+    });
+  }
   for (const seed of shippyCase.seed.runs) {
     arranged.runs.set(seed.key, await seedRun({arranged, seed, caseDirectory}));
   }
   return arranged;
+}
+
+/** The ids of every run in the project, so a case can tell which ones the conversation started. */
+export async function listRunIds(
+  workspace: Pick<ShippyWorkspace, 'client' | 'projectId'>,
+): Promise<string[]> {
+  const page = await workspace.client.requestJson<WorkflowRunListResponseDto>(
+    'get',
+    `/workflows/runs?project_id=${workspace.projectId}&limit=100`,
+  );
+  return page.runs.map((run) => run.id);
 }
 
 /** Fires one seeded run and waits for it to end as the case says it must. */

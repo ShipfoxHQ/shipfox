@@ -336,7 +336,7 @@ describe('E2E managed inference fixture', () => {
     ).toEqual([true, false, true]);
   });
 
-  it('serves scripted error and delayed replies to a conversation', async () => {
+  it('serves scripted error and held replies to a conversation', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
     const app = await createApp({
@@ -355,7 +355,7 @@ describe('E2E managed inference fixture', () => {
             match: {prompt_contains: 'hello'},
             replies: [
               {error: {status: 400, message: 'scripted provider failure'}},
-              {text: 'Recovered.', delay_ms: 20},
+              {text: 'Recovered.', hold_ms: 20},
             ],
           },
         ],
@@ -411,7 +411,7 @@ describe('E2E managed inference fixture', () => {
     ).toEqual(['error:400', 'Recovered.']);
   });
 
-  it('rejects scripted replies with an invalid error or delay', async () => {
+  it('rejects scripted replies with an invalid error or hold', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
     const app = await createApp({
@@ -431,9 +431,9 @@ describe('E2E managed inference fixture', () => {
       });
 
     expect((await register({error: {status: 200, message: 'not an error'}})).statusCode).toBe(400);
-    expect((await register({text: 'late', delay_ms: -1})).statusCode).toBe(400);
-    expect((await register({text: 'late', delay_ms: 1.5})).statusCode).toBe(400);
-    expect((await register({text: 'late', delay_ms: 10})).statusCode).toBe(201);
+    expect((await register({text: 'late', hold_ms: -1})).statusCode).toBe(400);
+    expect((await register({text: 'late', hold_ms: 1.5})).statusCode).toBe(400);
+    expect((await register({text: 'late', hold_ms: 10})).statusCode).toBe(201);
   });
 
   it('registers an OpenRouter default model only for a mapped catalog model', async () => {

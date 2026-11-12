@@ -2,7 +2,8 @@ import type {ShippyExpect} from './shippy-schema.js';
 
 export interface ConversationToolCall {
   name: string;
-  args: Record<string, unknown>;
+  /** The arguments as the model sent them, JSON-encoded. */
+  input: string;
 }
 
 /** One human message and what the agent did with it. */
@@ -35,42 +36,30 @@ export function matchesPattern(text: string, pattern: string): boolean {
   return new RegExp(match[1] ?? '', match[2]).test(text);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** Every expected key must equal the actual value, and nested objects are compared the same way. */
-export function argsMatch(
-  expected: Record<string, unknown>,
-  actual: Record<string, unknown>,
-): boolean {
-  return Object.entries(expected).every(([key, value]) => {
-    const found = actual[key];
-    if (isRecord(value)) return isRecord(found) && argsMatch(value, found);
-    return JSON.stringify(found) === JSON.stringify(value);
-  });
-}
-
 function check(id: string, passed: boolean, detail?: string): ShippyCheck {
   return {id, passed, ...(passed || detail === undefined ? {} : {detail})};
 }
 
 function describeCalls(calls: ConversationToolCall[]): string {
   if (calls.length === 0) return 'no tool was called';
-  return `called ${calls.map((call) => `${call.name}(${JSON.stringify(call.args)})`).join(', ')}`;
+  return `called ${calls.map((call) => `${call.name}(${call.input})`).join(', ')}`;
 }
 
 /**
  * Checks a finished conversation against the case's expectations. Every turn must succeed, the
- * expected tools must have been called with the given arguments, the forbidden ones never, and
- * the last reply must match its patterns.
+ * expected tools must have been called and the forbidden ones never, some call must carry each
+ * expected input, the last reply must match its patterns, and no run may have started unless
+ * the case allows it.
  */
 export function gradeShippyConversation({
   expect,
   turns,
+  newRunIds = [],
 }: {
   expect: ShippyExpect;
   turns: ConversationTurnRecord[];
+  /** Runs that started in the project while the conversation ran. */
+  newRunIds?: readonly string[];
 }): ShippyGrade {
   const checks: ShippyCheck[] = turns.map((turn, index) =>
     check(
@@ -80,16 +69,9 @@ export function gradeShippyConversation({
     ),
   );
   const calls = turns.flatMap((turn) => turn.tool_calls);
-  for (const tool of expect.tools) {
-    const matched = calls.some(
-      (call) =>
-        call.name === tool.name && (tool.args === undefined || argsMatch(tool.args, call.args)),
-    );
-    const wanted =
-      tool.args === undefined ? tool.name : `${tool.name}(${JSON.stringify(tool.args)})`;
-    checks.push(
-      check(`tool:${tool.name}`, matched, `${wanted} was not called; ${describeCalls(calls)}`),
-    );
+  for (const name of expect.tools) {
+    const called = calls.some((call) => call.name === name);
+    checks.push(check(`tool:${name}`, called, `${name} was not called; ${describeCalls(calls)}`));
   }
   for (const name of expect.tools_absent) {
     const called = calls.filter((call) => call.name === name);
@@ -101,6 +83,10 @@ export function gradeShippyConversation({
       ),
     );
   }
+  for (const text of expect.tool_input_contains) {
+    const found = calls.some((call) => call.input.includes(text));
+    checks.push(check(`tool_input:${text}`, found, `no call carried it; ${describeCalls(calls)}`));
+  }
   const reply = turns.at(-1)?.reply ?? '';
   for (const pattern of expect.reply.includes) {
     checks.push(
@@ -111,6 +97,9 @@ export function gradeShippyConversation({
     checks.push(
       check(`reply.excludes:${pattern}`, !matchesPattern(reply, pattern), `reply: ${reply}`),
     );
+  }
+  if (expect.no_new_runs) {
+    checks.push(check('no_new_runs', newRunIds.length === 0, `started ${newRunIds.join(', ')}`));
   }
   return {checks, passed: checks.every((entry) => entry.passed)};
 }

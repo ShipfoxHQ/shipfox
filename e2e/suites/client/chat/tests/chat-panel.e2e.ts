@@ -3,7 +3,7 @@ import {scriptProject, waitForTurn} from './fixtures.js';
 import {expect, test} from './test.js';
 
 const REPLY_TIMEOUT_MS = 60_000;
-const STOP_DELAY_MS = 20_000;
+const STOP_HOLD_MS = 60_000;
 const LIST_RUNS_ROW = /list workflow runs/iu;
 
 test.describe('Shippy chat panel', () => {
@@ -60,23 +60,25 @@ test.describe('Shippy chat panel', () => {
     ]);
   });
 
-  test('stops a reply that is still running', async ({chatPanel, createReadyWorkspace}) => {
+  test('stops a reply and keeps its partial text', async ({chatPanel, createReadyWorkspace}) => {
     const workspace = await createReadyWorkspace({name: 'Chat Stop Workspace'});
     await scriptProject(workspace, [
       {
         match: {prompt_contains: 'Take your time'},
-        replies: [{text: 'This reply never arrives.', delay_ms: STOP_DELAY_MS}],
+        replies: [{text: 'Reading the run now.', hold_ms: STOP_HOLD_MS}],
       },
     ]);
 
     await chatPanel.gotoRuns(workspace.workspaceSlug, workspace.projectSlug);
     await chatPanel.open();
     await chatPanel.send('Take your time');
-    await expect(chatPanel.stopButton()).toBeVisible({timeout: REPLY_TIMEOUT_MS});
+    await expect(chatPanel.message('Reading the run now.')).toBeVisible({
+      timeout: REPLY_TIMEOUT_MS,
+    });
     await chatPanel.stopButton().click();
 
     await expect(chatPanel.stoppedMarker()).toBeVisible({timeout: REPLY_TIMEOUT_MS});
-    await expect(chatPanel.message('This reply never arrives.')).toHaveCount(0);
+    await expect(chatPanel.message('Reading the run now.')).toBeVisible();
     const conversation = await waitForTurn(workspace, ['stopped']);
     expect(conversation.active_turn).toBeNull();
     await expect(chatPanel.composer()).toBeEnabled();

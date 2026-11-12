@@ -1,16 +1,15 @@
 modes: [scripted, live]
 seed:
   runs:
-    - key: deploy
-      workflow: deploy.yml
-      status: failed
+    - {key: install, workflow: install-dependencies.yml, status: failed}
 turns:
   - message: Why did this run fail?
-    page: {page: run, run: deploy}
+    page: {page: run, run: install}
 expect:
-  tools:
-    - name: get_step_logs
+  tools: [get_step_logs]
+  tools_absent: [start_workflow_run]
   reply:
-    includes: ["/no space left on device|ENOSPC/i"]
+    includes: [billing-client]
+    excludes: ["/time ?out/i", "/left-pad/i"]
 covers:
   - names the real cause of a seeded failure

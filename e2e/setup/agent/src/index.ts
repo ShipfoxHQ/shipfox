@@ -153,23 +153,22 @@ export interface DeleteModelProviderConfigParams {
   providerId: ModelProviderRef;
 }
 
-/** How long the provider waits before it answers, so a test can act while a turn is running. */
-const scriptedManagedProviderDelaySchema = z.number().int().nonnegative().optional();
+/** How long a streamed reply stays open after its text, so a test can stop the turn mid-reply. */
+const scriptedManagedProviderHoldSchema = z.number().int().nonnegative().optional();
 
 const scriptedManagedProviderReplySchema = z.union([
-  z.object({text: z.string(), delay_ms: scriptedManagedProviderDelaySchema}).strict(),
+  z.object({text: z.string(), hold_ms: scriptedManagedProviderHoldSchema}).strict(),
   z
     .object({
       tool: z.string().min(1),
       args: z.record(z.string(), z.unknown()).optional(),
-      delay_ms: scriptedManagedProviderDelaySchema,
+      hold_ms: scriptedManagedProviderHoldSchema,
     })
     .strict(),
   // A provider failure in place of a message, so the turn it answers fails on purpose.
   z
     .object({
       error: z.object({status: z.number().int().min(400).max(599), message: z.string()}).strict(),
-      delay_ms: scriptedManagedProviderDelaySchema,
     })
     .strict(),
 ]);

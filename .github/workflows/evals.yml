@@ -24,12 +24,12 @@ on:
         default: ""
         type: string
       repeat:
-        description: Repeats per case. Empty runs 3 for templates and shippy, and each onboarding case's own k.
+        description: Repeats per case. Empty runs 3 for templates and each onboarding and Shippy case's own k.
         required: false
         default: ""
         type: string
       agent_model:
-        description: Model of the onboarding agent. Empty uses the runner default.
+        description: Model of the onboarding agent, or the catalog model that answers Shippy. Empty uses the runner default.
         required: false
         default: ""
         type: string
@@ -142,15 +142,18 @@ jobs:
           if [[ -z "$LANGFUSE_BASE_URL" ]]; then unset LANGFUSE_BASE_URL; fi
 
           args=(--suite "$SUITE" --max-cost-usd "$MAX_COST_USD")
-          if [[ "$SUITE" == "templates" || "$SUITE" == "shippy" ]]; then
+          if [[ "$SUITE" == "templates" ]]; then
             args+=(--mode live --repeat "${REPEAT:-3}")
-          elif [[ -n "$REPEAT" ]]; then
-            args+=(--repeat "$REPEAT")
+          elif [[ "$SUITE" == "shippy" ]]; then
+            args+=(--mode live)
           fi
+          if [[ "$SUITE" != "templates" && -n "$REPEAT" ]]; then args+=(--repeat "$REPEAT"); fi
           if [[ -n "$CASE_FILTER" ]]; then args+=(--case "$CASE_FILTER"); fi
-          if [[ "$SUITE" == "onboarding" ]]; then
+          if [[ "$SUITE" == "onboarding" || "$SUITE" == "shippy" ]]; then
             if [[ -n "$AGENT_MODEL" ]]; then args+=(--agent-model "$AGENT_MODEL"); fi
-            if [[ -n "$SIMULATOR_MODEL" ]]; then args+=(--simulator-model "$SIMULATOR_MODEL"); fi
+          fi
+          if [[ "$SUITE" == "onboarding" && -n "$SIMULATOR_MODEL" ]]; then
+            args+=(--simulator-model "$SIMULATOR_MODEL")
           fi
           mise run evals -- "${args[@]}"
 

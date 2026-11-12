@@ -9,6 +9,6 @@ jobs:
     steps:
       - key: upload
         run: |
-          echo "Uploading the preview bundle"
-          echo "Error: ENOSPC: no space left on device, write '/tmp/artifacts/bundle.js'"
+          echo "Connecting to preview.acme.dev:443"
+          echo "Error: TLS handshake failed: x509: certificate has expired (not after 2026-10-31T23:59:59Z)"
           exit 1
