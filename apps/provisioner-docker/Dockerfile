@@ -2,9 +2,8 @@
 
 # "Build outside Docker, ingest dist": `shipfox-docker --setup-context` prunes
 # the workspace and overlays the turbo-cached dist/. The build stage installs
-# the pruned workspace and runs `pnpm deploy` to extract the provisioner's
-# production dependency closure into a self-contained tree; the runtime stage
-# ships only that, so Docker never compiles TypeScript.
+# the provisioner's production dependency closure into the pruned workspace and
+# the runtime stage ships that workspace. Docker never compiles TypeScript.
 
 ARG NODE_VERSION=24.16.0
 ARG PNPM_VERSION=11.6.0
@@ -17,18 +16,26 @@ WORKDIR /app
 
 FROM base AS build
 # Manifests + lockfile first (out/full carries the source but not the lockfile).
+# The frozen install keeps the image on the graph pnpm-lock.yaml records, with one
+# installed copy of each workspace package. `pnpm deploy` would resolve workspace
+# packages and their peers again, which can give a package a second copy with its
+# own classes and module state. --filter-prod limits the install to @shipfox/provisioner-docker's
+# production closure, so the dev-only tools/* workspace packages get no
+# node_modules.
 COPY out/json/ ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod --filter-prod=@shipfox/provisioner-docker... \
+      --store-dir=/pnpm/store
+# The built workspace packages, with manifests whose imports point at dist/.
 COPY out/full/ ./
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --store-dir=/pnpm/store
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm --filter=@shipfox/provisioner-docker deploy --prod --legacy \
-      --store-dir=/pnpm/store --config.strict-peer-dependencies=false /prod
 
 FROM base AS runtime
 ENV NODE_ENV=production
 
-COPY --from=build /prod ./
+COPY --from=build /app ./
+# Node resolves the app's dependencies, and any --import specifier, from the
+# app package, so run from there rather than the workspace root.
+WORKDIR /app/apps/provisioner-docker
 
 # The Docker provisioner usually talks to a mounted Docker socket. Running as root
 # avoids requiring deployments to align the container user with the host socket's

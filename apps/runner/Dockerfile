@@ -119,8 +119,9 @@ COPY --from=build --chmod=0755 /app/apps/runner/docker-entrypoint.sh /usr/local/
 
 # Verify the production dependency closure contains every Pi extension entry, the
 # WASM-backed SVG image-preparation assets, the renewable credential helpers, and
-# the bundled Claude Code binary before the image can be published. This runs
-# against the deployed flat layout, not the pnpm development tree.
+# the bundled Claude Code binary before the image can be published, and that the
+# deploy installed one copy of each @shipfox package. This runs against the
+# deployed flat layout, not the pnpm development tree.
 RUN node ./dist/verify-installation.js
 
 USER shipfox
