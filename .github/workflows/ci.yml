@@ -374,6 +374,39 @@ jobs:
       - name: Preflight package publication closure
         run: pnpm run release:preflight
 
+  # Regular PRs need a changeset for every changed published registry package.
+  # The release PR must not change a published version and must bump new ones
+  # enough. Both read the production registry.
+  registry-packages:
+    name: Check registry packages
+    if: github.event_name == 'pull_request'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+        with:
+          filter: "@shipfox/registry-release..."
+
+      - name: Build registry release tool
+        run: turbo build --filter=@shipfox/registry-release...
+
+      - name: Check registry packages
+        env:
+          CHECK_MODE: >-
+            ${{ github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.head.ref == 'changeset-release/main' && 'release' || 'pr' }}
+        run: node tools/registry-release/dist/cli.js check --mode "$CHECK_MODE"
+
   tests:
     name: Unit and story tests
     needs: [release-mode]

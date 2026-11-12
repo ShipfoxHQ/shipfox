@@ -13,6 +13,8 @@ const configSchema = z.strictObject({
         kind: registryPackageKindSchema,
         // One `*` as the last segment: every directory below the parent is a package.
         path: z.string().regex(/^[^*]+\/\*$/, 'Expected a directory pattern ending in /*'),
+        // `false` keeps the packages built and checked, but out of every release.
+        publish: z.boolean().default(true),
       }),
     )
     .min(1),
@@ -29,6 +31,8 @@ export interface ConfiguredPackage {
   /** Repository-relative, with `/` separators. */
   path: string;
   directory: string;
+  /** Whether `publish` uploads the package. */
+  publish: boolean;
 }
 
 export async function loadConfig(path: string): Promise<RegistryReleaseConfig> {
@@ -48,7 +52,7 @@ export async function discoverPackages({
   config: RegistryReleaseConfig;
 }): Promise<ConfiguredPackage[]> {
   const found: ConfiguredPackage[] = [];
-  for (const {kind, path: pattern} of config.packages) {
+  for (const {kind, path: pattern, publish} of config.packages) {
     const parent = pattern.slice(0, -'/*'.length);
     const entries = await readdir(join(root, parent), {withFileTypes: true});
     for (const entry of entries) {
@@ -63,6 +67,7 @@ export async function discoverPackages({
         root,
         path: `${parent}/${name}`,
         directory: join(root, parent, name),
+        publish,
       });
     }
   }

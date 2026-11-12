@@ -45,6 +45,8 @@ export interface BuiltPackage {
   /** The `name` in `package.json`, which a changeset names. */
   workspaceName: string;
   path: string;
+  /** Whether `publish` uploads this version. */
+  publish: boolean;
   license: string | undefined;
   manifest: Record<string, unknown>;
   changelog: string | undefined;
@@ -108,6 +110,7 @@ export async function buildPackage({
     version: packageJson.version,
     workspaceName: packageJson.name,
     path: configured.path,
+    publish: configured.publish,
     license: packageJson.license,
     manifest: output.manifest,
     changelog,

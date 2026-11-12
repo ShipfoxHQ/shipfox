@@ -299,6 +299,55 @@ describe('check', () => {
 
       expect(result.ok).toBe(true);
     });
+
+    it('does not count a held-back action as part of this release', async () => {
+      repository.write(
+        'parts/source/github.yml',
+        `open_pr: |\n  - key: open_pr\n    uses: shipfox/digest@1.0.0\n`,
+      );
+      repository.commit();
+      const template = await buildFixture(repository);
+      const held: BuiltPackage = {
+        ...template,
+        package: 'shipfox/digest',
+        kind: 'action',
+        manifest: {description: 'Turns a thread into Markdown.'},
+        actions: [],
+        publish: false,
+      };
+
+      const result = await check({mode: 'release', packages: [template, held]});
+
+      expect(messages(result)).toEqual([
+        'error: Uses shipfox/digest@1.0.0, which is not a published action or part of this release.',
+      ]);
+    });
+
+    it('skips the new-version rules for a held-back package', async () => {
+      repository.write(
+        'parts/source/github.yml',
+        `open_pr: |\n  - key: open_pr\n    uses: shipfox/digest@1.0.0\n`,
+      );
+      repository.commit();
+      const held = {...(await buildFixture(repository)), publish: false};
+
+      const result = await check({mode: 'release', packages: [held]});
+
+      expect(result.ok).toBe(true);
+    });
+
+    it('still fails a held-back package whose published version changed', async () => {
+      await publishThenChange(() =>
+        repository.write('workflow.yml', `${TEMPLATE_FILES['workflow.yml']}# tweak\n`),
+      );
+      const held = {...(await buildFixture(repository)), publish: false};
+
+      const result = await check({mode: 'release', packages: [held]});
+
+      expect(messages(result)).toEqual([
+        'error: 1.0.0 is published and this build differs. Bump the version.',
+      ]);
+    });
   });
 
   describe('in both modes', () => {
