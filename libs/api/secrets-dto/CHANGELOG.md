@@ -1,5 +1,43 @@
 # @shipfox/api-secrets-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- e99aa97: Action steps pass secrets to their inputs by reference.
+
+  - **Binding target:** a secret binding's `target` is either an environment variable name, as before, or `{kind: 'input', name}` for an action input. Run-step bindings keep their shape.
+  - **Dispatch:** a `with` input whose whole value is a secret reference becomes an input binding. The step config and the evaluation trace hold only the reference, never the value. The input must be declared as a string, or the attempt fails with `action_input_invalid`.
+  - **Step secrets:** `GET /runs/jobs/current/steps/:stepId/secrets` serves action steps as well as run steps.
+
+- 3f1363c: Agent steps accept `mcp_servers`, a map of stdio MCP servers that the runner starts for the step. The agent sees each server tool as `<name>__<tool>`.
+
+  - **Document:** each entry has a literal `command` and `args`, an `env` map whose values support expressions and secrets, and an optional `include` list. Names use lowercase letters, numbers, and single underscores, with at most 20 characters.
+  - **Definitions:** `WorkflowModelAgentStep.customMcpServers` keeps each server with its env templates. A server name that matches the tool prefix of an integration connection on the step is rejected with `agent-mcp-server-name-collision`.
+  - **Expressions:** the `agent.mcp_servers.env.value` field accepts server and runner contexts.
+  - **Materialized config:** `customMcpServers` holds each server with the env values known at dispatch. An env value that reads a secret becomes a secret binding with the new `mcp_server_env` target, and the step secrets route serves agent steps.
+  - **Errors:** a server that does not start fails the step with `agent_mcp_server_unavailable`. A materialization collision with the default connection reports `mcp-server-name-collision`.
+
+- 8937e15: An `mcp_servers` entry on an agent step can give a `url` instead of a `command`, for a server that the user runs. The runner connects to it over Streamable HTTP and sends its `headers` with every request.
+
+  - **Document:** an entry sets exactly one of `command` or `url`, and the published JSON schema says so. `url` is a literal `http` or `https` URL. `headers` maps HTTP field names to values that support expressions and secrets. Header names are unique without regard to case, cannot be one the transport sets (such as `Accept` or `Mcp-Protocol-Version`), and values cannot contain line breaks or null bytes. Headers share the entry and size limits of `env`. `args` and `env` apply only to `command` servers, and `headers` only to `url` servers.
+  - **Definitions:** `WorkflowModelAgentMcpServer` is a union of `WorkflowModelAgentStdioMcpServer` and `WorkflowModelAgentHttpMcpServer`. An http server keeps its header templates under `templates.headers`. `agentMcpServerValues(server)` returns the `env` or `headers` values and templates of either kind.
+  - **Expressions:** the `agent.mcp_servers.headers.value` field accepts server and runner contexts.
+  - **Materialized config:** `materializedAgentMcpServerSchema` accepts a stdio or an http server. A header value that reads a secret becomes a secret binding with the new `mcp_server_header` target.
+  - **Regex:** `isHttpFieldName(value)` and `HTTP_FIELD_NAME_RE` check an HTTP header name.
+
+- f7e0fb7: Adds the `container_setup_failed` step error reason, which marks a failed job container pull or start as a setup failure. The agent access diagnostics accept the new reason. Secret bindings gain two targets for the setup step of a container job: `container_credential` for the registry username or password, and `container_env` for a container environment variable.
+- 0b661c9: Step dispatch fills the `runner` context and turns `hashFiles()` calls into runner bindings.
+
+  - **`@shipfox/api-workflows-dto`:** adds `stepBindingSchema`, whose segments are `literal`, `secret`, or `hash_files` with its `patterns`. Step configs keep bindings under `secret_bindings`.
+  - **`@shipfox/api-secrets-dto`:** exports `secretBindingLiteralSegmentSchema`, `secretBindingSecretSegmentSchema`, `secretBindingAnyTargetSchema`, and `SecretBindingTargetDto` so the step binding schema reuses them.
+  - **`@shipfox/api-workflows`:** `nextStepForLeasedJobExecution` accepts a `runnerPlatform` loader, called once per request and only for a step that reads `runner`. An action input filled on the runner must be a string input, whether it reads a secret or calls `hashFiles()`.
+
+### Patch Changes
+
+- Updated dependencies [8937e15]
+  - @shipfox/regex@0.4.0
+
 ## 31.0.0
 
 ### Minor Changes

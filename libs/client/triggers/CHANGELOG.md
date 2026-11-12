@@ -1,5 +1,98 @@
 # @shipfox/client-triggers
 
+## 53.0.0
+
+### Minor Changes
+
+- 72ca524: Event routing shows which agent answered a Slack or Linear request, and when agent rules overlapped.
+
+  - **Event detail:** an "Agent routing" panel lists `agent` decisions with the agent and its project: the owner, the default agent, each `ambiguous` match with the agent that answered instead, and a dropped interaction with its reason. An event that only an agent took reads "Sent to an agent" instead of "Triggered 0 workflows".
+  - **Tools:** each `get_trigger_event` decision has a new `agent_key`, the agent of an `agent` decision, or null. The tool description explains each agent outcome.
+
+### Patch Changes
+
+- 610ab29: A new Slack or Linear request goes to the agent whose `on:` rule matches it, with one agent per conversation.
+
+  - **Matching:** for a request, Triggers evaluates the agent subscriptions on the event's source, with each filter reading `request` and `event`, and passes the matches to `routeInteraction` as `candidates`. Follow-ups and stops match no rule.
+  - **Owner:** Agent starts the conversation with the first candidate whose project takes the connection: custom agents before Shippys, and the earliest binding first within each group. Without one, the default Shippy answers, as before. A key that already has a conversation keeps it.
+  - **Contract:** `routeInteraction` takes an optional `candidates` list and can return the new outcome `matched`, with the winning `subscriptionId` and the `ambiguousSubscriptionIds` of the other candidates.
+  - **Decisions:** an `agent` decision can now name an agent subscription. The winning rule is recorded as `owner`, the others as the new outcome `ambiguous`, and a rule whose filter fails as `filter-error`. Migration `0008_agent_rule_decisions` relaxes the decisions check constraint, and the decision DTOs accept an `agent` decision with a subscription ID. The `get_trigger_event` tool schema includes `ambiguous`.
+  - **Docs:** the `on` field description and the workflow schema reference describe how requests are routed.
+
+- a9e85c1: Exposes the missing variable in refused manual starts and trigger history. The 422 `workflow-interpolation-unresolvable` details carry optional `variable_key`, `job_key` and `step`. The `interpolation-unresolvable` diagnostic gains optional `variableKey`, `jobKey`, `step` and `source`, and a missing secret input records its own `secret-input-missing` diagnostic instead of `unexpected-workflow-start-failure`. A manual fire that fails on a missing secret is now recorded as a terminal error.
+- 3fe51c3: Events and runs stay inside their project's access.
+
+  - **Events:** the integration event envelope has an optional `resource`. GitHub and Gitea fill it with the repository of the event.
+  - **Triggers:** a workflow or listening job in a project whose access excludes the connection or the repository no longer receives the event. The trigger history records the decision as `filtered`, with the reason `project-access`, or `project-deleted` when the project is gone. Dev runs that replay an event apply the same check. The job-activated event and listener subscriptions now carry the project.
+  - **Agent:** a request or message for a project that excludes the connection is dropped with `project-access` or `project-deleted`, and no other project answers it.
+  - **Shipfox tools:** `start_workflow_run` no longer takes `project_id` and starts runs only in the caller's project.
+
+- eca4c27: Stops runs that check out the project's source while its connection is missing, disabled, or in error. Trigger starts and listening-job deliveries now fail with the `source-connection-unavailable` known error. Cron records an errored tick and sends no failure alerts, and the next tick after recovery starts a run. A manual fire returns 422.
+- 25fd5a8: Routes requests from integrations that support interactions to agents. An unowned request starts a conversation with the Shippy of the workspace's default project. A request on an owned key, a follow-up, or a stop reaches the conversation that owns its key, and a follow-up or stop with no owner is dropped. A replayed event creates one conversation. Triggers records each result as an `agent` decision: `owner`, `default`, or `dropped`. Agent adds `routeInteraction` and the origin columns on conversations.
+- 9f185e9: Event history names the missing variable or secret behind a failed workflow start and links to the prefilled Add variable or Add secret form.
+- Updated dependencies [2062ec8]
+- Updated dependencies [04bf72a]
+- Updated dependencies [7d20d04]
+- Updated dependencies [610ab29]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [2e404d5]
+- Updated dependencies [0288794]
+- Updated dependencies [1f60244]
+- Updated dependencies [ac1e750]
+- Updated dependencies [4c789ca]
+- Updated dependencies [0461349]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [2339c1b]
+- Updated dependencies [dd63da9]
+- Updated dependencies [473fc40]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [2c89020]
+- Updated dependencies [c2f006c]
+- Updated dependencies [2b3aded]
+- Updated dependencies [93b8cac]
+- Updated dependencies [0af8bad]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [710275f]
+- Updated dependencies [7b0fafd]
+- Updated dependencies [988b5f9]
+- Updated dependencies [0160be6]
+- Updated dependencies [f43cafb]
+- Updated dependencies [32a2dcc]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [eca4c27]
+- Updated dependencies [6faa1d7]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [507915a]
+- Updated dependencies [a328042]
+- Updated dependencies [25fd5a8]
+- Updated dependencies [bea7e50]
+- Updated dependencies [7056182]
+- Updated dependencies [60ff4ba]
+- Updated dependencies [3d329a9]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [f5c364b]
+- Updated dependencies [d2a2168]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [ffffc16]
+- Updated dependencies [6b2a308]
+- Updated dependencies [c3768b2]
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-projects@53.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/integration-icons@0.6.0
+  - @shipfox/client-api@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

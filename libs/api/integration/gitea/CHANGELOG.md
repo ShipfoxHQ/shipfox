@@ -1,5 +1,64 @@
 # @shipfox/api-integration-gitea
 
+## 34.0.0
+
+### Minor Changes
+
+- 9f5cf64: The Gitea tool catalog is exported from `@shipfox/api-integration-gitea/agent-tools`, like the other providers.
+- cdb88a7: A project can store and read its access: the connections it can use and, for each, the repositories it can reach. Nothing enforces it yet.
+
+  - **Projects:** `GET` and `PUT /projects/:projectId/access`, with admin-only writes. A linked project's config connection can be saved with zero repositories, which means only the config repository. A repository rename updates the stored names of a listed repository.
+  - **Projects DTO:** a browser-safe access evaluator and the policy types, and `getProjectAccessPolicy` and `getProjectAccessPolicies` on the inter-module contract.
+  - **Integrations:** providers can declare `resourceKinds` and implement `listScopeResources` and `resolveScopeResource`. GitHub and Gitea do so for repositories. `GET /integration-connections/:connectionId/scope-resources` serves the picker, and `getScopeConnection` and `resolveScopeResource` join the inter-module contract.
+  - **Connection deletion** of every kind writes `integrations.connection.deleted`, and Projects removes the matching scopes.
+
+- 3fe51c3: Events and runs stay inside their project's access.
+
+  - **Events:** the integration event envelope has an optional `resource`. GitHub and Gitea fill it with the repository of the event.
+  - **Triggers:** a workflow or listening job in a project whose access excludes the connection or the repository no longer receives the event. The trigger history records the decision as `filtered`, with the reason `project-access`, or `project-deleted` when the project is gone. Dev runs that replay an event apply the same check. The job-activated event and listener subscriptions now carry the project.
+  - **Agent:** a request or message for a project that excludes the connection is dropped with `project-access` or `project-deleted`, and no other project answers it.
+  - **Shipfox tools:** `start_workflow_run` no longer takes `project_id` and starts runs only in the caller's project.
+
+### Patch Changes
+
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- Updated dependencies [2062ec8]
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [e5872d5]
+- Updated dependencies [9e173c3]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [9aeb048]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [1d94e37]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [c06262b]
+- Updated dependencies [e6981d5]
+- Updated dependencies [041ae63]
+- Updated dependencies [107ecc7]
+- Updated dependencies [27dc317]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-integration-spi@5.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-integration-gitea-dto@34.0.0
+
 ## 31.0.0
 
 ### Patch Changes
