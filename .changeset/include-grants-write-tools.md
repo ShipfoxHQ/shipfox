@@ -7,6 +7,7 @@
 "@shipfox/api-definitions-dto": major
 "@shipfox/api-definitions": major
 "@shipfox/api-agent-access-dto": major
+"@shipfox/api-agent-access": major
 "@shipfox/api-workflows": patch
 "@shipfox/api-agent": patch
 "@shipfox/workflow-templates": patch
@@ -19,5 +20,6 @@ Naming a write tool in `include` now grants it. `allow_write` is no longer neede
 - **Workflow model:** `WorkflowModelStepIntegration` and `WorkflowModelActionIntegration` drop `allowWrite`.
 - **Integrations:** `resolveAgentTools` and `resolveAgentToolsBatch` drop the `allowWrite` input and the `write-not-allowed` reason. They also refuse the `*` selector, which definition sync already rejected, so every granted tool is named.
 - **Registry:** `derived.capabilities` drops `allow_write`, and versions published with it still parse. `diffActionCapabilities` no longer reports `write_enabled` or `write_disabled`, and `allow_write` no longer affects the minimum bump.
+- **Agent access:** `diff_registry_action` no longer returns `write_enabled` or `write_disabled` in `capability_changes`.
 - **Action tests:** `runAction` lets an action call every tool its manifest includes.
 - **Templates:** `ticket-to-pr` no longer sets `allow_write`.
