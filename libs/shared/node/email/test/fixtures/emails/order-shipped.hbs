@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <body>
+    <img alt="Shipfox" src="{{logoUrl}}" />
+    <p>Hello {{customerName}}</p>
+    <table>
+      {{#each items}}
+      <tr><td>{{this.name}}</td></tr>
+      {{/each}}
+    </table>
+    {{#if urgent}}<p>URGENT-BRANCH</p>{{else}}<p>CALM-BRANCH</p>{{/if}}
+  </body>
+</html>

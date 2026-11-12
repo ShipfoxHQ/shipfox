@@ -5,8 +5,10 @@ import {builtInTemplates, type TemplateName, type TemplateVariables} from './tex
 
 export type {RenderedEmail} from './renderer.js';
 
+// The build compiles `emails/*.mjml` into `dist/emails/`. The path goes through the
+// package root, so it resolves the same from `src/` (dev and tests) and from `dist/`.
 const render = createEmailRenderer<TemplateVariables>({
-  templatesDir: join(dirname(fileURLToPath(import.meta.url)), '..', 'emails'),
+  templatesDir: join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'emails'),
   templates: builtInTemplates,
 });
 

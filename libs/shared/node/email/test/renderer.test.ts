@@ -8,8 +8,6 @@ const templatesDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', '
 
 interface Templates {
   'order-shipped': {customerName: string; items: {name: string}[]; urgent: boolean};
-  'unknown-partial': Record<string, never>;
-  'bare-helper': {urgent: boolean};
 }
 
 const render = createEmailRenderer<Templates>({
@@ -20,8 +18,6 @@ const render = createEmailRenderer<Templates>({
       text: ({customerName, items}) =>
         `${customerName}: ${items.map((item) => item.name).join(', ')}`,
     },
-    'unknown-partial': {subject: 'Unknown partial', text: () => ''},
-    'bare-helper': {subject: 'Bare helper', text: () => ''},
   },
 });
 
@@ -32,20 +28,18 @@ const data: Templates['order-shipped'] = {
 };
 
 describe('createEmailRenderer', () => {
-  test('renders a template from a caller-owned directory with the shared chrome', async () => {
+  test('renders a compiled template from a caller-owned directory with the logo URL', async () => {
     const email = await render('order-shipped', data);
 
     expect(email.subject).toBe('Order for Alice');
-    expect(email.html).toContain('alt="Shipfox"');
     expect(email.html).toContain('/email-logo.png');
-    expect(email.html).toContain('IBM Plex Sans');
     expect(email.html).toContain('Hello Alice');
     expect(email.html).toContain('Keyboard');
     expect(email.html).toContain('Mouse');
     expect(email.text).toBe('Alice: Keyboard, Mouse');
   });
 
-  test('keeps a block helper wrapped in mj-raw working', async () => {
+  test('evaluates block helpers in the compiled HTML', async () => {
     const calm = await render('order-shipped', {...data, urgent: false});
     const urgent = await render('order-shipped', {...data, urgent: true});
 
@@ -53,20 +47,6 @@ describe('createEmailRenderer', () => {
     expect(calm.html).not.toContain('URGENT-BRANCH');
     expect(urgent.html).toContain('URGENT-BRANCH');
     expect(urgent.html).not.toContain('CALM-BRANCH');
-  });
-
-  test('throws EmailTemplateError naming an unknown shared partial', async () => {
-    const error = await render('unknown-partial', {}).catch((cause: unknown) => cause);
-
-    expect(error).toBeInstanceOf(EmailTemplateError);
-    expect((error as Error).message).toContain('partials/nope.mjml');
-  });
-
-  test('throws EmailTemplateError for a bare block helper between MJML components', async () => {
-    const error = await render('bare-helper', {urgent: true}).catch((cause: unknown) => cause);
-
-    expect(error).toBeInstanceOf(EmailTemplateError);
-    expect((error as Error).message).toContain('<mj-raw>');
   });
 
   test('strips control characters from values nested in arrays and objects', async () => {
@@ -94,12 +74,15 @@ describe('createEmailRenderer', () => {
     ).rejects.toBeInstanceOf(EmailTemplateError);
   });
 
-  test('throws EmailTemplateError when a registered template has no mjml file', async () => {
+  test('throws EmailTemplateError when a registered template has no compiled file', async () => {
     const missing = createEmailRenderer<{ghost: object}>({
       templatesDir,
       templates: {ghost: {subject: 'Ghost', text: () => ''}},
     });
 
-    await expect(missing('ghost', {})).rejects.toBeInstanceOf(EmailTemplateError);
+    const error = await missing('ghost', {}).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(EmailTemplateError);
+    expect((error as Error).message).toContain('shipfox-email-compile');
   });
 });
