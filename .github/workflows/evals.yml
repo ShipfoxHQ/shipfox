@@ -29,7 +29,7 @@ on:
         default: ""
         type: string
       agent_model:
-        description: Model of the onboarding agent, or the catalog model that answers Shippy. Empty uses the runner default.
+        description: Model of the onboarding agent, or the catalog model that answers Shippy. Empty uses the onboarding runner default, or each Shippy case's live.model.
         required: false
         default: ""
         type: string

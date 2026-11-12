@@ -5,6 +5,7 @@ import {CaseValidationError, formatValidationIssues} from './schema.js';
 
 const keySchema = z.string().regex(/^[a-z][a-z0-9_-]*$/u, 'A key is lower-case, as `deploy`.');
 const runStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
+const RUN_REFERENCE = /^\$runs\.([a-z][a-z0-9_-]*)\.id$/u;
 
 /** The catalog model that serves a live conversation. OpenRouter must map it. */
 export const DEFAULT_SHIPPY_LIVE_MODEL = 'gpt-6-sol';
@@ -97,6 +98,17 @@ export const shippyCaseSchema = z
         message: 'run keys must be unique',
       });
     }
+    // A bad reference would otherwise fail only after the seeded runs and the conversation.
+    value.expect.tool_input_contains.forEach((text, index) => {
+      const key = RUN_REFERENCE.exec(text)?.[1];
+      if (key !== undefined && !keys.has(key)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['expect', 'tool_input_contains', index],
+          message: `names no seeded run: ${key}`,
+        });
+      }
+    });
     value.turns.forEach((turn, index) => {
       const page = turn.page;
       if ((page?.page === 'run' || page?.page === 'job') && !keys.has(page.run)) {
@@ -133,8 +145,6 @@ export async function loadShippyCase(casePath: string): Promise<ShippyCase> {
   }
   return parseShippyCase(document, casePath);
 }
-
-const RUN_REFERENCE = /^\$runs\.([a-z][a-z0-9_-]*)\.id$/u;
 
 /**
  * Replaces every `$runs.<key>.id` string in a value with the seeded run's id. A key the case

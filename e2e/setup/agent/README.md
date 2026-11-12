@@ -8,7 +8,7 @@ E2E helpers that configure model providers and read agent sessions.
 - **`requireOllamaModel` and `ollamaConfig`** check that the Ollama model a suite needs is available, and fail with a fix when it isn't.
 - **`createAnthropicModelProviderConfig` and `createAnthropicFakeModelProviderConfig`** create Anthropic provider configurations, the second one against a scripted fake.
 - **`registerScriptedManagedProvider`, `registerOpenRouterManagedProvider`, `getScriptedManagedProviderRequests`, and `getOpenRouterCost`** control and read the managed provider that the API composes under `E2E_ENABLED`.
-- **`scriptedManagedProviderEntriesSchema`** validates the replies of the scripted managed provider, the shape of a suite's `scripted.yaml`. A reply is a `text`, a `tool` call with optional `args`, or an `error` with a status and message. A `text` or `tool` reply can carry a `hold_ms`, which keeps the streamed reply open after its text.
+- **`scriptedManagedProviderEntriesSchema`** validates the replies of the scripted managed provider, the shape of a suite's `scripted.yaml`. A reply is a `text`, a `tool` call with optional `args`, or an `error` with a status and message. A `text` or `tool` reply can carry a `hold_ms`, which keeps the streamed reply open after its text or tool call.
 - **`listModelProviderConfigs` and `deleteModelProviderConfig`** read and remove provider configurations.
 - **`getSessionTranscript`** reads the verbatim transcript of an agent session.
 - **`createAgentHelper` and `agentHelper`** bundle the helpers as a Playwright fixture named `agent`.

@@ -36,6 +36,12 @@ describe('parseShippyCase', () => {
     ).toThrow(unseededRunPattern);
   });
 
+  it('rejects a tool input reference to a run the case did not seed', () => {
+    expect(() =>
+      parseShippyCase({...validCase, expect: {tool_input_contains: ['$runs.lint.id']}}),
+    ).toThrow(unseededRunPattern);
+  });
+
   it('rejects duplicate run keys and unknown fields', () => {
     expect(() =>
       parseShippyCase({

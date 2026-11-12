@@ -208,6 +208,8 @@ function caseRoot(suite: 'templates' | 'shippy' | 'onboarding', cwd: string): st
 }
 
 export interface EvalRunOptions extends EvalCliOptions {
+  /** Shippy suite: replaces the case executor, so a test can see what the run passes it. */
+  executeCase?: typeof executeShippyCase;
   cwd?: string;
   resultsDirectory?: string;
   runId?: string;
@@ -216,16 +218,31 @@ export interface EvalRunOptions extends EvalCliOptions {
   senders?: EventSenders;
 }
 
+/** The executor of a shippy case against the stack, unless a test replaces the case executor. */
+async function shippyExecutor({
+  options,
+  mode,
+  workDirectory,
+}: {
+  options: Pick<EvalRunOptions, 'agentModel' | 'executeCase'>;
+  mode: 'scripted' | 'live';
+  workDirectory: string;
+}): Promise<(params: {discovered: DiscoveredShippyCase; repeat: number}) => Promise<CaseResult>> {
+  if (options.executeCase === undefined) await preflightCheck({requireClient: false});
+  const executeCase = options.executeCase ?? executeShippyCase;
+  return ({discovered, repeat}) =>
+    executeCase({discovered, mode, repeat, workDirectory, model: options.agentModel});
+}
+
 /**
  * Runs the shippy cases that declare the mode, each in a workspace of its own, and writes one
  * result per repeat. Scripted mode needs each case's `scripted.yaml`; live mode needs OpenRouter.
  */
 export async function runShippyEval(
   options: Omit<EvalRunOptions, 'suite' | 'execute' | 'senders'> & {
-    execute?: (params: {
-      discovered: Awaited<ReturnType<typeof discoverShippyCases>>[number];
-      repeat: number;
-    }) => Promise<CaseResult>;
+    execute?: (params: {discovered: DiscoveredShippyCase; repeat: number}) => Promise<CaseResult>;
+    /** Replaces the case executor, so a test can see what the run passes it. */
+    executeCase?: typeof executeShippyCase;
   },
 ): Promise<ResultsRun> {
   const cwd = options.cwd ?? process.cwd();
@@ -249,19 +266,9 @@ export async function runShippyEval(
   }
 
   const runId = options.runId ?? createRunId();
-  let execute = options.execute;
-  if (execute === undefined) {
-    await preflightCheck({requireClient: false});
-    const workDirectory = join(cwd, '.eval-run', runId);
-    execute = ({discovered: entry, repeat}) =>
-      executeShippyCase({
-        discovered: entry,
-        mode,
-        repeat,
-        workDirectory,
-        model: options.agentModel,
-      });
-  }
+  const execute =
+    options.execute ??
+    (await shippyExecutor({options, mode, workDirectory: join(cwd, '.eval-run', runId)}));
   // A scripted conversation is deterministic, so it runs once unless asked otherwise.
   return writeResults<DiscoveredShippyCase>({
     cases: discovered,
@@ -502,6 +509,7 @@ async function runCasesCli({
     ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
     ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
     ...(options.workers === undefined ? {} : {workers: options.workers}),
+    ...(options.agentModel === undefined ? {} : {agentModel: options.agentModel}),
     ...(cwd === undefined ? {} : {cwd, resultsDirectory: `${cwd}/results`}),
   });
   const failed = run.results.filter((result: CaseResult) => result.status !== 'passed');
