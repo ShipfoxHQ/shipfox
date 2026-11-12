@@ -76,6 +76,35 @@ describe('Linear event builders', () => {
     });
   });
 
+  it('marks a stop, the creator, and the mentioning comment on agent sessions', () => {
+    const base = {organizationId: 'org-1', appUserId: 'app-1', sessionId: 'session-1', issue};
+    const creator = {id: 'user-1', name: 'Ada'};
+
+    const mention = buildAgentSessionEnvelope({
+      ...base,
+      action: 'created',
+      creator,
+      commentId: 'comment-1',
+      project: {id: 'project-1', name: 'Payments'},
+    });
+    const stop = buildAgentSessionEnvelope({
+      ...base,
+      action: 'prompted',
+      signal: 'stop',
+      prompt: 'ignored',
+      creator,
+    });
+
+    expect(mention.agentSession).toMatchObject({
+      creator,
+      commentId: 'comment-1',
+      comment: {id: 'comment-1'},
+      issue: {project: {id: 'project-1', name: 'Payments'}},
+    });
+    expect(stop.agentActivity).toMatchObject({signal: 'stop', user: creator});
+    expect(stop.agentActivity).not.toHaveProperty('body');
+  });
+
   it('sends the team key, labels, and previous labels for triggers that filter on them', () => {
     const labeled = {
       ...issue,

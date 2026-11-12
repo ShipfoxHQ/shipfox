@@ -1,0 +1,76 @@
+---
+title: "Talk to Shippy in Linear"
+sidebarTitle: "Talk to Shippy"
+description: "Start a Linear agent session with Shippy from a comment or a delegation, and read its progress and answer in the session."
+---
+
+Use this guide to ask Shippy about an issue from Linear. Shippy answers in the
+agent session on the issue.
+
+## Before you begin
+
+You need a [Linear integration connection](/integrations/linear/setup) in the
+workspace. You also need a Linear role that can mention or delegate to the
+app.
+
+## Start a session
+
+<Steps>
+  <Step>
+
+    **Mention or delegate**
+
+    Mention the Shipfox app in a comment on the issue, or delegate the issue
+    to it. Either one starts an agent session.
+  </Step>
+  <Step>
+
+    **Watch the session**
+
+    Shippy posts a thought within seconds to show it received the request.
+    Each tool call appears as an action while it works. A run it starts is
+    linked from the session.
+  </Step>
+  <Step>
+
+    **Read the answer**
+
+    The answer is a response activity on the session. A failure is an error
+    activity that states the cause.
+  </Step>
+</Steps>
+
+## Continue the session
+
+Reply in the session to continue the conversation. Shippy keeps the session's
+context. Use Linear's stop control to end a reply. Shippy confirms the stop with
+a final activity.
+
+A label or status change never starts a session. A workflow can still react to
+it through a [Linear event](/integrations/linear/events).
+
+## Which agent answers
+
+Linear gives one app identity per workspace. Shipfox picks the agent:
+
+1. A custom agent whose rules claim the team, or issues with a label.
+2. Otherwise, the Shippy of the workspace's default project.
+
+Every agent reaches only its own project. For a question about another project,
+bind that project's agent to the team through its `on:` rules.
+
+## Where the conversation lives
+
+The conversation stays in Linear. It doesn't appear in the Shipfox chat, not
+even for workspace admins. The work stays visible. A run that Shippy starts from
+Linear appears on the Runs page, started by Shippy in Linear.
+
+A result that arrives days later, such as a finished run, is still posted to
+the session.
+
+## Troubleshoot a missing answer
+
+Open **Settings → Events** and find the `agentSession.created` event. Its
+decision shows which agent took the session, or why none did. See
+[Troubleshoot events that do not start a
+run](/how-to/run-and-troubleshoot/event-routing#if-the-event-was-a-message-for-an-agent).

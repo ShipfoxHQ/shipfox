@@ -85,6 +85,55 @@ describe('Slack API mock', () => {
     }
   });
 
+  it('records the agent name on a post and the agent view status', async () => {
+    const mock = await startSlackApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const post = (method: string, form: Record<string, string>) =>
+      fetch(new URL(`/api/${method}`, mock.endpoint), {
+        method: 'POST',
+        headers: {authorization: 'Bearer xoxb-test'},
+        body: new URLSearchParams(form),
+      }).then((response) => response.json());
+
+    try {
+      await post('chat.postMessage', {
+        channel: 'D1',
+        thread_ts: '1.000100',
+        text: 'answer',
+        username: 'Shippy',
+      });
+      const status = await post('agents.sessions.setStatus', {
+        channel_id: 'D1',
+        thread_ts: '1.000100',
+        status: 'active',
+      });
+
+      expect(status).toEqual({ok: true});
+      expect(mock.calls).toEqual([
+        {
+          kind: 'chat.postMessage',
+          authorization: 'Bearer xoxb-test',
+          channel: 'D1',
+          threadTs: '1.000100',
+          text: 'answer',
+          username: 'Shippy',
+        },
+        {
+          kind: 'agents.sessions.setStatus',
+          authorization: 'Bearer xoxb-test',
+          channelId: 'D1',
+          threadTs: '1.000100',
+          status: 'active',
+        },
+      ]);
+      expect(mock.writes().map((write) => write.kind)).toEqual([
+        'chat.postMessage',
+        'agents.sessions.setStatus',
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   describe('seeded channels', () => {
     async function arrange() {
       const mock = await startSlackApiMock({endpoint: new URL('http://127.0.0.1:0')});

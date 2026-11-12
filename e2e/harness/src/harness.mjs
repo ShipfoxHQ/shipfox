@@ -17,6 +17,7 @@ const fakeRouterEnvNames = {
   github: 'GITHUB_API_BASE_URL',
   slack: 'SLACK_API_BASE_URL',
   linear: 'LINEAR_MCP_ENDPOINT',
+  'linear-api': 'LINEAR_API_BASE_URL',
   jira: 'JIRA_API_BASE_URL',
   clickup: 'CLICKUP_API_BASE_URL',
   notion: 'NOTION_API_BASE_URL',
@@ -128,6 +129,7 @@ export function baseE2eEnv(sourceEnv = {}) {
     GITHUB_API_BASE_URL: valueOr(sourceEnv.GITHUB_API_BASE_URL, () => e2eGithubApiBaseUrl(apiUrl)),
     SLACK_API_BASE_URL: valueOr(sourceEnv.SLACK_API_BASE_URL, () => e2eSlackApiBaseUrl(apiUrl)),
     LINEAR_MCP_ENDPOINT: valueOr(sourceEnv.LINEAR_MCP_ENDPOINT, () => e2eLinearMcpEndpoint(apiUrl)),
+    LINEAR_API_BASE_URL: valueOr(sourceEnv.LINEAR_API_BASE_URL, () => e2eLinearApiBaseUrl(apiUrl)),
     JIRA_API_BASE_URL: valueOr(sourceEnv.JIRA_API_BASE_URL, () => e2eJiraApiBaseUrl(apiUrl)),
     CLICKUP_API_BASE_URL: valueOr(sourceEnv.CLICKUP_API_BASE_URL, () => e2eClickUpApiBaseUrl(apiUrl)),
     NOTION_API_BASE_URL: valueOr(sourceEnv.NOTION_API_BASE_URL, () => e2eNotionApiBaseUrl(apiUrl)),
@@ -412,6 +414,11 @@ export function e2eSlackApiBaseUrl(apiUrl) {
 
 export function e2eLinearMcpEndpoint(apiUrl) {
   return mockUrl({apiUrl, offset: 9, label: 'Linear MCP', pathname: '/mcp'});
+}
+
+export function e2eLinearApiBaseUrl(apiUrl) {
+  // After Claap at API + 21, in the 25-port worktree block.
+  return mockUrl({apiUrl, offset: 22, label: 'Linear API'});
 }
 
 export function turboCommandArgs(options, env) {
