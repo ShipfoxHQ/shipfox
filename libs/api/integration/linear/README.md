@@ -123,9 +123,8 @@ can tell them from other failures.
 
 Sensitivity policy:
 
-- `save_issue` is explicitly `sensitive: false`. It is still a write tool and
-  requires `allow_write`, but the v1 product choice treats normal issue triage as
-  an ordinary write.
+- `save_issue` is explicitly `sensitive: false`. It is still a write tool, but
+  the v1 product choice treats normal issue triage as an ordinary write.
 - `save_comment` is `sensitive: false`.
 - Destructive or workspace-shaping writes are `sensitive: true`, including
   upload and delete tools, status update mutation, project/document/milestone

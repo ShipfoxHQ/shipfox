@@ -182,7 +182,8 @@ describe('package page', () => {
 
       expect(html).toContain('Slack thread digest');
       expect(html).not.toContain('Overview');
-      expect(html).toContain('Read-only. It cannot call tools that change data.');
+      expect(html).toContain('Integrations it uses');
+      expect(html).toContain('conversations');
       expect(html).toContain('channel_id');
       expect(html).toContain('uses: shipfox/slack-thread-digest@1.0.0');
       expect(html).toContain('mdast-util-to-markdown');

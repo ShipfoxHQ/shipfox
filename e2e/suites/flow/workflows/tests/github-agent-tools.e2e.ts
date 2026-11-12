@@ -1426,6 +1426,5 @@ jobs:
               - check_run_write
               - search_issues
               - pull_request_review_thread_write.resolve
-            allow_write: true
 `;
 }

@@ -100,8 +100,11 @@ const actionManifestIntegrationSchema = z.strictObject({
   include: z.array(actionManifestSelectorSchema).min(1).meta({
     description: 'Lists the tools the action can call: a tool id, a family, or `family.method`.',
   }),
-  allow_write: z.boolean().default(false).meta({
-    description: 'Set to `true` to allow tools that change external data.',
+  // Accepted so manifests written before the field was retired still parse. Nothing reads it.
+  allow_write: z.boolean().optional().meta({
+    description:
+      'Deprecated. Do not set this field. It has no effect and is accepted only so that existing manifests still parse.',
+    deprecated: true,
   }),
 });
 

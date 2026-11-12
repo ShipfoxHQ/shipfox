@@ -177,7 +177,7 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
       expect(documentOf(envelopeOf(response)).derived).toMatchObject({
         integrations: ['slack'],
         capabilities: {
-          slack: {provider: 'slack', selectors: ['conversations.history'], allow_write: false},
+          slack: {provider: 'slack', selectors: ['conversations.history']},
         },
       });
     });
@@ -444,22 +444,22 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
       );
     });
 
-    it('marks a version that turns on writes as a capability change', async () => {
-      const integrations = (allowWrite: boolean) => ({
-        slack: {provider: 'slack', include: ['chat.postMessage'], allow_write: allowWrite},
-      });
+    it('marks a version that adds a tool as a capability change', async () => {
+      const integrations = (include: string[]) => ({slack: {provider: 'slack', include}});
       await publishAction({
-        content: await bundleOf(actionFiles({integrations: integrations(false)})),
+        content: await bundleOf(actionFiles({integrations: integrations(['chat.history'])})),
       });
 
       const response = await publishAction({
-        version: '2.0.0',
-        content: await bundleOf(actionFiles({integrations: integrations(true)})),
+        version: '1.1.0',
+        content: await bundleOf(
+          actionFiles({integrations: integrations(['chat.history', 'chat.postMessage'])}),
+        ),
       });
 
       expect(response.statusCode).toBe(201);
-      const [row] = (await storedVersions()).filter(({version}) => version === '2.0.0');
-      expect(row).toMatchObject({bump: 'major', capabilityChange: true});
+      const [row] = (await storedVersions()).filter(({version}) => version === '1.1.0');
+      expect(row).toMatchObject({bump: 'minor', capabilityChange: true});
     });
 
     it('compares with the highest version below, and leaves the latest card alone', async () => {

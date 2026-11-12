@@ -200,9 +200,8 @@ field in it is optional. Any other file is a custom agent, which needs
 invalid file keeps the agent's last valid version, reports the error, and
 never blocks the workflows.
 
-`integrations` uses the selectors of an agent step, and a write tool needs
-`allow_write: true`. Sync rejects a file that selects an unknown tool or a
-write tool without it. Shipfox records a write call before it runs. If the
+`integrations` uses the selectors of an agent step. Sync rejects a file that
+selects an unknown tool. Shipfox records a write call before it runs. If the
 call stops after it starts and before its result is stored, a retry does not
 run it again. The agent gets the result `unknown` and reads the current state
 before it tries again.

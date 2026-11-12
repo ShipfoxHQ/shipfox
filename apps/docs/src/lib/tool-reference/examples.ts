@@ -15,7 +15,6 @@ export interface IntegrationExampleInput {
   replaceConnection: boolean;
   /** Omits the tool step example for a tool that only an agent step can call. */
   agentOnly?: boolean;
-  access: 'read' | 'write';
   input: ToolReferenceField[];
   /** Fields required by the method a tool step selects, for method families. */
   methodId?: string;
@@ -91,7 +90,6 @@ function agentStepYaml(input: IntegrationExampleInput): string {
     `    - connection: ${exampleConnection(input)}`,
     `      include: [${input.toolId}]`,
   ];
-  if (input.access === 'write') lines.push('      allow_write: true');
   return lines.join('\n');
 }
 

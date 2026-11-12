@@ -486,7 +486,6 @@ describe('normalizeWorkflowDocument composite steps', () => {
         provider: 'linear',
         connection: 'linear-acme',
         include: ['get_issue'],
-        allowWrite: false,
       },
     });
     expect(step.steps[0]).toMatchObject({kind: 'tool', connection: 'linear-acme'});
@@ -499,7 +498,7 @@ describe('normalizeWorkflowDocument composite steps', () => {
         {tool: 'save_comment', connection: 'tracker', with: {body: 'hi'}},
         {
           prompt: 'Triage.',
-          integrations: [{connection: 'tracker', include: ['save_comment'], allow_write: true}],
+          integrations: [{connection: 'tracker', include: ['save_comment']}],
         },
         {tool: 'get_issue', connection: 'other', with: {id: 'ENG-1'}},
       ],
@@ -517,17 +516,12 @@ describe('normalizeWorkflowDocument composite steps', () => {
           path: 'jobs.build.steps.0',
           at: 'steps.1.integrations.0.include',
         },
-        {
-          code: 'action-integration-exceeds-alias',
-          path: 'jobs.build.steps.0',
-          at: 'steps.1.integrations.0.allow_write',
-        },
         {code: 'action-connection-unknown', path: 'jobs.build.steps.0', at: 'steps.2.connection'},
       ]),
     );
   });
 
-  test('needs allow_write on the alias for a write tool', () => {
+  test('lets an inner step call a write tool the alias includes', () => {
     const tracker = composite(SETUP, {
       integrations: {tracker: {provider: 'linear', include: ['save_comment']}},
       steps: [{tool: 'save_comment', connection: 'tracker', with: {body: 'hi'}}],
@@ -537,22 +531,16 @@ describe('normalizeWorkflowDocument composite steps', () => {
       tracker,
     ]);
 
-    // The manifest grant is checked against the catalog too.
-    expect(summarize(issues)).toEqual([
-      {code: 'integration-write-not-allowed', path: 'jobs.build.steps.0.uses', at: undefined},
-      {code: 'integration-write-not-allowed', path: 'jobs.build.steps.0', at: 'steps.0.tool'},
-    ]);
+    expect(summarize(issues)).toEqual([]);
   });
 
-  test('rejects a write grant nested under a read-only alias, at every level', () => {
+  test('rejects a write tool nested under an alias that leaves it out, at every level', () => {
     const comment = javascriptAction('./.shipfox/actions/comment', {
-      integrations: {linear: {provider: 'linear', include: ['get_issue'], allow_write: true}},
+      integrations: {linear: {provider: 'linear', include: ['get_issue', 'save_comment']}},
     });
-    const middle = (allowWrite: boolean) =>
+    const middle = (include: string[]) =>
       composite('./.shipfox/actions/middle', {
-        integrations: {
-          tracker: {provider: 'linear', include: ['get_issue'], allow_write: allowWrite},
-        },
+        integrations: {tracker: {provider: 'linear', include}},
         steps: [{uses: './.shipfox/actions/comment', connections: {linear: 'tracker'}}],
       });
     const top = composite(SETUP, {
@@ -561,8 +549,8 @@ describe('normalizeWorkflowDocument composite steps', () => {
     });
     const workflow = document({uses: SETUP, connections: {issues: 'linear-acme'}});
 
-    const readOnlyMiddle = issuesFor(workflow, [top, middle(false), comment]);
-    const writeMiddle = issuesFor(workflow, [top, middle(true), comment]);
+    const readOnlyMiddle = issuesFor(workflow, [top, middle(['get_issue']), comment]);
+    const writeMiddle = issuesFor(workflow, [top, middle(['get_issue', 'save_comment']), comment]);
 
     expect(summarize(readOnlyMiddle)).toEqual([
       {

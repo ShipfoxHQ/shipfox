@@ -105,9 +105,7 @@ describe('needsIntegrationValidationContext', () => {
       ['whose manifest declares no integrations', actions(), false],
       [
         'whose manifest declares integrations',
-        actions({
-          slack: {provider: 'slack', include: ['read_thread'], allow_write: false},
-        }),
+        actions({slack: {provider: 'slack', include: ['read_thread']}}),
         true,
       ],
     ] as const)('an action %s -> %s', (_description, actionManifests, expected) => {

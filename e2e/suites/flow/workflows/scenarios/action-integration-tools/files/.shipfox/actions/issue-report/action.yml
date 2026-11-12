@@ -18,7 +18,6 @@ integrations:
   gitea:
     provider: gitea
     include: [get_issue, comment_on_issue]
-    allow_write: true
   shipfox:
     provider: shipfox
     include: [get_workflow_run]

@@ -888,9 +888,11 @@ export const workflowDocumentStepIntegrationSchema = z.strictObject({
   exclude: workflowDocumentStepIntegrationSelectionSchema.optional().meta({
     description: 'Removes tools from the `include` selection.',
   }),
+  // Accepted so workflows written before the field was retired still parse. Nothing reads it.
   allow_write: z.boolean().optional().meta({
     description:
-      'Set to `true` to let the agent use tools that can change external data. Otherwise, the agent receives read-only tools.',
+      'Deprecated. Do not set this field. It has no effect and is accepted only so that existing workflows still parse.',
+    deprecated: true,
   }),
 });
 

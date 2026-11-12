@@ -234,7 +234,7 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     component: 'AgentIntegrationFields',
     path: 'jobs.<job_id>.steps[*].integrations[*]',
     example: 'agent-integrations.yml',
-    fields: ['connection', 'include', 'exclude', 'allow_write'],
+    fields: ['connection', 'include', 'exclude'],
     select: (schema) => properties(object(stepProperties(schema).integrations).items),
     required: ['include'],
   },
@@ -488,7 +488,7 @@ function buildSection(definition, {schema, examples, parseYaml, validate}) {
 /**
  * Several sections document one schema object, such as the four step kinds.
  * Their field lists must cover every property together, so a new schema
- * field cannot disappear from the page.
+ * field cannot disappear from the page. A deprecated field stays off the page.
  */
 export function assertFieldCoverage(schema, agentSchema = EMPTY_SCHEMA) {
   const listed = new Map();
@@ -499,12 +499,9 @@ export function assertFieldCoverage(schema, agentSchema = EMPTY_SCHEMA) {
     for (const name of definition.fields) names.add(name);
     listed.set(target, names);
   }
-  const missing = [];
-  for (const [target, names] of listed) {
-    for (const name of Object.keys(target)) {
-      if (!names.has(name)) missing.push(name);
-    }
-  }
+  const missing = [...listed].flatMap(([target, names]) =>
+    Object.keys(target).filter((name) => !names.has(name) && target[name]?.deprecated !== true),
+  );
   if (missing.length > 0) {
     throw new Error(
       `Workflow schema fields are not listed in any section: ${missing.join(', ')}. Add them to WORKFLOW_SCHEMA_SECTIONS.`,
@@ -514,7 +511,9 @@ export function assertFieldCoverage(schema, agentSchema = EMPTY_SCHEMA) {
 
 export function schemaToFields(schemaProperties, options = {}) {
   const required = new Set(options.required ?? []);
-  const names = options.fields ?? Object.keys(schemaProperties);
+  const names = (options.fields ?? Object.keys(schemaProperties)).filter(
+    (name) => schemaProperties[name]?.deprecated !== true,
+  );
   return names.flatMap((name) => {
     const property = schemaProperties[name];
     if (!property) return [];

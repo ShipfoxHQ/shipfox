@@ -13,7 +13,6 @@ Set `connection: shipfox` when using these tools.
 ## Access and safety
 
 The twelve inspection tools are read-only. `start_workflow_run` is a write tool.
-An agent step must set `allow_write: true` before it can use that tool.
 
 Child runs are bounded by fixed [workflow chaining
 limits](/reference/limits#workflow-chaining). Limit failures return

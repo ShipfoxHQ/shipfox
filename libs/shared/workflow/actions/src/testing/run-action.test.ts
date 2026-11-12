@@ -210,16 +210,14 @@ describe('runAction', () => {
     ]);
   });
 
-  it('refuses a write tool without allow_write', async () => {
+  it('calls a write tool the manifest grants', async () => {
     const result = await runAction(probe, {
       inputs: {calls: [{alias: 'slack', tool: 'send_message'}]},
       tools: {slack: {send_message: () => ({ok: true})}},
     });
 
-    expect(result.calls[0]?.error).toMatchObject({
-      code: 'tool-not-granted',
-      message: expect.stringContaining('allow_write: true'),
-    });
+    expect(result.calls).toMatchObject([{alias: 'slack', tool: 'send_message'}]);
+    expect(result.calls[0]?.error).toBeUndefined();
   });
 
   it('fails a granted tool without a fake', async () => {

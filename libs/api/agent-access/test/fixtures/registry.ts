@@ -24,7 +24,7 @@ export interface FakeRegistryVersion {
   >;
   /** Makes the version a composite action with these steps. */
   steps?: Record<string, unknown>[];
-  integrations?: Record<string, {provider: string; include: string[]; allow_write?: boolean}>;
+  integrations?: Record<string, {provider: string; include: string[]}>;
   dependencies?: {name: string; version: string}[];
   files?: ActionBundleFile[];
   readme?: string;

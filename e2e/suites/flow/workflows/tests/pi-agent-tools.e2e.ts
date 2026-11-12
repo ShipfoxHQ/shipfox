@@ -307,7 +307,6 @@ jobs:
         integrations:
           - connection: ${params.connectionSlug}
             include: [get_issue, save_comment]
-            allow_write: true
 `;
 }
 

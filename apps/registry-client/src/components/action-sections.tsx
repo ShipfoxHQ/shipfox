@@ -28,11 +28,6 @@ export function ActionSections({details}: {details: ActionDetails}) {
                   <span className="text-foreground-neutral-muted">as</span>
                   <CodeName>{alias}</CodeName>
                 </span>
-                <span className="text-foreground-neutral-subtle">
-                  {capability.allow_write
-                    ? 'Can read and change data.'
-                    : 'Read-only. It cannot call tools that change data.'}
-                </span>
                 {capability.selectors.length > 0 ? (
                   <span className="font-code text-xs text-foreground-neutral-muted">
                     {capability.selectors.join(', ')}

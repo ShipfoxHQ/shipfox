@@ -36,7 +36,6 @@ describe('actionManifestSchema', () => {
         slack: {
           provider: 'slack',
           include: ['read_thread', 'read_user_profile'],
-          allow_write: false,
         },
       },
     });

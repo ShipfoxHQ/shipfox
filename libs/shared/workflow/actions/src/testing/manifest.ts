@@ -14,7 +14,6 @@ export class ActionTestSetupError extends Error {
 }
 
 export interface GrantedIntegration {
-  readonly allowWrite: boolean;
   /** Tools granted with every method, by tool id. */
   readonly tools: ReadonlyMap<string, ToolGrant>;
   /** Single granted methods, by `family.method`. */
@@ -106,7 +105,7 @@ export function resolveGrants(manifest: ActionManifest): ReadonlyMap<string, Gra
       }
       methods.set(selector, method);
     }
-    grants.set(alias, {allowWrite: integration.allow_write, tools, methods});
+    grants.set(alias, {tools, methods});
   }
   return grants;
 }

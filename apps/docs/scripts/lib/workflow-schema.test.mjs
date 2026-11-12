@@ -83,6 +83,18 @@ describe('schemaToFields', () => {
       ['b', 'a'],
     );
   });
+
+  it('leaves out a deprecated field, even when the allowlist names it', () => {
+    const properties = {a: {type: 'string'}, old: {type: 'boolean', deprecated: true}};
+
+    const listed = schemaToFields(properties, {fields: ['a', 'old']});
+    const unlisted = schemaToFields(properties);
+
+    assert.deepEqual(
+      [listed, unlisted].map((fields) => fields.map((field) => field.name)),
+      [['a'], ['a']],
+    );
+  });
 });
 
 describe('assertFieldCoverage', () => {
@@ -101,6 +113,23 @@ describe('assertFieldCoverage', () => {
       },
     };
     assert.throws(() => assertFieldCoverage(schema), {message: UNLISTED_FIELD_PATTERN});
+  });
+
+  it('accepts a deprecated schema field that no section lists', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        name: {type: 'string'},
+        jobs: {
+          type: 'object',
+          additionalProperties: {
+            type: 'object',
+            properties: {needs: {type: 'string'}, old: {type: 'boolean', deprecated: true}},
+          },
+        },
+      },
+    };
+    assert.doesNotThrow(() => assertFieldCoverage(schema));
   });
 });
 

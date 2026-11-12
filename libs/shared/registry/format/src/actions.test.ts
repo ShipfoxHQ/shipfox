@@ -112,15 +112,6 @@ describe('computeActionBump', () => {
       bump: 'major',
     },
     {
-      rule: '`allow_write` turns on',
-      next: {
-        integrations: {
-          slack: {provider: 'slack', include: ['conversations.replies'], allow_write: true},
-        },
-      },
-      bump: 'major',
-    },
-    {
       rule: 'an optional input is added',
       next: {
         inputs: {
@@ -163,13 +154,12 @@ describe('computeActionBump', () => {
       bump: 'patch',
     },
     {
-      rule: '`allow_write` turns off',
-      previous: {
+      rule: '`allow_write` is set, which has no effect',
+      next: {
         integrations: {
           slack: {provider: 'slack', include: ['conversations.replies'], allow_write: true},
         },
       },
-      next: {},
       bump: 'patch',
     },
     {
@@ -298,9 +288,7 @@ describe('computeActionBump', () => {
   it('keeps the highest bump across rules', () => {
     const next = manifest({
       outputs: {markdown: {type: 'string'}, participants: {type: 'number'}},
-      integrations: {
-        slack: {provider: 'slack', include: ['conversations.replies'], allow_write: true},
-      },
+      integrations: {slack: {provider: 'discord', include: ['conversations.replies']}},
     });
 
     const result = computeActionBump({previous: manifest(), next});
@@ -322,7 +310,7 @@ describe('diffActionCapabilities', () => {
   it('reports each capability change of an alias', () => {
     const previous = manifest({
       integrations: {
-        slack: {provider: 'slack', include: ['conversations.replies', 'users'], allow_write: true},
+        slack: {provider: 'slack', include: ['conversations.replies', 'users']},
         tracker: {provider: 'linear', include: ['issues']},
         chat: {provider: 'slack', include: ['chat']},
       },
@@ -339,7 +327,6 @@ describe('diffActionCapabilities', () => {
 
     expect(result).toEqual([
       {type: 'alias_removed', alias: 'chat', provider: 'slack'},
-      {type: 'write_disabled', alias: 'slack'},
       {type: 'selectors_added', alias: 'slack', selectors: ['reactions']},
       {type: 'selectors_removed', alias: 'slack', selectors: ['users']},
       {type: 'provider_changed', alias: 'tracker', from: 'linear', to: 'jira'},
@@ -366,7 +353,7 @@ describe('deriveActionMetadata', () => {
       },
       integrations: {
         slack: {provider: 'slack', include: ['conversations.replies']},
-        tracker: {provider: 'linear', include: ['issues'], allow_write: true},
+        tracker: {provider: 'linear', include: ['issues']},
         chat: {provider: 'slack', include: ['chat']},
       },
     });
@@ -377,9 +364,9 @@ describe('deriveActionMetadata', () => {
       kind: 'javascript',
       integrations: ['linear', 'slack'],
       capabilities: {
-        slack: {provider: 'slack', selectors: ['conversations.replies'], allow_write: false},
-        tracker: {provider: 'linear', selectors: ['issues'], allow_write: true},
-        chat: {provider: 'slack', selectors: ['chat'], allow_write: false},
+        slack: {provider: 'slack', selectors: ['conversations.replies']},
+        tracker: {provider: 'linear', selectors: ['issues']},
+        chat: {provider: 'slack', selectors: ['chat']},
       },
       interface: {
         inputs: {
@@ -440,6 +427,20 @@ describe('deriveActionMetadata', () => {
     const result = registryActionMetadataSchema.safeParse(legacy);
 
     expect(result.success).toBe(true);
+  });
+
+  it('reads metadata published with allow_write and drops the flag', () => {
+    const derived = deriveActionMetadata({reference, manifest: manifest(), contentBytes: 1});
+    const legacy = {
+      ...derived,
+      capabilities: {
+        slack: {provider: 'slack', selectors: ['conversations.replies'], allow_write: true},
+      },
+    };
+
+    const result = registryActionMetadataSchema.parse(legacy);
+
+    expect(result.capabilities).toEqual(derived.capabilities);
   });
 
   it('produces metadata that the version document accepts', () => {

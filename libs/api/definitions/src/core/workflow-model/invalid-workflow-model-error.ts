@@ -44,7 +44,6 @@ export type WorkflowModelValidationIssueCode =
   | 'integration-connection-not-allowed'
   | 'integration-no-tools-selected'
   | 'integration-tool-agent-only'
-  | 'integration-write-not-allowed'
   | 'invalid-cron-schedule'
   | 'invalid-cron-timezone'
   | 'invalid-concurrency-cancel-in-progress'

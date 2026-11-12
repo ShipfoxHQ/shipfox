@@ -114,6 +114,5 @@ jobs:
         integrations:
           - connection: __SLACK_SOURCE__
             include: [read_thread, send_message]
-            allow_write: true
 `;
 }

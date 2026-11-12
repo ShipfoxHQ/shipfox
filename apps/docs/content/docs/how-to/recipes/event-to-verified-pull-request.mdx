@@ -114,13 +114,12 @@ jobs:
           Link to ${{ event.webUrl }} in the body and state that npm test passed.
         integrations:
           - include: [create_pull_request]
-            allow_write: true
 ```
 
 The job requests `contents: write` because a later shell step must push the
 verified commit. The fixing agents receive no integration tool. The final agent
-receives only `create_pull_request`, with the required write choice. No step
-gets broad access to every GitHub operation.
+receives only `create_pull_request`. No step gets broad access to every GitHub
+operation.
 
 Checkout permission applies to the whole job because the edit and push must use
 one checkout. `contents: write` on the project repository is the narrowest

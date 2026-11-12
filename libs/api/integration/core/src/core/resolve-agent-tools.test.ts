@@ -86,7 +86,7 @@ function failure(run: () => unknown): AgentToolsSelectionError {
 describe('resolveAgentToolsGrant', () => {
   it('grants every method of a family and keeps the tool order of the catalog', () => {
     const grant = resolveAgentToolsGrant({
-      selection: {include: ['download_file', 'issue_read'], allowWrite: false},
+      selection: {include: ['download_file', 'issue_read']},
       context: context(),
     });
 
@@ -106,7 +106,7 @@ describe('resolveAgentToolsGrant', () => {
 
   it('grants one method with its description and scope', () => {
     const grant = resolveAgentToolsGrant({
-      selection: {include: ['issue_read.get'], allowWrite: false},
+      selection: {include: ['issue_read.get']},
       context: context(),
     });
 
@@ -133,12 +133,11 @@ describe('resolveAgentToolsGrant', () => {
     ]);
   });
 
-  it('expands a wildcard and subtracts what exclude names', () => {
+  it('subtracts what exclude names', () => {
     const grant = resolveAgentToolsGrant({
       selection: {
-        include: ['*'],
+        include: ['issue_read', 'issue_write', 'download_file'],
         exclude: ['issue_read.get_comments', 'issue_write', 'download_file'],
-        allowWrite: false,
       },
       context: context(),
     });
@@ -149,7 +148,7 @@ describe('resolveAgentToolsGrant', () => {
 
   it('expands a family wildcard to every method', () => {
     const grant = resolveAgentToolsGrant({
-      selection: {include: ['issue_read.*'], allowWrite: false},
+      selection: {include: ['issue_read.*']},
       context: context(),
     });
 
@@ -158,7 +157,7 @@ describe('resolveAgentToolsGrant', () => {
 
   it('reports the result kind and output schema of a standalone tool', () => {
     const grant = resolveAgentToolsGrant({
-      selection: {connection: 'team-slack', include: ['download_file'], allowWrite: false},
+      selection: {connection: 'team-slack', include: ['download_file']},
       context: context(),
     });
 
@@ -172,7 +171,7 @@ describe('resolveAgentToolsGrant', () => {
 
   it('marks a family with a write method as a write tool', () => {
     const grant = resolveAgentToolsGrant({
-      selection: {include: ['issue_read.get', 'issue_write.create'], allowWrite: true},
+      selection: {include: ['issue_read.get', 'issue_write.create']},
       context: context(),
     });
 
@@ -183,34 +182,18 @@ describe('resolveAgentToolsGrant', () => {
     expect(grant.requiredScope).toEqual([{permission: 'issues', access: 'write'}]);
   });
 
-  it('refuses a write tool without allowWrite and names it', () => {
+  it('refuses a selector that names no tool, so every granted tool is named', () => {
     const error = failure(() =>
-      resolveAgentToolsGrant({
-        selection: {include: ['issue_read.get', 'issue_write.create'], allowWrite: false},
-        context: context(),
-      }),
+      resolveAgentToolsGrant({selection: {include: ['*']}, context: context()}),
     );
 
-    expect(error.details).toEqual({
-      reason: 'write-not-allowed',
-      connection: 'github-main',
-      tool: 'issue_write',
-    });
-  });
-
-  it('allows a wildcard that excludes every write tool without allowWrite', () => {
-    const grant = resolveAgentToolsGrant({
-      selection: {include: ['*'], exclude: ['issue_write'], allowWrite: false},
-      context: context(),
-    });
-
-    expect(grant.tools.map((tool) => tool.id)).toEqual(['issue_read', 'download_file']);
+    expect(error.details).toEqual({reason: 'tool-unknown', connection: 'github-main', tool: '*'});
   });
 
   it('names an unknown tool and the connection it was looked up on', () => {
     const error = failure(() =>
       resolveAgentToolsGrant({
-        selection: {include: ['missing'], allowWrite: false},
+        selection: {include: ['missing']},
         context: context(),
       }),
     );
@@ -225,7 +208,7 @@ describe('resolveAgentToolsGrant', () => {
   it('names an unknown method of a known family', () => {
     const error = failure(() =>
       resolveAgentToolsGrant({
-        selection: {include: ['issue_read.missing'], allowWrite: false},
+        selection: {include: ['issue_read.missing']},
         context: context(),
       }),
     );
@@ -236,7 +219,7 @@ describe('resolveAgentToolsGrant', () => {
   it('reports a selection that resolves to no tools', () => {
     const error = failure(() =>
       resolveAgentToolsGrant({
-        selection: {include: ['issue_read.get'], exclude: ['issue_read.get'], allowWrite: false},
+        selection: {include: ['issue_read.get'], exclude: ['issue_read.get']},
         context: context(),
       }),
     );
@@ -247,7 +230,7 @@ describe('resolveAgentToolsGrant', () => {
   it('names a connection that is not in the workspace', () => {
     const error = failure(() =>
       resolveAgentToolsGrant({
-        selection: {connection: 'removed', include: ['issue_read'], allowWrite: false},
+        selection: {connection: 'removed', include: ['issue_read']},
         context: context(),
       }),
     );
@@ -262,7 +245,6 @@ describe('resolveAgentToolsGrant', () => {
           connection: 'github-main',
           provider: 'slack',
           include: ['download_file'],
-          allowWrite: false,
         },
         context: context(),
       }),
@@ -277,7 +259,7 @@ describe('resolveAgentToolsGrant', () => {
   it('asks for a named connection when the project has no default', () => {
     const error = failure(() =>
       resolveAgentToolsGrant({
-        selection: {include: ['issue_read'], allowWrite: false},
+        selection: {include: ['issue_read']},
         context: context({defaultConnection: null}),
       }),
     );
@@ -288,7 +270,7 @@ describe('resolveAgentToolsGrant', () => {
 
   it('uses a named connection when the project has no default', () => {
     const grant = resolveAgentToolsGrant({
-      selection: {connection: 'team-slack', include: ['download_file'], allowWrite: false},
+      selection: {connection: 'team-slack', include: ['download_file']},
       context: context({defaultConnection: null}),
     });
 
@@ -298,7 +280,7 @@ describe('resolveAgentToolsGrant', () => {
   it('leaves the reason out when the provider has no agent tool catalog', () => {
     const error = failure(() =>
       resolveAgentToolsGrant({
-        selection: {connection: 'source-only', include: ['issue_read'], allowWrite: false},
+        selection: {connection: 'source-only', include: ['issue_read']},
         context: context(),
       }),
     );

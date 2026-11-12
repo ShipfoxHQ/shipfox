@@ -284,53 +284,22 @@ describe('fetchAndParseAgents', () => {
       ]);
     });
 
-    it('rejects a write tool unless allow_write is true', async () => {
-      const files = (allowWrite: string) => ({
-        '.shipfox/agents/triage.yaml': agent(`  - include: [issue_write.create]${allowWrite}`),
-      });
-      const load = async () => integrationContext();
-
-      const refused = await parse(files(''), undefined, load);
-      const allowed = await parse(files('\n    allow_write: true'), undefined, load);
-
-      expect(refused.invalid[0]?.error.diagnostics).toEqual([
-        expect.objectContaining({
-          code: 'integration-write-not-allowed',
-          path: 'integrations.0.include',
-        }),
-      ]);
-      expect(allowed.invalid).toEqual([]);
-      expect(allowed.valid).toHaveLength(1);
-    });
-
-    it('accepts a write family once exclude removes every write method', async () => {
-      const files = (exclude: string) => ({
-        '.shipfox/agents/triage.yaml': agent(`  - include: [issue_write]\n    exclude: ${exclude}`),
-      });
-      const load = async () => integrationContext();
-
-      const allExcluded = await parse(
-        files('[issue_write.create, issue_write.update]'),
+    it('accepts a write tool that include names', async () => {
+      const result = await parse(
+        {'.shipfox/agents/triage.yaml': agent('  - include: [issue_write.create]')},
         undefined,
-        load,
+        async () => integrationContext(),
       );
-      const partlyExcluded = await parse(files('[issue_write.create]'), undefined, load);
 
-      expect(allExcluded.invalid).toEqual([]);
-      expect(allExcluded.valid).toHaveLength(1);
-      expect(partlyExcluded.invalid[0]?.error.diagnostics).toEqual([
-        expect.objectContaining({
-          code: 'integration-write-not-allowed',
-          path: 'integrations.0.include',
-        }),
-      ]);
+      expect(result.invalid).toEqual([]);
+      expect(result.valid).toHaveLength(1);
     });
 
     it('rejects an agent integration that exclude empties', async () => {
       const result = await parse(
         {
           '.shipfox/agents/triage.yaml': agent(
-            '  - include: [issue_write]\n    exclude: [issue_write.create, issue_write.update, issue_write.list]\n    allow_write: true',
+            '  - include: [issue_write]\n    exclude: [issue_write.create, issue_write.update, issue_write.list]',
           ),
         },
         undefined,

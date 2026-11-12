@@ -297,7 +297,7 @@ describe('diff_registry_action', () => {
     {
       version: '1.0.0',
       inputs: {channel: {type: 'string', required: true}},
-      integrations: {slack: {provider: 'slack', include: ['conversations'], allow_write: false}},
+      integrations: {slack: {provider: 'slack', include: ['conversations']}},
       dependencies: [
         {name: 'yaml', version: '2.7.0'},
         {name: 'removed-dep', version: '1.0.0'},
@@ -317,9 +317,7 @@ describe('diff_registry_action', () => {
         channel: {type: 'string', required: true},
         reactions: {type: 'boolean', required: false},
       },
-      integrations: {
-        slack: {provider: 'slack', include: ['conversations', 'reactions'], allow_write: true},
-      },
+      integrations: {slack: {provider: 'slack', include: ['conversations', 'reactions']}},
       dependencies: [
         {name: 'yaml', version: '2.8.0'},
         {name: 'added-dep', version: '3.0.0'},
@@ -343,7 +341,6 @@ describe('diff_registry_action', () => {
 
     expect(result.bump).toBe('major');
     expect(result.capability_changes).toEqual([
-      {type: 'write_enabled', alias: 'slack'},
       {type: 'selectors_added', alias: 'slack', selectors: ['reactions']},
     ]);
     expect(Object.keys(result.manifest_changes.inputs.added)).toEqual(['reactions']);

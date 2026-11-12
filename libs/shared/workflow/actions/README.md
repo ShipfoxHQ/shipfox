@@ -260,10 +260,9 @@ test('collects every page of a thread', async () => {
   fake returns the file bytes, or `{bytes, filename, mediaType}`, and the file is written with
   the runner's download code. Throw `toolError('rate-limited')` or
   `toolError({outcomeUnknown: true})` to test error paths.
-- **Grants follow the manifest.** A call to an undeclared alias or an ungranted tool, or a write
-  tool without `allow_write`, fails with `tool-not-granted`. A granted tool without a fake fails
-  with `no-fake-for-tool`. A fake that throws anything else, such as a failed assertion, makes
-  `runAction` reject with that error.
+- **Grants follow the manifest.** A call to an undeclared alias or an ungranted tool fails with
+  `tool-not-granted`. A granted tool without a fake fails with `no-fake-for-tool`. A fake that
+  throws anything else, such as a failed assertion, makes `runAction` reject with that error.
 - **The result** holds `status`, `exitCode`, `outputs` (typed as later steps see them), `state`,
   `error`, every `calls` entry, the interleaved `logs`, the `summary`, the `carriedEnv`,
   `carriedPath`, and `masks` the action wrote for later steps, and the `workspace`.

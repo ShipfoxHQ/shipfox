@@ -129,7 +129,6 @@ parseWorkflowDocument({
               connection: 'github-main',
               include: ['issue_read.get', 'pull_request_read.get_files'],
               exclude: ['actions_run_trigger.run_workflow'],
-              allow_write: false,
             },
           ],
         },
@@ -244,7 +243,7 @@ const manifest = actionManifestSchema.parse({
 });
 
 manifest.inputs?.channel_id?.type; // "string"
-manifest.integrations?.slack?.allow_write; // false
+manifest.integrations?.slack?.include; // ["read_thread"]
 ```
 
 A composite action sets `steps` instead of `main`. Its steps run in the job

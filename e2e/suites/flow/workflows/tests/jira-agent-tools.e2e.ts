@@ -211,6 +211,5 @@ jobs:
         integrations:
           - connection: ${connectionSlug}
             include: [get_issue, add_comment]
-            allow_write: true
 `;
 }

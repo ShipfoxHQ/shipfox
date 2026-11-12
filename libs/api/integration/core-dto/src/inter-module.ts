@@ -148,7 +148,6 @@ const resolveAgentToolsFailureReason = z.enum([
   'source-connection-missing',
   'tool-unknown',
   'no-tools-selected',
-  'write-not-allowed',
 ]);
 const resolveAgentToolsSelection = z.object({
   /** A connection slug. Without it, the project's default connection applies. */
@@ -157,8 +156,6 @@ const resolveAgentToolsSelection = z.object({
   provider: z.string().min(1).optional(),
   include: z.array(z.string().min(1)),
   exclude: z.array(z.string().min(1)).optional(),
-  /** A selection that grants a write tool is refused unless this is true. */
-  allowWrite: z.boolean(),
 });
 const resolvedAgentToolMethod = z.object({
   id: z.string().min(1),

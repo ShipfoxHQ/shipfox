@@ -29,8 +29,8 @@ export function normalizeAgentIntegrations(params: {
 
 /**
  * Checks the `integrations:` of an agent file against the workspace's connections and provider
- * catalogs, with the selector and `allow_write` rules of an agent step. The default connection is
- * the project's, so an entry without a `connection` needs one.
+ * catalogs, with the selector rules of an agent step. The default connection is the project's, so
+ * an entry without a `connection` needs one.
  */
 export function validateAgentFileIntegrations(params: {
   integrations: readonly WorkflowDocumentStepIntegration[] | undefined;
@@ -66,7 +66,6 @@ export function validateAgentFileIntegrations(params: {
     validateAgentToolSelection({
       include: integration.include,
       ...(integration.exclude === undefined ? {} : {exclude: integration.exclude}),
-      allowWrite: integration.allow_write ?? false,
       selectorsByToken,
       selectorPath: (field, tokenIndex) =>
         tokenIndex === undefined ? [...path, field] : [...path, field, tokenIndex],
@@ -83,7 +82,6 @@ function normalizeIntegration(
     ...(integration.connection === undefined ? {} : {connection: integration.connection}),
     include: dedupe(integration.include),
     ...(integration.exclude === undefined ? {} : {exclude: dedupe(integration.exclude)}),
-    allowWrite: integration.allow_write ?? false,
   };
 }
 
@@ -124,7 +122,6 @@ function validateIntegration(params: {
   validateAgentToolSelection({
     include: params.integration.include,
     ...(params.integration.exclude === undefined ? {} : {exclude: params.integration.exclude}),
-    allowWrite: params.normalized.allowWrite,
     selectorsByToken,
     selectorPath: (field, tokenIndex) =>
       tokenIndex === undefined
@@ -221,14 +218,10 @@ export function connectionNotAllowedIssue(params: {
   });
 }
 
-/**
- * Checks selectors against the provider catalog. A selection that `exclude` empties is refused,
- * and write tools need `allowWrite`.
- */
+/** Checks selectors against the provider catalog. A selection that `exclude` empties is refused. */
 export function validateAgentToolSelection(params: {
   include: readonly string[];
   exclude?: readonly string[];
-  allowWrite: boolean;
   selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
   selectorPath: (field: 'include' | 'exclude', tokenIndex?: number) => readonly (string | number)[];
   details?: Readonly<Record<string, unknown>>;
@@ -281,7 +274,6 @@ function selectsKnownTokensOnly(params: {
 function validateEffectiveSelection(params: {
   include: readonly string[];
   exclude?: readonly string[];
-  allowWrite: boolean;
   selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
   selectorPath: (field: 'include' | 'exclude', tokenIndex?: number) => readonly (string | number)[];
   details?: Readonly<Record<string, unknown>>;
@@ -303,27 +295,7 @@ function validateEffectiveSelection(params: {
         details: {...params.details},
       }),
     );
-    return;
   }
-  if (params.allowWrite) return;
-
-  const writeTokens = dedupe(
-    params.include.filter((token) =>
-      remaining(token).some(
-        (granted) => params.selectorsByToken.get(granted)?.sensitivity === 'write',
-      ),
-    ),
-  );
-  if (writeTokens.length === 0) return;
-
-  params.issues.push(
-    issue({
-      code: 'integration-write-not-allowed',
-      message: `Integration selection includes write-capable tools but allow_write is not true: ${writeTokens.join(', ')}.`,
-      path: params.selectorPath('include'),
-      details: {tokens: writeTokens, ...params.details},
-    }),
-  );
 }
 
 /** The standalone tools and family methods a token selects. Unknown tokens select nothing. */

@@ -23,11 +23,11 @@ export function actionVersionDocument(): RegistryActionVersionDocument {
       main: 'index.mjs',
       inputs: {},
       outputs: {},
-      integrations: {slack: {provider: 'slack', include: ['conversations'], allow_write: false}},
+      integrations: {slack: {provider: 'slack', include: ['conversations']}},
     },
     derived: {
       integrations: ['slack'],
-      capabilities: {slack: {provider: 'slack', selectors: ['conversations'], allow_write: false}},
+      capabilities: {slack: {provider: 'slack', selectors: ['conversations']}},
       interface: {inputs: {}, outputs: {}},
       usage: 'uses: shipfox/slack-thread-digest@1.4.2\nconnections:\n  slack: <slack connection>\n',
       size: 48213,

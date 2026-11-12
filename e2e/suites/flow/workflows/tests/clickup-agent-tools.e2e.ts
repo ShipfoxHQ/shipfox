@@ -210,6 +210,5 @@ jobs:
         integrations:
           - connection: ${connectionSlug}
             include: [get_task, add_comment]
-            allow_write: true
 `;
 }

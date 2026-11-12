@@ -180,7 +180,6 @@ describe('normalizeWorkflowDocument action steps', () => {
             provider: 'slack',
             connection: 'team-slack',
             include: ['read_thread'],
-            allowWrite: false,
           },
         },
       },
@@ -340,9 +339,9 @@ describe('normalizeWorkflowDocument action steps', () => {
     expect(issuesFor(document(step))).toEqual([]);
   });
 
-  test('allows write tools when the manifest sets allow_write', () => {
+  test('allows the write tools the manifest includes', () => {
     const writer = manifest({
-      integrations: {slack: {provider: 'slack', include: ['post_message'], allow_write: true}},
+      integrations: {slack: {provider: 'slack', include: ['post_message']}},
     });
 
     expect(issuesFor(document(actionStep()), actions(writer))).toEqual([]);
@@ -480,11 +479,6 @@ describe('normalizeWorkflowDocument action steps', () => {
         integrations: {slack: {provider: 'slack', include: ['channels.archive']}},
       }),
       expected: [{code: 'unknown-integration-method', path: `${stepPath}.uses`}],
-    },
-    {
-      name: 'a write selector without allow_write',
-      manifest: manifest({integrations: {slack: {provider: 'slack', include: ['post_message']}}}),
-      expected: [{code: 'integration-write-not-allowed', path: `${stepPath}.uses`}],
     },
     {
       name: 'a manifest schema that is not valid JSON Schema',
