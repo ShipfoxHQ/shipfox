@@ -1,5 +1,42 @@
 # @shipfox/api-integration-slack-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 107ecc7: Prepares Slack for agents. The Slack app now requests `chat:write.customize` and `assistant:write`, and Slack publishes the agent view events `assistant_thread_started`, `app_context_changed`, and `agent_session_stopped` without adding them to the workflow event catalog. A provider can implement `connectionReconnectRequired` to report an active connection that lacks a newer permission. The connections list then returns `reconnect_required`, the connection page asks the user to reconnect, and agents ignore the connection's events until it reconnects. Slack reports this for an installation that lacks a required scope.
+
+### Patch Changes
+
+- Updated dependencies [2062ec8]
+- Updated dependencies [0363a2c]
+- Updated dependencies [1fa56a2]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2cc76a9]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [b59424d]
+- Updated dependencies [4273dad]
+- Updated dependencies [9e173c3]
+- Updated dependencies [b92d2a8]
+- Updated dependencies [fe109f0]
+- Updated dependencies [3022de6]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [a64d96d]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [a020cbf]
+- Updated dependencies [900a25a]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [e6981d5]
+- Updated dependencies [107ecc7]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+  - @shipfox/api-integration-core-dto@34.0.0
+
 ## 31.0.0
 
 ### Major Changes

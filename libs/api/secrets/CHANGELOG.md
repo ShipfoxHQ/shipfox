@@ -1,5 +1,49 @@
 # @shipfox/api-secrets
 
+## 34.0.0
+
+### Minor Changes
+
+- a48410e: Purges the configuration and conversations of a deleted project. After a project is deleted, its subscriptions, definitions, secrets, cache entries, conversations, and managed repository are removed, and a late event can't bring any of them back. A write for a deleted project answers `project-not-found`. A repository the project linked is not touched, and action snapshots stay, because projects in a workspace share them.
+
+### Patch Changes
+
+- Updated dependencies [e99aa97]
+- Updated dependencies [46f78a0]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [b59424d]
+- Updated dependencies [dd63da9]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [c06262b]
+- Updated dependencies [52969e5]
+- Updated dependencies [e6981d5]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+- Updated dependencies [68ad557]
+- Updated dependencies [0b661c9]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+
 ## 31.0.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @shipfox/node-log
 
+## 0.3.10
+
+### Patch Changes
+
+- 5cf799b: Stops logging credentials. The `req` serializer keeps only the `user-agent` and `x-forwarded-for` headers, and the `res` serializer keeps only the status code. Error serializers drop the `options`, `request`, `response`, and `config` fields of HTTP client errors, and redact `authorization`, `cookie`, `proxy-authorization`, and `set-cookie` fields at any depth.
+- 041ae63: Two installed copies of these packages now share their process state through `@shipfox/node-process-state` slots: the Postgres pool, the Fastify app, auth methods, and client errors, the default logger, the OpenTelemetry SDK, meter provider, and base logger, the OpenFeature domain counter, outbox write listeners, reported errors, and precise cursor timestamps. `@shipfox/node-module` now reports a duplicate copy of any of them at startup.
+- Updated dependencies [2128c1e]
+  - @shipfox/node-process-state@0.1.0
+
 ## 0.3.9
 
 ### Patch Changes
