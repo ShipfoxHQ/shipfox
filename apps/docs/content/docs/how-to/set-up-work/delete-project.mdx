@@ -1,0 +1,58 @@
+---
+title: "Delete a Project"
+sidebarTitle: "Delete a Project"
+description: "Stop a project's work and delete everything it owns."
+---
+
+Delete a project when its workflows and agents should stop for good. The
+project disappears at once, its active work stops, and Shipfox deletes what it
+owns. A deletion is permanent.
+
+## Before you begin
+
+You need to be a workspace admin.
+
+The workspace's default project can't be deleted. Its settings show a
+**Default** badge.
+
+## Delete the project
+
+<Steps>
+  <Step>
+
+    **Open the general settings**
+
+    Open the project, select **Settings**, then select **General**.
+  </Step>
+  <Step>
+
+    **Delete it**
+
+    Under **Delete project**, select **Delete project**. Type the project name
+    to confirm, then select **Delete project** again.
+  </Step>
+</Steps>
+
+Shipfox opens the workspace's projects.
+
+## What happens when you delete a project
+
+- The project's pages return "not found". No new run, trigger, or agent turn
+  starts for it.
+- Active runs, including listening jobs, are canceled. Active agent turns stop.
+  Slack threads and Linear sessions of the project's conversations get no
+  further reply.
+- Shipfox deletes the project's workflows, triggers, secrets and variables,
+  cache, agents, conversations, runs, logs, and annotations. If Shipfox stores
+  the project's config, it deletes that repository too.
+- If the project's config is in one of your repositories, that repository is
+  not changed. Its `.shipfox/` folder stays.
+- Usage records stay.
+
+The project's name and slug can be used again right away. Its repository can
+become another project's config repository right away.
+
+## Verify the deletion
+
+The project is no longer listed on the **Projects** page or in the project
+switcher, and its old URL shows "Project not found".

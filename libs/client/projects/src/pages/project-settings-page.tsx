@@ -22,6 +22,7 @@ import {useNavigate} from '@tanstack/react-router';
 import {useState} from 'react';
 import {useMaybeActiveProjectQuery} from '#chrome.js';
 import {DefaultProjectBadge} from '#components/default-project-badge.js';
+import {DeleteProjectSection} from '#components/delete-project-section.js';
 import type {Project} from '#core/project.js';
 import {useProjectSlugAvailability, useUpdateProjectMutation} from '#hooks/api/projects.js';
 import {projectSettingsErrorToFormError} from './project-settings-form-errors.js';
@@ -228,6 +229,8 @@ function ProjectSettingsForm({project}: {project: Project}) {
             </form>
           </PanelBody>
         </Panel>
+
+        {project.isDefault ? null : <DeleteProjectSection project={project} />}
       </div>
 
       <SlugChangeWarning
