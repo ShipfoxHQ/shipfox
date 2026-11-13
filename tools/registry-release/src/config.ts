@@ -1,4 +1,3 @@
-import type {Dirent} from 'node:fs';
 import {readdir, readFile} from 'node:fs/promises';
 import {basename, join} from 'node:path';
 import {registryPackageKindSchema, registrySlugSchema} from '@shipfox/registry-format';
@@ -55,7 +54,8 @@ export async function discoverPackages({
   const found: ConfiguredPackage[] = [];
   for (const {kind, path: pattern, publish} of config.packages) {
     const parent = pattern.slice(0, -'/*'.length);
-    for (const entry of await readPackageDirectories(join(root, parent))) {
+    const entries = await readdir(join(root, parent), {withFileTypes: true});
+    for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const name = basename(entry.name);
       if (!registrySlugSchema.safeParse(name).success) {
@@ -72,16 +72,6 @@ export async function discoverPackages({
     }
   }
   return found.sort(byPath);
-}
-
-// A pattern whose parent does not exist yet, such as an empty catalog section, has no packages.
-async function readPackageDirectories(parent: string): Promise<Dirent[]> {
-  try {
-    return await readdir(parent, {withFileTypes: true});
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
 }
 
 // Code-unit order, so the order never depends on the runtime locale.

@@ -70,7 +70,7 @@ packages:
 
 `publish: false` keeps the packages of a configuration entry out of releases. Both checks still build them and apply the publish rules, and `check --mode release` still fails a published version of one that changed. A release skips the bump and used-action checks for them, and does not count their actions as part of the release. Templates use it until the first catalog publication.
 
-CI runs `check --mode pr` on every pull request and `check --mode release` on the `changeset-release/main` pull request. The `publish-registry` job of `publish-packages.yml` runs `publish` after the merged release passes `verify-release`.
+CI runs `check --mode pr` on every pull request and `check --mode release` on the `changeset-release/main` pull request from this repository. The `publish-registry` job of `publish-packages.yml` runs `publish` after the merged release passes `verify-release`.
 
 | Option | Effect |
 | -- | -- |

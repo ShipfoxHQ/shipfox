@@ -323,7 +323,7 @@ describe('check', () => {
       ]);
     });
 
-    it('skips the new-version rules for a held-back package', async () => {
+    it('skips the used-action check for a held-back package', async () => {
       repository.write(
         'parts/source/github.yml',
         `open_pr: |\n  - key: open_pr\n    uses: shipfox/digest@1.0.0\n`,
