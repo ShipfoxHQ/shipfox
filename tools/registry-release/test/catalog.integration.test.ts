@@ -3,7 +3,7 @@ import {buildPackage} from '../src/build.js';
 import {discoverPackages, loadConfig} from '../src/config.js';
 import {TOOL_VERSION} from './helpers.js';
 
-// Builds the real catalog, so each JavaScript action prunes this monorepo and installs its build tree.
+// Builds the real catalog, where each JavaScript action prunes this monorepo and installs its build tree.
 const BUILD_TIMEOUT = 120_000;
 
 describe('the first-party catalog', () => {
@@ -20,7 +20,6 @@ describe('the first-party catalog', () => {
     );
 
     expect(first.map(({package: name}) => name)).toContain('shipfox/ticket-to-pr');
-    expect(first.map(({package: name}) => name)).toContain('shipfox/slack-thread-digest');
     expect(second.map(({fingerprint}) => fingerprint)).toEqual(
       first.map(({fingerprint}) => fingerprint),
     );

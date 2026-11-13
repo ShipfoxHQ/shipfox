@@ -17,7 +17,8 @@ export class ReleaseCheckFailedError extends Error {
  * have. Each version goes after the versions of the batch that it uses, because
  * the actions of a template or a composite action must exist when it is
  * published. Versions the registry already has are skipped, so a retry of a
- * partial publish continues where it stopped.
+ * partial publish continues where it stopped. Packages with `publish: false`
+ * are never uploaded.
  */
 export async function publishPackages({
   packages,
@@ -41,10 +42,12 @@ export async function publishPackages({
 
   const missing: BuiltPackage[] = [];
   for (const built of packages) {
-    if ((await registry.getVersionDocument(built)) === undefined) missing.push(built);
+    if ((await registry.getVersionDocument(built)) !== undefined) continue;
+    if (built.publish) missing.push(built);
+    else log(`Held back ${built.package}@${built.version}: its config entry sets publish: false.`);
   }
   if (missing.length === 0) {
-    log('Every version is already published.');
+    log('No new version to publish.');
     return [];
   }
 

@@ -12,6 +12,9 @@ const pullRequestBaseExpression =
   '${{' + " github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}";
 const pullRequestRequiredExpression =
   '${{' + " github.event_name == 'pull_request' && needs.release-mode.outputs.mode != 'normal' }}";
+const sameRepositoryHeadPattern = /head\.repo\.full_name == github\.repository/u;
+const releaseModeOnReleasePrPattern =
+  /head\.ref == 'changeset-release\/main' && 'release' \|\| 'pr'/u;
 const e2eRunCondition =
   "always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')";
 
@@ -177,6 +180,18 @@ describe('generated release CI path', () => {
     for (const job of release.needs) {
       assert.ok(release.if.includes(`needs.${job}.result == 'success'`), job);
     }
+  });
+
+  test('checks registry packages in release mode only on the release PR', async () => {
+    const parsedWorkflow = parse(await readWorkflow());
+    const job = parsedWorkflow.jobs['registry-packages'];
+    const step = job.steps.find(({name}: {name: string}) => name === 'Check registry packages');
+
+    assert.equal(job.if, "github.event_name == 'pull_request'");
+    assert.equal(job.needs, undefined);
+    assert.equal(step.run, 'node tools/registry-release/dist/cli.js check --mode "$CHECK_MODE"');
+    assert.match(step.env.CHECK_MODE, sameRepositoryHeadPattern);
+    assert.match(step.env.CHECK_MODE, releaseModeOnReleasePrPattern);
   });
 
   test('reports the E2E suite matrix through one required check', async () => {

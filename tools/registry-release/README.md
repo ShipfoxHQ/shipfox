@@ -9,7 +9,7 @@ The `shipfox-registry-release` command runs the deterministic recipe that turns 
 - **`build <dir>`** builds one package into `.shipfox-registry/<ns>/<name>/<version>/` (ignored by Git) and prints its digests. The directory holds the blobs, `README.md` when present, the publish `draft.json`, and a `build.json` summary. The registry's operator `import` command reads it.
 - **`check --mode pr`** builds every configured package. A package whose fingerprint differs from its published version needs a pending changeset that bumps it by at least the computed minimum. An unpublished package needs no changeset.
 - **`check --mode release`** builds every configured package and compares it with the registry. A published version must keep its fingerprint. A new version must meet the bump rules against the highest lower published version, and every action a template or a composite action uses must be a published action or part of the same release.
-- **`publish`** runs `check --mode release`, exchanges a GitHub OIDC token for a publish token, then uploads the versions the registry does not have. Each version uploads after the versions of the same release that it uses, so actions upload before the composite actions and templates that use them.
+- **`publish`** runs `check --mode release`, exchanges a GitHub OIDC token for a publish token, then uploads the versions the registry does not have. Each version uploads after the versions of the same release that it uses, so actions upload before the composite actions and templates that use them. It never uploads a package whose config entry sets `publish: false`.
 - **`verify <ns/name@version>`** checks out the provenance commit of a published version in a temporary worktree, runs the recipe, and compares the content and source digests.
 
 `check` also warns about a `related` name that is neither published nor configured. It never fails on one.
@@ -65,8 +65,12 @@ registry: https://api.registry.shipfox.io
 namespace: shipfox
 packages:
   - {kind: action, path: libs/shared/workflow/catalog/actions/*}
-  - {kind: template, path: libs/shared/workflow/catalog/templates/*}
+  - {kind: template, path: libs/shared/workflow/catalog/templates/*, publish: false}
 ```
+
+`publish: false` keeps the packages of a configuration entry out of releases. Both checks still build them and apply the publish rules, and `check --mode release` still fails a published version of one that changed. A release skips the bump and used-action checks for them, and does not count their actions as part of the release. Templates use it until the first catalog publication.
+
+CI runs `check --mode pr` on every pull request and `check --mode release` on the `changeset-release/main` pull request from this repository. The `publish-registry` job of `publish-packages.yml` runs `publish` after the merged release passes `verify-release`.
 
 | Option | Effect |
 | -- | -- |

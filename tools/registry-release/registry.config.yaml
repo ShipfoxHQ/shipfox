@@ -2,4 +2,5 @@ registry: https://api.registry.shipfox.io
 namespace: shipfox
 packages:
   - {kind: action, path: libs/shared/workflow/catalog/actions/*}
-  - {kind: template, path: libs/shared/workflow/catalog/templates/*}
+  # Templates stay built and checked, but out of releases until the first catalog publication.
+  - {kind: template, path: libs/shared/workflow/catalog/templates/*, publish: false}
