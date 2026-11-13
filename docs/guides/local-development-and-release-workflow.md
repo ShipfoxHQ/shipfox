@@ -206,9 +206,9 @@ release PR merely to retry publication.
 
 The same workflow publishes the first-party actions to the Shipfox Registry.
 Templates stay out of it for now: `publish: false` in
-`tools/registry-release/registry.config.yaml` holds them back until the first
-catalog publication. The `verify-release` job verifies the merged release tree
-once. Both the npm `publish` job and the `publish-registry` job need it, so a
+`tools/registry-release/registry.config.yaml` holds them back. The first
+catalog publication removes that flag. The `verify-release` job verifies the
+merged release tree once. Both the npm `publish` job and the `publish-registry` job need it, so a
 failed verification publishes to neither. `publish-registry` publishes only the
 versions the registry does not have. To rehearse against the staging registry,
 run the workflow manually and choose `staging` for **Registry**. The choice
