@@ -23,7 +23,6 @@ const glossaryHeadings = [
   'AI model',
   'Pipeline terminology',
   'Project',
-  'Project agent',
   'Model provider',
   'Step and job outputs',
   'Run',

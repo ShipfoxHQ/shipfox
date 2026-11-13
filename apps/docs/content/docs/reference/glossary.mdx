@@ -91,10 +91,6 @@ An informal synonym for [workflow](/reference/workflow-schema) sometimes used in
 
 The unit in a workspace that owns workflow definitions and run history. A project has one config source: a Git repository linked through a source integration connection, or a repository Shipfox hosts, called [managed config](/understand/configuration#in-your-repository-or-managed-by-shipfox). Workflow YAML files live under `.shipfox/workflows/` in that source. A managed project can [move to a repository](/how-to/set-up-work/move-config-to-repository) later.
 
-## Project agent
-
-The chat assistant built into every project, named Shippy by default. You open it from any project page, and it reads the project's runs, logs, and workflows, starts a workflow when you ask, and reports the run's result in the conversation. A web conversation is private to the member who started it. See [The project agent](/understand/project-agent). A `shippy.yaml` file in `.shipfox/agents/` adds to it. See [Agent file](/reference/workflow-schema#agent-file-fields).
-
 ## Model provider
 
 An AI model provider configured in workspace settings with an API key. Workflows reference providers by their ID string in the `provider` field of an agent step. See the full catalog in the [Model Providers reference](/reference/model-providers).
