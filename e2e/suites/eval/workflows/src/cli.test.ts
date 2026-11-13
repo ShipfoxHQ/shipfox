@@ -2,8 +2,10 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseEvalArgs} from './cli.js';
 
 const onboardingOnlyPattern = /onboarding only/u;
-const workersPattern = /--workers applies to scripted and live template runs only/u;
+const agentModelPattern = /onboarding and shippy only/u;
+const workersPattern = /--workers applies to scripted and live template and shippy runs only/u;
 const positivePattern = /--workers must be a positive integer/u;
+const compilePattern = /compile applies to --suite templates and contracts only/u;
 
 describe('model options', () => {
   it('reads the onboarding agent and simulator models', () => {
@@ -23,7 +25,16 @@ describe('model options', () => {
   it('rejects a model for the templates suite, which uses each template anchor model', () => {
     expect(() =>
       parseEvalArgs(['--suite', 'templates', '--agent-model', 'claude-opus-5-5']),
-    ).toThrow(onboardingOnlyPattern);
+    ).toThrow(agentModelPattern);
+  });
+
+  it('takes an agent model for the shippy suite, but no simulator model', () => {
+    expect(parseEvalArgs(['--suite', 'shippy', '--agent-model', 'gpt-6-luna']).agentModel).toBe(
+      'gpt-6-luna',
+    );
+    expect(() => parseEvalArgs(['--suite', 'shippy', '--simulator-model', 'x'])).toThrow(
+      onboardingOnlyPattern,
+    );
   });
 });
 
@@ -35,6 +46,14 @@ describe('workers option', () => {
   it('defaults to 4 workers for scripted and live template runs', () => {
     expect(parseEvalArgs([]).workers).toBe(4);
     expect(parseEvalArgs(['--mode', 'live']).workers).toBe(4);
+  });
+
+  it('spreads shippy runs over workers like template runs', () => {
+    expect(parseEvalArgs(['--suite', 'shippy']).workers).toBe(4);
+    expect(parseEvalArgs(['--suite', 'shippy', '--mode', 'live', '--workers', '2']).workers).toBe(
+      2,
+    );
+    expect(() => parseEvalArgs(['--suite', 'shippy', '--mode', 'compile'])).toThrow(compilePattern);
   });
 
   it('sets no workers for the onboarding suite and compile mode', () => {

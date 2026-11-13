@@ -1,0 +1,7 @@
+- match: {prompt_contains: "Why did this run fail?"}
+  replies:
+    - tool: get_workflow_run
+      args: {run_id: $runs.install.id}
+    - tool: get_step_logs
+      args: {run_id: $runs.install.id, failed_only: true}
+    - text: "`npm ci` failed because `@acme/billing-client@4.2.0` is no longer in the registry: it was unpublished on 2026-10-30, so every attempt got a 404. Pin a version that still exists, or restore the package."

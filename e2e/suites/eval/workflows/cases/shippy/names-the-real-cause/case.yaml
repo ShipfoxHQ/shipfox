@@ -1,0 +1,15 @@
+modes: [scripted, live]
+seed:
+  runs:
+    - {key: install, workflow: install-dependencies.yml, status: failed}
+turns:
+  - message: Why did this run fail?
+    page: {page: run, run: install}
+expect:
+  tools: [get_step_logs]
+  tools_absent: [start_workflow_run]
+  reply:
+    includes: [billing-client]
+    excludes: ["/time ?out/i", "/left-pad/i"]
+covers:
+  - names the real cause of a seeded failure

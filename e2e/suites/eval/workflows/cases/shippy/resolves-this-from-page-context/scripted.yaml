@@ -1,0 +1,7 @@
+- match: {prompt_contains: "Why did this fail?"}
+  replies:
+    - tool: get_workflow_run
+      args: {run_id: $runs.preview.id}
+    - tool: get_step_logs
+      args: {run_id: $runs.preview.id, failed_only: true}
+    - text: "The `upload` step of **Deploy preview** could not connect to `preview.acme.dev`: the TLS certificate expired on 2026-10-31. Renew the certificate and run it again."

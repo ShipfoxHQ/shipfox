@@ -132,6 +132,10 @@ interface ScriptedReply {
   text?: string;
   tool?: string;
   args?: Record<string, unknown>;
+  /** A provider failure served instead of a message, so a turn fails on purpose. */
+  error?: {status: number; message: string};
+  /** Holds a streamed reply open after its text, so a test can stop the turn mid-reply. */
+  hold_ms?: number;
 }
 
 interface ScriptedEntry {
@@ -189,6 +193,8 @@ interface InferenceState {
   readonly scripts: Map<string, ScriptedProject>;
   readonly openRouter: OpenRouterBackend | undefined;
   readonly openRouterProjects: Set<string>;
+  /** The catalog model that serves a project's requests for a model OpenRouter doesn't map. */
+  readonly openRouterDefaultModels: Map<string, string>;
   /** What OpenRouter reported for each project's completions, in USD. */
   readonly openRouterCosts: Map<string, {costUsd: number; requests: number}>;
   recordInferenceSegment: RecordInferenceSegment | undefined;
@@ -215,6 +221,7 @@ export function createE2eManagedInferenceProvider(
     scripts: new Map(),
     openRouter: options.openRouter,
     openRouterProjects: new Set(),
+    openRouterDefaultModels: new Map(),
     openRouterCosts: new Map(),
     recordInferenceSegment: undefined,
     stats: {
@@ -277,7 +284,8 @@ function resolveE2eCredentials(
   }
   if (
     credentialState.openRouterIdentity !== undefined &&
-    !Object.hasOwn(OPENROUTER_MODEL_IDS, model.id)
+    !Object.hasOwn(OPENROUTER_MODEL_IDS, model.id) &&
+    !state.openRouterDefaultModels.has(projectId)
   ) {
     throw new Error(`E2E managed provider has no OpenRouter model for ${model.id}`);
   }
@@ -423,14 +431,60 @@ function parseScriptReply(value: unknown): ScriptedReply {
   if (!isRecord(value)) {
     throw new ClientError('Invalid scripted provider reply', 'invalid-script', {status: 400});
   }
-  if (typeof value.text === 'string') return {text: value.text};
+  const hold = parseScriptHold(value.hold_ms);
+  if (typeof value.text === 'string') return {text: value.text, ...hold};
   if (typeof value.tool === 'string') {
     return {
       tool: value.tool,
       args: isRecord(value.args) ? value.args : {},
+      ...hold,
     };
   }
-  throw new ClientError('A scripted provider reply needs text or tool', 'invalid-script', {
+  if (isRecord(value.error)) {
+    const {status, message} = value.error;
+    if (
+      typeof status !== 'number' ||
+      !Number.isInteger(status) ||
+      status < 400 ||
+      status > 599 ||
+      typeof message !== 'string'
+    ) {
+      throw new ClientError(
+        'A scripted provider error needs a 4xx or 5xx status and a message',
+        'invalid-script',
+        {status: 400},
+      );
+    }
+    return {error: {status, message}};
+  }
+  throw new ClientError('A scripted provider reply needs text, tool, or error', 'invalid-script', {
+    status: 400,
+  });
+}
+
+function parseScriptHold(value: unknown): Pick<ScriptedReply, 'hold_ms'> {
+  if (value === undefined) return {};
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new ClientError(
+      'A scripted provider hold must be a non-negative integer',
+      'invalid-script',
+      {
+        status: 400,
+      },
+    );
+  }
+  return {hold_ms: value};
+}
+
+/**
+ * A conversation runs on the workspace default model, which is the provider's own default and
+ * has no OpenRouter mapping. `default_model` names the catalog model that serves it instead.
+ */
+function routeOpenRouterDefaultModel(value: unknown): string | undefined {
+  const model = isRecord(value) ? value.default_model : undefined;
+  if (model === undefined || model === null) return undefined;
+  if (typeof model === 'string' && Object.hasOwn(OPENROUTER_MODEL_IDS, model)) return model;
+  throw new ClientError('No OpenRouter model is mapped for default_model', 'invalid-model', {
     status: 400,
   });
 }
@@ -529,9 +583,12 @@ function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
               status: 409,
             });
           }
+          const defaultModel = routeOpenRouterDefaultModel(request.body);
           state.openRouterProjects.add(projectId);
+          if (defaultModel !== undefined)
+            state.openRouterDefaultModels.set(projectId, defaultModel);
           reply.code(201);
-          return {project_id: projectId};
+          return {project_id: projectId, default_model: defaultModel ?? null};
         },
       }),
       defineRoute({
@@ -641,7 +698,7 @@ function respondToInferenceRequest(params: {
     }
     return forwardToOpenRouter({
       backend: params.state.openRouter,
-      body: params.body,
+      body: withOpenRouterDefaultModel(params.state, credentialState, params.body),
       identity: credentialState.openRouterIdentity,
       record: params.state.recordInferenceSegment,
       recordCost: ({projectId, costUsd}) => {
@@ -666,6 +723,18 @@ function respondToInferenceRequest(params: {
     return respondWithOpenAiCompletion(params.reply, requestModel, params.body);
   }
   return respondWithAnthropicMessage(params.reply, requestModel, params.body);
+}
+
+/** Replaces a request model OpenRouter doesn't map with the project's registered default. */
+function withOpenRouterDefaultModel(
+  state: InferenceState,
+  credentialState: CredentialState,
+  body: unknown,
+): unknown {
+  const defaultModel = state.openRouterDefaultModels.get(credentialState.projectId);
+  if (defaultModel === undefined || !isRecord(body) || typeof body.model !== 'string') return body;
+  if (Object.hasOwn(OPENROUTER_MODEL_IDS, body.model)) return body;
+  return {...body, model: defaultModel};
 }
 
 function credentialStateForRequest(
@@ -755,21 +824,28 @@ function scriptedCompletion(params: {
   };
 }
 
-function respondWithScriptedOpenAiCompletion(
-  reply: {
-    code(statusCode: number): {send(payload: unknown): unknown};
-    hijack(): unknown;
-    raw: {
-      end(chunk?: string): unknown;
-      write(chunk: string): unknown;
-      writeHead(statusCode: number, headers: Record<string, string>): unknown;
-    };
-    send(payload: unknown): unknown;
-  },
+type ScriptedReplyTarget = {
+  code(statusCode: number): {send(payload: unknown): unknown};
+  hijack(): unknown;
+  raw: {
+    end(chunk?: string): unknown;
+    on(event: 'close', listener: () => void): unknown;
+    write(chunk: string): unknown;
+    writeHead(statusCode: number, headers: Record<string, string>): unknown;
+  };
+  send(payload: unknown): unknown;
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function respondWithScriptedOpenAiCompletion(
+  reply: ScriptedReplyTarget,
   model: string,
   body: unknown,
   credentialState: CredentialState,
-): unknown {
+): Promise<unknown> {
   const attempt = credentialState.scriptedAttempt;
   if (attempt === undefined) return respondWithOpenAiCompletion(reply, model, body);
 
@@ -781,36 +857,10 @@ function respondWithScriptedOpenAiCompletion(
   const requestIndex = attempt.project.requests.length;
   const replyDefinition = attempt.entry?.replies[attempt.cursor];
   if (attempt.entry === undefined || replyDefinition === undefined) {
-    const error =
-      attempt.entry === undefined
-        ? `No scripted response matched prompt for project ${credentialState.projectId}.`
-        : `Scripted response entry for project ${credentialState.projectId} is exhausted.`;
-    attempt.project.requests.push({
-      index: requestIndex,
-      project_id: credentialState.projectId,
-      ...requestSubjectIds(credentialState.subject),
-      model,
-      prompt,
-      surprise: true,
-      served_reply: null,
-      error,
-      created_at: new Date().toISOString(),
-    });
-    return reply.code(attempt.entry === undefined ? 422 : 409).send({
-      error: {
-        message: error,
-        type: attempt.entry === undefined ? 'script_no_match' : 'script_exhausted',
-      },
-    });
+    return respondWithScriptSurprise({reply, model, prompt, credentialState, attempt});
   }
 
   attempt.cursor += 1;
-  const completion = scriptedCompletion({
-    model,
-    reply: replyDefinition,
-    requestIndex,
-    subjectId: subjectKey(credentialState.subject),
-  });
   attempt.project.requests.push({
     index: requestIndex,
     project_id: credentialState.projectId,
@@ -818,11 +868,64 @@ function respondWithScriptedOpenAiCompletion(
     model,
     prompt,
     surprise: false,
-    served_reply: replyDefinition.text ?? `tool:${replyDefinition.tool}`,
+    served_reply: servedReplyLabel(replyDefinition),
     created_at: new Date().toISOString(),
   });
 
-  if (!bodyBoolean(body, 'stream')) return reply.send(completion);
+  if (replyDefinition.error !== undefined) {
+    return reply.code(replyDefinition.error.status).send({
+      error: {message: replyDefinition.error.message, type: 'scripted_error'},
+    });
+  }
+
+  const completion = scriptedCompletion({
+    model,
+    reply: replyDefinition,
+    requestIndex,
+    subjectId: subjectKey(credentialState.subject),
+  });
+  if (!bodyBoolean(body, 'stream')) {
+    if (replyDefinition.hold_ms) await sleep(replyDefinition.hold_ms);
+    return reply.send(completion);
+  }
+  return streamScriptedCompletion({reply, model, completion, holdMs: replyDefinition.hold_ms});
+}
+
+function respondWithScriptSurprise(params: {
+  reply: ScriptedReplyTarget;
+  model: string;
+  prompt: string;
+  credentialState: CredentialState;
+  attempt: ScriptedAttempt;
+}): unknown {
+  const {reply, model, prompt, credentialState, attempt} = params;
+  const noMatch = attempt.entry === undefined;
+  const error = noMatch
+    ? `No scripted response matched prompt for project ${credentialState.projectId}.`
+    : `Scripted response entry for project ${credentialState.projectId} is exhausted.`;
+  attempt.project.requests.push({
+    index: attempt.project.requests.length,
+    project_id: credentialState.projectId,
+    ...requestSubjectIds(credentialState.subject),
+    model,
+    prompt,
+    surprise: true,
+    served_reply: null,
+    error,
+    created_at: new Date().toISOString(),
+  });
+  return reply.code(noMatch ? 422 : 409).send({
+    error: {message: error, type: noMatch ? 'script_no_match' : 'script_exhausted'},
+  });
+}
+
+async function streamScriptedCompletion(params: {
+  reply: ScriptedReplyTarget;
+  model: string;
+  completion: ReturnType<typeof scriptedCompletion>;
+  holdMs: number | undefined;
+}): Promise<unknown> {
+  const {reply, model, completion, holdMs} = params;
   reply.hijack();
   reply.raw.writeHead(200, {
     'cache-control': 'no-cache',
@@ -835,49 +938,37 @@ function respondWithScriptedOpenAiCompletion(
     model,
   };
   const message = completion.choices[0]?.message;
-  if (message !== undefined && 'tool_calls' in message) {
-    reply.raw.write(
-      `data: ${JSON.stringify({
-        ...base,
-        choices: [
-          {
-            index: 0,
-            delta: {
-              ...message,
-              tool_calls: message.tool_calls.map((toolCall, index) => ({...toolCall, index})),
-            },
-            finish_reason: null,
-          },
-        ],
-      })}\n\n`,
-    );
-    reply.raw.write(
-      `data: ${JSON.stringify({
-        ...base,
-        choices: [{index: 0, delta: {}, finish_reason: 'tool_calls'}],
-      })}\n\n`,
-    );
-    return reply.raw.end('data: [DONE]\n\n');
+  const toolCalls =
+    message !== undefined && 'tool_calls' in message ? message.tool_calls : undefined;
+  const toolCall = toolCalls !== undefined;
+  const delta = toolCall
+    ? {...message, tool_calls: toolCalls.map((call, index) => ({...call, index}))}
+    : {role: 'assistant', content: message?.content ?? ''};
+  reply.raw.write(
+    `data: ${JSON.stringify({...base, choices: [{index: 0, delta, finish_reason: null}]})}\n\n`,
+  );
+  // The text is out, and the stream stays open for the hold. A caller that stops the turn
+  // closes the socket during it, and nothing more is written.
+  if (holdMs) {
+    let closed = false;
+    reply.raw.on('close', () => {
+      closed = true;
+    });
+    await sleep(holdMs);
+    if (closed) return undefined;
   }
   reply.raw.write(
     `data: ${JSON.stringify({
       ...base,
-      choices: [
-        {
-          index: 0,
-          delta: {role: 'assistant', content: message?.content ?? ''},
-          finish_reason: null,
-        },
-      ],
-    })}\n\n`,
-  );
-  reply.raw.write(
-    `data: ${JSON.stringify({
-      ...base,
-      choices: [{index: 0, delta: {}, finish_reason: 'stop'}],
+      choices: [{index: 0, delta: {}, finish_reason: toolCall ? 'tool_calls' : 'stop'}],
     })}\n\n`,
   );
   return reply.raw.end('data: [DONE]\n\n');
+}
+
+function servedReplyLabel(reply: ScriptedReply): string {
+  if (reply.error !== undefined) return `error:${reply.error.status}`;
+  return reply.text ?? `tool:${reply.tool}`;
 }
 
 function respondWithOpenAiCompletion(

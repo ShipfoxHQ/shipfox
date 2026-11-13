@@ -1,0 +1,19 @@
+name: Install dependencies
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+jobs:
+  install:
+    checkout: false
+    steps:
+      - key: install
+        run: |
+          echo "Resolving dependencies for 214 packages..."
+          echo "npm WARN deprecated left-pad@1.3.0: use String.prototype.padStart()"
+          echo "npm ERR! code E404"
+          echo "npm ERR! 404 Not Found - GET https://registry.npmjs.org/@acme%2fbilling-client - Not found"
+          echo "npm ERR! 404 '@acme/billing-client@4.2.0' is not in this registry. It was unpublished on 2026-10-30."
+          echo "Retrying in 5s... (attempt 3 of 3)"
+          echo "Error: Command failed with exit code 1: npm ci"
+          exit 1

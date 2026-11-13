@@ -7,7 +7,15 @@ export {
   exportClaudeTranscript,
   parseClaudeTranscript,
 } from './claude-transcript.js';
-export {type EvalCliOptions, type EvalRunOptions, parseEvalArgs, runCli, runEval} from './cli.js';
+export {
+  type EvalCliOptions,
+  type EvalRunOptions,
+  type EvalSuite,
+  parseEvalArgs,
+  runCli,
+  runEval,
+  runShippyEval,
+} from './cli.js';
 export {
   bindConnectionSlugs,
   type CompileRunOptions,
@@ -80,3 +88,39 @@ export {
   templateCaseSchema,
 } from './schema.js';
 export type {EventSender, EventSenderContext, EventSenders} from './senders.js';
+export {
+  type ConversationToolCall,
+  type ConversationTurnRecord,
+  gradeShippyConversation,
+  matchesPattern,
+  type ShippyCheck,
+  type ShippyGrade,
+} from './shippy-checks.js';
+export {
+  listConversationItems,
+  sendConversationMessage,
+  summarizeTurn,
+  waitForTurnEnd,
+} from './shippy-conversation.js';
+export {
+  type DiscoveredShippyCase,
+  discoverShippyCases,
+  type ExecuteShippyCaseOptions,
+  executeShippyCase,
+} from './shippy-run.js';
+export {
+  DEFAULT_SHIPPY_LIVE_MODEL,
+  loadShippyCase,
+  parseShippyCase,
+  resolveRunReferences,
+  type ShippyCase,
+  type ShippyExpect,
+  shippyCaseSchema,
+} from './shippy-schema.js';
+export {
+  arrangeShippyWorkspace,
+  listRunIds,
+  pageContextFor,
+  type SeededRun,
+  type ShippyWorkspace,
+} from './shippy-workspace.js';

@@ -1,0 +1,13 @@
+name: Weekly report
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+jobs:
+  report:
+    checkout: false
+    steps:
+      - key: collect
+        run: |
+          echo "Collecting deploy frequency and lead time for the last 7 days"
+          echo "Uploading report.html to s3://acme-weekly-reports/latest/"
