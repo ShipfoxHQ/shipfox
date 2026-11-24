@@ -22,9 +22,10 @@ Build-time compiler that turns MJML email templates into the Handlebars HTML tem
 pnpm add -D @shipfox/email-compiler
 ```
 
-MJML brings CSS tooling (cssnano, postcss, svgo) that pnpm uses to fill the optional
-peers of other packages in the same dependency graph. Install the compiler only where
-it runs at build time, and never as a runtime dependency.
+The package bundles MJML and has no runtime dependencies. MJML's CSS tooling stays out
+of your dependency graph, where pnpm would otherwise use it to fill the optional peers
+of other packages, such as the Temporal workflow bundler, and install a second copy of
+each one.
 
 ## Usage
 
@@ -82,4 +83,4 @@ turbo test --filter=@shipfox/email-compiler
 
 ## License
 
-MIT
+MIT. The licenses of the bundled packages are in `dist/third-party-licenses.txt`.
