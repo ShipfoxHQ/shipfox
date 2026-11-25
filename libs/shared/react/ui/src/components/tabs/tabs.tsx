@@ -1,6 +1,6 @@
 'use client';
 
-import {type HTMLMotionProps, motion, type Transition, useReducedMotion} from 'framer-motion';
+import {motion, type Transition, useReducedMotion} from 'framer-motion';
 import {
   type ComponentProps,
   createContext,
@@ -145,21 +145,14 @@ function Tabs<T extends string = string>({
 type TabsListProps = ComponentProps<'div'> & {
   children: ReactNode;
   activeClassName?: string;
-  transition?: Transition;
 };
 
-const defaultTabsIndicatorTransition: Transition = {
+const indicatorTransition: Transition = {
   duration: 0.2,
   ease: 'easeOut',
 };
 
-function TabsList({
-  children,
-  className,
-  activeClassName,
-  transition = defaultTabsIndicatorTransition,
-  ...props
-}: TabsListProps) {
+function TabsList({children, className, activeClassName, ...props}: TabsListProps) {
   const {activeValue, getTriggerElement} = useTabs();
   const reducedMotion = useReducedMotion();
   const [indicatorStyle, setIndicatorStyle] = useState<{
@@ -211,14 +204,14 @@ function TabsList({
             left: indicatorStyle.left,
             width: indicatorStyle.width,
           }}
-          transition={reducedMotion ? {duration: 0} : transition}
+          transition={reducedMotion ? {duration: 0} : indicatorTransition}
         />
       )}
     </div>
   );
 }
 
-type TabsTriggerProps = Omit<HTMLMotionProps<'button'>, 'ref'> & {
+type TabsTriggerProps = Omit<ComponentProps<'button'>, 'ref'> & {
   value: string;
   children: ReactNode;
 };
@@ -293,7 +286,7 @@ const TabsTrigger = forwardRef<HTMLButtonElement, TabsTriggerProps>(
     );
 
     return (
-      <motion.button
+      <button
         ref={localRef}
         data-slot="tabs-trigger"
         role="tab"
@@ -312,7 +305,7 @@ const TabsTrigger = forwardRef<HTMLButtonElement, TabsTriggerProps>(
         {...props}
       >
         {children}
-      </motion.button>
+      </button>
     );
   },
 );

@@ -63,7 +63,7 @@ const closeIconVariants = cva('w-16 h-16', {
   },
 });
 
-const alertDefaultTransition: Transition = {
+const transition: Transition = {
   duration: 0.2,
   ease: 'easeInOut',
 };
@@ -90,7 +90,6 @@ type AlertProps = ComponentProps<'div'> &
     defaultOpen?: boolean;
     onOpenChange?: (open: boolean) => void;
     animated?: boolean;
-    transition?: Transition;
     autoClose?: number;
   };
 
@@ -102,7 +101,6 @@ function Alert({
   defaultOpen = true,
   onOpenChange,
   animated = true,
-  transition = alertDefaultTransition,
   autoClose,
   ...props
 }: AlertProps) {
@@ -281,13 +279,4 @@ function AlertClose({
 }
 
 export type {AlertProps};
-export {
-  Alert,
-  AlertAction,
-  AlertActions,
-  AlertClose,
-  AlertContent,
-  AlertDescription,
-  AlertTitle,
-  alertDefaultTransition,
-};
+export {Alert, AlertAction, AlertActions, AlertClose, AlertContent, AlertDescription, AlertTitle};

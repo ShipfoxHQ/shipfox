@@ -62,7 +62,7 @@ function TooltipTrigger({...props}: ComponentProps<typeof TooltipPrimitive.Trigg
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
-const defaultTransition: Transition = {
+const transition: Transition = {
   type: 'spring',
   stiffness: 300,
   damping: 17,
@@ -71,16 +71,14 @@ const defaultTransition: Transition = {
 type TooltipContentProps = ComponentProps<typeof TooltipPrimitive.Content> &
   VariantProps<typeof tooltipContentVariants> & {
     animated?: boolean;
-    transition?: Transition;
   };
 
-type AnimatedTooltipContentProps = Omit<HTMLMotionProps<'div'>, 'transition'> & {
+type AnimatedTooltipContentProps = HTMLMotionProps<'div'> & {
   'data-state'?: 'closed' | 'delayed-open' | 'instant-open';
-  transition: Transition;
 };
 
 const AnimatedTooltipContent = forwardRef<HTMLDivElement, AnimatedTooltipContentProps>(
-  function AnimatedTooltipContent({'data-state': state, transition, ...props}, ref) {
+  function AnimatedTooltipContent({'data-state': state, ...props}, ref) {
     const reducedMotion = useReducedMotion();
     const shouldAnimate = !reducedMotion && state !== 'instant-open';
 
@@ -105,7 +103,6 @@ function TooltipContent({
   variant,
   size,
   animated = true,
-  transition = defaultTransition,
   ...props
 }: TooltipContentProps) {
   if (animated) {
@@ -119,7 +116,6 @@ function TooltipContent({
         >
           <AnimatedTooltipContent
             className={cn(tooltipContentVariants({variant, size, className}))}
-            transition={transition}
           >
             {children}
           </AnimatedTooltipContent>
@@ -143,11 +139,4 @@ function TooltipContent({
 }
 
 export type {TooltipContentProps};
-export {
-  defaultTransition,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-  tooltipContentVariants,
-};
+export {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, tooltipContentVariants};
