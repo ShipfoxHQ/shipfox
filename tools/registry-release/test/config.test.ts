@@ -7,8 +7,8 @@ const config: RegistryReleaseConfig = {
   registry: 'https://api.registry.shipfox.io',
   namespace: 'shipfox',
   packages: [
-    {kind: 'action', path: 'catalog/actions/*'},
-    {kind: 'template', path: 'catalog/templates/*'},
+    {kind: 'action', path: 'catalog/actions/*', publish: true},
+    {kind: 'template', path: 'catalog/templates/*', publish: false},
   ],
 };
 
@@ -26,11 +26,20 @@ describe('discoverPackages', () => {
 
     const packages = await discoverPackages({root, config});
 
-    expect(packages.map(({package: name, kind, path}) => ({name, kind, path}))).toEqual([
-      {name: 'shipfox/digest', kind: 'action', path: 'catalog/actions/digest'},
-      {name: 'shipfox/a-one', kind: 'template', path: 'catalog/templates/a-one'},
-      {name: 'shipfox/b-two', kind: 'template', path: 'catalog/templates/b-two'},
+    expect(
+      packages.map(({package: name, kind, path, publish}) => ({name, kind, path, publish})),
+    ).toEqual([
+      {name: 'shipfox/digest', kind: 'action', path: 'catalog/actions/digest', publish: true},
+      {name: 'shipfox/a-one', kind: 'template', path: 'catalog/templates/a-one', publish: false},
+      {name: 'shipfox/b-two', kind: 'template', path: 'catalog/templates/b-two', publish: false},
     ]);
+  });
+
+  it('fails when a configured parent directory is missing', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'discover-'));
+    mkdirSync(join(root, 'catalog/templates/a-one'), {recursive: true});
+
+    await expect(discoverPackages({root, config})).rejects.toThrow('ENOENT');
   });
 
   it('rejects a directory that is not a valid package name', async () => {
@@ -43,6 +52,26 @@ describe('discoverPackages', () => {
 });
 
 describe('loadConfig', () => {
+  it('publishes a package entry unless it says otherwise', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'config-'));
+    const path = join(directory, 'registry.config.yaml');
+    writeFileSync(
+      path,
+      [
+        'registry: https://api.registry.shipfox.io',
+        'namespace: shipfox',
+        'packages:',
+        '  - {kind: action, path: catalog/actions/*}',
+        '  - {kind: template, path: catalog/templates/*, publish: false}',
+        '',
+      ].join('\n'),
+    );
+
+    const loaded = await loadConfig(path);
+
+    expect(loaded.packages.map(({publish}) => publish)).toEqual([true, false]);
+  });
+
   it('rejects a pattern that is not a directory glob', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'config-'));
     const path = join(directory, 'registry.config.yaml');

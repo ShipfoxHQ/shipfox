@@ -117,6 +117,7 @@ export class ActionRepository {
       root: this.root,
       path: ACTION_PATH,
       directory: join(this.root, ACTION_PATH),
+      publish: true,
     };
   }
 

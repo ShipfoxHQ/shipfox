@@ -174,8 +174,8 @@ with the recipes.
 kept here while they are tested. `tests/cache.e2e.ts` runs both as repository actions, then as a dev
 run, against Garage. It covers a miss, a save, an exact hit in another working directory and home, a
 prefix hit, two jobs saving one key, and the dev-run sandbox. At launch, move them to
-`libs/shared/workflow/catalog/actions/` and add the `package.json`, `tsconfig.json`, and
-`vitest.config.ts` that the other catalog actions have. The next release then publishes them, so do
+`libs/shared/workflow/catalog/actions/` and give each one a private workspace package with its
+own `package.json`, `tsconfig.json`, and `vitest.config.ts`. The next release then publishes them, so do
 it only at launch.
 
 Keep the recipes readable as user code: they import only their own files, Node built-ins, and

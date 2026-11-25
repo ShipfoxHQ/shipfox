@@ -17,6 +17,7 @@ export function buildFixture(
       root: repository.root,
       path: TEMPLATE_PATH,
       directory: join(repository.root, TEMPLATE_PATH),
+      publish: true,
     },
     toolVersion: TOOL_VERSION,
   });

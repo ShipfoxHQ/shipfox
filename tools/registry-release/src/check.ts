@@ -23,7 +23,9 @@ export interface CheckResult {
  * `pr`: a package whose content differs from its published version needs a
  * pending changeset with a large enough bump. `release`: a published version
  * never changes, and a new version meets the bump rules against the highest
- * lower published version. An unpublished package passes both modes.
+ * lower published version. An unpublished package passes both modes. A
+ * package with `publish: false` is not part of the release: `release` only
+ * checks that a published version of it never changes.
  */
 export async function runCheck({
   mode,
@@ -99,6 +101,7 @@ async function checkRelease({
     }
     return;
   }
+  if (!built.publish) return;
 
   await checkActionsExist({built, packages, registry, report});
   const previous = await highestLowerVersion({built, registry});
@@ -123,7 +126,7 @@ async function checkRelease({
   }
 }
 
-// Every action a template uses must exist in the registry, or be an action published in the same batch.
+// Every action a package uses must exist in the registry, or be an action published in the same batch.
 async function checkActionsExist({
   built,
   packages,
@@ -137,7 +140,7 @@ async function checkActionsExist({
 }) {
   const batch = new Set(
     packages
-      .filter((entry) => entry.kind === 'action')
+      .filter((entry) => entry.kind === 'action' && entry.publish)
       .map((entry) => `${entry.package}@${entry.version}`),
   );
   for (const reference of built.actions) {

@@ -135,6 +135,23 @@ describe('publishPackages', () => {
     expect(published.map(({package: name}) => name)).toEqual(['shipfox/other']);
   });
 
+  it('holds back a package whose config entry sets publish: false', async () => {
+    const action: BuiltPackage = {
+      ...template,
+      package: 'shipfox/an-action',
+      kind: 'action',
+      manifest: {description: 'An action.'},
+    };
+
+    const published = await publish([action, {...template, publish: false}]);
+
+    expect(published.map(({package: name}) => name)).toEqual(['shipfox/an-action']);
+    expect(registry.publishes.map(({package: name}) => name)).toEqual(['shipfox/an-action']);
+    expect(log).toHaveBeenCalledWith(
+      'Held back shipfox/fixture-template@1.0.0: its config entry sets publish: false.',
+    );
+  });
+
   it('asks for no OIDC token when everything is published', async () => {
     registry.seed(publishedDocument(template));
 
@@ -143,7 +160,7 @@ describe('publishPackages', () => {
     expect(published).toEqual([]);
     expect(oidc).not.toHaveBeenCalled();
     expect(registry.requests.some(({method}) => method === 'POST')).toBe(false);
-    expect(log).toHaveBeenCalledWith('Every version is already published.');
+    expect(log).toHaveBeenCalledWith('No new version to publish.');
   });
 
   it('publishes nothing when the release check fails', async () => {

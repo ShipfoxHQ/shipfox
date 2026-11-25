@@ -51,6 +51,7 @@ export async function verifyVersion({
         root: worktree,
         path: document.provenance.path,
         directory: join(worktree, document.provenance.path),
+        publish: true,
       },
       toolVersion,
     });

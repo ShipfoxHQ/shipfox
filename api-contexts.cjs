@@ -83,8 +83,6 @@ const architecturePackages = {
     expression: ['libs/shared/expression'],
     registry: ['libs/shared/registry/format'],
     workflow: [
-      'libs/shared/workflow/catalog/actions/slack-thread-digest',
-      'libs/shared/workflow/catalog/actions/slack-thread-summary',
       'libs/shared/workflow/catalog/templates/ask-codebase',
       'libs/shared/workflow/catalog/templates/fix-default-branch-ci',
       'libs/shared/workflow/catalog/templates/fix-dependency-ci',
