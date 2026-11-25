@@ -16,14 +16,15 @@ const anyPath = /.*/;
 
 // esbuild leaves a `require` or `import()` with a computed name in place and logs it at
 // debug level. The bundle cannot resolve it at run time, so each one fails the build
-// unless it is listed here.
+// unless it is listed here with the number of such calls in the file. A count rather
+// than line numbers keeps a dependency update that only moves lines from failing.
 const unresolvedRequireIds = ['unsupported-require-call', 'unsupported-dynamic-import'];
-const allowedUnresolvedRequires = new Set([
+const allowedUnresolvedRequires = new Map([
   // Loads a `skeleton` path option. The compiler never passes one.
-  'mjml-core/lib/node-only/skeleton-loader.js',
+  ['mjml-core/lib/node-only/skeleton-loader.js', 1],
   // Loads `.mjmlconfig` files and the components they list. The compiler sets neither
   // `useMjmlConfigOptions` nor `mjmlConfigPath`.
-  'mjml-core/lib/helpers/mjmlconfig.js',
+  ['mjml-core/lib/helpers/mjmlconfig.js', 2],
 ]);
 
 // MJML only calls htmlnano with `minify: true`, which the compiler never passes. htmlnano
@@ -76,7 +77,7 @@ const result = await build({
   });
 });
 
-const unexpected = result.warnings.filter((warning) => !isAllowed(warning));
+const unexpected = unexpectedWarnings(result.warnings);
 if (unexpected.length > 0) {
   throw new Error(
     `The email compiler bundle has warnings:\n${unexpected.map(describe).join('\n')}`,
@@ -98,9 +99,15 @@ async function removePreviousOutput() {
   );
 }
 
-function isAllowed(warning) {
-  if (!unresolvedRequireIds.includes(warning.id) || warning.location === null) return false;
-  return allowedUnresolvedRequires.has(packagePath(warning.location.file));
+function unexpectedWarnings(warnings) {
+  const byFile = Map.groupBy(warnings, (warning) =>
+    unresolvedRequireIds.includes(warning.id) && warning.location !== null
+      ? packagePath(warning.location.file)
+      : undefined,
+  );
+  return [...byFile].flatMap(([file, fileWarnings]) =>
+    fileWarnings.length === allowedUnresolvedRequires.get(file) ? [] : fileWarnings,
+  );
 }
 
 // The path inside the innermost `node_modules`, for example `mjml-core/lib/index.js`.
@@ -121,10 +128,14 @@ function thirdPartyLicenses(inputs) {
 
   const sections = [...packages.keys()].sort().map((id) => {
     const {root, manifest} = packages.get(id);
-    const licenseFile = readdirSync(root).find((file) => licenseFileName.test(file));
-    const text = licenseFile
-      ? readFileSync(join(root, licenseFile), 'utf8').trim()
-      : `License: ${manifest.license ?? 'not declared'}`;
+    const licenseFiles = readdirSync(root)
+      .filter((file) => licenseFileName.test(file))
+      .sort();
+    // A few packages ship no license file, so their declared license is all there is.
+    const text =
+      licenseFiles.length > 0
+        ? licenseFiles.map((file) => readFileSync(join(root, file), 'utf8').trim()).join('\n\n')
+        : `License: ${manifest.license ?? 'not declared'}`;
     return `${id}\n\n${text}`;
   });
   return `@shipfox/email-compiler bundles the following packages.\n\n${sections.join(`\n\n${'-'.repeat(80)}\n\n`)}\n`;
