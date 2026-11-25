@@ -1,5 +1,29 @@
 # @shipfox/api-runners-dto
 
+## 34.0.0
+
+### Major Changes
+
+- 1f218c4: Treats every runner as able to renew Git and managed inference credentials. The runner capability manifest no longer has `features`, and `runnerFeaturesSchema` and `RunnerFeaturesDto` are removed. Registration still accepts a `features` key from older runner images and ignores it. `ManagedModelProvider.resolveCredentials` no longer receives `renewableInference`, and `RUNNER_CAPABILITY_REQUIRED_ERROR_CODE` with its `runner-capability-required` error is removed. A composing application must stop using both and always issue renewable credentials. The API no longer writes the "Renewable Git credentials are unavailable on this runner" annotation.
+
+### Minor Changes
+
+- a2fbdd3: Expires pending job executions atomically relative to claims, so an execution is never expired after a runner has claimed it; late or repeated enqueues of an already-handled execution are ignored.
+- f432fd2: The job heartbeat renews step-scoped lease tokens, so a runner can hold one token per running step next to its job token.
+
+  - **Heartbeat:** the request body accepts `step_lease_tokens`, up to `HEARTBEAT_STEP_LEASE_TOKENS_MAX` (64). The response returns `step_lease_tokens`, a renewed token with its `step_id` and `attempt` for each valid token of the lease. A token from another job execution or runner session, or one without a step scope, is left out. The response schema reads a missing `step_lease_tokens` as an empty list.
+  - **Auth contract:** `renewStepLeaseTokens` re-mints step-scoped job lease tokens of one job execution and runner session with the same claims and a fresh expiry.
+
+- b64fff6: Records capacity holds for managed installation runners when the provisioning policy sets `placement`, so each runner counts against its workspace until it stops. Adds the `getWorkspaceCapacityUsage` inter-module read and the `GET /admin/runners/workspaces/:workspaceId/capacity` admin route. Holds do not refuse claims yet.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- 0b661c9: Runners report their operating system and architecture at registration through a required `platform` field, and the Runners module stores it on the runner session. Adds the `getRunnerSessionPlatform` inter-module read.
+
+### Patch Changes
+
+- Updated dependencies [507915a]
+- Updated dependencies [a429987]
+  - @shipfox/policy-notice@0.1.0
+
 ## 29.0.0
 
 ### Major Changes

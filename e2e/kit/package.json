@@ -1,6 +1,6 @@
 {
   "name": "@shipfox/e2e-kit",
-  "version": "33.0.0",
+  "version": "34.0.0",
   "private": false,
   "files": [
     "dist",

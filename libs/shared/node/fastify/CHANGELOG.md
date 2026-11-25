@@ -1,5 +1,23 @@
 # @shipfox/node-fastify
 
+## 0.5.0
+
+### Minor Changes
+
+- c06262b: Writes one `request completed` log line per request, with the request, status, route, and duration, instead of Fastify's two request lines. A client error handled by the default error handler adds a `clientError` field to that line instead of writing its own record. Route error handlers now also map errors thrown by the handler before tracing records them.
+
+  Removes the `fastify_request_total` counter; use `fastify_request_duration_count`, which has the same labels. `ClientError` exposes `statusCode`, so tracing can tell client errors apart.
+
+### Patch Changes
+
+- 041ae63: Two installed copies of these packages now share their process state through `@shipfox/node-process-state` slots: the Postgres pool, the Fastify app, auth methods, and client errors, the default logger, the OpenTelemetry SDK, meter provider, and base logger, the OpenFeature domain counter, outbox write listeners, reported errors, and precise cursor timestamps. `@shipfox/node-module` now reports a duplicate copy of any of them at startup.
+- Updated dependencies [c06262b]
+- Updated dependencies [2128c1e]
+- Updated dependencies [041ae63]
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-process-state@0.1.0
+  - @shipfox/node-error-monitoring@0.4.1
+
 ## 0.4.7
 
 ### Patch Changes

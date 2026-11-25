@@ -1,5 +1,12 @@
 # @shipfox/node-tokens
 
+## 1.2.2
+
+### Patch Changes
+
+- Updated dependencies [8937e15]
+  - @shipfox/regex@0.4.0
+
 ## 1.2.1
 
 ### Patch Changes

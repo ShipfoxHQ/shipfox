@@ -1,0 +1,81 @@
+# @shipfox/node-pi-runtime
+
+## 0.1.0
+
+### Minor Changes
+
+- e679f38: New `@shipfox/node-pi-runtime` package builds a pi model from resolved runtime credentials.
+
+  - **Package:** `createPiModel` builds a pi model from resolved runtime credentials. It comes with an in-memory credential store, custom provider registration, model resolution, managed stream recovery, and `AgentConfigError` for user-fixable configuration failures. The caller supplies the egress policy.
+  - **`@shipfox/api-agent`:** depends on the package and on `@earendil-works/pi-coding-agent`. Nothing loads either at startup.
+
+### Patch Changes
+
+- Updated dependencies [af0e24b]
+- Updated dependencies [2062ec8]
+- Updated dependencies [04bf72a]
+- Updated dependencies [4227bda]
+- Updated dependencies [7d20d04]
+- Updated dependencies [610ab29]
+- Updated dependencies [dc2bd62]
+- Updated dependencies [3f1363c]
+- Updated dependencies [8937e15]
+- Updated dependencies [1f218c4]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2526ccf]
+- Updated dependencies [c4f486b]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [9d7c039]
+- Updated dependencies [eb3f034]
+- Updated dependencies [c10e4c4]
+- Updated dependencies [18678ea]
+- Updated dependencies [2339c1b]
+- Updated dependencies [b59424d]
+- Updated dependencies [2e5a311]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [205afb5]
+- Updated dependencies [a73e712]
+- Updated dependencies [530d00f]
+- Updated dependencies [f769d90]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [61b5524]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [67e55ea]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [e560f69]
+- Updated dependencies [900a25a]
+- Updated dependencies [3869c1d]
+- Updated dependencies [1a50666]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [eca4c27]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [25fd5a8]
+- Updated dependencies [2c36559]
+- Updated dependencies [395e11d]
+- Updated dependencies [3d329a9]
+- Updated dependencies [f5c364b]
+- Updated dependencies [3f1363c]
+- Updated dependencies [94e77bc]
+- Updated dependencies [2100749]
+- Updated dependencies [9bac67e]
+- Updated dependencies [d2a2168]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [0b661c9]
+- Updated dependencies [70e6983]
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0

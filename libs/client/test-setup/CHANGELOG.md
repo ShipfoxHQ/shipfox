@@ -1,5 +1,12 @@
 # @shipfox/client-test-setup
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [c10e4c4]
+  - @shipfox/client-api@53.0.0
+
 ## 0.0.11
 
 ### Patch Changes

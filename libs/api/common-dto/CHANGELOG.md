@@ -1,5 +1,22 @@
 # @shipfox/api-common-dto
 
+## 34.0.0
+
+### Major Changes
+
+- 7ea02c4: Makes the impersonation window reason optional. A window starts without a reason, and an owner can stop another administrator's window without one. The legacy `POST /:userId/impersonate` route still requires a reason. A reason that a client still sends is stored. The `reason` field is nullable on window responses and administration action events, so consumers must handle `null`. Removes the `impersonation-stop-reason-required` error code, `impersonationStopReasonRequiredErrorSchema`, and `ImpersonationStopReasonRequiredError`. Reasons on role grant, role revoke, and suspension are unchanged. Windows created before this change keep their reason.
+
+### Minor Changes
+
+- 04bf72a: Puts Shippy, the project chat, behind the `agent-chat` flag. The flag defaults to off, so a composition shows no Shippy until `FLAG_AGENT_CHAT=true` is set on the API or its flag provider turns it on for a user or workspace. The conversation routes stay served. A full Agent module replacement must declare `agentFlags` in its `flags`, or the flag is not served.
+
+  `defaultModules` adds `GET /feature-flags`, which serves every flag declared with `client: true` for the signed-in user and workspace. `@shipfox/client-shell/runtime` adds `useFlag()`, which refetches every 60 seconds, and `@shipfox/client-shell/testing` adds `seedFeatureFlags()`. A project dock contribution can declare `useAvailable`, and the shell hides the launcher, the dock, and the placement control while it returns `false`.
+
+### Patch Changes
+
+- Updated dependencies [8937e15]
+  - @shipfox/regex@0.4.0
+
 ## 23.2.0
 
 ### Minor Changes
