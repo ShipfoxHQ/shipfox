@@ -1,0 +1,5 @@
+- match: {prompt_contains: "Did any of my runs fail recently?"}
+  replies:
+    - tool: list_workflow_runs
+      args: {status: failed, limit: 10}
+    - text: "One run failed recently: **Nightly build** ended in `failed` when its build step exited with code 2. Lint succeeded."

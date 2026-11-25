@@ -80,6 +80,28 @@ describe('eval results', () => {
     expect(await readdir(join(resultsDirectory, 'proof'))).toContain('summary.md');
   });
 
+  it('passes the agent model to the shippy case executor', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-shippy-'));
+    temporaryDirectories.push(root);
+    const models: Array<string | undefined> = [];
+
+    await runEval({
+      suite: 'shippy',
+      mode: 'live',
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      caseFilter: 'routes-to-read-tools',
+      resultsDirectory: join(root, 'results'),
+      runId: 'model',
+      agentModel: 'gpt-6-luna',
+      executeCase: (params) => {
+        models.push(params.model);
+        return Promise.resolve(passing({discovered: params.discovered, repeat: params.repeat}));
+      },
+    });
+
+    expect(models).toEqual(['gpt-6-luna', 'gpt-6-luna', 'gpt-6-luna']);
+  });
+
   it('lists the reason of an errored case in the summary', async () => {
     const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-errors-'));
     temporaryDirectories.push(root);

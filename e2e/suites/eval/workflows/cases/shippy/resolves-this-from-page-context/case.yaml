@@ -1,0 +1,16 @@
+modes: [scripted, live]
+seed:
+  runs:
+    - {key: preview, workflow: deploy-preview.yml, status: failed}
+    - {key: cache, workflow: cache-warmup.yml, status: failed}
+turns:
+  - message: Why did this fail?
+    page: {page: run, run: preview}
+expect:
+  tools_absent: [start_workflow_run]
+  tool_input_contains: [$runs.preview.id]
+  reply:
+    includes: [certificate]
+    excludes: ["/space left|disk/i"]
+covers:
+  - resolves "this" from page context

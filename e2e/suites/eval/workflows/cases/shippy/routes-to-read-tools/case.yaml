@@ -1,0 +1,16 @@
+modes: [scripted, live]
+seed:
+  runs:
+    - {key: lint, workflow: lint.yml, status: succeeded}
+    - {key: nightly, workflow: nightly-build.yml, status: failed}
+turns:
+  - message: Did any of my runs fail recently?
+    page: {page: runs}
+expect:
+  tools: [list_workflow_runs]
+  tools_absent: [start_workflow_run]
+  reply:
+    includes: ["/nightly build/i"]
+    excludes: ["/\\blint\\b.*failed/i"]
+covers:
+  - routes a question to the right read tools

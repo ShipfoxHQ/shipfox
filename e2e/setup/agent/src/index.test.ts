@@ -204,6 +204,46 @@ describe('agent e2e helper', () => {
     });
   });
 
+  it('names the catalog model that serves a project on OpenRouter', async () => {
+    const {registerOpenRouterManagedProvider} = await import('./index.js');
+
+    await registerOpenRouterManagedProvider({
+      projectId: '11111111-1111-4111-8111-111111111111',
+      defaultModel: 'gpt-6-sol',
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/managed-inference/openrouter', {
+      json: {project_id: '11111111-1111-4111-8111-111111111111', default_model: 'gpt-6-sol'},
+    });
+  });
+
+  it('validates error and held scripted replies', async () => {
+    const {scriptedManagedProviderEntriesSchema} = await import('./index.js');
+
+    expect(
+      scriptedManagedProviderEntriesSchema.safeParse([
+        {
+          match: {prompt_contains: 'hello'},
+          replies: [
+            {error: {status: 400, message: 'scripted failure'}},
+            {text: 'late', hold_ms: 1500},
+            {tool: 'list_workflow_runs', hold_ms: 0},
+          ],
+        },
+      ]).success,
+    ).toBe(true);
+    expect(
+      scriptedManagedProviderEntriesSchema.safeParse([
+        {match: {prompt_contains: 'hello'}, replies: [{error: {status: 200, message: 'ok'}}]},
+      ]).success,
+    ).toBe(false);
+    expect(
+      scriptedManagedProviderEntriesSchema.safeParse([
+        {match: {prompt_contains: 'hello'}, replies: [{text: 'late', hold_ms: -1}]},
+      ]).success,
+    ).toBe(false);
+  });
+
   it('reads the cost OpenRouter reported for a project', async () => {
     const cost = {project_id: workspaceId, cost_usd: 0.42, priced_requests: 3};
     requestJson.mockResolvedValueOnce(cost);

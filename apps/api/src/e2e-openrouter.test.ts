@@ -165,6 +165,39 @@ describe('OpenRouter backend', () => {
     expect(segment.stepAttemptId).toBeUndefined();
   });
 
+  it('serves the workspace default model of a conversation with the registered default', async () => {
+    const upstream = await startUpstream((_request, response) => {
+      response.writeHead(200, {'content-type': 'application/json'});
+      response.end(
+        JSON.stringify({
+          id: 'gen-1',
+          choices: [{index: 0, message: {role: 'assistant', content: 'from openrouter'}}],
+          usage: {prompt_tokens: 1, completion_tokens: 1},
+        }),
+      );
+    });
+    const {app, runtime} = await startOpenRouterProject(
+      upstream.baseUrl,
+      {
+        kind: 'conversation',
+        projectId: PROJECT_ID,
+        conversationId: '00000000-0000-4000-8000-00000000000b',
+        agentKey: 'shippy',
+      },
+      {defaultModel: 'gpt-6-sol', model: 'e2e-renewable-pi'},
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: COMPLETIONS_URL,
+      headers: {authorization: `Bearer ${runtime.credentials.api_key}`},
+      payload: {model: 'e2e-renewable-pi', messages: [{role: 'user', content: 'hi'}]},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(upstream.requests[0]?.body.model).toBe('openai/gpt-6-sol');
+  });
+
   it('streams a completion, asks for usage, and records the final usage chunk', async () => {
     const upstream = await startUpstream((_request, response) => {
       response.writeHead(200, {'content-type': 'text/event-stream'});
@@ -399,6 +432,7 @@ async function startOpenRouterProject(
     stepAttemptId: STEP_ATTEMPT_ID,
     jobIdentity: JOB_IDENTITY,
   },
+  options: {defaultModel?: string; model?: string} = {},
 ) {
   const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key', {
     openRouter: {apiKey: API_KEY, baseUrl},
@@ -419,13 +453,16 @@ async function startOpenRouterProject(
   const registration = await app.inject({
     method: 'POST',
     url: '/managed-inference/openrouter',
-    payload: {project_id: PROJECT_ID},
+    payload: {
+      project_id: PROJECT_ID,
+      ...(options.defaultModel === undefined ? {} : {default_model: options.defaultModel}),
+    },
   });
   expect(registration.statusCode).toBe(201);
   const runtime = await fixture.provider.resolveCredentials({
     workspaceId: WORKSPACE_ID,
     subject,
-    model: 'gpt-6-luna',
+    model: options.model ?? 'gpt-6-luna',
   });
   expect(runtime.api).toBe('openai-completions');
   return {app, fixture, recorded, runtime};

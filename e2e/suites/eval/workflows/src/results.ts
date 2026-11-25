@@ -6,6 +6,7 @@ import type {ScriptedManagedProviderRequest} from '@shipfox/e2e-setup-agent';
 import type {HiddenTestsResult} from './hidden-tests.js';
 import type {RunMeasures} from './measures.js';
 import type {ScenarioStepRecord} from './scenario.js';
+import type {ConversationTurnRecord, ShippyCheck} from './shippy-checks.js';
 
 /** `compile` only creates each variant's definition, and runs nothing. */
 export type EvalMode = 'scripted' | 'live' | 'compile';
@@ -45,6 +46,10 @@ export interface CaseResult {
   model_requests?: ScriptedManagedProviderRequest[];
   /** On failure, the last lines of the case runner's log. */
   runner_log_tail?: string;
+  /** Shippy cases: the conversation the case drove, turn by turn. */
+  conversation?: {id: string; turns: ConversationTurnRecord[]};
+  /** Shippy cases: each expectation and whether it held. */
+  checks?: ShippyCheck[];
 }
 
 export interface ResultsRun {
@@ -65,6 +70,8 @@ export interface WriteResultsOptions<Case extends {id: string}> {
   maxCostUsd?: number | undefined;
   /** How many case repeats run at once (default 1). */
   workers?: number | undefined;
+  /** Repeats of one case, in place of `repeat`, for cases that carry their own count. */
+  repeatsOf?: ((discoveredCase: Case) => number) | undefined;
   resultsDirectory?: string;
   runId?: string;
 }
@@ -168,7 +175,10 @@ export async function writeResults<Case extends {id: string}>(
   const runId = options.runId ?? createRunId();
   const directory = join(options.resultsDirectory ?? 'results', runId);
   const jobs = options.cases.flatMap((discoveredCase) =>
-    Array.from({length: options.repeat}, (_, index) => ({discoveredCase, repeat: index + 1})),
+    Array.from({length: options.repeatsOf?.(discoveredCase) ?? options.repeat}, (_, index) => ({
+      discoveredCase,
+      repeat: index + 1,
+    })),
   );
   // Results land in the order the case repeats finish. The slots keep the summary in case order.
   const slots: Array<CaseResult | undefined> = jobs.map(() => undefined);

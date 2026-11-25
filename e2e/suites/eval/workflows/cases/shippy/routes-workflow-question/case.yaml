@@ -1,0 +1,14 @@
+modes: [scripted, live]
+seed:
+  workflows: [weekly-report.yml]
+turns:
+  - message: What does the Weekly report workflow do?
+    page: {page: workflows}
+expect:
+  tools: [get_workflow_definition_source]
+  tools_absent: [start_workflow_run]
+  reply:
+    includes: [acme-weekly-reports]
+  no_new_runs: true
+covers:
+  - routes a workflow question to the definition source
