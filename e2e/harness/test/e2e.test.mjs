@@ -148,6 +148,7 @@ describe('e2eEnv', () => {
     assert.equal(env.CLAAP_MCP_ENDPOINT, 'http://127.0.0.1:55372/mcp');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
+    assert.equal(env.LINEAR_API_BASE_URL, 'http://127.0.0.1:55373/');
     assert.equal(env.LINEAR_UPLOADS_URL, 'http://127.0.0.1:55360/uploads/');
     assert.equal(env.LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS, 'true');
     assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
@@ -291,6 +292,7 @@ describe('e2eEnv', () => {
           API_URL: 'http://localhost:65522',
           DISCORD_API_BASE_URL: 'http://127.0.0.1:1',
           JIRA_API_BASE_URL: 'http://127.0.0.1:1',
+          LINEAR_API_BASE_URL: 'http://127.0.0.1:1',
           NOTION_API_BASE_URL: 'http://127.0.0.1:1',
         }),
       /Cannot derive a test VCS port/u,
@@ -608,7 +610,7 @@ describe('startFakeRouters', () => {
     try {
       assert.deepEqual(
         routers.map((router) => router.name),
-        ['github', 'slack', 'linear', 'jira', 'clickup', 'notion'],
+        ['github', 'slack', 'linear', 'linear-api', 'jira', 'clickup', 'notion'],
       );
       const response = await fetch(new URL('/thing', env.SLACK_API_BASE_URL));
       assert.equal(response.status, 404);

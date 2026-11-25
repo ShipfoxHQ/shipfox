@@ -92,6 +92,10 @@ next activity replaces, and adds the links it receives, such as the run link, to
 the session's external URLs, so a link reported earlier stays. The
 `idle` state posts nothing, because the reply clears the action.
 
+Activities, session links, and the issue read go to the Linear GraphQL API at
+`LINEAR_API_BASE_URL` (`https://api.linear.app` by default), which the OAuth token
+exchange also uses. The E2E harness points it at a fake.
+
 Signed but unsupported webhook shapes are recorded and dropped with a 200
 response so Linear does not retry or disable the webhook endpoint.
 ## Agent Tool Catalog

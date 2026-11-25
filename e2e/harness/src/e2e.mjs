@@ -14,6 +14,7 @@ import {
   e2eJamApiBaseUrl,
   e2eJamMcpEndpoint,
   e2eJiraApiBaseUrl,
+  e2eLinearApiBaseUrl,
   e2eLinearMcpEndpoint,
   e2eNotionApiBaseUrl,
   e2ePosthogApiBaseUrl,
@@ -211,6 +212,9 @@ export function e2eEnv(sourceEnv) {
   const claapMcpEndpoint = valueOr(sourceEnv.CLAAP_MCP_ENDPOINT, () =>
     e2eClaapMcpEndpoint(apiUrl),
   );
+  const linearApiBaseUrl = valueOr(sourceEnv.LINEAR_API_BASE_URL, () =>
+    e2eLinearApiBaseUrl(apiUrl),
+  );
   return {
     ...sourceEnv,
     API_URL: apiUrl,
@@ -397,6 +401,7 @@ export function e2eEnv(sourceEnv) {
     ),
     INTEGRATIONS_TEST_VCS_PORT: String(testVcsPort),
     LINEAR_MCP_ENDPOINT: linearMcpEndpoint,
+    LINEAR_API_BASE_URL: linearApiBaseUrl,
     LINEAR_UPLOADS_URL: valueOr(sourceEnv.LINEAR_UPLOADS_URL, () =>
       new URL('/uploads/', linearMcpEndpoint).toString(),
     ),

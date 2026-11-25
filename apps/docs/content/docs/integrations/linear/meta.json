@@ -1,4 +1,9 @@
 {
   "title": "Linear",
-  "pages": ["setup", "events", "tools"]
+  "pages": [
+    "setup",
+    "events",
+    "tools",
+    "guides"
+  ]
 }

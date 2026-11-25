@@ -147,6 +147,16 @@ export interface WaitForRunByDeliveryIdOptions extends PollingOptions {
   workspaceId: string;
 }
 
+export interface WaitForTriggerEventByDeliveryIdOptions extends PollingOptions {
+  deliveryId: string;
+  workspaceId: string;
+  /**
+   * Returns true once the event shows what the caller waits for. By default the event's routing
+   * has finished, which is `processed_at` being set.
+   */
+  until?: ((event: TriggerEventDetailResponseDto) => boolean) | undefined;
+}
+
 export interface ObserveRunOptions extends PollingOptions {
   runId: string;
   attempt?: number | undefined;
@@ -524,6 +534,63 @@ export async function waitForRunByDeliveryId(
     },
     timeoutMessage: 'Timed out waiting for workflow run by delivery ID',
   });
+}
+
+/**
+ * Waits for the trigger event of a webhook delivery, with its decisions. An agent routing writes
+ * `agent` decisions on the event and starts no run, so this is how a conversation's routing is
+ * observed.
+ */
+export async function waitForTriggerEventByDeliveryId(
+  options: WaitForTriggerEventByDeliveryIdOptions,
+): Promise<TriggerEventDetailResponseDto> {
+  const client = makeApiClient({
+    apiUrl: options.apiUrl,
+    fetch: options.fetch,
+    token: options.token,
+  });
+  const timeoutMs = options.timeoutMs ?? DEFAULT_LIST_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  const until = options.until ?? ((event) => event.processed_at !== null);
+  const eventCursorState = createCursorProbeState();
+  let lastResponse: TriggerEventListResponseDto | null = null;
+  let lastDetail: TriggerEventDetailResponseDto | null = null;
+
+  return await pollUntil<TriggerEventDetailResponseDto>(
+    {
+      timeoutMs,
+      intervalMs: options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS,
+      maxIntervalMs: options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS,
+      backoffFactor: options.backoffFactor ?? DEFAULT_BACKOFF_FACTOR,
+      ...(options.signal ? {signal: options.signal} : {}),
+      describe: () =>
+        lastDetail
+          ? `Timed out waiting for trigger event ${lastDetail.id} of delivery ${options.deliveryId}: outcome=${lastDetail.outcome} decisions=${lastDetail.decisions.map((decision) => `${decision.subscription_kind}:${decision.decision}`).join(',')}`
+          : `Timed out waiting for trigger event by delivery ID: ${formatTriggerEventsObserved(lastResponse, `expectedDeliveryId=${options.deliveryId}`)}`,
+    },
+    async () => {
+      options.signal?.throwIfAborted();
+      const event = await findTriggerEventAcrossProbes({
+        client,
+        deadline,
+        deliveryId: options.deliveryId,
+        onPage: (page) => {
+          lastResponse = page;
+        },
+        signal: options.signal,
+        state: eventCursorState,
+        workspaceId: options.workspaceId,
+      });
+      if (!event) return null;
+      const detail = await client.requestJson<TriggerEventDetailResponseDto>(
+        'get',
+        `/trigger-events/${encodeURIComponent(event.id)}`,
+        {signal: options.signal},
+      );
+      lastDetail = detail;
+      return until(detail) ? detail : null;
+    },
+  );
 }
 
 function formatTriggerEventsObserved(
@@ -1283,6 +1350,9 @@ export function createWorkflowsHelper(options: {
     waitForRunByDeliveryId: (
       params: Omit<WaitForRunByDeliveryIdOptions, 'apiUrl' | 'fetch' | 'token'>,
     ) => waitForRunByDeliveryId({...options, ...params}),
+    waitForTriggerEventByDeliveryId: (
+      params: Omit<WaitForTriggerEventByDeliveryIdOptions, 'apiUrl' | 'fetch' | 'token'>,
+    ) => waitForTriggerEventByDeliveryId({...options, ...params}),
     observeRun: (params: Omit<ObserveRunOptions, 'apiUrl' | 'fetch' | 'token'>) =>
       observeRun({...options, ...params}),
     waitForRunTerminal: (params: Omit<WaitForRunTerminalOptions, 'apiUrl' | 'fetch' | 'token'>) =>

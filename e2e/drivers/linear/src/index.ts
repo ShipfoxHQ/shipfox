@@ -1,9 +1,18 @@
 export {
+  type LinearAgentActivityRecord,
+  type LinearApiIssueFixture,
+  type LinearApiMock,
+  type LinearApiMockCall,
+  type LinearApiMockOptions,
+  startLinearApiMock,
+} from './linear-api.js';
+export {
   buildAgentSessionEnvelope,
   buildIssueUpdateEnvelope,
   type LinearEventTarget,
   type LinearIssueFixtureData,
   type LinearLabelFixtureData,
+  type LinearSessionUserFixtureData,
   postLinearAgentSession,
   postLinearIssueUpdate,
   signLinearHeaders,
