@@ -1,5 +1,69 @@
 # @shipfox/api-integration-linear
 
+## 34.0.0
+
+### Minor Changes
+
+- eb7aa07: The Linear provider replies to agent sessions with activities. `sendReply` posts a `response` activity, or an `error` activity for a failed turn, and the reply of a stopped turn confirms the stop. A refused activity is `undeliverable`, and a rate limit, timeout, or outage is retried. `reportProgress` posts each tool call as an ephemeral `action` activity and adds links to the session's external URLs, so a link reported earlier stays. `LinearApiClient` gains `addAgentSessionExternalUrls`, and `createAgentActivity` accepts `action`, `response`, and `error` content and an `ephemeral` flag.
+- ed3d37f: The Linear provider reads agent sessions as interactions. `agentSession.created` is a request with the trigger, team, labels, project, and issue identifier as context, `agentSession.prompted` is a follow-up, and a prompt with the `stop` signal is a stop. The webhook path posts a `thought` activity before it publishes the event, so Linear doesn't mark a new session unresponsive. `LinearApiClient` gains `createAgentActivity` and `getIssueContext`.
+- 2a1b6eb: Action steps can download Linear uploads with the `download_file` tool.
+
+  - **Tool:** `download_file` is a native `file` tool that takes `{url}`. The URL must start with `https://uploads.linear.app/`, or the tool fails with `file-location-not-allowed`. Signed URLs are accepted. The tool drops the signature and fetches with the connection's token.
+  - **Fetch:** every hop passes `@shipfox/node-egress-guard`. The tool follows up to 3 redirects, only to `https` locations, and drops the token once the origin changes. A file that announces more than 100 MiB fails with `file-too-large`.
+  - **Configuration:** `LINEAR_UPLOADS_URL` sets the uploads base URL, and `LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS` lets a local test server stand in for it. Both default to the production behavior.
+  - **Types:** `ProviderToolCatalog` in `@shipfox/actions` lists `linear.download_file` with a `file` result.
+
+- c8e0869: Adds a `not-found` integration provider error reason. The tool gateway keeps it as the tool call error code instead of `unknown`, and does not report it as an unexpected failure. Linear tool errors for a missing record, or one the token cannot see, now carry it.
+
+### Patch Changes
+
+- b518893: A late run result reaches a Linear session even when Linear refuses the activity, and Shippy tells people a settled run keeps handling review feedback.
+
+  - **Linear:** when Linear refuses a `response` or `error` activity, the reply becomes a comment on the session's issue, created as the agent's name. It is undeliverable when Linear refuses the comment too, or the session has no issue.
+  - **Shippy:** at settled, the reply links what the run produced and says the run stays open for review feedback.
+
+- 9aeb048: A retried Linear reply no longer posts the answer twice. `sendReply` uses the `replyId` as the activity `id`. When Linear refuses the activity, the provider looks it up and reports `delivered` if an earlier send landed. `LinearApiClient` gains `hasAgentActivity`, and `createAgentActivity` accepts an `id`. The `replyId` of `SendInteractionReplyInput` is now documented as a UUID that providers use for idempotency when their platform allows it.
+- 4d293a1: Retries a Linear GraphQL execution error that Linear does not mark as a refusal, instead of settling the reply as undeliverable. A rate limit error is reported as a rate limit.
+- 9a899ff: A turn in an integration conversation that ends with no text now sends a short "Done." reply, so a Linear session no longer keeps its last tool call as the final activity. Slack gets the same reply.
+- Updated dependencies [2062ec8]
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [e5872d5]
+- Updated dependencies [9e173c3]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [9aeb048]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [1d94e37]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [c06262b]
+- Updated dependencies [52969e5]
+- Updated dependencies [e6981d5]
+- Updated dependencies [041ae63]
+- Updated dependencies [107ecc7]
+- Updated dependencies [27dc317]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-integration-spi@5.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-egress-guard@0.2.0
+  - @shipfox/api-integration-linear-dto@34.0.0
+
 ## 33.0.0
 
 ### Patch Changes

@@ -1,5 +1,56 @@
 # @shipfox/api-integration-slack
 
+## 34.0.0
+
+### Minor Changes
+
+- 43520b6: Slack agents acknowledge, show progress, and reply. A channel mention gets an `eyes` reaction and an agent view message sets the session to `processing` as soon as the event is accepted. A reply posts in the thread under the agent's name as a Markdown block, and an answer over Slack's 12,000-character block limit is split across messages. In the agent view, a working turn shows `processing` and an idle one sets `active`, so the loading status clears. A reply to an archived channel, or after the app was removed, is undeliverable, and a rate limit or Slack outage is retried. `createSlackIntegrationProvider` takes an `interaction` option with a token store, and without it replies are undeliverable.
+- 107ecc7: Prepares Slack for agents. The Slack app now requests `chat:write.customize` and `assistant:write`, and Slack publishes the agent view events `assistant_thread_started`, `app_context_changed`, and `agent_session_stopped` without adding them to the workflow event catalog. A provider can implement `connectionReconnectRequired` to report an active connection that lacks a newer permission. The connections list then returns `reconnect_required`, the connection page asks the user to reconnect, and agents ignore the connection's events until it reconnects. Slack reports this for an installation that lacks a required scope.
+- e701cfc: Adds the `get_permalink` read tool. It returns a permanent link to a Slack message, including a reply in a thread, from its channel ID and timestamp.
+- a2017e0: Reads Slack for agents. Slack now offers the interaction capability: a channel mention and a message in the agent view or a direct message are requests, a reply in a channel thread is a follow-up, and the agent view's stop control is a stop. Each carries the surface, channel, user, and team as context, and agent view messages also carry the viewed channel when Slack supplies it. Messages from apps and Slack Connect users never reach an agent.
+- e3586c3: Adds the `list_scheduled_messages` and `lookup_canvas_sections` read tools. `list_scheduled_messages` lists the messages scheduled for future delivery. `lookup_canvas_sections` finds the sections of a canvas by text or type. The Slack app now requests the `canvases:read` bot scope, so an installation made before this change needs a reinstall before `lookup_canvas_sections` works.
+
+### Patch Changes
+
+- Updated dependencies [46f78a0]
+- Updated dependencies [2062ec8]
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2339c1b]
+- Updated dependencies [7cc3735]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [e5872d5]
+- Updated dependencies [9e173c3]
+- Updated dependencies [f769d90]
+- Updated dependencies [15b4274]
+- Updated dependencies [9aeb048]
+- Updated dependencies [1872f3d]
+- Updated dependencies [0af8bad]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [cdb88a7]
+- Updated dependencies [f8adab0]
+- Updated dependencies [1d94e37]
+- Updated dependencies [3fe51c3]
+- Updated dependencies [c06262b]
+- Updated dependencies [e6981d5]
+- Updated dependencies [041ae63]
+- Updated dependencies [107ecc7]
+- Updated dependencies [27dc317]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/api-integration-spi@5.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-drizzle@0.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-integration-slack-dto@34.0.0
+
 ## 31.0.0
 
 ### Patch Changes
