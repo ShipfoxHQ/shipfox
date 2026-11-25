@@ -39,7 +39,7 @@
     "shipfox-email-compile": "./bin/compile.js"
   },
   "scripts": {
-    "build": "shipfox-swc",
+    "build": "node scripts/bundle.mjs",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
@@ -47,15 +47,13 @@
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
-  "dependencies": {
-    "mjml": "catalog:"
-  },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
-    "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/mjml": "catalog:"
+    "@types/mjml": "catalog:",
+    "esbuild": "catalog:",
+    "mjml": "catalog:"
   }
 }

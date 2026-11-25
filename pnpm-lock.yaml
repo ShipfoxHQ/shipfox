@@ -11700,17 +11700,10 @@ importers:
         version: 24.19.2
 
   tools/email-compiler:
-    dependencies:
-      mjml:
-        specifier: 'catalog:'
-        version: 5.3.0(relateurl@0.2.7)(svgo@4.0.1)(terser@5.48.0)(typescript@7.0.2)
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../biome
-      '@shipfox/swc':
-        specifier: workspace:*
-        version: link:../swc
       '@shipfox/ts-config':
         specifier: workspace:*
         version: link:../ts-config
@@ -11723,6 +11716,12 @@ importers:
       '@types/mjml':
         specifier: 'catalog:'
         version: 5.4.2
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.1
+      mjml:
+        specifier: 'catalog:'
+        version: 5.3.0(relateurl@0.2.7)(svgo@4.0.1)(terser@5.48.0)(typescript@7.0.2)
 
   tools/engineering-guidance:
     devDependencies:
