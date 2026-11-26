@@ -21,6 +21,7 @@ import {
 } from '@remixicon/react';
 import type {ComponentProps} from 'react';
 import {
+  AzureDevOpsLogo,
   BadgeIcon,
   CheckCircleSolidIcon,
   CircleDottedLineIcon,
@@ -75,6 +76,7 @@ const customIconsMap = {
   slack: SlackLogo,
   stripe: StripeLogo,
   gitea: GiteaLogo,
+  azureDevOps: AzureDevOpsLogo,
   jira: JiraLogo,
   jam: JamLogo,
   discord: DiscordLogo,

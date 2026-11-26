@@ -10,6 +10,11 @@ export interface ToolGrant {
 
 /** Grant data by provider slug and tool id. */
 export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGrant>>>> = {
+  'azure-devops': {
+    comment_on_pull_request: {sensitivity: 'write', result: 'json'},
+    create_pull_request: {sensitivity: 'write', result: 'json'},
+    get_pull_request: {sensitivity: 'read', result: 'json'},
+  },
   claap: {
     get_recording: {sensitivity: 'read', result: 'json'},
     get_recording_transcript: {sensitivity: 'read', result: 'json'},

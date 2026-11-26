@@ -1,3 +1,4 @@
+import {azureDevOpsAgentToolCatalog} from '@shipfox/api-integration-azure-devops/agent-tools';
 import {claapAgentToolCatalog} from '@shipfox/api-integration-claap/agent-tools';
 import {clickupAgentToolCatalog} from '@shipfox/api-integration-clickup/agent-tools';
 import {discordAgentToolCatalog} from '@shipfox/api-integration-discord/agent-tools';
@@ -23,6 +24,7 @@ export const providerToolCatalogs: readonly ProviderToolCatalog[] = [
   {provider: 'claap', tools: claapAgentToolCatalog},
   {provider: 'clickup', tools: clickupAgentToolCatalog},
   {provider: 'discord', tools: discordAgentToolCatalog},
+  {provider: 'azure-devops', tools: azureDevOpsAgentToolCatalog},
   {provider: 'gitea', tools: giteaAgentToolCatalog},
   {provider: 'github', tools: githubAgentToolCatalog},
   {provider: 'jam', tools: jamAgentToolCatalog},

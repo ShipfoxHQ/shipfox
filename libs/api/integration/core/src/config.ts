@@ -9,6 +9,10 @@ export const config = createConfig({
     desc: 'Enables the cron integration provider so workflow schedules can use the built-in cron source. It is enabled by default because it does not require provider setup.',
     default: true,
   }),
+  INTEGRATIONS_ENABLE_AZURE_DEVOPS_PROVIDER: bool({
+    desc: 'Enables the Azure DevOps integration provider so users can connect an Azure DevOps Services organization.',
+    default: false,
+  }),
   INTEGRATIONS_ENABLE_GITEA_PROVIDER: bool({
     desc: 'Enables the Gitea integration provider so users can connect a Gitea instance.',
     default: false,

@@ -20,6 +20,7 @@ export function publishedTestEnvironment() {
     DISCORD_OAUTH_CLIENT_SECRET: 'external-consumer-oauth-client-secret',
     DISCORD_OAUTH_REDIRECT_URL: 'https://shipfox.example.com/integrations/discord/callback',
     DISCORD_PUBLIC_KEY: 'external-consumer-public-key',
+    AZURE_DEVOPS_WEBHOOK_BASE_URL: 'https://hooks.shipfox.example.com',
     GITEA_BASE_URL: 'https://gitea.example.com',
     GITEA_SERVICE_TOKEN: 'external-consumer-token',
     GITEA_SERVICE_USERNAME: 'shipfox-bot',

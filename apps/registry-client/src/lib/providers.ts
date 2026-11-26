@@ -2,6 +2,7 @@
 const PROVIDER_LABELS = new Map(
   Object.entries({
     clickup: 'ClickUp',
+    'azure-devops': 'Azure DevOps',
     gitea: 'Gitea',
     github: 'GitHub',
     jam: 'Jam',

@@ -22,6 +22,7 @@ export const webhookRouteIds = [
   'jira',
   'clickup',
   'notion',
+  'azure-devops',
 ] as const;
 
 export const webhookRouteIdSchema = z.enum(webhookRouteIds);
@@ -110,6 +111,13 @@ const clickupWebhookRouteRequestSchema = storedWebhookRequestBaseSchema
   })
   .strict();
 
+const azureDevOpsWebhookRouteRequestSchema = storedWebhookRequestBaseSchema
+  .extend({
+    route_id: z.literal('azure-devops'),
+    path_parameters: connectionPathParametersSchema,
+  })
+  .strict();
+
 const notionWebhookRouteRequestSchema = storedWebhookRequestBaseSchema
   .extend({
     route_id: z.literal('notion'),
@@ -123,6 +131,7 @@ export const storedWebhookRequestSchema = z.discriminatedUnion('route_id', [
   jiraWebhookRouteRequestSchema,
   clickupWebhookRouteRequestSchema,
   notionWebhookRouteRequestSchema,
+  azureDevOpsWebhookRouteRequestSchema,
 ]);
 export type StoredWebhookRequest = z.infer<typeof storedWebhookRequestSchema>;
 
@@ -161,7 +170,7 @@ interface CreateStoredWebhookRequestInputBase {
   body: Uint8Array;
 }
 
-type ConnectionScopedWebhookRouteId = 'webhook.connection' | 'jira' | 'clickup';
+type ConnectionScopedWebhookRouteId = 'webhook.connection' | 'jira' | 'clickup' | 'azure-devops';
 
 export type CreateStoredWebhookRequestInput =
   | (CreateStoredWebhookRequestInputBase & {
@@ -234,7 +243,8 @@ export function createStoredWebhookRequest(
   const pathParameters =
     input.routeId === 'webhook.connection' ||
     input.routeId === 'jira' ||
-    input.routeId === 'clickup'
+    input.routeId === 'clickup' ||
+    input.routeId === 'azure-devops'
       ? {connection_id: input.connectionId}
       : {};
 

@@ -89,6 +89,8 @@
     "@shipfox/api-integration-clickup",
     "@shipfox/api-integration-clickup-dto",
     "@shipfox/api-integration-notion",
+    "@shipfox/api-integration-azure-devops",
+    "@shipfox/api-integration-azure-devops-dto",
     "@shipfox/api-integration-gitea",
     "@shipfox/api-integration-gitea-dto",
     "@shipfox/api-integration-github",

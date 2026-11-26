@@ -3,6 +3,32 @@
 
 /** Tool arguments, result kinds, and structured results, by provider slug and tool name. */
 export interface ProviderToolCatalog {
+  'azure-devops': {
+    /**
+     * Add a comment to an Azure Repos pull request in the connected organization, as a new active thread. Returns the thread and comment ids.
+     */
+    comment_on_pull_request: {
+      arguments: AzureDevopsCommentOnPullRequestArguments;
+      result: 'json';
+      structured: unknown;
+    };
+    /**
+     * Open a pull request in an Azure Repos repository of the connected organization. It is a draft unless is_draft is false. Push the source branch first. Returns the pull request with its web URL.
+     */
+    create_pull_request: {
+      arguments: AzureDevopsCreatePullRequestArguments;
+      result: 'json';
+      structured: unknown;
+    };
+    /**
+     * Read an Azure Repos pull request in the connected organization: title, description, status, draft flag, source and target branch, author, and web URL.
+     */
+    get_pull_request: {
+      arguments: AzureDevopsGetPullRequestArguments;
+      result: 'json';
+      structured: unknown;
+    };
+  };
   claap: {
     /**
      * Get one recording (captured meeting or call) of the Claap workspace by recordingId or share URL, with its full metadata and its AI-generated summary. The summary is the cheap way to know what a meeting was about: prefer it over get_recording_transcript, which returns the entire transcript. Discover the recordingId via get_recordings or search_recording_transcripts.
@@ -1557,6 +1583,71 @@ export interface ProviderToolCatalog {
      */
     update_message: {arguments: SlackUpdateMessageArguments; result: 'json'; structured: unknown};
   };
+}
+
+export interface AzureDevopsCommentOnPullRequestArguments {
+  /**
+   * Project name within the connected Azure DevOps organization, such as Fabrikam
+   */
+  project: string;
+  /**
+   * Repository name within the project, such as platform
+   */
+  repo: string;
+  /**
+   * Pull request id, such as 42
+   */
+  pull_request_id: number;
+  /**
+   * Comment, written as Markdown
+   */
+  content: string;
+}
+
+export interface AzureDevopsCreatePullRequestArguments {
+  /**
+   * Project name within the connected Azure DevOps organization, such as Fabrikam
+   */
+  project: string;
+  /**
+   * Repository name within the project, such as platform
+   */
+  repo: string;
+  /**
+   * Branch with the changes, such as feat/ID-123-short-name
+   */
+  source_branch: string;
+  /**
+   * Branch to merge into, such as main
+   */
+  target_branch: string;
+  /**
+   * Pull request title
+   */
+  title: string;
+  /**
+   * Pull request description, written as Markdown
+   */
+  description?: string;
+  /**
+   * Open as a draft. Defaults to true.
+   */
+  is_draft?: boolean;
+}
+
+export interface AzureDevopsGetPullRequestArguments {
+  /**
+   * Project name within the connected Azure DevOps organization, such as Fabrikam
+   */
+  project: string;
+  /**
+   * Repository name within the project, such as platform
+   */
+  repo: string;
+  /**
+   * Pull request id, such as 42
+   */
+  pull_request_id: number;
 }
 
 export type ClaapGetRecordingArguments = {

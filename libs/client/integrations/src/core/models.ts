@@ -299,3 +299,10 @@ export function hasCapability(
 export function isUsableConnection(connection: IntegrationConnection) {
   return connection.lifecycleStatus === 'active';
 }
+
+/** The Service Hook credentials an Azure DevOps connection shows once, right after connecting. */
+export interface AzureDevOpsServiceHookSetup {
+  url: string;
+  username: string;
+  password: string;
+}

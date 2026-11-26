@@ -15,6 +15,7 @@ export const PROVIDER_ICONS = {
   claap: 'claap',
   discord: 'discord',
   gitea: 'gitea',
+  'azure-devops': 'azureDevOps',
   webhook: 'webhookLine',
   shipfox: 'shipfox',
 } as const satisfies Record<string, IconName>;

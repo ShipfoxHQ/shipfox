@@ -6,6 +6,7 @@ import type {IconName} from '@shipfox/react-ui/icon';
 export type ProviderSetupPath =
   | '/w/$workspaceSlug/integrations/github'
   | '/w/$workspaceSlug/integrations/gitea'
+  | '/w/$workspaceSlug/integrations/azure-devops'
   | '/w/$workspaceSlug/integrations/sentry'
   | '/w/$workspaceSlug/integrations/linear'
   | '/w/$workspaceSlug/integrations/slack'
@@ -85,6 +86,12 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     displayName: 'Gitea',
     iconName: PROVIDER_ICONS.gitea,
     setupPath: '/w/$workspaceSlug/integrations/gitea',
+  },
+  'azure-devops': {
+    kind: 'direct-connect',
+    displayName: 'Azure DevOps',
+    iconName: PROVIDER_ICONS['azure-devops'],
+    setupPath: '/w/$workspaceSlug/integrations/azure-devops',
   },
   webhook: {
     kind: 'modal-connect',

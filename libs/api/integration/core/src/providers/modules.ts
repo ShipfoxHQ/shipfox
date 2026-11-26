@@ -1,3 +1,4 @@
+import {azureDevOpsProviderModule} from '#providers/azure-devops.js';
 import {claapProviderModule} from '#providers/claap.js';
 import {clickupProviderModule} from '#providers/clickup.js';
 import {cronProviderModule} from '#providers/cron.js';
@@ -35,6 +36,7 @@ const providerModules = [
   notionProviderModule,
   sentryProviderModule,
   giteaProviderModule,
+  azureDevOpsProviderModule,
   managedVcsProviderModule,
   testVcsProviderModule,
   shipfoxProviderModule,

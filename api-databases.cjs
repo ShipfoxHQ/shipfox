@@ -79,6 +79,14 @@ const databaseMigrationUnits = freezeEntries([
     migrationsPath: 'libs/api/integration/core/drizzle',
   },
   {
+    id: 'integrations-azure-devops',
+    ownerId: 'integrations',
+    namespace: 'integrations_azure_devops',
+    packagePath: 'libs/api/integration/azure-devops',
+    drizzleConfigPath: 'libs/api/integration/azure-devops/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/azure-devops/drizzle',
+  },
+  {
     id: 'integrations-gitea',
     ownerId: 'integrations',
     namespace: 'integrations_gitea',

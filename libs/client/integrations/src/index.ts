@@ -16,6 +16,7 @@ export * from './jira-callback.js';
 export * from './jira-form-errors.js';
 export * from './notion-callback.js';
 export * from './notion-form-errors.js';
+export * from './pages/azure-devops-install-page.js';
 export * from './pages/clickup-callback-page.js';
 export * from './pages/clickup-install-page.js';
 export * from './pages/discord-callback-page.js';

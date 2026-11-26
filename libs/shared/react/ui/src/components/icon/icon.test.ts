@@ -2,6 +2,7 @@ import type {RemixiconComponentType} from '@remixicon/react';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {
+  AzureDevOpsLogo,
   BadgeIcon,
   CheckCircleSolidIcon,
   CircleDottedLineIcon,
@@ -37,6 +38,7 @@ const customIcons = [
   {name: 'componentLine', Component: ComponentLineIcon},
   {name: 'discord', Component: DiscordLogo},
   {name: 'ellipseMiniSolid', Component: EllipseMiniSolidIcon},
+  {name: 'azureDevOps', Component: AzureDevOpsLogo},
   {name: 'gitea', Component: GiteaLogo},
   {name: 'infoTooltipFill', Component: InfoTooltipFillIcon},
   {name: 'jam', Component: JamLogo},
