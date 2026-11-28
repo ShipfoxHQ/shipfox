@@ -283,8 +283,8 @@ catalogs:
       specifier: ^1.33.5
       version: 1.33.5
     '@tanstack/react-query':
-      specifier: ^5.101.0
-      version: 5.101.0
+      specifier: ^5.108.2
+      version: 5.108.4
     '@tanstack/react-router':
       specifier: ^1.170.16
       version: 1.170.16
@@ -716,7 +716,7 @@ importers:
         version: 0.5.23
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -7387,7 +7387,7 @@ importers:
         version: 1.33.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: ^1.170.16
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -7591,7 +7591,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -7684,7 +7684,7 @@ importers:
         version: 0.5.23
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
       '@argos-ci/cli':
         specifier: 'catalog:'
@@ -8015,7 +8015,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -8093,7 +8093,7 @@ importers:
         version: 0.5.23
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -8203,7 +8203,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@testing-library/dom':
         specifier: 'catalog:'
         version: 10.4.2
@@ -8324,7 +8324,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -8454,7 +8454,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -8575,7 +8575,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@testing-library/jest-dom':
         specifier: 'catalog:'
         version: 6.9.1
@@ -8690,7 +8690,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -8832,7 +8832,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -9002,7 +9002,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -9178,7 +9178,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@testing-library/jest-dom':
         specifier: 'catalog:'
         version: 6.9.1
@@ -9323,7 +9323,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -9450,7 +9450,7 @@ importers:
         version: 4.3.1(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.0(react@19.2.7)
+        version: 5.108.4(@types/react@19.2.17)(react@19.2.7)
       '@tanstack/react-router':
         specifier: 'catalog:'
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -16729,8 +16729,8 @@ packages:
     resolution: {integrity: sha512-y/xtNPNt/YeyoVxE/JCx+T7yjEzpezmbb+toK8DDD1P4m7Kzs5YR956+7OKexG3f8aXgC3rLZl7b1V+yNUSy5w==}
     engines: {node: '>=18'}
 
-  '@tanstack/query-core@5.101.0':
-    resolution: {integrity: sha512-cQetA74EB+seWySv1TTKr828TnP0u39m6LykwDXIo84SNortpDkp30TMEjkqtYCNP9c40uT/iwl6MLiufEt0Ow==}
+  '@tanstack/query-core@5.108.4':
+    resolution: {integrity: sha512-2Ks5dlLWz4eXJrthOyG0qW3SLt3xx0RrQmAmN0rnmogiaaOYuWiAe6HAm9KE2b2v8nig+vraNz8fsfZ6fF6zFg==}
 
   '@tanstack/react-form@1.33.5':
     resolution: {integrity: sha512-LlRB28qJwO/QCGaHvWnbdh4haBgTFiZVmzA2uzxSBS3YA7/IqrQ6HOBK70CkFQ+DbflZ7NawsmSln13h5iIdTA==}
@@ -16741,10 +16741,14 @@ packages:
       '@tanstack/react-start':
         optional: true
 
-  '@tanstack/react-query@5.101.0':
-    resolution: {integrity: sha512-rLlJXSpkqfizLWgkR5+eLeIk0MvTx/meEIR7LRjxic+qxiQP8zVjq7BqQkiCMNLQBlLfuOLqqr6KO5GtrDlmSg==}
+  '@tanstack/react-query@5.108.4':
+    resolution: {integrity: sha512-GlTa94kfEKTVsbzXe58rFA3GZ0ZE7N1aFtbZAfOS3XxMv8YNn4C+8rsz40LorHLazdm5PsqCroWaYAR+ZkMXMQ==}
     peerDependencies:
+      '@types/react': ^18 || ^19
       react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@tanstack/react-router@1.170.16':
     resolution: {integrity: sha512-w6eq1IJklujs1tESazaK/FxH0+H2l8vm/QPuu1cD3oRW/ubgKneQpd7b64ti/8gUyEimzimJQZDmJr6YHfP5+g==}
@@ -22306,9 +22310,11 @@ packages:
 
   yuku-analyzer@0.9.5:
     resolution: {integrity: sha512-wUPmylpfXlJAIOQ6F73kPbWii7LEeyPWx++NWlJ+6NihQbO/D1YeQQjMY4Lwqg2o1RKDCHQqBfgc4ZLs0eYs5A==}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   yuku-ast@0.9.5:
     resolution: {integrity: sha512-Q8qW8WwQnN5Cm0ZZivdRIfv0sRLTjUq0YumXJkw8CYN1aCdICH9rk4C47/4n6kA5EqDtlj+F608twoTSV2MwdQ==}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   zbsearch@4.0.1:
     resolution: {integrity: sha512-lmnEEnb93QQcNv7qARDr7jBVPxYdZbZ9XdZ0dbZ0qaOvGne4jJMW4fjwPfVaUKQXv3FNWvGbDwRDgyaSb1pc8w==}
@@ -27243,7 +27249,7 @@ snapshots:
 
   '@tanstack/pacer-lite@0.1.1': {}
 
-  '@tanstack/query-core@5.101.0': {}
+  '@tanstack/query-core@5.108.4': {}
 
   '@tanstack/react-form@1.33.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
@@ -27253,10 +27259,12 @@ snapshots:
     transitivePeerDependencies:
       - react-dom
 
-  '@tanstack/react-query@5.101.0(react@19.2.7)':
+  '@tanstack/react-query@5.108.4(@types/react@19.2.17)(react@19.2.7)':
     dependencies:
-      '@tanstack/query-core': 5.101.0
+      '@tanstack/query-core': 5.108.4
       react: 19.2.7
+    optionalDependencies:
+      '@types/react': 19.2.17
 
   '@tanstack/react-router@1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
